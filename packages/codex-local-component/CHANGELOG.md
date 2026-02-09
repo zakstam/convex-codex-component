@@ -1,5 +1,13 @@
 # @convex-dev/codex-local-component
 
+## 0.1.2
+
+### Patch Changes
+
+- 0966382: Migrate package scope from `@convex-dev/codex-local-component` to `@zakstam/codex-local-component` and update all consumer imports, docs, and release smoke checks.
+
+  Add explicit npm publish configuration for public scoped publishing.
+
 ## 0.1.1
 
 ### Patch Changes

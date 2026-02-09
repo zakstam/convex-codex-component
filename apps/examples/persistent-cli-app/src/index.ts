@@ -359,6 +359,24 @@ const chatApi = (() => {
   }
   return moduleApi;
 })();
+
+function requireDefined<T>(value: T | undefined, name: string): T {
+  if (value === undefined) {
+    throw new Error(`Required API ref missing: ${name}`);
+  }
+  return value;
+}
+
+const chatFns = {
+  ensureThread: requireDefined(chatApi.ensureThread, "chat.ensureThread"),
+  registerTurnStart: requireDefined(chatApi.registerTurnStart, "chat.registerTurnStart"),
+  ensureSession: requireDefined(chatApi.ensureSession, "chat.ensureSession"),
+  ingestBatch: requireDefined(chatApi.ingestBatch, "chat.ingestBatch"),
+  persistenceStats: requireDefined(chatApi.persistenceStats, "chat.persistenceStats"),
+  durableHistoryStats: requireDefined(chatApi.durableHistoryStats, "chat.durableHistoryStats"),
+  threadSnapshot: requireDefined(chatApi.threadSnapshot, "chat.threadSnapshot"),
+} as const;
+
 const sessionId = randomUUID();
 const runId = randomUUID();
 
@@ -492,7 +510,7 @@ async function flushQueue(): Promise<void> {
       if (!first) {
         return;
       }
-      await convex.mutation(chatApi.ingestBatch!, {
+      await convex.mutation(chatFns.ingestBatch, {
         actor,
         sessionId,
         threadId: first.threadId,
@@ -648,11 +666,11 @@ async function logPersistenceStats(): Promise<void> {
   if (!threadId) {
     return;
   }
-  const stats = await convex.query(chatApi.persistenceStats!, {
+  const stats = await convex.query(chatFns.persistenceStats, {
     actor,
     threadId,
   });
-  const history = await convex.query(chatApi.durableHistoryStats!, {
+  const history = await convex.query(chatFns.durableHistoryStats, {
     actor,
     threadId,
   });
@@ -695,7 +713,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
   if (threadId === null) {
     threadId = event.threadId;
     updateStatus();
-    await convex.mutation(chatApi.ensureThread!, {
+    await convex.mutation(chatFns.ensureThread, {
       actor,
       threadId,
       model: model ?? undefined,
@@ -729,7 +747,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
       sendMessage(bridge, interruptReq, "turn/interrupt");
     }
     if (pendingTurn && threadId) {
-      await convex.mutation(chatApi.registerTurnStart!, {
+      await convex.mutation(chatFns.registerTurnStart, {
         actor,
         threadId,
         turnId: event.turnId,
@@ -903,7 +921,7 @@ async function startFlow(): Promise<void> {
 
   await waitForThreadStart();
   if (threadId) {
-    await convex.mutation(chatApi.ensureSession!, {
+    await convex.mutation(chatFns.ensureSession, {
       actor,
       sessionId,
       threadId,
@@ -931,15 +949,15 @@ async function handleCommand(line: string): Promise<void> {
       tui.appendLine("state> no thread yet");
       return;
     }
-    const state = await convex.query(chatApi.threadSnapshot!, {
+    const state = await convex.query(chatFns.threadSnapshot, {
       actor,
       threadId,
     });
-    const stats = await convex.query(chatApi.persistenceStats!, {
+    const stats = await convex.query(chatFns.persistenceStats, {
       actor,
       threadId,
     });
-    const history = await convex.query(chatApi.durableHistoryStats!, {
+    const history = await convex.query(chatFns.durableHistoryStats, {
       actor,
       threadId,
     });

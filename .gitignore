@@ -34,7 +34,6 @@ pnpm-debug.log*
 # Monorepo generated sources
 apps/*/convex/_generated/
 apps/examples/*/convex/_generated/
-packages/*/src/component/_generated/
 
 # IDE/editor
 .idea/

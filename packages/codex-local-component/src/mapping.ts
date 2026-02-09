@@ -185,7 +185,7 @@ function choosePreferredStatus(
   durableStatus: CodexUIMessage["status"],
   overlayStatus: CodexUIMessage["status"],
 ): CodexUIMessage["status"] {
-  if (STATUS_PRIORITY[overlayStatus] > STATUS_PRIORITY[durableStatus]) {
+  if ((STATUS_PRIORITY[overlayStatus] ?? 0) > (STATUS_PRIORITY[durableStatus] ?? 0)) {
     return overlayStatus;
   }
   return durableStatus;

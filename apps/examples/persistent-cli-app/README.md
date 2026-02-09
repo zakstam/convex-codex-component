@@ -36,7 +36,7 @@ The CLI resolves Convex URL in this order:
 - fallback from `CONVEX_DEPLOYMENT` to `https://<deployment>.convex.cloud`
 
 Important: use `pnpm run dev:convex` (not raw `npx convex dev`) in this local monorepo setup.
-The script prepares local component dependencies first and mounts the package using `@convex-dev/codex-local-component/convex.config`.
+The script prepares local component dependencies first and mounts the package using `@zakstam/codex-local-component/convex.config`.
 
 ## TUI behavior
 
@@ -76,8 +76,8 @@ The script prepares local component dependencies first and mounts the package us
 
 For app-level integrations, prefer package helpers over raw component refs:
 
-- `@convex-dev/codex-local-component/client` for server/client helper wrappers
-- `@convex-dev/codex-local-component/react` for `useCodexMessages`, `useCodexThreadState`, and optimistic send utilities
+- `@zakstam/codex-local-component/client` for server/client helper wrappers
+- `@zakstam/codex-local-component/react` for `useCodexMessages`, `useCodexThreadState`, and optimistic send utilities
 
 ## Hook-ready endpoints in this example
 
@@ -92,7 +92,7 @@ For app-level integrations, prefer package helpers over raw component refs:
 Example usage:
 
 ```tsx
-import { useCodexApprovals, useCodexComposer, useCodexMessages } from "@convex-dev/codex-local-component/react";
+import { useCodexApprovals, useCodexComposer, useCodexMessages } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 
 const actor = { tenantId: "demo", userId: "demo", deviceId: "web-1" };

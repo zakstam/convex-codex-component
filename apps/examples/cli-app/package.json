@@ -3,12 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm --filter @convex-dev/codex-local-component run build",
+    "prepare:component": "pnpm --filter @zakstam/codex-local-component run build",
     "start": "pnpm run prepare:component && tsx src/index.ts",
     "typecheck": "pnpm run prepare:component && tsc --noEmit"
   },
   "dependencies": {
-    "@convex-dev/codex-local-component": "workspace:*"
+    "@zakstam/codex-local-component": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.13.1",

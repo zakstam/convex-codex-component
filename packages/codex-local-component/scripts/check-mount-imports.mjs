@@ -10,12 +10,12 @@ const requiredConvexImports = [
 
 for (const file of requiredConvexImports) {
   const source = readFileSync(file, "utf8");
-  if (!source.includes('@convex-dev/codex-local-component/convex.config')) {
+  if (!source.includes('@zakstam/codex-local-component/convex.config')) {
     throw new Error(
-      `Expected ${file} to import @convex-dev/codex-local-component/convex.config`,
+      `Expected ${file} to import @zakstam/codex-local-component/convex.config`,
     );
   }
-  if (source.includes('@convex-dev/codex-local-component";')) {
+  if (source.includes('@zakstam/codex-local-component";')) {
     throw new Error(
       `Unexpected root package mount import in ${file}. Use /convex.config.`,
     );

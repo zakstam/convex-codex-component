@@ -1,6 +1,6 @@
 # Release Smoke Host App
 
-This app validates `@convex-dev/codex-local-component` as a real consumer.
+This app validates `@zakstam/codex-local-component` as a real consumer.
 
 It does three important things:
 
@@ -34,7 +34,7 @@ pnpm start
 
 - Consumer-style package install from tarball (not `src/...` deep import).
 - Host app mounting via:
-  - `import codexLocal from "@convex-dev/codex-local-component/convex.config"`
+  - `import codexLocal from "@zakstam/codex-local-component/convex.config"`
 - End-to-end thread/turn/event persistence through host wrappers.
 - Interrupt path and reconnect replay behavior in a real host context.
 

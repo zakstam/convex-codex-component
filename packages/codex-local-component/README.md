@@ -50,14 +50,14 @@ Thread-scoped messages without a `threadId` are treated as hard protocol errors.
 
 ## Consumer SDK exports
 
-- `@convex-dev/codex-local-component/client`: framework-agnostic typed helpers for messages, approvals, turns, sync, and thread state.
-- `@convex-dev/codex-local-component/react`: React hooks for messages (`durable + stream` or stream-only), turn-focused reads, separate approvals handling, interrupt/resume/composer flows, thread state reads, and optimistic sends.
+- `@zakstam/codex-local-component/client`: framework-agnostic typed helpers for messages, approvals, turns, sync, and thread state.
+- `@zakstam/codex-local-component/react`: React hooks for messages (`durable + stream` or stream-only), turn-focused reads, separate approvals handling, interrupt/resume/composer flows, thread state reads, and optimistic sends.
 
 ## Convex install pattern
 
 ```ts
 import { defineApp } from "convex/server";
-import codexLocal from "@convex-dev/codex-local-component/convex.config";
+import codexLocal from "@zakstam/codex-local-component/convex.config";
 
 const app = defineApp();
 app.use(codexLocal);
@@ -72,4 +72,4 @@ Releases are automated with Changesets from the monorepo root:
 1. Add a changeset in PRs that affect this package (`pnpm changeset`).
 2. After merge to `main`, CI opens/updates a version PR.
 3. The version PR auto-merges when checks pass.
-4. Merge to `main` publishes `@convex-dev/codex-local-component` to npm (`latest`).
+4. Merge to `main` publishes `@zakstam/codex-local-component` to npm (`latest`).

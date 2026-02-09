@@ -4,7 +4,7 @@ import { execSync } from "node:child_process";
 
 const root = process.cwd();
 const componentDir = join(root, "..", "..", "packages", "codex-local-component");
-const patternPrefix = "convex-dev-codex-local-component-";
+const patternPrefix = "zakstam-codex-local-component-";
 
 for (const name of readdirSync(componentDir)) {
   if (name.startsWith(patternPrefix) && name.endsWith(".tgz")) {

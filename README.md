@@ -5,7 +5,7 @@ Local-first Convex component for Codex integrations where Codex runs on the user
 ## Install
 
 ```bash
-pnpm add @convex-dev/codex-local-component convex
+pnpm add @zakstam/codex-local-component convex
 ```
 
 ## 1) Mount the component in Convex
@@ -14,7 +14,7 @@ pnpm add @convex-dev/codex-local-component convex
 
 ```ts
 import { defineApp } from "convex/server";
-import codexLocal from "@convex-dev/codex-local-component/convex.config";
+import codexLocal from "@zakstam/codex-local-component/convex.config";
 
 const app = defineApp();
 app.use(codexLocal);
@@ -42,7 +42,7 @@ import {
   startTurn,
   syncStreams,
   resumeStream,
-} from "@convex-dev/codex-local-component/client";
+} from "@zakstam/codex-local-component/client";
 
 const vActor = v.object({
   tenantId: v.string(),
@@ -136,7 +136,7 @@ export const streamResume = query({
 ```ts
 import { randomUUID } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
-import { CodexLocalBridge } from "@convex-dev/codex-local-component/bridge";
+import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
 import { api } from "../convex/_generated/api.js";
 
 const convex = new ConvexHttpClient(process.env.CONVEX_URL!);
@@ -184,7 +184,7 @@ import {
   useCodexInterruptTurn,
   useCodexMessages,
   useCodexThreadState,
-} from "@convex-dev/codex-local-component/react";
+} from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 
 const actor = { tenantId: "demo", userId: "demo", deviceId: "web-1" };

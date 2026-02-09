@@ -1,5 +1,5 @@
 {
-  "name": "@convex-dev/codex-local-component",
+  "name": "@zakstam/codex-local-component",
   "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -38,6 +38,10 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "clean": "rm -rf dist",
     "build": "tsc -p tsconfig.build.json",

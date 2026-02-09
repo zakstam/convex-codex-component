@@ -1,12 +1,12 @@
 # Release Smoke Host Convex Functions
 
 This folder defines host wrappers used by the release smoke app to validate
-`@convex-dev/codex-local-component` in a real consumer setup.
+`@zakstam/codex-local-component` in a real consumer setup.
 
 ## Files
 
 - `convex.config.ts`: mounts `codexLocal` via
-  `@convex-dev/codex-local-component/convex.config`.
+  `@zakstam/codex-local-component/convex.config`.
 - `chat.ts`: host queries/mutations used by the smoke runner (`src/index.ts`) to:
   - create threads and turns
   - ingest stream deltas (`sync.pushEvents`)

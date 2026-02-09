@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
-import { CodexLocalBridge } from "@convex-dev/codex-local-component/bridge";
+import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
 import type {
   ClientNotification,
   ClientRequest,
@@ -11,7 +11,7 @@ import type {
   NormalizedEvent,
   ServerInboundMessage,
   ServerNotification,
-} from "@convex-dev/codex-local-component/protocol";
+} from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
 
 type EnvMap = Record<string, string>;

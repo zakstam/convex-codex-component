@@ -11,7 +11,7 @@ import {
   respondToApproval,
   startTurn,
   syncStreams,
-} from "@convex-dev/codex-local-component/client";
+} from "@zakstam/codex-local-component/client";
 
 const vActorContext = v.object({
   tenantId: v.string(),

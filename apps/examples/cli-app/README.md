@@ -18,7 +18,7 @@ cd apps/examples/cli-app
 pnpm start
 ```
 
-The start script builds `@convex-dev/codex-local-component` first so imports resolve from the local workspace package.
+The start script builds `@zakstam/codex-local-component` first so imports resolve from the local workspace package.
 
 3. In the chat:
 - Type any message and press Enter.

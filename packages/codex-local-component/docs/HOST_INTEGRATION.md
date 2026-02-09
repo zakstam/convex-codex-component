@@ -4,7 +4,7 @@
 
 ```ts
 import { defineApp } from "convex/server";
-import codexLocal from "@convex-dev/codex-local-component/convex.config";
+import codexLocal from "@zakstam/codex-local-component/convex.config";
 
 const app = defineApp();
 app.use(codexLocal);

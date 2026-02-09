@@ -23,7 +23,7 @@ importers:
 
   apps/examples/cli-app:
     dependencies:
-      '@convex-dev/codex-local-component':
+      '@zakstam/codex-local-component':
         specifier: workspace:*
         version: link:../../../packages/codex-local-component
     devDependencies:
@@ -39,7 +39,7 @@ importers:
 
   apps/examples/persistent-cli-app:
     dependencies:
-      '@convex-dev/codex-local-component':
+      '@zakstam/codex-local-component':
         specifier: workspace:*
         version: link:../../../packages/codex-local-component
       convex:

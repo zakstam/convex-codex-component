@@ -2,12 +2,12 @@
 
 This package now ships a consumer SDK layer:
 
-- `@convex-dev/codex-local-component/client`
-- `@convex-dev/codex-local-component/react`
+- `@zakstam/codex-local-component/client`
+- `@zakstam/codex-local-component/react`
 
 ## Client helpers
 
-Import from `@convex-dev/codex-local-component/client`:
+Import from `@zakstam/codex-local-component/client`:
 
 - `listMessages`
 - `listTurnMessages`
@@ -23,7 +23,7 @@ These are thin wrappers around component function references and keep generated 
 
 ## React hooks
 
-Import from `@convex-dev/codex-local-component/react`:
+Import from `@zakstam/codex-local-component/react`:
 
 - `useCodexMessages`
 - `useCodexStreamingMessages`

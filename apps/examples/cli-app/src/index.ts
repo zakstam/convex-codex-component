@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { CodexLocalBridge } from "@convex-dev/codex-local-component/bridge";
-import type { CodexResponse, ServerInboundMessage } from "@convex-dev/codex-local-component/protocol";
+import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
+import type { CodexResponse, ServerInboundMessage } from "@zakstam/codex-local-component/protocol";
 import type {
   ClientNotification,
   ClientRequest,
   ServerNotification,
-} from "@convex-dev/codex-local-component/protocol";
+} from "@zakstam/codex-local-component/protocol";
 
 const model = process.env.CODEX_MODEL ?? null;
 const cwd = process.env.CODEX_CWD ?? process.cwd();

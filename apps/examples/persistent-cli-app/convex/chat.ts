@@ -1,0 +1,339 @@
+import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { mutation, query } from "./_generated/server";
+import { components } from "./_generated/api";
+import {
+  getThreadState,
+  interruptTurn,
+  listMessages,
+  listPendingApprovals,
+  listTurnMessages,
+  respondToApproval,
+  startTurn,
+  syncStreams,
+} from "@convex-dev/codex-local-component/client";
+
+const vActorContext = v.object({
+  tenantId: v.string(),
+  userId: v.string(),
+  deviceId: v.string(),
+});
+
+const vInboundEvent = v.object({
+  eventId: v.string(),
+  turnId: v.string(),
+  streamId: v.string(),
+  kind: v.string(),
+  payloadJson: v.string(),
+  cursorStart: v.number(),
+  cursorEnd: v.number(),
+  createdAt: v.number(),
+});
+
+const vSyncRuntimeOptions = v.object({
+  saveStreamDeltas: v.optional(v.boolean()),
+  maxDeltasPerStreamRead: v.optional(v.number()),
+  maxDeltasPerRequestRead: v.optional(v.number()),
+  finishedStreamDeleteDelayMs: v.optional(v.number()),
+});
+
+const vStreamArgs = v.optional(
+  v.union(
+    v.object({
+      kind: v.literal("list"),
+      startOrder: v.optional(v.number()),
+    }),
+    v.object({
+      kind: v.literal("deltas"),
+      cursors: v.array(
+        v.object({
+          streamId: v.string(),
+          cursor: v.number(),
+        }),
+      ),
+    }),
+  ),
+);
+
+export const ensureThread = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.threads.create, {
+      actor: args.actor,
+      threadId: args.threadId,
+      localThreadId: args.threadId,
+      model: args.model,
+      cwd: args.cwd,
+    });
+  },
+});
+
+export const registerTurnStart = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    inputText: v.string(),
+    idempotencyKey: v.string(),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await startTurn(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+      turnId: args.turnId,
+      idempotencyKey: args.idempotencyKey,
+      input: [
+        {
+          type: "text",
+          text: args.inputText,
+        },
+      ],
+      options: {
+        model: args.model,
+        cwd: args.cwd,
+      },
+    });
+  },
+});
+
+export const ensureSession = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.sync.heartbeat, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      lastEventCursor: 0,
+    });
+  },
+});
+
+export const ingestEvent = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+    event: vInboundEvent,
+  },
+  returns: v.object({ ackCursor: v.number() }),
+  handler: async (ctx, args) => {
+    const pushed = await ctx.runMutation(components.codexLocal.sync.pushEvents, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      deltas: [args.event],
+    });
+
+    return pushed;
+  },
+});
+
+export const ingestBatch = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+    deltas: v.array(vInboundEvent),
+    runtime: v.optional(vSyncRuntimeOptions),
+  },
+  returns: v.object({ ackCursor: v.number() }),
+  handler: async (ctx, args) => {
+    if (args.deltas.length === 0) {
+      throw new Error("ingestBatch requires at least one delta");
+    }
+    return await ctx.runMutation(components.codexLocal.sync.pushEvents, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      deltas: args.deltas,
+      runtime: args.runtime,
+    });
+  },
+});
+
+export const threadSnapshot = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await getThreadState(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+    });
+  },
+});
+
+export const persistenceStats = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+  },
+  returns: v.object({
+    streamCount: v.number(),
+    deltaCount: v.number(),
+    latestCursorByStream: v.array(v.object({ streamId: v.string(), cursor: v.number() })),
+  }),
+  handler: async (ctx, args) => {
+    const state = await getThreadState(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+    });
+
+    return {
+      streamCount: state.streamStats.length,
+      deltaCount: state.streamStats.reduce((sum, stream) => sum + stream.deltaCount, 0),
+      latestCursorByStream: state.streamStats.map((stream) => ({
+        streamId: stream.streamId,
+        cursor: stream.latestCursor,
+      })),
+    };
+  },
+});
+
+export const durableHistoryStats = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+  },
+  returns: v.object({
+    messageCountInPage: v.number(),
+    latest: v.array(
+      v.object({
+        messageId: v.string(),
+        turnId: v.string(),
+        role: v.string(),
+        status: v.string(),
+        text: v.string(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const state = await getThreadState(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+    });
+    const page = state.recentMessages;
+
+    return {
+      messageCountInPage: page.length,
+      latest: page.slice(0, 5).map((m) => ({
+        messageId: m.messageId,
+        turnId: m.turnId,
+        role: m.role,
+        status: m.status,
+        text: m.text,
+      })),
+    };
+  },
+});
+
+export const listThreadMessagesForHooks = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: vStreamArgs,
+    runtime: v.optional(vSyncRuntimeOptions),
+  },
+  handler: async (ctx, args) => {
+    const paginated = await listMessages(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+      paginationOpts: args.paginationOpts,
+    });
+
+    const streams = args.streamArgs
+      ? await syncStreams(ctx, components.codexLocal, {
+          actor: args.actor,
+          threadId: args.threadId,
+          streamCursorsById:
+            args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],
+          runtime: args.runtime,
+        })
+      : undefined;
+
+    if (args.streamArgs && args.streamArgs.kind === "deltas") {
+      return {
+        ...paginated,
+        streams: streams
+          ? {
+              kind: "deltas" as const,
+              deltas: streams.deltas,
+            }
+          : undefined,
+      };
+    }
+
+    return {
+      ...paginated,
+      streams: streams
+        ? {
+            kind: "list" as const,
+            streams: streams.streams,
+          }
+        : undefined,
+    };
+  },
+});
+
+export const listTurnMessagesForHooks = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await listTurnMessages(ctx, components.codexLocal, args);
+  },
+});
+
+export const listPendingApprovalsForHooks = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    return await listPendingApprovals(ctx, components.codexLocal, args);
+  },
+});
+
+export const respondApprovalForHooks = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    decision: v.union(v.literal("accepted"), v.literal("declined")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await respondToApproval(ctx, components.codexLocal, args);
+  },
+});
+
+export const interruptTurnForHooks = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    reason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await interruptTurn(ctx, components.codexLocal, args);
+  },
+});

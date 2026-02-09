@@ -1,0 +1,199 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export const vStreamState = v.union(
+  v.object({
+    kind: v.literal("streaming"),
+    lastHeartbeatAt: v.number(),
+    timeoutFnId: v.optional(v.id("_scheduled_functions")),
+  }),
+  v.object({
+    kind: v.literal("finished"),
+    endedAt: v.number(),
+  }),
+  v.object({
+    kind: v.literal("aborted"),
+    reason: v.string(),
+    endedAt: v.number(),
+  }),
+);
+
+export default defineSchema({
+  codex_threads: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    localThreadId: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("archived"), v.literal("failed")),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+    personality: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("tenantId_updatedAt", ["tenantId", "updatedAt"])
+    .index("tenantId_threadId", ["tenantId", "threadId"]),
+
+  codex_turns: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("inProgress"),
+      v.literal("completed"),
+      v.literal("interrupted"),
+      v.literal("failed"),
+    ),
+    idempotencyKey: v.string(),
+    inputSummary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("tenantId_threadId_startedAt", ["tenantId", "threadId", "startedAt"])
+    .index("tenantId_idempotencyKey", ["tenantId", "idempotencyKey"])
+    .index("tenantId_threadId_turnId", ["tenantId", "threadId", "turnId"]),
+
+  codex_items: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    itemType: v.string(),
+    status: v.union(v.literal("inProgress"), v.literal("completed"), v.literal("failed"), v.literal("declined")),
+    payloadJson: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("tenantId_threadId_turnId_itemId", ["tenantId", "threadId", "turnId", "itemId"])
+    .index("tenantId_threadId_createdAt", ["tenantId", "threadId", "createdAt"]),
+
+  codex_event_summaries: defineTable({
+    tenantId: v.string(),
+    threadId: v.string(),
+    turnId: v.optional(v.string()),
+    eventId: v.string(),
+    kind: v.string(),
+    summary: v.string(),
+    createdAt: v.number(),
+  }).index("tenantId_threadId_createdAt", ["tenantId", "threadId", "createdAt"]),
+
+  codex_messages: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    messageId: v.string(),
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("tool")),
+    status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
+    text: v.string(),
+    sourceItemType: v.string(),
+    orderInTurn: v.number(),
+    payloadJson: v.string(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("tenantId_threadId_createdAt", ["tenantId", "threadId", "createdAt"])
+    .index("tenantId_threadId_turnId_createdAt", ["tenantId", "threadId", "turnId", "createdAt"])
+    .index("tenantId_threadId_turnId_messageId", ["tenantId", "threadId", "turnId", "messageId"])
+    .index("tenantId_threadId_turnId_orderInTurn", ["tenantId", "threadId", "turnId", "orderInTurn"])
+    .index("tenantId_threadId_turnId_status", ["tenantId", "threadId", "turnId", "status"]),
+
+  codex_sessions: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    deviceId: v.string(),
+    threadId: v.string(),
+    sessionId: v.string(),
+    status: v.union(
+      v.literal("starting"),
+      v.literal("active"),
+      v.literal("stale"),
+      v.literal("ended"),
+      v.literal("failed"),
+    ),
+    lastHeartbeatAt: v.number(),
+    lastEventCursor: v.number(),
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  })
+    .index("tenantId_threadId", ["tenantId", "threadId"])
+    .index("tenantId_deviceId_status", ["tenantId", "deviceId", "status"])
+    .index("tenantId_lastHeartbeatAt", ["tenantId", "lastHeartbeatAt"])
+    .index("tenantId_sessionId", ["tenantId", "sessionId"]),
+
+  codex_streams: defineTable({
+    tenantId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    streamId: v.string(),
+    state: vStreamState,
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    cleanupScheduledAt: v.optional(v.number()),
+    cleanupFnId: v.optional(v.id("_scheduled_functions")),
+  })
+    .index("tenantId_threadId_state", ["tenantId", "threadId", "state.kind"])
+    .index("tenantId_threadId_turnId", ["tenantId", "threadId", "turnId"])
+    .index("tenantId_streamId", ["tenantId", "streamId"]),
+
+  codex_stream_stats: defineTable({
+    tenantId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    streamId: v.string(),
+    state: v.union(v.literal("streaming"), v.literal("finished"), v.literal("aborted")),
+    deltaCount: v.number(),
+    latestCursor: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("tenantId_threadId", ["tenantId", "threadId"])
+    .index("tenantId_streamId", ["tenantId", "streamId"]),
+
+  codex_stream_deltas_ttl: defineTable({
+    tenantId: v.string(),
+    streamId: v.string(),
+    turnId: v.string(),
+    eventId: v.string(),
+    cursorStart: v.number(),
+    cursorEnd: v.number(),
+    kind: v.string(),
+    payloadJson: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("tenantId_streamId_cursorStart", ["tenantId", "streamId", "cursorStart"])
+    .index("tenantId_streamId_eventId", ["tenantId", "streamId", "eventId"])
+    .index("expiresAt", ["expiresAt"]),
+
+  codex_sync_checkpoints: defineTable({
+    tenantId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    deviceId: v.string(),
+    ackedCursor: v.number(),
+    updatedAt: v.number(),
+  }).index("tenantId_threadId_deviceId", ["tenantId", "threadId", "deviceId"]),
+
+  codex_approvals: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    kind: v.string(),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined")),
+    reason: v.optional(v.string()),
+    decidedBy: v.optional(v.string()),
+    decidedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("tenantId_threadId_status", ["tenantId", "threadId", "status"])
+    .index("tenantId_threadId_turnId_itemId", ["tenantId", "threadId", "turnId", "itemId"]),
+});

@@ -1,0 +1,24 @@
+{
+  "name": "codex-local-release-smoke-host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:component": "node ./scripts/prepare-component.mjs",
+    "dev:convex": "pnpm run prepare:component && convex dev",
+    "dev:convex:once": "pnpm run prepare:component && convex dev --once",
+    "start": "pnpm run prepare:component && tsx src/index.ts",
+    "typecheck": "pnpm run prepare:component && tsc --noEmit",
+    "typecheck:convex": "pnpm run prepare:component && tsc --noEmit -p convex/tsconfig.json",
+    "runtime:smoke": "pnpm run dev:convex:once && tsx src/runtime-smoke.ts",
+    "contract:smoke": "pnpm run dev:convex:once && tsx src/contract-smoke.ts",
+    "smoke:checks": "pnpm run dev:convex:once && tsx src/contract-smoke.ts && tsx src/runtime-smoke.ts"
+  },
+  "dependencies": {
+    "convex": "^1.17.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.7.3"
+  }
+}

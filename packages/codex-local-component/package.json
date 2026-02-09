@@ -43,7 +43,7 @@
     "build": "tsc -p tsconfig.build.json",
     "prepack": "pnpm run clean && pnpm run build",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm run build && node --test test/**/*.test.mjs",
+    "test": "pnpm run build && node --test test/*.test.mjs",
     "check:mount-imports": "node ./scripts/check-mount-imports.mjs",
     "ci": "pnpm run typecheck && pnpm run test && pnpm run check:mount-imports"
   },

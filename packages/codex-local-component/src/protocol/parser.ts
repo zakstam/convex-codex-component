@@ -1,11 +1,11 @@
 import Ajv from "ajv";
-import clientNotificationSchema from "./schemas/ClientNotification.json";
-import clientRequestSchema from "./schemas/ClientRequest.json";
-import eventMsgSchema from "./schemas/EventMsg.json";
-import jsonRpcMessageSchema from "./schemas/JSONRPCMessage.json";
-import jsonRpcResponseSchema from "./schemas/JSONRPCResponse.json";
-import serverNotificationSchema from "./schemas/ServerNotification.json";
-import serverRequestSchema from "./schemas/ServerRequest.json";
+import clientNotificationSchema from "./schemas/ClientNotification.json" with { type: "json" };
+import clientRequestSchema from "./schemas/ClientRequest.json" with { type: "json" };
+import eventMsgSchema from "./schemas/EventMsg.json" with { type: "json" };
+import jsonRpcMessageSchema from "./schemas/JSONRPCMessage.json" with { type: "json" };
+import jsonRpcResponseSchema from "./schemas/JSONRPCResponse.json" with { type: "json" };
+import serverNotificationSchema from "./schemas/ServerNotification.json" with { type: "json" };
+import serverRequestSchema from "./schemas/ServerRequest.json" with { type: "json" };
 import type {
   ClientOutboundMessage,
   LegacyEventNotification,

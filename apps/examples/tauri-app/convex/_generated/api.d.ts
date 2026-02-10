@@ -121,18 +121,6 @@ export declare const components: {
         any
       >;
     };
-    streams: {
-      auditDataHygiene: FunctionReference<
-        "query",
-        "internal",
-        { sampleSize?: number; tenantId: string },
-        {
-          orphanStreamIds: Array<string>;
-          scannedStreamStats: number;
-          streamStatOrphans: number;
-        }
-      >;
-    };
     sync: {
       heartbeat: FunctionReference<
         "mutation",

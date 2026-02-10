@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery } from "convex/react";
 import { useCodexMessages, useCodexThreadState } from "@zakstam/codex-local-component/react";
@@ -15,6 +15,14 @@ import {
   type ActorContext,
   type BridgeState,
 } from "./lib/tauriBridge";
+import { Header } from "./components/Header";
+import { BridgeStatus } from "./components/BridgeStatus";
+import { ThreadPicker } from "./components/ThreadPicker";
+import { MessageList } from "./components/MessageList";
+import { Composer } from "./components/Composer";
+import { ApprovalList } from "./components/ApprovalList";
+import { EventLog } from "./components/EventLog";
+import { ToastContainer, type ToastItem } from "./components/Toast";
 
 function loadStableDeviceId(): string {
   if (typeof window === "undefined") {
@@ -81,11 +89,22 @@ export default function App() {
     pendingServerRequestCount: 0,
   });
   const [composer, setComposer] = useState("");
+  const [sending, setSending] = useState(false);
   const [runtimeLog, setRuntimeLog] = useState<Array<{ id: string; line: string }>>([]);
   const [selectedRuntimeThreadId, setSelectedRuntimeThreadId] = useState<string>("");
   const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({});
   const [toolOtherDrafts, setToolOtherDrafts] = useState<Record<string, Record<string, string>>>({});
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = useCallback((type: ToastItem["type"], message: string) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   const threadId = bridge.threadId;
   const listedThreads = useQuery(
@@ -123,7 +142,12 @@ export default function App() {
     const attach = async () => {
       const [stateUnsub, eventUnsub, errorUnsub] = await Promise.all([
         listen<BridgeStateEvent>("codex:bridge_state", (event) => {
-          setBridge((prev) => ({ ...prev, ...event.payload }));
+          setBridge((prev) => {
+            const next = { ...prev, ...event.payload };
+            if (!prev.running && next.running) addToast("info", "Runtime started");
+            if (prev.running && !next.running) addToast("info", "Runtime stopped");
+            return next;
+          });
         }),
         listen<{ kind: string; turnId?: string; threadId?: string }>("codex:event", (event) => {
           const line = `${event.payload.kind} (${event.payload.turnId ?? "-"})`;
@@ -132,6 +156,7 @@ export default function App() {
         }),
         listen<{ message: string }>("codex:protocol_error", (event) => {
           setBridge((prev) => ({ ...prev, lastError: event.payload.message }));
+          addToast("error", event.payload.message);
         }),
       ]);
       unsubs = [stateUnsub, eventUnsub, errorUnsub];
@@ -147,7 +172,7 @@ export default function App() {
         off();
       }
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onStartBridge = async () => {
     const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
@@ -165,9 +190,9 @@ export default function App() {
 
   const onSubmit = async () => {
     const text = composer.trim();
-    if (!text) {
-      return;
-    }
+    if (!text) return;
+
+    setSending(true);
     try {
       await sendUserTurn(text);
       setComposer("");
@@ -186,14 +211,17 @@ export default function App() {
           setBridge((prev) => ({ ...prev, lastError: null }));
           return;
         } catch (retryError) {
-          const retryMessage =
-            retryError instanceof Error ? retryError.message : String(retryError);
+          const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
           setBridge((prev) => ({ ...prev, lastError: retryMessage }));
+          addToast("error", retryMessage);
           return;
         }
       }
 
       setBridge((prev) => ({ ...prev, lastError: message }));
+      addToast("error", message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -205,20 +233,16 @@ export default function App() {
     setSubmittingRequestKey(key);
     try {
       if (request.method === "item/commandExecution/requestApproval") {
-        await respondCommandApproval({
-          requestId: request.requestId,
-          decision,
-        });
+        await respondCommandApproval({ requestId: request.requestId, decision });
       } else {
-        await respondFileChangeApproval({
-          requestId: request.requestId,
-          decision,
-        });
+        await respondFileChangeApproval({ requestId: request.requestId, decision });
       }
       setBridge((prev) => ({ ...prev, lastError: null }));
+      addToast("success", `Approval ${decision === "accept" || decision === "acceptForSession" ? "accepted" : "declined"}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setBridge((prev) => ({ ...prev, lastError: message }));
+      addToast("error", message);
     } finally {
       setSubmittingRequestKey((current) => (current === key ? null : current));
     }
@@ -237,6 +261,7 @@ export default function App() {
       if (selected === "__other__") {
         if (!other) {
           setBridge((prev) => ({ ...prev, lastError: `Missing answer for question: ${question.header}` }));
+          addToast("error", `Missing answer for: ${question.header}`);
           return;
         }
         answers[question.id] = { answers: [other] };
@@ -250,11 +275,13 @@ export default function App() {
 
       if (question.options && question.options.length > 0) {
         setBridge((prev) => ({ ...prev, lastError: `Select an option for: ${question.header}` }));
+        addToast("error", `Select an option for: ${question.header}`);
         return;
       }
 
       if (!other) {
         setBridge((prev) => ({ ...prev, lastError: `Missing answer for question: ${question.header}` }));
+        addToast("error", `Missing answer for: ${question.header}`);
         return;
       }
       answers[question.id] = { answers: [other] };
@@ -262,11 +289,9 @@ export default function App() {
 
     setSubmittingRequestKey(key);
     try {
-      await respondToolUserInput({
-        requestId: request.requestId,
-        answers,
-      });
+      await respondToolUserInput({ requestId: request.requestId, answers });
       setBridge((prev) => ({ ...prev, lastError: null }));
+      addToast("success", "Answers submitted");
       setToolDrafts((prev) => {
         const next = { ...prev };
         delete next[key];
@@ -280,6 +305,7 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setBridge((prev) => ({ ...prev, lastError: message }));
+      addToast("error", message);
     } finally {
       setSubmittingRequestKey((current) => (current === key ? null : current));
     }
@@ -289,10 +315,7 @@ export default function App() {
     const key = requestKey(request.requestId);
     setToolDrafts((prev) => ({
       ...prev,
-      [key]: {
-        ...(prev[key] ?? {}),
-        [questionId]: value,
-      },
+      [key]: { ...(prev[key] ?? {}), [questionId]: value },
     }));
   };
 
@@ -300,194 +323,52 @@ export default function App() {
     const key = requestKey(request.requestId);
     setToolOtherDrafts((prev) => ({
       ...prev,
-      [key]: {
-        ...(prev[key] ?? {}),
-        [questionId]: value,
-      },
+      [key]: { ...(prev[key] ?? {}), [questionId]: value },
     }));
   };
 
   return (
-    <div className="app">
+    <div className="app" role="main">
       <section className="panel chat">
-        <header className="header">
-          <div>
-            <h1>Codex Local Desktop</h1>
-            <p className="meta">Tauri + Convex durable streams</p>
-            <p className="meta">thread: {threadId ?? "(none yet)"}</p>
-            <p className="meta">runtimeThread: {bridge.runtimeThreadId ?? "(none yet)"}</p>
-          </div>
-          <div className="controls">
-            <button onClick={onStartBridge} disabled={bridge.running}>Start Runtime</button>
-            <button className="secondary" onClick={() => void stopBridge()} disabled={!bridge.running}>Stop</button>
-            <button className="danger" onClick={() => void interruptTurn()} disabled={!bridge.turnId}>Interrupt</button>
-          </div>
-        </header>
-
-        <div className="panel card">
-          <h2>Resume Previous Thread</h2>
-          <p className="meta">Pick a previously persisted thread mapping, then start runtime to resume it.</p>
-          <select
-            value={selectedRuntimeThreadId}
-            onChange={(event) => setSelectedRuntimeThreadId(event.target.value)}
-            disabled={bridge.running}
-          >
-            <option value="">Start a new thread</option>
-            {(listedThreads?.threads ?? [])
-              .filter((thread) => !!thread.runtimeThreadId)
-              .map((thread) => (
-                <option key={thread.threadId} value={thread.runtimeThreadId ?? ""}>
-                  {thread.threadId} • {thread.status} • runtime:{thread.runtimeThreadId}
-                </option>
-              ))}
-          </select>
-        </div>
-
-        <div className="messages">
-          {messages.results.map((message) => (
-            <article className={`msg ${message.role === "user" ? "user" : "assistant"}`} key={message.messageId}>
-              <p className="label">
-                {message.role}
-                <span className="status">{message.status}</span>
-              </p>
-              <div>{message.text || "(empty)"}</div>
-            </article>
-          ))}
-        </div>
-
-        <div className="composer">
-          <textarea
-            value={composer}
-            onChange={(event) => setComposer(event.target.value)}
-            placeholder="Send a turn to the local codex runtime"
-          />
-          <button onClick={onSubmit} disabled={!bridge.running}>Send</button>
-        </div>
+        <Header
+          bridge={bridge}
+          onStart={onStartBridge}
+          onStop={() => void stopBridge()}
+          onInterrupt={() => void interruptTurn()}
+        />
+        <ThreadPicker
+          threads={listedThreads?.threads ?? []}
+          selected={selectedRuntimeThreadId}
+          onSelect={setSelectedRuntimeThreadId}
+          disabled={bridge.running}
+        />
+        <MessageList messages={messages.results} status={messages.status} />
+        <Composer
+          value={composer}
+          onChange={setComposer}
+          onSubmit={onSubmit}
+          disabled={!bridge.running}
+          sending={sending}
+        />
       </section>
 
       <aside className="side">
-        <section className="panel card">
-          <h2>Bridge State</h2>
-          <p className="code">running: {String(bridge.running)}</p>
-          <p className="code">turnId: {bridge.turnId ?? "-"}</p>
-          <p className="code">pendingServerRequests: {bridge.pendingServerRequestCount ?? 0}</p>
-          <p className="code">lastError: {bridge.lastError ?? "-"}</p>
-        </section>
-
-        <section className="panel card">
-          <h2>Pending Requests</h2>
-          {pendingServerRequests.length === 0 ? <p className="code">No pending server requests</p> : null}
-          {pendingServerRequests.map((request) => {
-            const key = requestKey(request.requestId);
-            const isSubmitting = submittingRequestKey === key;
-
-            return (
-              <div className="approval" key={key}>
-                <p><strong>{request.method}</strong></p>
-                <p className="code">requestId: {String(request.requestId)}</p>
-                <p className="code">turn: {request.turnId}</p>
-                <p className="code">item: {request.itemId}</p>
-                {request.reason ? <p className="code">reason: {request.reason}</p> : null}
-
-                {(request.method === "item/commandExecution/requestApproval" ||
-                  request.method === "item/fileChange/requestApproval") ? (
-                  <div className="controls">
-                    <button
-                      className="secondary"
-                      disabled={isSubmitting}
-                      onClick={() => void onRespondCommandOrFile(request, "accept")}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      className="secondary"
-                      disabled={isSubmitting}
-                      onClick={() => void onRespondCommandOrFile(request, "acceptForSession")}
-                    >
-                      Accept Session
-                    </button>
-                    <button
-                      className="danger"
-                      disabled={isSubmitting}
-                      onClick={() => void onRespondCommandOrFile(request, "decline")}
-                    >
-                      Decline
-                    </button>
-                    <button
-                      className="danger"
-                      disabled={isSubmitting}
-                      onClick={() => void onRespondCommandOrFile(request, "cancel")}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : null}
-
-                {request.method === "item/tool/requestUserInput" ? (
-                  <div>
-                    {(request.questions ?? []).map((question) => {
-                      const selected = toolDrafts[key]?.[question.id] ?? "";
-                      const needsOther = selected === "__other__" || (!question.options || question.options.length === 0);
-                      const showOtherInput = needsOther || question.isOther;
-
-                      return (
-                        <div className="approval" key={`${key}:${question.id}`}>
-                          <p><strong>{question.header}</strong></p>
-                          <p className="code">{question.question}</p>
-                          {question.options && question.options.length > 0 ? (
-                            <select
-                              value={selected}
-                              onChange={(event) => setToolSelected(request, question.id, event.target.value)}
-                              disabled={isSubmitting}
-                            >
-                              <option value="">Select an option</option>
-                              {question.options.map((option) => (
-                                <option key={option.label} value={option.label}>
-                                  {option.label} - {option.description}
-                                </option>
-                              ))}
-                              {question.isOther ? <option value="__other__">Other</option> : null}
-                            </select>
-                          ) : null}
-                          {showOtherInput ? (
-                            <input
-                              value={toolOtherDrafts[key]?.[question.id] ?? ""}
-                              onChange={(event) => setToolOther(request, question.id, event.target.value)}
-                              placeholder={question.isSecret ? "Enter secret" : "Enter answer"}
-                              type={question.isSecret ? "password" : "text"}
-                              disabled={isSubmitting}
-                            />
-                          ) : null}
-                        </div>
-                      );
-                    })}
-
-                    <div className="controls">
-                      <button
-                        className="secondary"
-                        disabled={isSubmitting}
-                        onClick={() => void onRespondToolUserInput(request)}
-                      >
-                        Submit Answers
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </section>
-
-        <section className="panel card">
-          <h2>Thread Snapshot</h2>
-          <p className="code">messages: {threadState?.recentMessages.length ?? 0}</p>
-          <p className="code">streams: {threadState?.streamStats.length ?? 0}</p>
-          <p className="code">events:</p>
-          {runtimeLog.map((entry) => (
-            <p className="code" key={entry.id}>{entry.line}</p>
-          ))}
-        </section>
+        <BridgeStatus bridge={bridge} />
+        <ApprovalList
+          requests={pendingServerRequests}
+          submittingRequestKey={submittingRequestKey}
+          requestKeyFn={requestKey}
+          onRespondCommandOrFile={onRespondCommandOrFile}
+          onRespondToolUserInput={onRespondToolUserInput}
+          toolDrafts={toolDrafts}
+          toolOtherDrafts={toolOtherDrafts}
+          setToolSelected={setToolSelected}
+          setToolOther={setToolOther}
+        />
+        <EventLog threadState={threadState} runtimeLog={runtimeLog} />
       </aside>
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -84,7 +84,7 @@ export const ingestBatch = mutation({
   handler: async (ctx, args) => {
     const streamDeltas = args.deltas.filter((d) => d.type === "stream_delta");
     const lifecycleEvents = args.deltas.filter((d) => d.type === "lifecycle_event");
-    return ctx.runMutation(components.codexLocal.sync.ingest, {
+    return ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: args.actor,
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -153,22 +153,28 @@ Do not pass these directly from untrusted client payloads.
 
 Use `CodexLocalBridge` from desktop/CLI runtime and provide:
 
-- `onEvent`: persist thread-scoped events through `components.codexLocal.sync.ingest`.
+- `onEvent`: persist thread-scoped events through `components.codexLocal.sync.ingestSafe`.
 - `onGlobalMessage`: process protocol-valid non-thread messages.
 - `onProtocolError`: parse/schema failure path; log and recover/restart.
+- Host must keep the runtime loop alive. If the loop is not running, turns can be created but no events will ingest.
 
 ## 4. Minimum ingest/replay flow
 
-1. `sync.heartbeat` at session start/reconnect.
-2. `sync.ingest` with split payload:
+1. Resolve thread identity:
+   - if you have app IDs, call `threads.resolve` with `externalThreadId`
+   - use the returned component `threadId` for all sync calls
+2. `sync.ensureSession` at session start/reconnect.
+3. `sync.ingestSafe` with split payload:
    - `streamDeltas`
    - `lifecycleEvents`
-3. Read durable history using `messages.listByThread` / `messages.getByTurn`.
-4. For stream recovery/reconnect:
+4. Read durable history using `messages.listByThread` / `messages.getByTurn`.
+5. For stream recovery/reconnect:
    - read with `sync.replay`
    - optionally use `sync.resumeReplay` for targeted stream continuation
    - persist cursors with `sync.upsertCheckpoint`
    - inspect persisted cursors with `sync.listCheckpoints`
+
+`ingestSafe` returns a typed status (`ok | partial | session_recovered | rejected`) plus normalized error codes, so host wrappers can recover without throwing for expected reconnect races.
 
 ## 5. Runtime tuning
 

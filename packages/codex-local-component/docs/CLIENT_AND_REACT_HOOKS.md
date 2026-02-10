@@ -144,7 +144,7 @@ export const ingestBatch = mutation({
   handler: async (ctx, args) => {
     const streamDeltas = args.deltas.filter((d) => d.type === "stream_delta");
     const lifecycleEvents = args.deltas.filter((d) => d.type === "lifecycle_event");
-    return ctx.runMutation(components.codexLocal.sync.ingest, {
+    return ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: args.actor,
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -154,6 +154,8 @@ export const ingestBatch = mutation({
   },
 });
 ```
+
+Before ingest, call `components.codexLocal.sync.ensureSession` on startup/reconnect.
 
 ### 3) UI hook usage
 

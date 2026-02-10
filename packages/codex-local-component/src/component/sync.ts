@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server.js";
 import { vActorContext, vSyncRuntimeOptions } from "./types.js";
-import { heartbeatHandler, ingestHandler, upsertCheckpointHandler } from "./syncIngest.js";
+import {
+  ensureSessionHandler,
+  heartbeatHandler,
+  ingestHandler,
+  ingestSafeHandler,
+  upsertCheckpointHandler,
+} from "./syncIngest.js";
 import { listCheckpointsHandler, replayHandler, resumeReplayHandler } from "./syncReplay.js";
 
 const vStreamInboundEvent = v.object({
@@ -46,6 +52,50 @@ export const ingest = mutation({
   handler: ingestHandler,
 });
 
+export const ingestSafe = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+    streamDeltas: v.array(vStreamInboundEvent),
+    lifecycleEvents: v.array(vLifecycleEvent),
+    ensureLastEventCursor: v.optional(v.number()),
+    runtime: v.optional(vSyncRuntimeOptions),
+  },
+  returns: v.object({
+    status: v.union(v.literal("ok"), v.literal("partial"), v.literal("session_recovered"), v.literal("rejected")),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+    ackedStreams: v.array(
+      v.object({
+        streamId: v.string(),
+        ackCursorEnd: v.number(),
+      }),
+    ),
+    recovery: v.optional(
+      v.object({
+        action: v.literal("session_rebound"),
+        sessionId: v.string(),
+        threadId: v.string(),
+      }),
+    ),
+    errors: v.array(
+      v.object({
+        code: v.union(
+          v.literal("SESSION_NOT_FOUND"),
+          v.literal("SESSION_THREAD_MISMATCH"),
+          v.literal("SESSION_DEVICE_MISMATCH"),
+          v.literal("OUT_OF_ORDER"),
+          v.literal("REPLAY_GAP"),
+          v.literal("UNKNOWN"),
+        ),
+        message: v.string(),
+        recoverable: v.boolean(),
+      }),
+    ),
+  }),
+  handler: ingestSafeHandler,
+});
+
 export const replay = query({
   args: {
     actor: vActorContext,
@@ -84,6 +134,21 @@ export const heartbeat = mutation({
   },
   returns: v.null(),
   handler: heartbeatHandler,
+});
+
+export const ensureSession = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+    lastEventCursor: v.number(),
+  },
+  returns: v.object({
+    sessionId: v.string(),
+    threadId: v.string(),
+    status: v.union(v.literal("created"), v.literal("active")),
+  }),
+  handler: ensureSessionHandler,
 });
 
 export const resumeReplay = query({

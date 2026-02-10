@@ -1,6 +1,6 @@
 {
   "name": "@zakstam/codex-local-component",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -36,6 +36,10 @@
     "./app-server": {
       "types": "./dist/app-server/index.d.ts",
       "import": "./dist/app-server/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js"
     }
   },
   "files": [

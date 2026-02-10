@@ -69,6 +69,22 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null,
         Name
       >;
+      ensureSession: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          lastEventCursor: number;
+          sessionId: string;
+          threadId: string;
+        },
+        {
+          sessionId: string;
+          status: "active" | "created";
+          threadId: string;
+        },
+        Name
+      >;
       replay: FunctionReference<
         "query",
         "internal",
@@ -125,6 +141,59 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
+      ingestSafe: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          ensureLastEventCursor?: number;
+          lifecycleEvents: Array<{
+            createdAt: number;
+            eventId: string;
+            kind: string;
+            payloadJson: string;
+            turnId?: string;
+            type: "lifecycle_event";
+          }>;
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
+          sessionId: string;
+          streamDeltas: Array<{
+            createdAt: number;
+            cursorEnd: number;
+            cursorStart: number;
+            eventId: string;
+            kind: string;
+            payloadJson: string;
+            streamId: string;
+            turnId: string;
+            type: "stream_delta";
+          }>;
+          threadId: string;
+        },
+        {
+          ackedStreams: Array<{ ackCursorEnd: number; streamId: string }>;
+          errors: Array<{
+            code:
+              | "OUT_OF_ORDER"
+              | "REPLAY_GAP"
+              | "SESSION_DEVICE_MISMATCH"
+              | "SESSION_NOT_FOUND"
+              | "SESSION_THREAD_MISMATCH"
+              | "UNKNOWN";
+            message: string;
+            recoverable: boolean;
+          }>;
+          ingestStatus: "ok" | "partial";
+          recovery?: { action: "session_rebound"; sessionId: string; threadId: string };
+          status: "ok" | "partial" | "rejected" | "session_recovered";
+        },
+        Name
+      >;
       listCheckpoints: FunctionReference<
         "query",
         "internal",
@@ -166,6 +235,37 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Name
       >;
     };
+    messages: {
+      listByThread: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+          threadId: string;
+        },
+        any,
+        Name
+      >;
+      getByTurn: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          threadId: string;
+          turnId: string;
+        },
+        any,
+        Name
+      >;
+    };
     threads: {
       create: FunctionReference<
         "mutation",
@@ -191,6 +291,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         any,
         Name
       >;
+      getExternalMapping: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          threadId: string;
+        },
+        { externalThreadId: string; threadId: string } | null,
+        Name
+      >;
       list: FunctionReference<
         "query",
         "internal",
@@ -206,6 +316,30 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           };
         },
         any,
+        Name
+      >;
+      resolve: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          cwd?: string;
+          externalThreadId?: string;
+          localThreadId?: string;
+          model?: string;
+          personality?: string;
+        },
+        { created: boolean; externalThreadId?: string; threadId: string },
+        Name
+      >;
+      resolveByExternalId: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          externalThreadId: string;
+        },
+        { externalThreadId: string; threadId: string } | null,
         Name
       >;
       resume: FunctionReference<

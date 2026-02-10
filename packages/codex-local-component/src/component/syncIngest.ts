@@ -94,6 +94,75 @@ type HeartbeatArgs = {
   lastEventCursor: number;
 };
 
+type EnsureSessionArgs = HeartbeatArgs;
+
+type EnsureSessionResult = {
+  sessionId: string;
+  threadId: string;
+  status: "created" | "active";
+};
+
+type IngestSafeArgs = PushEventsArgs & {
+  ensureLastEventCursor?: number;
+};
+
+type IngestSafeErrorCode =
+  | "SESSION_NOT_FOUND"
+  | "SESSION_THREAD_MISMATCH"
+  | "SESSION_DEVICE_MISMATCH"
+  | "OUT_OF_ORDER"
+  | "REPLAY_GAP"
+  | "UNKNOWN";
+
+type IngestSafeResult = {
+  status: "ok" | "partial" | "session_recovered" | "rejected";
+  ingestStatus: "ok" | "partial";
+  ackedStreams: Array<{ streamId: string; ackCursorEnd: number }>;
+  recovery?: {
+    action: "session_rebound";
+    sessionId: string;
+    threadId: string;
+  };
+  errors: Array<{
+    code: IngestSafeErrorCode;
+    message: string;
+    recoverable: boolean;
+  }>;
+};
+
+const RECOVERABLE_INGEST_CODES = new Set([
+  "E_SYNC_SESSION_NOT_FOUND",
+  "E_SYNC_SESSION_THREAD_MISMATCH",
+  "E_SYNC_SESSION_DEVICE_MISMATCH",
+]);
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseSyncErrorCode(error: unknown): string | null {
+  const message = getErrorMessage(error);
+  const match = /^\[([A-Z0-9_]+)\]/.exec(message);
+  return match?.[1] ?? null;
+}
+
+function mapIngestSafeCode(rawCode: string | null): IngestSafeErrorCode {
+  switch (rawCode) {
+    case "E_SYNC_SESSION_NOT_FOUND":
+      return "SESSION_NOT_FOUND";
+    case "E_SYNC_SESSION_THREAD_MISMATCH":
+      return "SESSION_THREAD_MISMATCH";
+    case "E_SYNC_SESSION_DEVICE_MISMATCH":
+      return "SESSION_DEVICE_MISMATCH";
+    case "E_SYNC_OUT_OF_ORDER":
+      return "OUT_OF_ORDER";
+    case "E_SYNC_REPLAY_GAP":
+      return "REPLAY_GAP";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 function syntheticTurnStatusForEvent(
   kind: string,
   payloadJson: string,
@@ -905,10 +974,10 @@ export async function upsertCheckpointHandler(
   return { ok: true };
 }
 
-export async function heartbeatHandler(
+async function upsertSessionHeartbeat(
   ctx: MutationCtx,
   args: HeartbeatArgs,
-): Promise<null> {
+): Promise<EnsureSessionResult> {
   await requireThreadForActor(ctx, args.actor, args.threadId);
 
   const session = await ctx.db
@@ -930,7 +999,11 @@ export async function heartbeatHandler(
       lastEventCursor: args.lastEventCursor,
       startedAt: now(),
     });
-    return null;
+    return {
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      status: "created",
+    };
   }
 
   if (session.userId !== args.actor.userId) {
@@ -958,5 +1031,96 @@ export async function heartbeatHandler(
     lastEventCursor: Math.max(args.lastEventCursor, session.lastEventCursor),
   });
 
+  return {
+    sessionId: args.sessionId,
+    threadId: args.threadId,
+    status: "active",
+  };
+}
+
+export async function ensureSessionHandler(
+  ctx: MutationCtx,
+  args: EnsureSessionArgs,
+): Promise<EnsureSessionResult> {
+  return upsertSessionHeartbeat(ctx, args);
+}
+
+export async function heartbeatHandler(
+  ctx: MutationCtx,
+  args: HeartbeatArgs,
+): Promise<null> {
+  await upsertSessionHeartbeat(ctx, args);
   return null;
+}
+
+export async function ingestSafeHandler(
+  ctx: MutationCtx,
+  args: IngestSafeArgs,
+): Promise<IngestSafeResult> {
+  const ensureCursor = Math.max(0, Math.floor(args.ensureLastEventCursor ?? 0));
+
+  try {
+    const first = await ingestHandler(ctx, args);
+    return {
+      status: first.ingestStatus === "ok" ? "ok" : "partial",
+      ingestStatus: first.ingestStatus,
+      ackedStreams: first.ackedStreams,
+      errors: [],
+    };
+  } catch (initialError) {
+    const initialCode = parseSyncErrorCode(initialError);
+    const initialMessage = getErrorMessage(initialError);
+    const recoverable = initialCode ? RECOVERABLE_INGEST_CODES.has(initialCode) : false;
+
+    if (!recoverable) {
+      return {
+        status: "rejected",
+        ingestStatus: "partial",
+        ackedStreams: [],
+        errors: [
+          {
+            code: mapIngestSafeCode(initialCode),
+            message: initialMessage,
+            recoverable: false,
+          },
+        ],
+      };
+    }
+
+    await upsertSessionHeartbeat(ctx, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      lastEventCursor: ensureCursor,
+    });
+
+    try {
+      const retried = await ingestHandler(ctx, args);
+      return {
+        status: "session_recovered",
+        ingestStatus: retried.ingestStatus,
+        ackedStreams: retried.ackedStreams,
+        recovery: {
+          action: "session_rebound",
+          sessionId: args.sessionId,
+          threadId: args.threadId,
+        },
+        errors: [],
+      };
+    } catch (retryError) {
+      const retryCode = parseSyncErrorCode(retryError);
+      return {
+        status: "rejected",
+        ingestStatus: "partial",
+        ackedStreams: [],
+        errors: [
+          {
+            code: mapIngestSafeCode(retryCode),
+            message: getErrorMessage(retryError),
+            recoverable: retryCode ? RECOVERABLE_INGEST_CODES.has(retryCode) : false,
+          },
+        ],
+      };
+    }
+  }
 }

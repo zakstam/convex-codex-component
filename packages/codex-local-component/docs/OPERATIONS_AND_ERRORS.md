@@ -18,6 +18,12 @@
 - `E_SYNC_OUT_OF_ORDER`: cursor start is behind stream latest cursor.
 - `E_SYNC_DUP_EVENT_IN_BATCH`: duplicate `eventId` within one ingest call.
 
+For host wrappers, prefer `sync.ingestSafe`:
+
+- Returns `status: ok | partial | session_recovered | rejected`
+- Exposes normalized `errors[]` with recoverable classification
+- Can self-heal session mismatches via `ensureSession` semantics
+
 ## Replay behavior
 
 Replay is status-driven, not exception-driven.
@@ -54,6 +60,6 @@ Symptoms:
 
 Actions:
 
-1. Start fresh session and heartbeat.
+1. Start/rebind session with `sync.ensureSession`.
 2. Continue ingest.
 3. Replay from latest checkpoints.

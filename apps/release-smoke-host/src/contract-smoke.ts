@@ -46,7 +46,13 @@ async function main(): Promise<void> {
     sessionId,
     threadId,
   });
-  assert.equal(heartbeat, null);
+  assert.ok(hasRecord(heartbeat));
+  assert.equal(heartbeat.sessionId, sessionId);
+  assert.equal(heartbeat.threadId, threadId);
+  assert.ok(
+    heartbeat.status === "created" || heartbeat.status === "active",
+    "Expected ensureSession status to be created|active",
+  );
 
   const pushed = await convex.mutation(api.chat.ingestEvent, {
     actor,

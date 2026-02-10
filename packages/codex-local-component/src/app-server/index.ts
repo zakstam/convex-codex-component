@@ -2,6 +2,7 @@ export {
   buildClientRequest,
   buildInitializeRequest,
   buildInitializedNotification,
+  isUuidLikeThreadId,
   buildThreadStartRequest,
   buildTurnStartRequest,
   buildTurnStartTextRequest,

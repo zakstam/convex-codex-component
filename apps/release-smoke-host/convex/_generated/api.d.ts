@@ -121,19 +121,18 @@ export declare const components: {
         any
       >;
     };
-    streams: {
-      auditDataHygiene: FunctionReference<
-        "query",
-        "internal",
-        { sampleSize?: number; tenantId: string },
-        {
-          orphanStreamIds: Array<string>;
-          scannedStreamStats: number;
-          streamStatOrphans: number;
-        }
-      >;
-    };
     sync: {
+      ensureSession: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          lastEventCursor: number;
+          sessionId: string;
+          threadId: string;
+        },
+        { sessionId: string; status: "created" | "active"; threadId: string }
+      >;
       heartbeat: FunctionReference<
         "mutation",
         "internal",
@@ -144,22 +143,6 @@ export declare const components: {
           threadId: string;
         },
         null
-      >;
-      replay: FunctionReference<
-        "query",
-        "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          runtime?: {
-            finishedStreamDeleteDelayMs?: number;
-            maxDeltasPerRequestRead?: number;
-            maxDeltasPerStreamRead?: number;
-            saveStreamDeltas?: boolean;
-          };
-          streamCursorsById: Array<{ cursor: number; streamId: string }>;
-          threadId: string;
-        },
-        any
       >;
       ingest: FunctionReference<
         "mutation",
@@ -199,6 +182,87 @@ export declare const components: {
           ingestStatus: "ok" | "partial";
         }
       >;
+      ingestSafe: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          ensureLastEventCursor?: number;
+          lifecycleEvents: Array<{
+            createdAt: number;
+            eventId: string;
+            kind: string;
+            payloadJson: string;
+            turnId?: string;
+            type: "lifecycle_event";
+          }>;
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
+          sessionId: string;
+          streamDeltas: Array<{
+            createdAt: number;
+            cursorEnd: number;
+            cursorStart: number;
+            eventId: string;
+            kind: string;
+            payloadJson: string;
+            streamId: string;
+            turnId: string;
+            type: "stream_delta";
+          }>;
+          threadId: string;
+        },
+        {
+          ackedStreams: Array<{ ackCursorEnd: number; streamId: string }>;
+          errors: Array<{
+            code:
+              | "SESSION_NOT_FOUND"
+              | "SESSION_THREAD_MISMATCH"
+              | "SESSION_DEVICE_MISMATCH"
+              | "OUT_OF_ORDER"
+              | "REPLAY_GAP"
+              | "UNKNOWN";
+            message: string;
+            recoverable: boolean;
+          }>;
+          ingestStatus: "ok" | "partial";
+          recovery?: {
+            action: "session_rebound";
+            sessionId: string;
+            threadId: string;
+          };
+          status: "ok" | "partial" | "session_recovered" | "rejected";
+        }
+      >;
+      listCheckpoints: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          threadId: string;
+        },
+        any
+      >;
+      replay: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
+          streamCursorsById: Array<{ cursor: number; streamId: string }>;
+          threadId: string;
+        },
+        any
+      >;
       resumeReplay: FunctionReference<
         "query",
         "internal",
@@ -216,6 +280,17 @@ export declare const components: {
         },
         any
       >;
+      upsertCheckpoint: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          cursor: number;
+          streamId: string;
+          threadId: string;
+        },
+        { ok: true }
+      >;
     };
     threads: {
       create: FunctionReference<
@@ -230,6 +305,15 @@ export declare const components: {
           threadId: string;
         },
         any
+      >;
+      getExternalMapping: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          threadId: string;
+        },
+        null | { externalThreadId: string; threadId: string }
       >;
       getState: FunctionReference<
         "query",
@@ -280,6 +364,28 @@ export declare const components: {
           };
         },
         any
+      >;
+      resolve: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          cwd?: string;
+          externalThreadId?: string;
+          localThreadId?: string;
+          model?: string;
+          personality?: string;
+        },
+        { created: boolean; externalThreadId?: string; threadId: string }
+      >;
+      resolveByExternalId: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          externalThreadId: string;
+        },
+        null | { externalThreadId: string; threadId: string }
       >;
       resume: FunctionReference<
         "mutation",

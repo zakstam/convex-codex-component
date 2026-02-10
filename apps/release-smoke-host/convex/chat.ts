@@ -30,6 +30,33 @@ const vInboundEvent = v.object({
   createdAt: v.number(),
 });
 
+const vIngestSafeResult = v.object({
+  status: v.union(v.literal("ok"), v.literal("partial"), v.literal("session_recovered"), v.literal("rejected")),
+  ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+  recovery: v.optional(
+    v.object({
+      action: v.literal("session_rebound"),
+      sessionId: v.string(),
+      threadId: v.string(),
+    }),
+  ),
+  errors: v.array(
+    v.object({
+      code: v.union(
+        v.literal("SESSION_NOT_FOUND"),
+        v.literal("SESSION_THREAD_MISMATCH"),
+        v.literal("SESSION_DEVICE_MISMATCH"),
+        v.literal("OUT_OF_ORDER"),
+        v.literal("REPLAY_GAP"),
+        v.literal("UNKNOWN"),
+      ),
+      message: v.string(),
+      recoverable: v.boolean(),
+    }),
+  ),
+});
+
 type ThreadState = FunctionReturnType<typeof components.codexLocal.threads.getState>;
 
 type StreamStatSummary = {
@@ -108,9 +135,13 @@ export const ensureSession = mutation({
     sessionId: v.string(),
     threadId: v.string(),
   },
-  returns: v.null(),
+  returns: v.object({
+    sessionId: v.string(),
+    threadId: v.string(),
+    status: v.union(v.literal("created"), v.literal("active")),
+  }),
   handler: async (ctx, args) => {
-    return await ctx.runMutation(components.codexLocal.sync.heartbeat, {
+    return await ctx.runMutation(components.codexLocal.sync.ensureSession, {
       actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -126,12 +157,9 @@ export const ingestEvent = mutation({
     threadId: v.string(),
     event: vInboundEvent,
   },
-  returns: v.object({
-    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
-    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
-  }),
+  returns: vIngestSafeResult,
   handler: async (ctx, args) => {
-    const pushed = await ctx.runMutation(components.codexLocal.sync.ingest, {
+    const pushed = await ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -150,15 +178,12 @@ export const ingestBatch = mutation({
     threadId: v.string(),
     deltas: v.array(vInboundEvent),
   },
-  returns: v.object({
-    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
-    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
-  }),
+  returns: vIngestSafeResult,
   handler: async (ctx, args) => {
     if (args.deltas.length === 0) {
       throw new Error("ingestBatch requires at least one delta");
     }
-    return await ctx.runMutation(components.codexLocal.sync.ingest, {
+    return await ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -232,12 +257,14 @@ export const dataHygiene = query({
     const streamStatsRaw = Array.isArray(state?.streamStats) ? state.streamStats : [];
     const allStreamsRaw = Array.isArray(state?.allStreams) ? state.allStreams : [];
 
-    const liveStreamIds = new Set(allStreamsRaw.map((stream) => String(stream.streamId)));
+    const liveStreamIds = new Set(
+      allStreamsRaw.map((stream: { streamId: string }) => String(stream.streamId)),
+    );
 
-    const streamStats = streamStatsRaw.filter((value) => isStreamStatSummary(value));
+    const streamStats = streamStatsRaw.filter((value: unknown) => isStreamStatSummary(value));
     const orphanStreamIds = streamStats
-      .filter((stat) => !liveStreamIds.has(stat.streamId))
-      .map((stat) => stat.streamId);
+      .filter((stat: StreamStatSummary) => !liveStreamIds.has(stat.streamId))
+      .map((stat: StreamStatSummary) => stat.streamId);
 
     return {
       scannedStreamStats: streamStats.length,

@@ -11,6 +11,20 @@ type RequestFor<M extends RequestMethod> = Extract<ClientRequest, { method: M }>
 
 type RequestParams<M extends RequestMethod> = RequestFor<M>["params"];
 
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuidLikeThreadId(threadId: string): boolean {
+  return UUID_LIKE.test(threadId);
+}
+
+function assertUuidThreadId(threadId: string): void {
+  if (!isUuidLikeThreadId(threadId)) {
+    throw new Error(
+      "Invalid threadId for app-server request. Expected UUID format. Resolve thread IDs through threads.resolve before turn/start.",
+    );
+  }
+}
+
 export function buildClientRequest<M extends RequestMethod>(
   method: M,
   id: number,
@@ -46,6 +60,7 @@ export function buildTurnStartRequest(
   id: number,
   params: TurnStartParams,
 ): RequestFor<"turn/start"> {
+  assertUuidThreadId(params.threadId);
   return buildClientRequest("turn/start", id, params);
 }
 
@@ -63,5 +78,6 @@ export function buildTurnInterruptRequest(
   id: number,
   params: TurnInterruptParams,
 ): RequestFor<"turn/interrupt"> {
+  assertUuidThreadId(params.threadId);
   return buildClientRequest("turn/interrupt", id, params);
 }

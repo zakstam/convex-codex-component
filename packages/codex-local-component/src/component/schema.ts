@@ -19,6 +19,17 @@ export const vStreamState = v.union(
 );
 
 export default defineSchema({
+  codex_thread_bindings: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    externalThreadId: v.string(),
+    threadId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("tenantId_userId_externalThreadId", ["tenantId", "userId", "externalThreadId"])
+    .index("tenantId_userId_threadId", ["tenantId", "userId", "threadId"]),
+
   codex_threads: defineTable({
     tenantId: v.string(),
     userId: v.string(),

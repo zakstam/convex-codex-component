@@ -1,5 +1,11 @@
 # @convex-dev/codex-local-component
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix app-server thread ID handling for runtime turns by accepting UUID-like thread IDs and improving runtime thread-id resolution across host and Tauri bridge flows.
+
 ## 0.2.0
 
 ### Minor Changes

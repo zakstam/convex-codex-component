@@ -17,6 +17,8 @@ Local-first Convex component for Codex integrations where Codex runs on the user
 
 - `heartbeat`
 - `ingest`
+- `ensureSession`
+- `ingestSafe`
 - `replay`
 - `resumeReplay`
 - `listCheckpoints`
@@ -32,6 +34,12 @@ Replay returns explicit recovery metadata:
 - `streamWindows` (`ok | rebased | stale`)
 - `nextCheckpoints`
 
+Recommended host entrypoints:
+
+- `ensureSession` before ingest on startup/reconnect
+- `ingestSafe` for runtime event ingest (session recovery + typed error surface)
+- `replay`/`resumeReplay` + persisted checkpoints for reconnect recovery
+
 ## Consumer SDK exports
 
 - `@zakstam/codex-local-component/client`
@@ -41,6 +49,9 @@ Replay returns explicit recovery metadata:
   - hooks for messages, approvals, turn state, composer, interrupts
 - `@zakstam/codex-local-component/app-server`
   - typed request builders for app-server initialize/thread/turn flows
+- `@zakstam/codex-local-component/host`
+  - host-side Convex wrapper helpers
+  - runtime loop orchestration helper (`createCodexHostRuntime`)
 
 ## Convex install pattern
 

@@ -117,3 +117,26 @@ test("classifyMessage accepts codex/event envelope and uses conversationId", () 
     threadId: "thread-legacy-envelope",
   });
 });
+
+test("classifyMessage prefers threadId when both threadId and conversationId are present", () => {
+  const message = {
+    jsonrpc: "2.0",
+    method: "turn/completed",
+    params: {
+      threadId: "thread-modern-id",
+      conversationId: "thread-legacy-id",
+      turn: {
+        id: "turn-10",
+        items: [],
+        status: "completed",
+        error: null,
+      },
+    },
+  };
+
+  assert.deepEqual(classifyMessage(message), {
+    scope: "thread",
+    kind: "turn/completed",
+    threadId: "thread-modern-id",
+  });
+});

@@ -5,6 +5,7 @@ import {
   buildThreadStartRequest,
   buildTurnInterruptRequest,
   buildTurnStartTextRequest,
+  isUuidLikeThreadId,
 } from "@zakstam/codex-local-component/app-server";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
 import type {
@@ -84,6 +85,7 @@ let convex: ConvexHttpClient | null = null;
 let actor: ActorContext | null = null;
 let sessionId: string | null = null;
 let threadId: string | null = null;
+let runtimeThreadId: string | null = null;
 let turnId: string | null = null;
 let turnInFlight = false;
 let turnSettled = false;
@@ -292,18 +294,26 @@ async function startBridge(payload: StartPayload) {
           return;
         }
 
+        if (
+          !runtimeThreadId ||
+          (!isUuidLikeThreadId(runtimeThreadId) && isUuidLikeThreadId(event.threadId))
+        ) {
+          runtimeThreadId = event.threadId;
+        }
+
         if (!threadId) {
-          threadId = event.threadId;
-          await convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
+          const resolved = await convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
             actor,
-            threadId,
+            externalThreadId: runtimeThreadId,
             ...(payload.model ? { model: payload.model } : {}),
             ...(payload.cwd ? { cwd: payload.cwd } : {}),
           });
+          const persistedThreadId = resolved.threadId;
+          threadId = persistedThreadId;
           await convex.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
             actor,
             sessionId,
-            threadId,
+            threadId: persistedThreadId,
           });
           updateState({ threadId });
         }
@@ -314,8 +324,11 @@ async function startBridge(payload: StartPayload) {
           turnSettled = false;
           updateState({ turnId });
           if (interruptRequested) {
+            if (!runtimeThreadId) {
+              return;
+            }
             const interruptReq = buildTurnInterruptRequest(requestId(), {
-              threadId: event.threadId,
+              threadId: runtimeThreadId,
               turnId: event.turnId,
             });
             sendMessage(interruptReq, "turn/interrupt");
@@ -329,6 +342,14 @@ async function startBridge(payload: StartPayload) {
           turnSettled = true;
           updateState({ turnId: null });
         }
+        if (event.kind === "error") {
+          turnInFlight = false;
+          turnSettled = true;
+          if (!event.turnId || event.turnId === turnId) {
+            turnId = null;
+          }
+          updateState({ turnId });
+        }
 
         emit({
           type: "event",
@@ -340,6 +361,11 @@ async function startBridge(payload: StartPayload) {
           },
         });
 
+        const persistedThreadId = threadId;
+        if (!persistedThreadId) {
+          return;
+        }
+
         const delta: IngestDelta =
           event.streamId && event.turnId
             ? {
@@ -350,7 +376,7 @@ async function startBridge(payload: StartPayload) {
                 cursorStart: event.cursorStart,
                 cursorEnd: event.cursorEnd,
                 createdAt: event.createdAt,
-                threadId: event.threadId,
+                threadId: persistedThreadId,
                 turnId: event.turnId,
                 streamId: event.streamId,
               }
@@ -360,7 +386,7 @@ async function startBridge(payload: StartPayload) {
                 kind: normalizeIngestKind(event.kind),
                 payloadJson: event.payloadJson,
                 createdAt: event.createdAt,
-                threadId: event.threadId,
+                threadId: persistedThreadId,
                 ...(event.turnId ? { turnId: event.turnId } : {}),
               };
 
@@ -375,7 +401,26 @@ async function startBridge(payload: StartPayload) {
         if (isResponse(message) && typeof message.id === "number") {
           const pending = pendingRequests.get(message.id);
           pendingRequests.delete(message.id);
+          if (
+            pending?.method === "thread/start" &&
+            !message.error &&
+            message.result &&
+            typeof message.result === "object" &&
+            "thread" in message.result &&
+            typeof message.result.thread === "object" &&
+            message.result.thread !== null &&
+            "id" in message.result.thread &&
+            typeof message.result.thread.id === "string"
+          ) {
+            runtimeThreadId = message.result.thread.id;
+          }
           if (message.error) {
+            if (pending?.method === "turn/start") {
+              turnInFlight = false;
+              turnSettled = true;
+              turnId = null;
+              updateState({ turnId: null });
+            }
             emit({
               type: "error",
               payload: {
@@ -418,7 +463,7 @@ async function startBridge(payload: StartPayload) {
 }
 
 function sendTurn(text: string) {
-  if (!bridge || !threadId) {
+  if (!bridge || !runtimeThreadId) {
     throw new Error("Bridge/thread not ready. Start runtime first.");
   }
   if (turnInFlight && !turnSettled) {
@@ -426,7 +471,7 @@ function sendTurn(text: string) {
   }
 
   const req = buildTurnStartTextRequest(requestId(), {
-    threadId,
+    threadId: runtimeThreadId,
     text,
   });
   turnInFlight = true;
@@ -435,14 +480,14 @@ function sendTurn(text: string) {
 }
 
 function interruptCurrentTurn() {
-  if (!bridge || !threadId) {
+  if (!bridge || !runtimeThreadId) {
     return;
   }
   if (!turnId) {
     interruptRequested = true;
     return;
   }
-  const interruptReq = buildTurnInterruptRequest(requestId(), { threadId, turnId });
+  const interruptReq = buildTurnInterruptRequest(requestId(), { threadId: runtimeThreadId, turnId });
   sendMessage(interruptReq, "turn/interrupt");
 }
 
@@ -452,6 +497,7 @@ async function stopCurrentBridge() {
   bridge?.stop();
   bridge = null;
   threadId = null;
+  runtimeThreadId = null;
   turnId = null;
   turnInFlight = false;
   turnSettled = false;

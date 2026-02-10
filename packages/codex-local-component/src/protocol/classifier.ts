@@ -18,17 +18,6 @@ function extractThreadId(message: ServerInboundMessage): string | undefined {
     return undefined;
   }
 
-  if (
-    "conversationId" in message.params &&
-    typeof message.params.conversationId === "string"
-  ) {
-    return message.params.conversationId;
-  }
-
-  if (message.method === "applyPatchApproval" || message.method === "execCommandApproval") {
-    return message.params.conversationId;
-  }
-
   if ("threadId" in message.params && typeof message.params.threadId === "string") {
     return message.params.threadId;
   }
@@ -40,6 +29,13 @@ function extractThreadId(message: ServerInboundMessage): string | undefined {
     typeof message.params.thread.id === "string"
   ) {
     return message.params.thread.id;
+  }
+
+  if (
+    "conversationId" in message.params &&
+    typeof message.params.conversationId === "string"
+  ) {
+    return message.params.conversationId;
   }
 
   return undefined;

@@ -47,6 +47,33 @@ const vSyncRuntimeOptions = v.object({
   finishedStreamDeleteDelayMs: v.optional(v.number()),
 });
 
+const vIngestSafeResult = v.object({
+  status: v.union(v.literal("ok"), v.literal("partial"), v.literal("session_recovered"), v.literal("rejected")),
+  ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+  recovery: v.optional(
+    v.object({
+      action: v.literal("session_rebound"),
+      sessionId: v.string(),
+      threadId: v.string(),
+    }),
+  ),
+  errors: v.array(
+    v.object({
+      code: v.union(
+        v.literal("SESSION_NOT_FOUND"),
+        v.literal("SESSION_THREAD_MISMATCH"),
+        v.literal("SESSION_DEVICE_MISMATCH"),
+        v.literal("OUT_OF_ORDER"),
+        v.literal("REPLAY_GAP"),
+        v.literal("UNKNOWN"),
+      ),
+      message: v.string(),
+      recoverable: v.boolean(),
+    }),
+  ),
+});
+
 const vStreamArgs = v.optional(
   v.union(
     v.object({
@@ -68,15 +95,15 @@ const vStreamArgs = v.optional(
 export const ensureThread = mutation({
   args: {
     actor: vActorContext,
-    threadId: v.string(),
+    externalThreadId: v.optional(v.string()),
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await ctx.runMutation(components.codexLocal.threads.create, {
+    return await ctx.runMutation(components.codexLocal.threads.resolve, {
       actor: trustedActor(args.actor),
-      threadId: args.threadId,
-      localThreadId: args.threadId,
+      ...(args.externalThreadId !== undefined ? { externalThreadId: args.externalThreadId } : {}),
+      ...(args.externalThreadId !== undefined ? { localThreadId: args.externalThreadId } : {}),
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
     });
@@ -123,9 +150,13 @@ export const ensureSession = mutation({
     sessionId: v.string(),
     threadId: v.string(),
   },
-  returns: v.null(),
+  returns: v.object({
+    sessionId: v.string(),
+    threadId: v.string(),
+    status: v.union(v.literal("created"), v.literal("active")),
+  }),
   handler: async (ctx, args) => {
-    return await ctx.runMutation(components.codexLocal.sync.heartbeat, {
+    return await ctx.runMutation(components.codexLocal.sync.ensureSession, {
       actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -141,16 +172,13 @@ export const ingestEvent = mutation({
     threadId: v.string(),
     event: v.union(vStreamInboundEvent, vLifecycleInboundEvent),
   },
-  returns: v.object({
-    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
-    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
-  }),
+  returns: vIngestSafeResult,
   handler: async (ctx, args) => {
     const streamDeltas =
       args.event.type === "stream_delta" ? [args.event] : [];
     const lifecycleEvents =
       args.event.type === "lifecycle_event" ? [args.event] : [];
-    const pushed = await ctx.runMutation(components.codexLocal.sync.ingest, {
+    const pushed = await ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -170,10 +198,7 @@ export const ingestBatch = mutation({
     deltas: v.array(v.union(vStreamInboundEvent, vLifecycleInboundEvent)),
     runtime: v.optional(vSyncRuntimeOptions),
   },
-  returns: v.object({
-    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
-    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
-  }),
+  returns: vIngestSafeResult,
   handler: async (ctx, args) => {
     if (args.deltas.length === 0) {
       throw new Error("ingestBatch requires at least one delta");
@@ -186,7 +211,7 @@ export const ingestBatch = mutation({
       (delta): delta is typeof args.deltas[number] & { type: "lifecycle_event" } =>
         delta.type === "lifecycle_event",
     );
-    return await ctx.runMutation(components.codexLocal.sync.ingest, {
+    return await ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
@@ -228,8 +253,8 @@ export const persistenceStats = query({
 
     return {
       streamCount: state.streamStats.length,
-      deltaCount: state.streamStats.reduce((sum, stream) => sum + stream.deltaCount, 0),
-      latestCursorByStream: state.streamStats.map((stream) => ({
+      deltaCount: state.streamStats.reduce((sum: number, stream: { deltaCount: number }) => sum + stream.deltaCount, 0),
+      latestCursorByStream: state.streamStats.map((stream: { streamId: string; latestCursor: number }) => ({
         streamId: stream.streamId,
         cursor: stream.latestCursor,
       })),
@@ -263,7 +288,7 @@ export const durableHistoryStats = query({
 
     return {
       messageCountInPage: page.length,
-      latest: page.slice(0, 5).map((m) => ({
+      latest: page.slice(0, 5).map((m: { messageId: string; turnId: string; role: string; status: string; text: string }) => ({
         messageId: m.messageId,
         turnId: m.turnId,
         role: m.role,

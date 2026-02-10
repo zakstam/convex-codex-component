@@ -727,6 +727,35 @@ button.icon-btn {
   gap: 8px;
 }
 
+.reasoning-banner {
+  margin: 0 16px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--edge));
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent),
+    var(--bg-inset);
+}
+
+.reasoning-banner-label {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.reasoning-banner-text {
+  margin: 5px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .composer-toolbar {
   display: flex;
   justify-content: flex-end;

@@ -128,6 +128,35 @@ export default function App() {
     messageArgs,
     { initialNumItems: 30, stream: true },
   );
+  const displayMessages = useMemo(
+    () => messages.results.filter((message) => message.sourceItemType !== "reasoning"),
+    [messages.results],
+  );
+  const latestReasoning = useMemo(() => {
+    const reasoningMessages = messages.results.filter(
+      (message) => message.sourceItemType === "reasoning",
+    );
+    if (reasoningMessages.length === 0) {
+      return null;
+    }
+    const latest = reasoningMessages[reasoningMessages.length - 1]!;
+    const latestIndex = messages.results.findIndex((message) => message.messageId === latest.messageId);
+    const hasFinalAssistantAfter =
+      latestIndex >= 0 &&
+      messages.results.slice(latestIndex + 1).some((message) => {
+        if (message.role !== "assistant") {
+          return false;
+        }
+        if (message.sourceItemType === "reasoning") {
+          return false;
+        }
+        return message.status === "completed";
+      });
+    if (hasFinalAssistantAfter) {
+      return null;
+    }
+    return latest;
+  }, [messages.results]);
 
   const threadState = useCodexThreadState(
     requireDefined(chatApi.threadSnapshot, "api.chat.threadSnapshot"),
@@ -363,7 +392,13 @@ export default function App() {
           onSelect={setSelectedRuntimeThreadId}
           disabled={bridge.running}
         />
-        <MessageList messages={messages.results} status={messages.status} />
+        <MessageList messages={displayMessages} status={messages.status} />
+        {latestReasoning && (
+          <div className="reasoning-banner" aria-live="polite" aria-label="Latest reasoning">
+            <p className="reasoning-banner-label">Thinking</p>
+            <p className="reasoning-banner-text">{latestReasoning.text || "(empty)"}</p>
+          </div>
+        )}
         <Composer
           value={composer}
           onChange={setComposer}

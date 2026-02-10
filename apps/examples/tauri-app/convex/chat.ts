@@ -1,0 +1,365 @@
+import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { mutation, query } from "./_generated/server";
+import { components } from "./_generated/api";
+
+const vActorContext = v.object({
+  tenantId: v.string(),
+  userId: v.string(),
+  deviceId: v.string(),
+});
+
+const vStreamInboundEvent = v.object({
+  type: v.literal("stream_delta"),
+  eventId: v.string(),
+  turnId: v.string(),
+  streamId: v.string(),
+  kind: v.string(),
+  payloadJson: v.string(),
+  cursorStart: v.number(),
+  cursorEnd: v.number(),
+  createdAt: v.number(),
+});
+
+const vLifecycleInboundEvent = v.object({
+  type: v.literal("lifecycle_event"),
+  eventId: v.string(),
+  turnId: v.optional(v.string()),
+  kind: v.string(),
+  payloadJson: v.string(),
+  createdAt: v.number(),
+});
+
+const vSyncRuntimeOptions = v.object({
+  saveStreamDeltas: v.optional(v.boolean()),
+  maxDeltasPerStreamRead: v.optional(v.number()),
+  maxDeltasPerRequestRead: v.optional(v.number()),
+  finishedStreamDeleteDelayMs: v.optional(v.number()),
+});
+
+const vStreamArgs = v.optional(
+  v.union(
+    v.object({
+      kind: v.literal("list"),
+      startOrder: v.optional(v.number()),
+    }),
+    v.object({
+      kind: v.literal("deltas"),
+      cursors: v.array(
+        v.object({
+          streamId: v.string(),
+          cursor: v.number(),
+        }),
+      ),
+    }),
+  ),
+);
+
+export const ensureThread = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.threads.create, {
+      actor: args.actor,
+      threadId: args.threadId,
+      localThreadId: args.threadId,
+      ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+    });
+  },
+});
+
+export const registerTurnStart = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    inputText: v.string(),
+    idempotencyKey: v.string(),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.turns.start, {
+      actor: args.actor,
+      threadId: args.threadId,
+      turnId: args.turnId,
+      idempotencyKey: args.idempotencyKey,
+      input: [
+        {
+          type: "text",
+          text: args.inputText,
+        },
+      ],
+      ...(args.model !== undefined || args.cwd !== undefined
+        ? {
+            options: {
+              ...(args.model !== undefined ? { model: args.model } : {}),
+              ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+            },
+          }
+        : {}),
+    });
+  },
+});
+
+export const ensureSession = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.sync.heartbeat, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      lastEventCursor: 0,
+    });
+  },
+});
+
+export const ingestEvent = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+    event: v.union(vStreamInboundEvent, vLifecycleInboundEvent),
+  },
+  returns: v.object({
+    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  }),
+  handler: async (ctx, args) => {
+    const streamDeltas =
+      args.event.type === "stream_delta" ? [args.event] : [];
+    const lifecycleEvents =
+      args.event.type === "lifecycle_event" ? [args.event] : [];
+    const pushed = await ctx.runMutation(components.codexLocal.sync.ingest, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      streamDeltas,
+      lifecycleEvents,
+    });
+
+    return pushed;
+  },
+});
+
+export const ingestBatch = mutation({
+  args: {
+    actor: vActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+    deltas: v.array(v.union(vStreamInboundEvent, vLifecycleInboundEvent)),
+    runtime: v.optional(vSyncRuntimeOptions),
+  },
+  returns: v.object({
+    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  }),
+  handler: async (ctx, args) => {
+    if (args.deltas.length === 0) {
+      throw new Error("ingestBatch requires at least one delta");
+    }
+    const streamDeltas = args.deltas.filter(
+      (delta): delta is typeof args.deltas[number] & { type: "stream_delta" } =>
+        delta.type === "stream_delta",
+    );
+    const lifecycleEvents = args.deltas.filter(
+      (delta): delta is typeof args.deltas[number] & { type: "lifecycle_event" } =>
+        delta.type === "lifecycle_event",
+    );
+    return await ctx.runMutation(components.codexLocal.sync.ingest, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      streamDeltas,
+      lifecycleEvents,
+      ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
+    });
+  },
+});
+
+export const threadSnapshot = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runQuery(components.codexLocal.threads.getState, {
+      actor: args.actor,
+      threadId: args.threadId,
+    });
+  },
+});
+
+export const persistenceStats = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+  },
+  returns: v.object({
+    streamCount: v.number(),
+    deltaCount: v.number(),
+    latestCursorByStream: v.array(v.object({ streamId: v.string(), cursor: v.number() })),
+  }),
+  handler: async (ctx, args) => {
+    const state = await ctx.runQuery(components.codexLocal.threads.getState, {
+      actor: args.actor,
+      threadId: args.threadId,
+    });
+
+    return {
+      streamCount: state.streamStats.length,
+      deltaCount: state.streamStats.reduce((sum, stream) => sum + stream.deltaCount, 0),
+      latestCursorByStream: state.streamStats.map((stream) => ({
+        streamId: stream.streamId,
+        cursor: stream.latestCursor,
+      })),
+    };
+  },
+});
+
+export const durableHistoryStats = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+  },
+  returns: v.object({
+    messageCountInPage: v.number(),
+    latest: v.array(
+      v.object({
+        messageId: v.string(),
+        turnId: v.string(),
+        role: v.string(),
+        status: v.string(),
+        text: v.string(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const state = await ctx.runQuery(components.codexLocal.threads.getState, {
+      actor: args.actor,
+      threadId: args.threadId,
+    });
+    const page = state.recentMessages;
+
+    return {
+      messageCountInPage: page.length,
+      latest: page.slice(0, 5).map((m) => ({
+        messageId: m.messageId,
+        turnId: m.turnId,
+        role: m.role,
+        status: m.status,
+        text: m.text,
+      })),
+    };
+  },
+});
+
+export const listThreadMessagesForHooks = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: vStreamArgs,
+    runtime: v.optional(vSyncRuntimeOptions),
+  },
+  handler: async (ctx, args) => {
+    const paginated = await ctx.runQuery(components.codexLocal.messages.listByThread, {
+      actor: args.actor,
+      threadId: args.threadId,
+      paginationOpts: args.paginationOpts,
+    });
+
+    const streams = args.streamArgs
+      ? await ctx.runQuery(components.codexLocal.sync.replay, {
+          actor: args.actor,
+          threadId: args.threadId,
+          streamCursorsById:
+            args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],
+          ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
+        })
+      : undefined;
+
+    if (args.streamArgs && args.streamArgs.kind === "deltas") {
+      return {
+        ...paginated,
+        streams: streams
+          ? {
+              kind: "deltas" as const,
+              deltas: streams.deltas,
+              streamWindows: streams.streamWindows,
+              nextCheckpoints: streams.nextCheckpoints,
+            }
+          : undefined,
+      };
+    }
+
+    return {
+      ...paginated,
+      streams: streams
+        ? {
+            kind: "list" as const,
+            streams: streams.streams,
+          }
+        : undefined,
+    };
+  },
+});
+
+export const listTurnMessagesForHooks = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runQuery(components.codexLocal.messages.getByTurn, args);
+  },
+});
+
+export const listPendingApprovalsForHooks = query({
+  args: {
+    actor: vActorContext,
+    threadId: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runQuery(components.codexLocal.approvals.listPending, args);
+  },
+});
+
+export const respondApprovalForHooks = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    decision: v.union(v.literal("accepted"), v.literal("declined")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.approvals.respond, args);
+  },
+});
+
+export const interruptTurnForHooks = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    reason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(components.codexLocal.turns.interrupt, args);
+  },
+});

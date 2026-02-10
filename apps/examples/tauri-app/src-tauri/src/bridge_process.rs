@@ -1,0 +1,359 @@
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{Child, ChildStdin, Command};
+use tokio::sync::Mutex;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorContext {
+    pub tenant_id: String,
+    pub user_id: String,
+    pub device_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HelperStartPayload {
+    pub convex_url: String,
+    pub actor: ActorContext,
+    pub session_id: String,
+    pub codex_bin: Option<String>,
+    pub model: Option<String>,
+    pub cwd: Option<String>,
+    pub delta_throttle_ms: Option<u64>,
+    pub save_stream_deltas: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeStateSnapshot {
+    pub running: bool,
+    pub thread_id: Option<String>,
+    pub turn_id: Option<String>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Default)]
+pub struct AppBridgeState {
+    pub runtime: BridgeRuntime,
+}
+
+#[derive(Default)]
+pub struct BridgeRuntime {
+    inner: Arc<Mutex<Option<BridgeProcess>>>,
+    snapshot: Arc<Mutex<BridgeStateSnapshot>>,
+}
+
+struct BridgeProcess {
+    stdin: ChildStdin,
+    child: Child,
+}
+
+struct HelperLaunchSpec {
+    command: PathBuf,
+    args: Vec<String>,
+    mode: &'static str,
+}
+
+impl BridgeRuntime {
+    pub async fn start(&self, app: AppHandle, payload: HelperStartPayload) -> Result<(), String> {
+        let has_running = { self.inner.lock().await.is_some() };
+        if has_running {
+            if self.send_to_helper(&app, "start", json!(payload)).await.is_ok() {
+                return Ok(());
+            }
+            let mut stale = self.inner.lock().await;
+            *stale = None;
+        }
+
+        let helper = resolve_helper_launch_spec(&app)?;
+        let mut command = Command::new(&helper.command);
+        for arg in &helper.args {
+            command.arg(arg);
+        }
+        command.stdin(std::process::Stdio::piped());
+        command.stdout(std::process::Stdio::piped());
+        command.stderr(std::process::Stdio::piped());
+
+        let mut child = command.spawn().map_err(|e| format!("failed to spawn helper: {e}"))?;
+        let stdin = child.stdin.take().ok_or_else(|| "helper stdin unavailable".to_string())?;
+        let stdout = child.stdout.take().ok_or_else(|| "helper stdout unavailable".to_string())?;
+        let stderr = child.stderr.take().ok_or_else(|| "helper stderr unavailable".to_string())?;
+
+        {
+            let snapshot = self.snapshot.clone();
+            let app_handle = app.clone();
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stdout).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    handle_helper_line(&app_handle, &snapshot, &line).await;
+                }
+            });
+        }
+
+        {
+            let snapshot = self.snapshot.clone();
+            let app_handle = app.clone();
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    {
+                        let mut next = snapshot.lock().await;
+                        next.last_error = Some(line.clone());
+                    }
+                    let _ = app_handle.emit("codex:protocol_error", json!({ "message": line }));
+                }
+            });
+        }
+
+        {
+            let mut inner = self.inner.lock().await;
+            *inner = Some(BridgeProcess { stdin, child });
+        }
+        {
+            let mut snap = self.snapshot.lock().await;
+            snap.running = true;
+        }
+        app.emit("codex:bridge_state", json!({ "running": true, "helperMode": helper.mode }))
+            .map_err(|e| format!("emit failed: {e}"))?;
+
+        self.send_to_helper(&app, "start", json!(payload)).await
+    }
+
+    pub async fn send_turn(&self, app: AppHandle, text: String) -> Result<(), String> {
+        self.send_to_helper(&app, "send_turn", json!({ "text": text })).await
+    }
+
+    pub async fn interrupt(&self, app: AppHandle) -> Result<(), String> {
+        self.send_to_helper(&app, "interrupt", json!({})).await
+    }
+
+    pub async fn stop(&self, app: AppHandle) -> Result<(), String> {
+        let mut inner = self.inner.lock().await;
+        if let Some(process) = inner.as_mut() {
+            let line = json!({ "type": "stop", "payload": {} }).to_string();
+            let _ = process.stdin.write_all(line.as_bytes()).await;
+            let _ = process.stdin.write_all(b"\n").await;
+            let _ = process.stdin.flush().await;
+            let _ = process.child.kill().await;
+        }
+        *inner = None;
+
+        let mut snapshot = self.snapshot.lock().await;
+        *snapshot = BridgeStateSnapshot::default();
+        let _ = app.emit("codex:bridge_state", json!({ "running": false }));
+        Ok(())
+    }
+
+    pub async fn snapshot(&self) -> BridgeStateSnapshot {
+        self.snapshot.lock().await.clone()
+    }
+
+    async fn send_to_helper(&self, app: &AppHandle, command: &str, payload: serde_json::Value) -> Result<(), String> {
+        let mut inner = self.inner.lock().await;
+        let process = inner
+            .as_mut()
+            .ok_or_else(|| "bridge helper is not running. Start runtime first.".to_string())?;
+
+        let line = json!({ "type": command, "payload": payload }).to_string();
+        if let Err(error) = process.stdin.write_all(line.as_bytes()).await {
+            drop(inner);
+            self.handle_helper_disconnect(app, format!("failed to write command: {error}"))
+                .await;
+            return Err(format!("failed to write command: {error}"));
+        }
+        if let Err(error) = process.stdin.write_all(b"\n").await {
+            drop(inner);
+            self.handle_helper_disconnect(app, format!("failed to write newline: {error}"))
+                .await;
+            return Err(format!("failed to write newline: {error}"));
+        }
+        if let Err(error) = process.stdin.flush().await {
+            drop(inner);
+            self.handle_helper_disconnect(app, format!("failed to flush helper stdin: {error}"))
+                .await;
+            return Err(format!("failed to flush helper stdin: {error}"));
+        }
+        Ok(())
+    }
+
+    async fn handle_helper_disconnect(&self, app: &AppHandle, message: String) {
+        {
+            let mut inner = self.inner.lock().await;
+            *inner = None;
+        }
+        {
+            let mut snapshot = self.snapshot.lock().await;
+            snapshot.running = false;
+            snapshot.turn_id = None;
+            snapshot.last_error = Some(message.clone());
+        }
+        let _ = app.emit(
+            "codex:bridge_state",
+            json!({ "running": false, "turnId": null, "lastError": message }),
+        );
+    }
+}
+
+fn resolve_helper_launch_spec(app: &AppHandle) -> Result<HelperLaunchSpec, String> {
+    if let Ok(path) = std::env::var("CODEX_HELPER_BIN") {
+        let bin_path = PathBuf::from(path);
+        if bin_path.exists() {
+            return Ok(HelperLaunchSpec {
+                command: bin_path,
+                args: vec![],
+                mode: "standalone-binary",
+            });
+        }
+    }
+
+    let cwd = std::env::current_dir().map_err(|e| format!("current_dir failed: {e}"))?;
+    let fallback_js = cwd.join("../dist-node/bridge-helper.js");
+
+    // In tauri dev, the resource directory can hold stale copies from older runs.
+    // Prefer the freshly built local JS helper to keep host/component schemas in sync.
+    if cfg!(debug_assertions) && fallback_js.exists() {
+        let node_bin = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+        return Ok(HelperLaunchSpec {
+            command: PathBuf::from(node_bin),
+            args: vec![fallback_js.to_string_lossy().to_string()],
+            mode: "node-js-dev-local",
+        });
+    }
+
+    if let Ok(path) = app
+        .path()
+        .resolve("bridge-helper", tauri::path::BaseDirectory::Resource)
+    {
+        if path.exists() {
+            return Ok(HelperLaunchSpec {
+                command: path,
+                args: vec![],
+                mode: "standalone-binary",
+            });
+        }
+    }
+
+    if let Ok(path) = app
+        .path()
+        .resolve("bridge-helper.exe", tauri::path::BaseDirectory::Resource)
+    {
+        if path.exists() {
+            return Ok(HelperLaunchSpec {
+                command: path,
+                args: vec![],
+                mode: "standalone-binary",
+            });
+        }
+    }
+
+    if let Ok(path) = app
+        .path()
+        .resolve("bridge-helper.js", tauri::path::BaseDirectory::Resource)
+    {
+        if path.exists() {
+            let node_bin = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+            return Ok(HelperLaunchSpec {
+                command: PathBuf::from(node_bin),
+                args: vec![path.to_string_lossy().to_string()],
+                mode: "node-js",
+            });
+        }
+    }
+
+    let fallback_bin = cwd.join("../dist-node/bridge-helper");
+    if fallback_bin.exists() {
+        return Ok(HelperLaunchSpec {
+            command: fallback_bin,
+            args: vec![],
+            mode: "standalone-binary",
+        });
+    }
+    let fallback_bin_exe = cwd.join("../dist-node/bridge-helper.exe");
+    if fallback_bin_exe.exists() {
+        return Ok(HelperLaunchSpec {
+            command: fallback_bin_exe,
+            args: vec![],
+            mode: "standalone-binary",
+        });
+    }
+
+    if fallback_js.exists() {
+        let node_bin = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+        return Ok(HelperLaunchSpec {
+            command: PathBuf::from(node_bin),
+            args: vec![fallback_js.to_string_lossy().to_string()],
+            mode: "node-js",
+        });
+    }
+
+    Err(
+        "No helper runtime found. Build `dist-node/bridge-helper.js` or provide `CODEX_HELPER_BIN`."
+            .to_string(),
+    )
+}
+
+async fn handle_helper_line(app: &AppHandle, snapshot: &Arc<Mutex<BridgeStateSnapshot>>, line: &str) {
+    let parsed: serde_json::Value = match serde_json::from_str(line) {
+        Ok(value) => value,
+        Err(error) => {
+            {
+                let mut next = snapshot.lock().await;
+                next.last_error = Some(error.to_string());
+            }
+            let _ = app.emit(
+                "codex:protocol_error",
+                json!({ "message": format!("failed to parse helper line: {error}") }),
+            );
+            return;
+        }
+    };
+
+    let kind = parsed
+        .get("type")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+
+    match kind {
+        "state" => {
+            if let Some(payload) = parsed.get("payload") {
+                if let Ok(next_state) = serde_json::from_value::<BridgeStateSnapshot>(payload.clone()) {
+                    {
+                        let mut current = snapshot.lock().await;
+                        *current = next_state.clone();
+                    }
+                    let _ = app.emit("codex:bridge_state", payload.clone());
+                }
+            }
+        }
+        "event" => {
+            if let Some(payload) = parsed.get("payload") {
+                let _ = app.emit("codex:event", payload.clone());
+            }
+        }
+        "global" => {
+            if let Some(payload) = parsed.get("payload") {
+                let _ = app.emit("codex:global_message", payload.clone());
+            }
+        }
+        "protocol_error" | "error" => {
+            if let Some(payload) = parsed.get("payload") {
+                let message = payload
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("helper error")
+                    .to_string();
+                {
+                    let mut next = snapshot.lock().await;
+                    next.last_error = Some(message.clone());
+                }
+                let _ = app.emit("codex:protocol_error", payload.clone());
+            }
+        }
+        _ => {}
+    }
+}

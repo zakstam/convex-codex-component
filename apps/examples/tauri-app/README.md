@@ -48,6 +48,7 @@ This starts and watches:
   - tool user input answers submitted per question id
 - Use **Use Snapshot Tool** in the composer, then send. This inserts a prompt that asks Codex to call `tauri_get_runtime_snapshot`.
 - Observe the **Thinking** banner above the composer; it updates with the latest reasoning and clears when the final assistant message completes.
+- Bridge status now surfaces ingest diagnostics (`Ingest Enqueued` / `Ingest Skipped`) from runtime `getState().ingestMetrics`.
 
 ## Required env
 

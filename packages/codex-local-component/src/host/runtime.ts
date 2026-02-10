@@ -122,6 +122,12 @@ export type HostRuntimeState = {
   turnId: string | null;
   turnInFlight: boolean;
   pendingServerRequestCount: number;
+  ingestMetrics: {
+    enqueuedEventCount: number;
+    skippedEventCount: number;
+    enqueuedByKind: Array<{ kind: string; count: number }>;
+    skippedByKind: Array<{ kind: string; count: number }>;
+  };
   lastError: string | null;
 };
 
@@ -251,6 +257,7 @@ const MANAGED_SERVER_REQUEST_METHODS = new Set<ManagedServerRequestMethod>([
   "item/tool/requestUserInput",
   "item/tool/call",
 ]);
+const TURN_SCOPED_EVENT_PREFIXES = ["turn/", "item/"];
 
 function toRequestKey(requestId: RpcId): string {
   return `${typeof requestId}:${String(requestId)}`;
@@ -320,6 +327,10 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
   };
 }
 
+function isTurnScopedEvent(kind: string): boolean {
+  return kind === "error" || TURN_SCOPED_EVENT_PREFIXES.some((prefix) => kind.startsWith(prefix));
+}
+
 function randomSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -358,8 +369,28 @@ export function createCodexHostRuntime(args: {
   let flushTail: Promise<void> = Promise.resolve();
   let ingestFlushMs = 250;
   const pendingServerRequests = new Map<string, PendingServerRequest>();
+  const enqueuedByKind = new Map<string, number>();
+  const skippedByKind = new Map<string, number>();
+  let enqueuedEventCount = 0;
+  let skippedEventCount = 0;
 
   const pendingRequests = new Map<number, PendingRequest>();
+
+  const incrementCount = (counts: Map<string, number>, kind: string) => {
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  };
+
+  const snapshotKindCounts = (counts: Map<string, number>): Array<{ kind: string; count: number }> =>
+    Array.from(counts.entries())
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([kind, count]) => ({ kind, count }));
+
+  const resetIngestMetrics = () => {
+    enqueuedByKind.clear();
+    skippedByKind.clear();
+    enqueuedEventCount = 0;
+    skippedEventCount = 0;
+  };
 
   const emitState = (lastError: string | null = null) => {
     args.handlers?.onState?.({
@@ -369,6 +400,12 @@ export function createCodexHostRuntime(args: {
       turnId,
       turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
+      ingestMetrics: {
+        enqueuedEventCount,
+        skippedEventCount,
+        enqueuedByKind: snapshotKindCounts(enqueuedByKind),
+        skippedByKind: snapshotKindCounts(skippedByKind),
+      },
       lastError,
     });
   };
@@ -536,6 +573,31 @@ export function createCodexHostRuntime(args: {
     await next;
   };
 
+  const toIngestDelta = (event: NormalizedEvent, persistedThreadId: string): IngestDelta | null => {
+    const resolvedTurnId = event.turnId ?? turnId;
+    if (!resolvedTurnId || !isTurnScopedEvent(event.kind)) {
+      return null;
+    }
+
+    const resolvedStreamId = event.streamId;
+    if (!resolvedStreamId) {
+      throw new Error(`Protocol event missing streamId for turn-scoped kind: ${event.kind}`);
+    }
+
+    return {
+      type: "stream_delta",
+      eventId: event.eventId,
+      kind: event.kind,
+      payloadJson: event.payloadJson,
+      cursorStart: event.cursorStart,
+      cursorEnd: event.cursorEnd,
+      createdAt: event.createdAt,
+      threadId: persistedThreadId,
+      turnId: resolvedTurnId,
+      streamId: resolvedStreamId,
+    };
+  };
+
   const enqueueIngestDelta = async (delta: IngestDelta, forceFlush: boolean) => {
     ingestQueue.push(delta);
 
@@ -562,6 +624,7 @@ export function createCodexHostRuntime(args: {
     sessionId = startArgs.sessionId ? `${startArgs.sessionId}-${randomSessionId()}` : randomSessionId();
     externalThreadId = startArgs.externalThreadId ?? null;
     ingestFlushMs = startArgs.ingestFlushMs ?? 250;
+    resetIngestMetrics();
 
     const bridgeConfig: BridgeConfig = {};
     if (args.bridge?.codexBin !== undefined) {
@@ -666,29 +729,14 @@ export function createCodexHostRuntime(args: {
             return;
           }
 
-          const delta: IngestDelta =
-            event.streamId && event.turnId
-              ? {
-                  type: "stream_delta",
-                  eventId: event.eventId,
-                  kind: event.kind,
-                  payloadJson: event.payloadJson,
-                  cursorStart: event.cursorStart,
-                  cursorEnd: event.cursorEnd,
-                  createdAt: event.createdAt,
-                  threadId: persistedThreadId,
-                  turnId: event.turnId,
-                  streamId: event.streamId,
-                }
-              : {
-                  type: "lifecycle_event",
-                  eventId: event.eventId,
-                  kind: event.kind,
-                  payloadJson: event.payloadJson,
-                  createdAt: event.createdAt,
-                  threadId: persistedThreadId,
-                  ...(event.turnId ? { turnId: event.turnId } : {}),
-                };
+          const delta = toIngestDelta(event, persistedThreadId);
+          if (!delta) {
+            skippedEventCount += 1;
+            incrementCount(skippedByKind, event.kind);
+            return;
+          }
+          enqueuedEventCount += 1;
+          incrementCount(enqueuedByKind, event.kind);
 
           const forceFlush =
             event.kind === "turn/completed" ||
@@ -807,6 +855,7 @@ export function createCodexHostRuntime(args: {
     interruptRequested = false;
     pendingRequests.clear();
     pendingServerRequests.clear();
+    resetIngestMetrics();
     emitState();
   };
 
@@ -1000,6 +1049,12 @@ export function createCodexHostRuntime(args: {
     turnId,
     turnInFlight,
     pendingServerRequestCount: pendingServerRequests.size,
+    ingestMetrics: {
+      enqueuedEventCount,
+      skippedEventCount,
+      enqueuedByKind: snapshotKindCounts(enqueuedByKind),
+      skippedByKind: snapshotKindCounts(skippedByKind),
+    },
     lastError: null,
   });
 

@@ -49,6 +49,10 @@ type HelperEvent =
         lastError: string | null;
         runtimeThreadId: string | null;
         pendingServerRequestCount: number;
+        ingestEnqueuedEventCount: number;
+        ingestSkippedEventCount: number;
+        ingestEnqueuedByKind: Array<{ kind: string; count: number }>;
+        ingestSkippedByKind: Array<{ kind: string; count: number }>;
       };
     }
   | { type: "event"; payload: { kind: string; threadId: string; turnId?: string; streamId?: string } }
@@ -117,12 +121,20 @@ let bridgeState: {
   turnId: string | null;
   lastError: string | null;
   pendingServerRequestCount: number;
+  ingestEnqueuedEventCount: number;
+  ingestSkippedEventCount: number;
+  ingestEnqueuedByKind: Array<{ kind: string; count: number }>;
+  ingestSkippedByKind: Array<{ kind: string; count: number }>;
 } = {
   running: false,
   localThreadId: null,
   turnId: null,
   lastError: null,
   pendingServerRequestCount: 0,
+  ingestEnqueuedEventCount: 0,
+  ingestSkippedEventCount: 0,
+  ingestEnqueuedByKind: [],
+  ingestSkippedByKind: [],
 };
 
 const DYNAMIC_TOOLS: DynamicToolSpec[] = [
@@ -164,6 +176,10 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       lastError: bridgeState.lastError,
       runtimeThreadId,
       pendingServerRequestCount: bridgeState.pendingServerRequestCount,
+      ingestEnqueuedEventCount: bridgeState.ingestEnqueuedEventCount,
+      ingestSkippedEventCount: bridgeState.ingestSkippedEventCount,
+      ingestEnqueuedByKind: bridgeState.ingestEnqueuedByKind,
+      ingestSkippedByKind: bridgeState.ingestSkippedByKind,
     },
   });
 }
@@ -602,6 +618,10 @@ async function startBridge(payload: StartPayload): Promise<void> {
           turnId: state.turnId,
           lastError: state.lastError,
           pendingServerRequestCount: state.pendingServerRequestCount,
+          ingestEnqueuedEventCount: state.ingestMetrics.enqueuedEventCount,
+          ingestSkippedEventCount: state.ingestMetrics.skippedEventCount,
+          ingestEnqueuedByKind: state.ingestMetrics.enqueuedByKind,
+          ingestSkippedByKind: state.ingestMetrics.skippedByKind,
         });
       },
       onEvent: (event) => {
@@ -731,6 +751,10 @@ async function stopCurrentBridge(): Promise<void> {
       turnId: null,
       lastError: null,
       pendingServerRequestCount: 0,
+      ingestEnqueuedEventCount: 0,
+      ingestSkippedEventCount: 0,
+      ingestEnqueuedByKind: [],
+      ingestSkippedByKind: [],
     });
   }
 }

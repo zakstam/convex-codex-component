@@ -131,7 +131,7 @@ Do not pass these directly from untrusted client payloads.
 
 Use `CodexLocalBridge` from desktop/CLI runtime and provide:
 
-- `onEvent`: persist thread-scoped events through `components.codexLocal.sync.ingestSafe`.
+- `onEvent`: persist turn-scoped runtime events (`turn/*`, `item/*`, `error`) through `components.codexLocal.sync.ingestSafe`.
 - `onGlobalMessage`: process protocol-valid non-thread messages.
 - `onProtocolError`: parse/schema failure path; log and recover/restart.
 - Modern protocol only: hosts must use app-server `thread/*`, `turn/*`, and `item/*` events.
@@ -163,6 +163,7 @@ The runtime also exposes typed app-server lifecycle methods:
 - `respondDynamicToolCall({ requestId, success, contentItems })`
 
 `listPendingServerRequests` filters by the persisted local thread id (Convex `threadId`), not the app-server runtime thread id.
+`getState()` includes ingest counters (`enqueuedEventCount`, `skippedEventCount`, and per-kind breakdowns) so hosts can diagnose unexpected idle ingest traffic.
 
 Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 

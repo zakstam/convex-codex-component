@@ -40,6 +40,14 @@ export function BridgeStatus({ bridge }: Props) {
           <span className="bridge-field-label">Pending</span>
           <span className="code">{bridge.pendingServerRequestCount ?? 0}</span>
         </div>
+        <div className="bridge-field">
+          <span className="bridge-field-label">Ingest Enqueued</span>
+          <span className="code">{bridge.ingestEnqueuedEventCount ?? 0}</span>
+        </div>
+        <div className="bridge-field">
+          <span className="bridge-field-label">Ingest Skipped</span>
+          <span className="code">{bridge.ingestSkippedEventCount ?? 0}</span>
+        </div>
         {bridge.lastError && (
           <div className="bridge-field error-field">
             <span className="bridge-field-label">Error</span>

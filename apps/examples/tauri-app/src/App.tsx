@@ -91,6 +91,10 @@ export default function App() {
     turnId: null,
     lastError: null,
     pendingServerRequestCount: 0,
+    ingestEnqueuedEventCount: 0,
+    ingestSkippedEventCount: 0,
+    ingestEnqueuedByKind: [],
+    ingestSkippedByKind: [],
   });
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);

@@ -64,6 +64,7 @@ Recommended host entrypoints:
     - dynamic tool registration on startup/resume via `dynamicTools`
     - runtime thread lifecycle controls (`resumeThread`, `forkThread`, `archiveThread`, `unarchiveThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`)
     - pending server-request controls (`listPendingServerRequests`, `respondCommandApproval`, `respondFileChangeApproval`, `respondToolUserInput`, `respondDynamicToolCall`)
+    - runtime ingest diagnostics via `getState().ingestMetrics` (enqueued/skipped counts by event kind)
   - for Convex server files, import the Node-safe subpath:
     - `@zakstam/codex-local-component/host/convex`
 

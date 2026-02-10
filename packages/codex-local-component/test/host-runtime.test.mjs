@@ -7,6 +7,7 @@ function createHarness() {
   let handlers = null;
   const upserted = [];
   const resolved = [];
+  const ingestCalls = [];
 
   const runtime = createCodexHostRuntime({
     bridgeFactory: (_config, nextHandlers) => {
@@ -22,7 +23,10 @@ function createHarness() {
     persistence: {
       ensureThread: async () => ({ threadId: "local-thread", created: true }),
       ensureSession: async () => ({ sessionId: "session", threadId: "local-thread", status: "created" }),
-      ingestSafe: async () => ({ status: "ok", errors: [] }),
+      ingestSafe: async (args) => {
+        ingestCalls.push(args);
+        return { status: "ok", errors: [] };
+      },
       upsertPendingServerRequest: async ({ request }) => {
         upserted.push(request);
       },
@@ -42,7 +46,7 @@ function createHarness() {
     await handlers.onEvent(event);
   };
 
-  return { runtime, sent, emitResponse, emitEvent, upserted, resolved };
+  return { runtime, sent, emitResponse, emitEvent, upserted, resolved, ingestCalls };
 }
 
 test("runtime start supports threadStrategy=resume", async () => {
@@ -259,6 +263,78 @@ test("respondDynamicToolCall responds to pending item/tool/call request", async 
   });
   assert.equal(resolved.length, 1);
   assert.equal(resolved[0].status, "answered");
+
+  await runtime.stop();
+});
+
+test("runtime ignores non-turn thread-scoped events for ingest", async () => {
+  const { runtime, sent, emitResponse, emitEvent, ingestCalls } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await emitEvent({
+    eventId: "evt-thread-started",
+    threadId,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "thread/started",
+    payloadJson: JSON.stringify({
+      method: "thread/started",
+      params: { thread: { id: threadId } },
+    }),
+    createdAt: Date.now(),
+  });
+
+  assert.equal(ingestCalls.length, 0);
+  const state = runtime.getState();
+  assert.equal(state.ingestMetrics.enqueuedEventCount, 0);
+  assert.equal(state.ingestMetrics.skippedEventCount, 1);
+  assert.deepEqual(state.ingestMetrics.skippedByKind, [{ kind: "thread/started", count: 1 }]);
+  await runtime.stop();
+});
+
+test("runtime ingests turn-scoped events", async () => {
+  const { runtime, sent, emitResponse, emitEvent, ingestCalls } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await emitEvent({
+    eventId: "evt-turn-completed",
+    threadId,
+    turnId: "turn-1",
+    streamId: `${threadId}:turn-1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/completed",
+    payloadJson: JSON.stringify({
+      method: "turn/completed",
+      params: {
+        threadId,
+        turn: { id: "turn-1", items: [], status: "completed", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  assert.equal(ingestCalls.length, 1);
+  assert.equal(ingestCalls[0].deltas.length, 1);
+  assert.equal(ingestCalls[0].deltas[0].type, "stream_delta");
+  const state = runtime.getState();
+  assert.equal(state.ingestMetrics.enqueuedEventCount, 1);
+  assert.equal(state.ingestMetrics.skippedEventCount, 0);
+  assert.deepEqual(state.ingestMetrics.enqueuedByKind, [{ kind: "turn/completed", count: 1 }]);
 
   await runtime.stop();
 });

@@ -13,6 +13,10 @@ export type BridgeState = {
   lastError: string | null;
   runtimeThreadId?: string | null;
   pendingServerRequestCount?: number | null;
+  ingestEnqueuedEventCount?: number | null;
+  ingestSkippedEventCount?: number | null;
+  ingestEnqueuedByKind?: Array<{ kind: string; count: number }> | null;
+  ingestSkippedByKind?: Array<{ kind: string; count: number }> | null;
 };
 
 export type CommandApprovalDecision =

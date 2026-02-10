@@ -39,6 +39,17 @@ pub struct BridgeStateSnapshot {
     pub last_error: Option<String>,
     pub runtime_thread_id: Option<String>,
     pub pending_server_request_count: Option<u64>,
+    pub ingest_enqueued_event_count: Option<u64>,
+    pub ingest_skipped_event_count: Option<u64>,
+    pub ingest_enqueued_by_kind: Option<Vec<IngestMetricEntry>>,
+    pub ingest_skipped_by_kind: Option<Vec<IngestMetricEntry>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngestMetricEntry {
+    pub kind: String,
+    pub count: u64,
 }
 
 #[derive(Default)]
@@ -199,6 +210,10 @@ impl BridgeRuntime {
                 "turnId": null,
                 "runtimeThreadId": null,
                 "pendingServerRequestCount": 0,
+                "ingestEnqueuedEventCount": 0,
+                "ingestSkippedEventCount": 0,
+                "ingestEnqueuedByKind": [],
+                "ingestSkippedByKind": [],
                 "lastError": null
             }),
         );
@@ -249,6 +264,10 @@ impl BridgeRuntime {
             snapshot.turn_id = None;
             snapshot.runtime_thread_id = None;
             snapshot.pending_server_request_count = Some(0);
+            snapshot.ingest_enqueued_event_count = Some(0);
+            snapshot.ingest_skipped_event_count = Some(0);
+            snapshot.ingest_enqueued_by_kind = Some(Vec::new());
+            snapshot.ingest_skipped_by_kind = Some(Vec::new());
             snapshot.last_error = Some(message.clone());
         }
         let _ = app.emit(
@@ -259,6 +278,10 @@ impl BridgeRuntime {
                 "turnId": null,
                 "runtimeThreadId": null,
                 "pendingServerRequestCount": 0,
+                "ingestEnqueuedEventCount": 0,
+                "ingestSkippedEventCount": 0,
+                "ingestEnqueuedByKind": [],
+                "ingestSkippedByKind": [],
                 "lastError": message
             }),
         );

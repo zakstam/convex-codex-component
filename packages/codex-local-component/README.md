@@ -1,5 +1,7 @@
 # Codex Local Convex Component
 
+[![npm version](https://img.shields.io/npm/v/%40zakstam%2Fcodex-local-component)](https://www.npmjs.com/package/@zakstam/codex-local-component)
+
 Local-first Convex component for Codex integrations where Codex runs on the user's machine (desktop/CLI).
 
 ## What this package contains

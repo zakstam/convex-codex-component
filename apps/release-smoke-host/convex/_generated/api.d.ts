@@ -121,6 +121,72 @@ export declare const components: {
         any
       >;
     };
+    reasoning: {
+      listByThread: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          includeRaw?: boolean;
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+          threadId: string;
+        },
+        any
+      >;
+    };
+    serverRequests: {
+      listPending: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          limit?: number;
+          threadId?: string;
+        },
+        any
+      >;
+      resolve: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          requestId: string | number;
+          resolvedAt: number;
+          responseJson?: string;
+          status: "answered" | "expired";
+          threadId: string;
+        },
+        null
+      >;
+      upsertPending: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          itemId: string;
+          method:
+            | "item/commandExecution/requestApproval"
+            | "item/fileChange/requestApproval"
+            | "item/tool/requestUserInput"
+            | "item/tool/call";
+          payloadJson: string;
+          questionsJson?: string;
+          reason?: string;
+          requestId: string | number;
+          requestedAt: number;
+          threadId: string;
+          turnId: string;
+        },
+        null
+      >;
+    };
     sync: {
       ensureSession: FunctionReference<
         "mutation",
@@ -158,9 +224,11 @@ export declare const components: {
             type: "lifecycle_event";
           }>;
           runtime?: {
+            exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
             maxDeltasPerRequestRead?: number;
             maxDeltasPerStreamRead?: number;
+            saveReasoningDeltas?: boolean;
             saveStreamDeltas?: boolean;
           };
           sessionId: string;
@@ -197,9 +265,11 @@ export declare const components: {
             type: "lifecycle_event";
           }>;
           runtime?: {
+            exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
             maxDeltasPerRequestRead?: number;
             maxDeltasPerStreamRead?: number;
+            saveReasoningDeltas?: boolean;
             saveStreamDeltas?: boolean;
           };
           sessionId: string;
@@ -253,9 +323,11 @@ export declare const components: {
         {
           actor: { deviceId: string; tenantId: string; userId: string };
           runtime?: {
+            exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
             maxDeltasPerRequestRead?: number;
             maxDeltasPerStreamRead?: number;
+            saveReasoningDeltas?: boolean;
             saveStreamDeltas?: boolean;
           };
           streamCursorsById: Array<{ cursor: number; streamId: string }>;
@@ -270,9 +342,11 @@ export declare const components: {
           actor: { deviceId: string; tenantId: string; userId: string };
           fromCursor: number;
           runtime?: {
+            exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
             maxDeltasPerRequestRead?: number;
             maxDeltasPerStreamRead?: number;
+            saveReasoningDeltas?: boolean;
             saveStreamDeltas?: boolean;
           };
           threadId: string;

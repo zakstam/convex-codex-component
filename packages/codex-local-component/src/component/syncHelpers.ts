@@ -4,12 +4,14 @@ import {
   durableMessageDeltaForPayload,
   durableMessageForPayload,
   itemSnapshotForPayload,
+  reasoningDeltaForPayload,
   terminalStatusForPayload,
   type CanonicalApprovalRequest,
   type CanonicalApprovalResolution,
   type CanonicalDurableMessage,
   type CanonicalDurableMessageDelta,
   type CanonicalItemSnapshot,
+  type CanonicalReasoningDelta,
   type CanonicalTerminalStatus,
 } from "../protocol/events.js";
 
@@ -25,6 +27,7 @@ export type ApprovalResolution = CanonicalApprovalResolution;
 export type ItemSnapshot = CanonicalItemSnapshot;
 export type DurableMessageFromEvent = CanonicalDurableMessage;
 export type DurableMessageDeltaFromEvent = CanonicalDurableMessageDelta;
+export type ReasoningDeltaFromEvent = CanonicalReasoningDelta;
 export type DurableMessageRole = CanonicalDurableMessage["role"];
 export type DurableMessageStatus = CanonicalDurableMessage["status"];
 
@@ -70,6 +73,13 @@ export function parseDurableMessageDeltaEvent(
   payloadJson: string,
 ): DurableMessageDeltaFromEvent | null {
   return durableMessageDeltaForPayload(kind, payloadJson);
+}
+
+export function parseReasoningDeltaEvent(
+  kind: string,
+  payloadJson: string,
+): ReasoningDeltaFromEvent | null {
+  return reasoningDeltaForPayload(kind, payloadJson);
 }
 
 export function assertContinuousStreamDeltas(

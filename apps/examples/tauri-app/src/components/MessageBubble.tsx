@@ -3,6 +3,7 @@ type Props = {
     messageId: string;
     role: string;
     status: string;
+    sourceItemType?: string;
     text: string;
     createdAt: number;
   };
@@ -10,6 +11,7 @@ type Props = {
 
 export function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
+  const isReasoning = message.sourceItemType === "reasoning";
   const isStreaming = message.status === "streaming";
 
   const statusClass =
@@ -25,12 +27,12 @@ export function MessageBubble({ message }: Props) {
 
   return (
     <article
-      className={`msg ${isUser ? "user" : "assistant"}`}
+      className={`msg ${isUser ? "user" : "assistant"} ${isReasoning ? "reasoning" : ""}`}
       data-status={message.status}
-      aria-label={`${message.role} message`}
+      aria-label={`${isReasoning ? "reasoning" : message.role} message`}
     >
       <p className="label">
-        {message.role}
+        {isReasoning ? "reasoning" : message.role}
         <span className={`status-badge ${statusClass}`} data-status={message.status}>
           {message.status}
         </span>

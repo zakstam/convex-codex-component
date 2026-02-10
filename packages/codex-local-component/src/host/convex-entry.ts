@@ -1,9 +1,11 @@
 export {
   ingestBatchSafe,
   listThreadMessagesForHooks,
+  listThreadReasoningForHooks,
   type HostInboundLifecycleEvent,
   type HostInboundStreamDelta,
   type HostMessagesForHooksArgs,
+  type HostReasoningForHooksArgs,
   type HostStreamArgs,
   type HostSyncRuntimeOptions,
 } from "./convex.js";
@@ -26,6 +28,7 @@ export {
   listPendingApprovalsForHooksWithTrustedActor,
   listPendingServerRequestsForHooksWithTrustedActor,
   listThreadMessagesForHooksWithTrustedActor,
+  listThreadReasoningForHooksWithTrustedActor,
   listTurnMessagesForHooksWithTrustedActor,
   persistenceStats,
   registerTurnStart,

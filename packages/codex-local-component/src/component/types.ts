@@ -24,6 +24,8 @@ export const vTurnOptions = v.object({
 
 export const vSyncRuntimeOptions = v.object({
   saveStreamDeltas: v.optional(v.boolean()),
+  saveReasoningDeltas: v.optional(v.boolean()),
+  exposeRawReasoningDeltas: v.optional(v.boolean()),
   maxDeltasPerStreamRead: v.optional(v.number()),
   maxDeltasPerRequestRead: v.optional(v.number()),
   finishedStreamDeleteDelayMs: v.optional(v.number()),

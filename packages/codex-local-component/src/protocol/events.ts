@@ -47,6 +47,15 @@ export type CanonicalDurableMessageDelta = {
   delta: string;
 };
 
+export type CanonicalReasoningDelta = {
+  itemId: string;
+  channel: "summary" | "raw";
+  segmentType: "textDelta" | "sectionBreak";
+  summaryIndex?: number;
+  contentIndex?: number;
+  delta?: string;
+};
+
 const THREAD_METHOD_PREFIXES = ["thread/", "turn/", "item/", "rawResponseItem/"];
 const TURN_COMPLETED_KINDS = new Set<string>(["turn/completed"]);
 const TURN_FAILED_KINDS = new Set<string>(["error"]);
@@ -598,4 +607,61 @@ export function durableMessageDeltaForPayload(
   }
   const parsed = parseMethodPayload(payloadJson, "item/agentMessage/delta");
   return parsed ? durableMessageDeltaForMessage(parsed) : null;
+}
+
+export function reasoningDeltaForMessage(
+  message: ServerInboundMessage,
+): CanonicalReasoningDelta | null {
+  const summaryTextDelta = parseMethodMessage(message, "item/reasoning/summaryTextDelta");
+  if (summaryTextDelta) {
+    return {
+      itemId: summaryTextDelta.params.itemId,
+      channel: "summary",
+      segmentType: "textDelta",
+      summaryIndex: summaryTextDelta.params.summaryIndex,
+      delta: summaryTextDelta.params.delta,
+    };
+  }
+
+  const summaryPartAdded = parseMethodMessage(message, "item/reasoning/summaryPartAdded");
+  if (summaryPartAdded) {
+    return {
+      itemId: summaryPartAdded.params.itemId,
+      channel: "summary",
+      segmentType: "sectionBreak",
+      summaryIndex: summaryPartAdded.params.summaryIndex,
+    };
+  }
+
+  const reasoningTextDelta = parseMethodMessage(message, "item/reasoning/textDelta");
+  if (reasoningTextDelta) {
+    return {
+      itemId: reasoningTextDelta.params.itemId,
+      channel: "raw",
+      segmentType: "textDelta",
+      contentIndex: reasoningTextDelta.params.contentIndex,
+      delta: reasoningTextDelta.params.delta,
+    };
+  }
+
+  return null;
+}
+
+export function reasoningDeltaForPayload(
+  kind: string,
+  payloadJson: string,
+): CanonicalReasoningDelta | null {
+  if (kind === "item/reasoning/summaryTextDelta") {
+    const parsed = parseMethodPayload(payloadJson, "item/reasoning/summaryTextDelta");
+    return parsed ? reasoningDeltaForMessage(parsed) : null;
+  }
+  if (kind === "item/reasoning/summaryPartAdded") {
+    const parsed = parseMethodPayload(payloadJson, "item/reasoning/summaryPartAdded");
+    return parsed ? reasoningDeltaForMessage(parsed) : null;
+  }
+  if (kind === "item/reasoning/textDelta") {
+    const parsed = parseMethodPayload(payloadJson, "item/reasoning/textDelta");
+    return parsed ? reasoningDeltaForMessage(parsed) : null;
+  }
+  return null;
 }

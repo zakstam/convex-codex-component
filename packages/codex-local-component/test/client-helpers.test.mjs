@@ -8,6 +8,7 @@ import {
   listThreads,
   listPendingApprovals,
   listMessages,
+  listReasoningByThread,
   listTurnMessages,
   resolveThread,
   resolveThreadByExternalId,
@@ -72,6 +73,34 @@ test("listTurnMessages passes query reference and args", async () => {
 
   assert.equal(result, expected);
   assert.deepEqual(calls, [{ ref: getByTurn, queryArgs: args }]);
+});
+
+test("listReasoningByThread passes query reference and args", async () => {
+  const listByThread = {};
+  const component = {
+    reasoning: {
+      listByThread,
+    },
+  };
+  const args = {
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    threadId: "thread-1",
+    includeRaw: false,
+    paginationOpts: { cursor: null, numItems: 10 },
+  };
+  const expected = { page: [], isDone: true, continueCursor: "" };
+  const calls = [];
+  const ctx = {
+    runQuery: async (ref, queryArgs) => {
+      calls.push({ ref, queryArgs });
+      return expected;
+    },
+  };
+
+  const result = await listReasoningByThread(ctx, component, args);
+
+  assert.equal(result, expected);
+  assert.deepEqual(calls, [{ ref: listByThread, queryArgs: args }]);
 });
 
 test("startTurn and interruptTurn pass mutation refs and args", async () => {

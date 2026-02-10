@@ -9,6 +9,7 @@ Local-first Convex component for Codex integrations where Codex runs on the user
 - Convex component scaffold (`src/component`) with:
   - thread and turn lifecycle APIs
   - sync ingest/replay APIs
+  - reasoning segment query APIs
   - approvals APIs
   - server-request tracking APIs (`item/*/requestApproval`, `item/tool/requestUserInput`, `item/tool/call`)
 - Local adapter skeleton (`src/local-adapter`) to manage `codex app-server` over stdio
@@ -48,9 +49,10 @@ Recommended host entrypoints:
 
 - `@zakstam/codex-local-component/client`
   - message/approval/turn/thread helpers
+  - reasoning helper: `listReasoningByThread`
   - sync helpers: `replayStreams`, `resumeStreamReplay`
 - `@zakstam/codex-local-component/react`
-  - hooks for messages, approvals, turn state, composer, interrupts
+  - hooks for messages/reasoning, approvals, turn state, composer, interrupts
 - `@zakstam/codex-local-component/app-server`
   - typed request builders for app-server initialize, thread lifecycle, and turn flows
   - typed server-request response builders for command/file approval, tool user-input, and dynamic tool calls
@@ -64,6 +66,11 @@ Recommended host entrypoints:
     - pending server-request controls (`listPendingServerRequests`, `respondCommandApproval`, `respondFileChangeApproval`, `respondToolUserInput`, `respondDynamicToolCall`)
   - for Convex server files, import the Node-safe subpath:
     - `@zakstam/codex-local-component/host/convex`
+
+Reasoning stream defaults:
+
+- reasoning summary deltas are persisted/replayed by default
+- raw reasoning deltas require explicit runtime opt-in (`exposeRawReasoningDeltas: true`)
 
 ## Convex install pattern
 

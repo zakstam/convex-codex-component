@@ -73,6 +73,46 @@ export async function applyMessageEffectsForEvent(
   }
 
   if (!event.durableDelta) {
+    if (!event.reasoningDelta || event.type !== "stream_delta") {
+      return;
+    }
+
+    if (event.reasoningDelta.channel === "raw" && !ingest.runtime.exposeRawReasoningDeltas) {
+      return;
+    }
+
+    const existingReasoningEvent = await ingest.ctx.db
+      .query("codex_reasoning_segments")
+      .withIndex("tenantId_threadId_eventId", (q) =>
+        q.eq("tenantId", ingest.args.actor.tenantId).eq("threadId", ingest.args.threadId).eq("eventId", event.eventId),
+      )
+      .first();
+    if (existingReasoningEvent) {
+      return;
+    }
+
+    const segmentId = `${event.turnId}:${event.reasoningDelta.itemId}:${event.reasoningDelta.channel}:${event.reasoningDelta.segmentType}:${event.eventId}`;
+    await ingest.ctx.db.insert("codex_reasoning_segments", {
+      tenantId: ingest.args.actor.tenantId,
+      userId: ingest.args.actor.userId,
+      threadId: ingest.args.threadId,
+      turnId: event.turnId,
+      itemId: event.reasoningDelta.itemId,
+      segmentId,
+      eventId: event.eventId,
+      channel: event.reasoningDelta.channel,
+      segmentType: event.reasoningDelta.segmentType,
+      text: event.reasoningDelta.delta ?? "",
+      ...(typeof event.reasoningDelta.summaryIndex === "number"
+        ? { summaryIndex: event.reasoningDelta.summaryIndex }
+        : {}),
+      ...(typeof event.reasoningDelta.contentIndex === "number"
+        ? { contentIndex: event.reasoningDelta.contentIndex }
+        : {}),
+      cursorStart: event.cursorStart,
+      cursorEnd: event.cursorEnd,
+      createdAt: event.createdAt,
+    });
     return;
   }
 

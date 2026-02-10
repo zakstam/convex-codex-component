@@ -348,6 +348,16 @@ button.ghost:hover:not(:disabled) {
     var(--radius-sm);
 }
 
+.msg.reasoning {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.12),
+    rgba(59, 130, 246, 0.04)
+  );
+  border-color: rgba(59, 130, 246, 0.25);
+  border-style: dashed;
+}
+
 .msg .label {
   margin: 0 0 6px;
   font-family: "JetBrains Mono", monospace;
@@ -356,6 +366,10 @@ button.ghost:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.msg.reasoning .label {
+  color: var(--secondary);
 }
 
 .msg-body {

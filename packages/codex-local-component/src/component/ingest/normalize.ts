@@ -3,6 +3,7 @@ import {
   parseApprovalResolution,
   parseDurableMessageDeltaEvent,
   parseDurableMessageEvent,
+  parseReasoningDeltaEvent,
   terminalStatusForEvent,
 } from "../syncHelpers.js";
 import type { InboundEvent, NormalizedInboundEvent } from "./types.js";
@@ -44,6 +45,7 @@ export function normalizeInboundEvents(args: {
       approvalResolution: event.turnId ? parseApprovalResolution(event.kind, event.payloadJson) : null,
       durableMessage: event.turnId ? parseDurableMessageEvent(event.kind, event.payloadJson) : null,
       durableDelta: event.turnId ? parseDurableMessageDeltaEvent(event.kind, event.payloadJson) : null,
+      reasoningDelta: event.turnId ? parseReasoningDeltaEvent(event.kind, event.payloadJson) : null,
     };
   });
 }

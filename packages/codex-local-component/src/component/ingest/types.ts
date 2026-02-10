@@ -6,6 +6,7 @@ import type {
   ApprovalResolution,
   DurableMessageDeltaFromEvent,
   DurableMessageFromEvent,
+  ReasoningDeltaFromEvent,
   TerminalTurnStatus,
 } from "../syncHelpers.js";
 import type { RuntimeOptions, SyncRuntimeInput } from "../syncRuntime.js";
@@ -136,6 +137,7 @@ export type NormalizedInboundEvent = InboundEvent & {
   approvalResolution: ApprovalResolution | null;
   durableMessage: DurableMessageFromEvent | null;
   durableDelta: DurableMessageDeltaFromEvent | null;
+  reasoningDelta: ReasoningDeltaFromEvent | null;
 };
 
 export type IngestContext = {

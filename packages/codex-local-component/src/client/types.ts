@@ -36,12 +36,28 @@ export type CodexUIMessage = {
   turnId: string;
   role: CodexMessageDoc["role"];
   status: CodexMessageDoc["status"];
+  sourceItemType?: string;
   text: string;
   orderInTurn: number;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
   error?: string;
+};
+
+export type CodexReasoningSegment = {
+  segmentId: string;
+  eventId: string;
+  turnId: string;
+  itemId: string;
+  channel: "summary" | "raw";
+  segmentType: "textDelta" | "sectionBreak";
+  text: string;
+  summaryIndex?: number;
+  contentIndex?: number;
+  cursorStart: number;
+  cursorEnd: number;
+  createdAt: number;
 };
 
 export type CodexStreamOverlay = FunctionReturnType<
@@ -66,4 +82,12 @@ type RuntimeOptionsFromResume = FunctionArgs<
 
 export type CodexSyncRuntimeOptions =
   | RuntimeOptionsFromPullState
-  | RuntimeOptionsFromResume;
+  | RuntimeOptionsFromResume
+  | {
+      saveStreamDeltas?: boolean;
+      saveReasoningDeltas?: boolean;
+      exposeRawReasoningDeltas?: boolean;
+      maxDeltasPerStreamRead?: number;
+      maxDeltasPerRequestRead?: number;
+      finishedStreamDeleteDelayMs?: number;
+    };

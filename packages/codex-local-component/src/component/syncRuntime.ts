@@ -6,7 +6,12 @@ export const LIFECYCLE_EVENT_KINDS = new Set<string>([
   "item/completed",
   "error",
 ]);
-export const DELTA_EVENT_KINDS = new Set<string>(["item/agentMessage/delta"]);
+export const STREAM_TEXT_DELTA_EVENT_KINDS = new Set<string>(["item/agentMessage/delta"]);
+export const REASONING_SUMMARY_DELTA_EVENT_KINDS = new Set<string>([
+  "item/reasoning/summaryTextDelta",
+  "item/reasoning/summaryPartAdded",
+]);
+export const REASONING_RAW_DELTA_EVENT_KINDS = new Set<string>(["item/reasoning/textDelta"]);
 export const HEARTBEAT_WRITE_MIN_INTERVAL_MS = 10_000;
 export const STALE_SWEEP_MIN_INTERVAL_MS = 60_000;
 export const CLEANUP_SWEEP_MIN_INTERVAL_MS = 300_000;
@@ -17,6 +22,8 @@ export const DEFAULT_STREAM_DELETE_BATCH_SIZE = 500;
 
 export type RuntimeOptions = {
   saveStreamDeltas: boolean;
+  saveReasoningDeltas: boolean;
+  exposeRawReasoningDeltas: boolean;
   maxDeltasPerStreamRead: number;
   maxDeltasPerRequestRead: number;
   finishedStreamDeleteDelayMs: number;
@@ -24,6 +31,8 @@ export type RuntimeOptions = {
 
 export type SyncRuntimeInput = {
   saveStreamDeltas?: boolean;
+  saveReasoningDeltas?: boolean;
+  exposeRawReasoningDeltas?: boolean;
   maxDeltasPerStreamRead?: number;
   maxDeltasPerRequestRead?: number;
   finishedStreamDeleteDelayMs?: number;
@@ -41,6 +50,8 @@ export function resolveRuntimeOptions(
 ): RuntimeOptions {
   return {
     saveStreamDeltas: options?.saveStreamDeltas ?? false,
+    saveReasoningDeltas: options?.saveReasoningDeltas ?? true,
+    exposeRawReasoningDeltas: options?.exposeRawReasoningDeltas ?? false,
     maxDeltasPerStreamRead: clampPositiveInt(
       options?.maxDeltasPerStreamRead,
       DEFAULT_MAX_DELTAS_PER_STREAM_READ,

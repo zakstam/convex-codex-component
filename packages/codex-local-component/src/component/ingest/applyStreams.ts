@@ -1,9 +1,11 @@
 import { makeFunctionReference } from "convex/server";
 import {
-  DELTA_EVENT_KINDS,
   DELTA_TTL_MS,
   DEFAULT_STREAM_DELETE_BATCH_SIZE,
   LIFECYCLE_EVENT_KINDS,
+  REASONING_RAW_DELTA_EVENT_KINDS,
+  REASONING_SUMMARY_DELTA_EVENT_KINDS,
+  STREAM_TEXT_DELTA_EVENT_KINDS,
   syncError,
 } from "../syncRuntime.js";
 import {
@@ -132,7 +134,11 @@ export async function applyStreamEvent(
 
   const shouldPersist =
     LIFECYCLE_EVENT_KINDS.has(event.kind) ||
-    (ingest.runtime.saveStreamDeltas && DELTA_EVENT_KINDS.has(event.kind));
+    (ingest.runtime.saveStreamDeltas && STREAM_TEXT_DELTA_EVENT_KINDS.has(event.kind)) ||
+    (ingest.runtime.saveReasoningDeltas && REASONING_SUMMARY_DELTA_EVENT_KINDS.has(event.kind)) ||
+    (ingest.runtime.saveReasoningDeltas &&
+      ingest.runtime.exposeRawReasoningDeltas &&
+      REASONING_RAW_DELTA_EVENT_KINDS.has(event.kind));
 
   if (shouldPersist) {
     await ingest.ctx.db.insert("codex_stream_deltas_ttl", {

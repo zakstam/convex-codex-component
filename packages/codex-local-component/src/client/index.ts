@@ -12,6 +12,9 @@ export {
   listTurnMessages,
 } from "./messages.js";
 export {
+  listReasoningByThread,
+} from "./reasoning.js";
+export {
   startTurn,
   interruptTurn,
 } from "./turns.js";
@@ -34,6 +37,7 @@ export type {
   CodexMessageDoc,
   CodexMutationRunner,
   CodexQueryRunner,
+  CodexReasoningSegment,
   CodexStreamOverlay,
   CodexSyncRuntimeOptions,
   CodexUIMessage,

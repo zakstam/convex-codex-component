@@ -4,8 +4,14 @@ export {
   useCodexMessages,
 } from "./useCodexMessages.js";
 export {
+  useCodexReasoning,
+} from "./useCodexReasoning.js";
+export {
   useCodexStreamingMessages,
 } from "./useCodexStreamingMessages.js";
+export {
+  useCodexStreamingReasoning,
+} from "./useCodexStreamingReasoning.js";
 export {
   useCodexThreadState,
   type CodexThreadStateQuery,
@@ -42,6 +48,8 @@ export {
 export type {
   CodexMessagesQuery,
   CodexMessagesQueryArgs,
+  CodexReasoningQuery,
+  CodexReasoningQueryArgs,
   CodexStreamArgs,
   CodexStreamsResult,
 } from "./types.js";

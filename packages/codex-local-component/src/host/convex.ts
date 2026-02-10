@@ -7,6 +7,8 @@ export type HostStreamArgs =
 
 export type HostSyncRuntimeOptions = {
   saveStreamDeltas?: boolean;
+  saveReasoningDeltas?: boolean;
+  exposeRawReasoningDeltas?: boolean;
   maxDeltasPerStreamRead?: number;
   maxDeltasPerRequestRead?: number;
   finishedStreamDeleteDelayMs?: number;
@@ -18,6 +20,13 @@ export type HostMessagesForHooksArgs<Actor> = {
   paginationOpts: PaginationOptions;
   streamArgs?: HostStreamArgs;
   runtime?: HostSyncRuntimeOptions;
+};
+
+export type HostReasoningForHooksArgs<Actor> = {
+  actor: Actor;
+  threadId: string;
+  paginationOpts: PaginationOptions;
+  includeRaw?: boolean;
 };
 
 export async function listThreadMessagesForHooks<
@@ -131,6 +140,26 @@ export async function listThreadMessagesForHooks<
           nextCheckpoints: Array<{ streamId: string; cursor: number }>;
         };
   };
+}
+
+export async function listThreadReasoningForHooks<
+  Actor,
+  Component extends {
+    reasoning: {
+      listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    };
+  },
+>(
+  ctx: CodexQueryRunner,
+  component: Component,
+  args: HostReasoningForHooksArgs<Actor>,
+): Promise<FunctionReturnType<Component["reasoning"]["listByThread"]>> {
+  return ctx.runQuery(component.reasoning.listByThread, {
+    actor: args.actor,
+    threadId: args.threadId,
+    paginationOpts: args.paginationOpts,
+    ...(typeof args.includeRaw === "boolean" ? { includeRaw: args.includeRaw } : {}),
+  } as FunctionArgs<Component["reasoning"]["listByThread"]>);
 }
 
 export type HostInboundStreamDelta = {

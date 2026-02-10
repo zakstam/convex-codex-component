@@ -12,6 +12,7 @@ import {
   listPendingApprovalsForHooksWithTrustedActor,
   listPendingServerRequestsForHooksWithTrustedActor,
   listThreadMessagesForHooksWithTrustedActor,
+  listThreadReasoningForHooksWithTrustedActor,
   listTurnMessagesForHooksWithTrustedActor,
   persistenceStats as persistenceStatsHandler,
   registerTurnStart as registerTurnStartHandler,
@@ -181,6 +182,17 @@ export const listTurnMessagesForHooks = query({
   },
   handler: async (ctx, args) =>
     listTurnMessagesForHooksWithTrustedActor(ctx, components.codexLocal, args),
+});
+
+export const listThreadReasoningForHooks = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    includeRaw: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) =>
+    listThreadReasoningForHooksWithTrustedActor(ctx, components.codexLocal, args),
 });
 
 export const listPendingApprovalsForHooks = query({

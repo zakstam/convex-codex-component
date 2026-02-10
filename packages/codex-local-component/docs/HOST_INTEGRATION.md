@@ -31,6 +31,7 @@ Use:
   `ingestEventStreamOnly` / `ingestEventMixed`, `ingestBatchStreamOnly` / `ingestBatchMixed`,
   `threadSnapshot`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`
 - hook helpers: `listThreadMessagesForHooksWithTrustedActor`, `listTurnMessagesForHooksWithTrustedActor`,
+  `listThreadReasoningForHooksWithTrustedActor`,
   `listPendingApprovalsForHooksWithTrustedActor`, `respondApprovalForHooksWithTrustedActor`,
   `listPendingServerRequestsForHooksWithTrustedActor`, `upsertPendingServerRequestForHooksWithTrustedActor`,
   `resolvePendingServerRequestForHooksWithTrustedActor`,
@@ -188,6 +189,8 @@ Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 `sync.ingest`, `sync.replay`, and `sync.resumeReplay` support:
 
 - `saveStreamDeltas` (default `false`)
+- `saveReasoningDeltas` (default `true`)
+- `exposeRawReasoningDeltas` (default `false`)
 - `maxDeltasPerStreamRead` (default `100`)
 - `maxDeltasPerRequestRead` (default `1000`)
 - `finishedStreamDeleteDelayMs` (default `300000`)

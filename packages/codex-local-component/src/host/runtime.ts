@@ -135,6 +135,8 @@ export type HostRuntimeStartArgs = {
   cwd?: string;
   runtime?: {
     saveStreamDeltas?: boolean;
+    saveReasoningDeltas?: boolean;
+    exposeRawReasoningDeltas?: boolean;
     maxDeltasPerStreamRead?: number;
     maxDeltasPerRequestRead?: number;
     finishedStreamDeleteDelayMs?: number;
@@ -164,6 +166,8 @@ export type HostRuntimePersistence = {
     deltas: IngestDelta[];
     runtime?: {
       saveStreamDeltas?: boolean;
+      saveReasoningDeltas?: boolean;
+      exposeRawReasoningDeltas?: boolean;
       maxDeltasPerStreamRead?: number;
       maxDeltasPerRequestRead?: number;
       finishedStreamDeleteDelayMs?: number;

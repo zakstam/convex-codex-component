@@ -4,6 +4,28 @@
 
 Local-first Convex component for Codex integrations where Codex runs on the user's machine (`codex app-server` over stdio).
 
+## Feature Parity
+
+Implemented:
+
+- Initialization Handshake
+- Thread Lifecycle APIs
+- Turn Lifecycle APIs
+- Streamed Event Ingest/Replay
+- Approval Flows
+- Tool User Input Flow
+- Dynamic Tool Call Response Flow
+
+Not implemented:
+
+- Account/Auth API Surface
+- Config Management API Surface
+- MCP Management API Surface
+- Core Runtime Utility APIs
+- Skill/App Discovery and Configuration APIs
+- Feedback API
+- Collaboration Mode Listing
+
 ## Install
 
 ```bash

@@ -6,6 +6,7 @@ type Message = {
   messageId: string;
   role: string;
   status: string;
+  sourceItemType?: string;
   text: string;
   createdAt: number;
 };

@@ -117,6 +117,33 @@ export default defineSchema({
     .index("tenantId_threadId_turnId_orderInTurn", ["tenantId", "threadId", "turnId", "orderInTurn"])
     .index("tenantId_threadId_turnId_status", ["tenantId", "threadId", "turnId", "status"]),
 
+  codex_reasoning_segments: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    segmentId: v.string(),
+    eventId: v.string(),
+    channel: v.union(v.literal("summary"), v.literal("raw")),
+    segmentType: v.union(v.literal("textDelta"), v.literal("sectionBreak")),
+    text: v.string(),
+    summaryIndex: v.optional(v.number()),
+    contentIndex: v.optional(v.number()),
+    cursorStart: v.number(),
+    cursorEnd: v.number(),
+    createdAt: v.number(),
+  })
+    .index("tenantId_threadId_createdAt_segmentId", ["tenantId", "threadId", "createdAt", "segmentId"])
+    .index("tenantId_threadId_turnId_itemId_createdAt", [
+      "tenantId",
+      "threadId",
+      "turnId",
+      "itemId",
+      "createdAt",
+    ])
+    .index("tenantId_threadId_eventId", ["tenantId", "threadId", "eventId"]),
+
   codex_sessions: defineTable({
     tenantId: v.string(),
     userId: v.string(),

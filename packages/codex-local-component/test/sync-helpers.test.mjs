@@ -4,6 +4,7 @@ import {
   assertContinuousStreamDeltas,
   parseDurableMessageDeltaEvent,
   parseDurableMessageEvent,
+  parseReasoningDeltaEvent,
   parseApprovalRequest,
   parseApprovalResolution,
   parseItemSnapshot,
@@ -267,5 +268,61 @@ test("durable message delta parsing from item/agentMessage/delta", () => {
   assert.deepEqual(parseDurableMessageDeltaEvent("item/agentMessage/delta", payload), {
     messageId: "item-9",
     delta: "hel",
+  });
+});
+
+test("reasoning delta parsing supports summary and raw channels", () => {
+  const summaryTextPayload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "item/reasoning/summaryTextDelta",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "reason-1",
+      summaryIndex: 0,
+      delta: "thinking",
+    },
+  });
+  const summaryPartPayload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "item/reasoning/summaryPartAdded",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "reason-1",
+      summaryIndex: 1,
+    },
+  });
+  const rawPayload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "item/reasoning/textDelta",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "reason-1",
+      contentIndex: 2,
+      delta: "private",
+    },
+  });
+
+  assert.deepEqual(parseReasoningDeltaEvent("item/reasoning/summaryTextDelta", summaryTextPayload), {
+    itemId: "reason-1",
+    channel: "summary",
+    segmentType: "textDelta",
+    summaryIndex: 0,
+    delta: "thinking",
+  });
+  assert.deepEqual(parseReasoningDeltaEvent("item/reasoning/summaryPartAdded", summaryPartPayload), {
+    itemId: "reason-1",
+    channel: "summary",
+    segmentType: "sectionBreak",
+    summaryIndex: 1,
+  });
+  assert.deepEqual(parseReasoningDeltaEvent("item/reasoning/textDelta", rawPayload), {
+    itemId: "reason-1",
+    channel: "raw",
+    segmentType: "textDelta",
+    contentIndex: 2,
+    delta: "private",
   });
 });

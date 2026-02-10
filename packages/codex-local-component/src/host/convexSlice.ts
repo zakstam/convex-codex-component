@@ -14,9 +14,11 @@ import {
 import {
   ingestBatchSafe,
   listThreadMessagesForHooks,
+  listThreadReasoningForHooks,
   type HostInboundLifecycleEvent,
   type HostInboundStreamDelta,
   type HostMessagesForHooksArgs,
+  type HostReasoningForHooksArgs,
   type HostSyncRuntimeOptions,
 } from "./convex.js";
 
@@ -80,6 +82,8 @@ export const vHostLifecycleInboundEvent = v.object({
 
 export const vHostSyncRuntimeOptions = v.object({
   saveStreamDeltas: v.optional(v.boolean()),
+  saveReasoningDeltas: v.optional(v.boolean()),
+  exposeRawReasoningDeltas: v.optional(v.boolean()),
   maxDeltasPerStreamRead: v.optional(v.number()),
   maxDeltasPerRequestRead: v.optional(v.number()),
   finishedStreamDeleteDelayMs: v.optional(v.number()),
@@ -227,6 +231,11 @@ type CodexThreadsStateComponent = {
 };
 
 type CodexHooksComponent = CodexMessagesComponent & CodexSyncComponent;
+type CodexReasoningComponent = {
+  reasoning: {
+    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+  };
+};
 
 type EnsureThreadCreateArgs = {
   actor: HostActorContext;
@@ -614,6 +623,19 @@ export async function listThreadMessagesForHooksWithTrustedActor<
   }
 > {
   return listThreadMessagesForHooks(ctx, component, {
+    ...args,
+    actor: trustedActorFromEnv(args.actor),
+  });
+}
+
+export async function listThreadReasoningForHooksWithTrustedActor<
+  Component extends CodexReasoningComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: HostReasoningForHooksArgs<HostActorContext>,
+): Promise<FunctionReturnType<Component["reasoning"]["listByThread"]>> {
+  return listThreadReasoningForHooks(ctx, component, {
     ...args,
     actor: trustedActorFromEnv(args.actor),
   });

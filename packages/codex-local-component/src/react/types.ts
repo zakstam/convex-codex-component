@@ -1,7 +1,11 @@
 "use client";
 
 import type { FunctionArgs, FunctionReference, PaginationOptions, PaginationResult } from "convex/server";
-import type { CodexDurableMessageLike, CodexStreamDeltaLike } from "../mapping.js";
+import type {
+  CodexDurableMessageLike,
+  CodexReasoningSegmentLike,
+  CodexStreamDeltaLike,
+} from "../mapping.js";
 
 export type CodexStreamArgs =
   | { kind: "list"; startOrder?: number }
@@ -35,5 +39,21 @@ export type CodexMessagesQuery<Args = Record<string, unknown>> = FunctionReferen
 
 export type CodexMessagesQueryArgs<Query extends CodexMessagesQuery<unknown>> =
   Query extends CodexMessagesQuery<unknown>
+    ? Omit<FunctionArgs<Query>, "paginationOpts" | "streamArgs">
+    : never;
+
+export type CodexReasoningQuery<Args = Record<string, unknown>> = FunctionReference<
+  "query",
+  "public",
+  {
+    threadId: string;
+    paginationOpts: PaginationOptions;
+    includeRaw?: boolean;
+  } & Args,
+  PaginationResult<CodexReasoningSegmentLike> & { streams?: CodexStreamsResult }
+>;
+
+export type CodexReasoningQueryArgs<Query extends CodexReasoningQuery<unknown>> =
+  Query extends CodexReasoningQuery<unknown>
     ? Omit<FunctionArgs<Query>, "paginationOpts" | "streamArgs">
     : never;

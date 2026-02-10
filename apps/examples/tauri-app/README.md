@@ -6,6 +6,7 @@ This example runs `codex app-server` locally inside a desktop shell and persists
 
 - **React + Tauri frontend** renders chat history from Convex via `@zakstam/codex-local-component/react` hooks.
   - Includes a thread picker that lists previously persisted threads and resumes selected runtime threads.
+  - Renders reasoning inline in the message flow with distinct reasoning styling.
 - **Rust host** spawns a Node helper process and forwards events/commands via IPC.
 - **Node helper** runs `CodexLocalBridge`, sends protocol calls, and ingests normalized events to Convex.
   - Uses `createCodexHostRuntime` from `@zakstam/codex-local-component/host` for lifecycle-safe start/resume/fork orchestration.
@@ -45,6 +46,7 @@ This starts and watches:
   - file change approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
   - tool user input answers submitted per question id
 - Use **Use Snapshot Tool** in the composer, then send. This inserts a prompt that asks Codex to call `tauri_get_runtime_snapshot`.
+- Observe reasoning entries inline in the message flow (styled as reasoning, not standard assistant messages).
 
 ## Required env
 

@@ -10,6 +10,7 @@ This package ships a consumer SDK layer:
 Import from `@zakstam/codex-local-component/client`:
 
 - `listMessages`
+- `listReasoningByThread`
 - `listTurnMessages`
 - `listPendingApprovals`
 - `respondToApproval`
@@ -35,7 +36,9 @@ These are thin wrappers around component function references and keep generated 
 Import from `@zakstam/codex-local-component/react`:
 
 - `useCodexMessages`
+- `useCodexReasoning`
 - `useCodexStreamingMessages`
+- `useCodexStreamingReasoning`
 - `useCodexTurn`
 - `useCodexThreadState`
 - `useCodexApprovals`
@@ -80,6 +83,19 @@ When `stream: true`, stream deltas are overlaid while durable rows are `streamin
 - terminal statuses override streaming
 - longer/extended streamed text can replace in-progress durable text
 - dedupe key preference: `(turnId, messageId)` then fallback `(turnId, orderInTurn)`
+
+### Reasoning APIs
+
+`useCodexReasoning` reads durable reasoning segments from a reasoning query:
+
+- args: `threadId`, `paginationOpts`, optional `includeRaw`
+- returns paginated reasoning rows aggregated by segment key (`turnId + itemId + channel + index`)
+
+`useCodexStreamingReasoning` reads stream overlays from replay deltas:
+
+- tracks `item/reasoning/summaryTextDelta`
+- tracks `item/reasoning/summaryPartAdded`
+- optionally tracks `item/reasoning/textDelta` when `includeRaw: true`
 
 ## Minimal Integration (Happy Path)
 

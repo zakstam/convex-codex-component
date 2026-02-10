@@ -22,120 +22,95 @@ Start with one `convex/chat.ts` that handles:
 - event ingest
 - messages query for `useCodexMessages`
 
+Prefer the shared host slice helpers from `@zakstam/codex-local-component/host/convex` in Convex server files so wrapper behavior stays consistent across apps without pulling Node-only runtime code into Convex bundling.
+Use:
+
+- validators: `vHostActorContext`, `vHostInboundEvent`, `vHostStreamInboundEvent`, `vHostLifecycleInboundEvent`
+- shared returns: `vHostEnsureSessionResult`, `vHostIngestSafeResult`
+- handlers: `ensureThreadByCreate` or `ensureThreadByResolve`, `ensureSession`, `registerTurnStart`,
+  `ingestEventStreamOnly` / `ingestEventMixed`, `ingestBatchStreamOnly` / `ingestBatchMixed`,
+  `threadSnapshot`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`
+- hook helpers: `listThreadMessagesForHooksWithTrustedActor`, `listTurnMessagesForHooksWithTrustedActor`,
+  `listPendingApprovalsForHooksWithTrustedActor`, `respondApprovalForHooksWithTrustedActor`,
+  `interruptTurnForHooksWithTrustedActor`
+
 ```ts
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { listMessages, startTurn, replayStreams } from "@zakstam/codex-local-component/client";
-
-const vActor = v.object({
-  tenantId: v.string(),
-  userId: v.string(),
-  deviceId: v.string(),
-});
-
-const vStreamInboundEvent = v.object({
-  type: v.literal("stream_delta"),
-  eventId: v.string(),
-  turnId: v.string(),
-  streamId: v.string(),
-  kind: v.string(),
-  payloadJson: v.string(),
-  cursorStart: v.number(),
-  cursorEnd: v.number(),
-  createdAt: v.number(),
-});
-
-const vLifecycleInboundEvent = v.object({
-  type: v.literal("lifecycle_event"),
-  eventId: v.string(),
-  turnId: v.optional(v.string()),
-  kind: v.string(),
-  payloadJson: v.string(),
-  createdAt: v.number(),
-});
+import {
+  ensureSession as ensureSessionHandler,
+  ensureThreadByCreate,
+  ingestBatchMixed,
+  listThreadMessagesForHooksWithTrustedActor,
+  registerTurnStart as registerTurnStartHandler,
+  vHostActorContext,
+  vHostEnsureSessionResult,
+  vHostIngestSafeResult,
+  vHostLifecycleInboundEvent,
+  vHostStreamArgs,
+  vHostStreamInboundEvent,
+  vHostSyncRuntimeOptions,
+} from "@zakstam/codex-local-component/host/convex";
 
 export const registerTurnStart = mutation({
   args: {
-    actor: vActor,
+    actor: vHostActorContext,
     threadId: v.string(),
     turnId: v.string(),
     inputText: v.string(),
     idempotencyKey: v.string(),
   },
-  handler: async (ctx, args) =>
-    startTurn(ctx, components.codexLocal, {
-      actor: args.actor,
-      threadId: args.threadId,
-      turnId: args.turnId,
-      idempotencyKey: args.idempotencyKey,
-      input: [{ type: "text", text: args.inputText }],
-    }),
+  handler: async (ctx, args) => registerTurnStartHandler(ctx, components.codexLocal, args),
+});
+
+export const ensureThread = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => ensureThreadByCreate(ctx, components.codexLocal, args),
+});
+
+export const ensureSession = mutation({
+  args: {
+    actor: vHostActorContext,
+    sessionId: v.string(),
+    threadId: v.string(),
+  },
+  returns: vHostEnsureSessionResult,
+  handler: async (ctx, args) => ensureSessionHandler(ctx, components.codexLocal, args),
 });
 
 export const ingestBatch = mutation({
   args: {
-    actor: vActor,
+    actor: vHostActorContext,
     sessionId: v.string(),
     threadId: v.string(),
     deltas: v.array(v.union(vStreamInboundEvent, vLifecycleInboundEvent)),
+    runtime: v.optional(vHostSyncRuntimeOptions),
   },
-  handler: async (ctx, args) => {
-    const streamDeltas = args.deltas.filter((d) => d.type === "stream_delta");
-    const lifecycleEvents = args.deltas.filter((d) => d.type === "lifecycle_event");
-    return ctx.runMutation(components.codexLocal.sync.ingestSafe, {
-      actor: args.actor,
-      sessionId: args.sessionId,
-      threadId: args.threadId,
-      streamDeltas,
-      lifecycleEvents,
-    });
-  },
+  returns: vHostIngestSafeResult,
+  handler: async (ctx, args) => ingestBatchMixed(ctx, components.codexLocal, args),
 });
 
 export const listThreadMessagesForHooks = query({
   args: {
-    actor: vActor,
+    actor: vHostActorContext,
     threadId: v.string(),
     paginationOpts: paginationOptsValidator,
-    streamArgs: v.optional(v.any()),
+    streamArgs: vHostStreamArgs,
+    runtime: v.optional(vHostSyncRuntimeOptions),
   },
-  handler: async (ctx, args) => {
-    const paginated = await listMessages(ctx, components.codexLocal, {
+  handler: async (ctx, args) =>
+    listThreadMessagesForHooksWithTrustedActor(ctx, components.codexLocal, {
       actor: args.actor,
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
-    });
-
-    const streams = args.streamArgs
-      ? await replayStreams(ctx, components.codexLocal, {
-          actor: args.actor,
-          threadId: args.threadId,
-          streamCursorsById:
-            args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],
-        })
-      : undefined;
-
-    if (args.streamArgs?.kind === "deltas") {
-      return {
-        ...paginated,
-        streams: streams
-          ? {
-              kind: "deltas" as const,
-              deltas: streams.deltas,
-              streamWindows: streams.streamWindows,
-              nextCheckpoints: streams.nextCheckpoints,
-            }
-          : undefined,
-      };
-    }
-
-    return {
-      ...paginated,
-      streams: streams ? { kind: "list" as const, streams: streams.streams } : undefined,
-    };
-  },
+      streamArgs: args.streamArgs,
+      runtime: args.runtime,
+    }),
 });
 ```
 

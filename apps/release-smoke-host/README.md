@@ -35,6 +35,8 @@ pnpm start
 - Consumer-style package install from tarball (not `src/...` deep import).
 - Host app mounting via:
   - `import codexLocal from "@zakstam/codex-local-component/convex.config"`
+- Shared host wrapper slice usage via `@zakstam/codex-local-component/host`
+  (keeps smoke host endpoints aligned with example apps).
 - End-to-end thread/turn/event persistence through host wrappers.
 - Interrupt path and reconnect replay behavior in a real host context.
 

@@ -82,6 +82,8 @@ For app-level integrations, prefer package helpers over raw component refs:
 ## Hook-ready endpoints in this example
 
 `convex/chat.ts` now includes host functions designed for React hooks:
+the file is wired through shared helpers from `@zakstam/codex-local-component/host`
+so host wrapper behavior stays aligned with other examples/smoke apps.
 
 - `chat.listThreadMessagesForHooks` for `useCodexMessages` / `useCodexStreamingMessages`
 - `chat.listTurnMessagesForHooks` for `useCodexTurn`

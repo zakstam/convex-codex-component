@@ -7,7 +7,8 @@ This example runs `codex app-server` locally inside a desktop shell and persists
 - **React + Tauri frontend** renders chat history from Convex via `@zakstam/codex-local-component/react` hooks.
 - **Rust host** spawns a Node helper process and forwards events/commands via IPC.
 - **Node helper** runs `CodexLocalBridge`, sends protocol calls, and ingests normalized events to Convex.
-- **Convex backend** mounts `codexLocal` and exposes generated-type-safe host wrappers in `convex/chat.ts`.
+- **Convex backend** mounts `codexLocal` and exposes generated-type-safe host wrappers in `convex/chat.ts`,
+  composed from shared `@zakstam/codex-local-component/host` helpers.
 
 ## Run
 

@@ -103,7 +103,11 @@ function extractAssistantDelta(message: ServerInboundMessage): string | null {
   }
 
   if (message.method === "item/agentMessage/delta") {
-    return message.params.delta;
+    const params =
+      typeof message.params === "object" && message.params !== null
+        ? (message.params as Record<string, unknown>)
+        : null;
+    return typeof params?.delta === "string" ? params.delta : null;
   }
   return null;
 }

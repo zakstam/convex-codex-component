@@ -51,7 +51,10 @@ Recommended host entrypoints:
   - typed request builders for app-server initialize/thread/turn flows
 - `@zakstam/codex-local-component/host`
   - host-side Convex wrapper helpers
+  - reusable host `convex/chat.ts` slice primitives (validators + handlers)
   - runtime loop orchestration helper (`createCodexHostRuntime`)
+  - for Convex server files, import the Node-safe subpath:
+    - `@zakstam/codex-local-component/host/convex`
 
 ## Convex install pattern
 

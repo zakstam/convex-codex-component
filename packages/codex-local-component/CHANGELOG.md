@@ -1,5 +1,11 @@
 # @convex-dev/codex-local-component
 
+## 0.1.3
+
+### Patch Changes
+
+- 5d00d46: Fix Node ESM compatibility for protocol and bridge imports by adding JSON import attributes in the protocol parser and using an explicit `./v2/index.js` export path in protocol schemas.
+
 ## 0.1.2
 
 ### Patch Changes

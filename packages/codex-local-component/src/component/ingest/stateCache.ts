@@ -9,6 +9,8 @@ export type IngestStateCache = {
   setApprovalRecord: (turnId: string, itemId: string, value: CachedApproval | null) => void;
   getStreamRecord: (streamId: string) => Promise<CachedStream | null>;
   setStreamRecord: (streamId: string, value: CachedStream | null) => void;
+  queueMessagePatch: (id: string, patch: Record<string, unknown>) => void;
+  flushMessagePatches: () => Promise<void>;
 };
 
 export function createIngestStateCache(args: {
@@ -22,6 +24,7 @@ export function createIngestStateCache(args: {
   const messageByKey = new Map<string, CachedMessage | null>();
   const streamById = new Map<string, CachedStream | null>();
   const approvalByKey = new Map<string, CachedApproval | null>();
+  const messagePatchById = new Map<string, Record<string, unknown>>();
 
   const messageKey = (turnId: string, messageId: string): string =>
     `${tenantId}:${threadId}:${turnId}:${messageId}`;
@@ -126,6 +129,26 @@ export function createIngestStateCache(args: {
     streamById.set(streamId, value);
   };
 
+  const queueMessagePatch = (id: string, patch: Record<string, unknown>): void => {
+    const existing = messagePatchById.get(id);
+    if (!existing) {
+      messagePatchById.set(id, { ...patch });
+      return;
+    }
+    messagePatchById.set(id, { ...existing, ...patch });
+  };
+
+  const flushMessagePatches = async (): Promise<void> => {
+    if (messagePatchById.size === 0) {
+      return;
+    }
+    const pending = Array.from(messagePatchById.entries());
+    messagePatchById.clear();
+    await Promise.all(
+      pending.map(([id, patch]) => ctx.db.patch(id as never, patch)),
+    );
+  };
+
   return {
     nextOrderForTurn,
     getMessageRecord,
@@ -134,5 +157,7 @@ export function createIngestStateCache(args: {
     setApprovalRecord,
     getStreamRecord,
     setStreamRecord,
+    queueMessagePatch,
+    flushMessagePatches,
   };
 }

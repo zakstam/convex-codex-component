@@ -590,6 +590,7 @@ export async function listThreadMessagesForHooksWithTrustedActor<
       | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
       | {
           kind: "deltas";
+          streams: Array<{ streamId: string; state: string }>;
           deltas: Array<Record<string, unknown>>;
           streamWindows: Array<{
             streamId: string;

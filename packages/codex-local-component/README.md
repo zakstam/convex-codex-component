@@ -31,6 +31,7 @@ Ingest takes split payloads:
 
 Replay returns explicit recovery metadata:
 
+- `streams` (active stream list)
 - `streamWindows` (`ok | rebased | stale`)
 - `nextCheckpoints`
 

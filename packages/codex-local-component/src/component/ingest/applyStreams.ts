@@ -6,7 +6,11 @@ import {
   LIFECYCLE_EVENT_KINDS,
   syncError,
 } from "../syncRuntime.js";
-import { addStreamDeltaStats, ensureStreamStat, setStreamStatState } from "../streamStats.js";
+import {
+  addStreamDeltaStatsBatch,
+  ensureStreamStat,
+  setStreamStatState,
+} from "../streamStats.js";
 import { now } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
 import type { IngestStateCache } from "./stateCache.js";
@@ -234,14 +238,16 @@ export async function finalizeStreamStates(
 }
 
 export async function flushStreamStats(ingest: IngestContext): Promise<void> {
-  for (const [streamId, stats] of ingest.streamState.persistedStatsByStreamId) {
-    await addStreamDeltaStats(ingest.ctx, {
-      tenantId: ingest.args.actor.tenantId,
-      threadId: stats.threadId,
-      turnId: stats.turnId,
-      streamId,
-      deltaCount: stats.deltaCount,
-      latestCursor: stats.latestCursor,
-    });
-  }
+  await addStreamDeltaStatsBatch(ingest.ctx, {
+    tenantId: ingest.args.actor.tenantId,
+    threadId: ingest.args.threadId,
+    updates: Array.from(ingest.streamState.persistedStatsByStreamId.entries()).map(
+      ([streamId, stats]) => ({
+        streamId,
+        turnId: stats.turnId,
+        deltaCount: stats.deltaCount,
+        latestCursor: stats.latestCursor,
+      }),
+    ),
+  });
 }

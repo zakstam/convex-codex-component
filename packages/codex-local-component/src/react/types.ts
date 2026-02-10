@@ -11,6 +11,7 @@ export type CodexStreamsResult =
   | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
   | {
       kind: "deltas";
+      streams: Array<{ streamId: string; state: string }>;
       deltas: CodexStreamDeltaLike[];
       streamWindows: Array<{
         streamId: string;

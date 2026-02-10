@@ -6,6 +6,7 @@ import {
   computePersistenceStats,
   ensureThreadByCreate,
   ingestBatchMixed,
+  listThreadMessagesForHooks,
 } from "../dist/host/index.js";
 
 test("ensureThreadByCreate writes localThreadId and threadId", async () => {
@@ -138,4 +139,41 @@ test("computeDataHygiene detects orphan stream stats", () => {
     streamStatOrphans: 1,
     orphanStreamIds: ["stream-orphan"],
   });
+});
+
+test("listThreadMessagesForHooks returns stream list with deltas payload", async () => {
+  const listByThreadRef = {};
+  const replayRef = {};
+  const component = {
+    messages: {
+      listByThread: listByThreadRef,
+    },
+    sync: {
+      replay: replayRef,
+    },
+  };
+
+  const ctx = {
+    runQuery: async (ref) => {
+      if (ref === listByThreadRef) {
+        return { page: [], continueCursor: "", isDone: true };
+      }
+      return {
+        streams: [{ streamId: "stream-1", state: "streaming" }],
+        deltas: [],
+        streamWindows: [],
+        nextCheckpoints: [],
+      };
+    },
+  };
+
+  const result = await listThreadMessagesForHooks(ctx, component, {
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    threadId: "thread-1",
+    paginationOpts: { cursor: null, numItems: 10 },
+    streamArgs: { kind: "deltas", cursors: [] },
+  });
+
+  assert.equal(result.streams?.kind, "deltas");
+  assert.deepEqual(result.streams?.streams, [{ streamId: "stream-1", state: "streaming" }]);
 });

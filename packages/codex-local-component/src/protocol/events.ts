@@ -50,6 +50,8 @@ export type CanonicalDurableMessageDelta = {
 const THREAD_METHOD_PREFIXES = ["thread/", "turn/", "item/", "rawResponseItem/"];
 const TURN_COMPLETED_KINDS = new Set<string>(["turn/completed"]);
 const TURN_FAILED_KINDS = new Set<string>(["error"]);
+const PAYLOAD_PARSE_CACHE_LIMIT = 2000;
+const payloadMessageCache = new Map<string, ServerInboundMessage | null>();
 
 function isMessageRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -75,19 +77,35 @@ function getThreadItemFromParams(params: unknown): ThreadItem | null {
 }
 
 function parsePayloadMessage(payloadJson: string): ServerInboundMessage | null {
+  const cached = payloadMessageCache.get(payloadJson);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(payloadJson);
   } catch {
+    payloadMessageCache.set(payloadJson, null);
     return null;
   }
   if (!isMessageRecord(parsed)) {
+    payloadMessageCache.set(payloadJson, null);
     return null;
   }
   if (!("method" in parsed) && !("id" in parsed)) {
+    payloadMessageCache.set(payloadJson, null);
     return null;
   }
-  return parsed as ServerInboundMessage;
+  const message = parsed as ServerInboundMessage;
+  payloadMessageCache.set(payloadJson, message);
+  if (payloadMessageCache.size > PAYLOAD_PARSE_CACHE_LIMIT) {
+    const oldest = payloadMessageCache.keys().next().value;
+    if (oldest !== undefined) {
+      payloadMessageCache.delete(oldest);
+    }
+  }
+  return message;
 }
 
 function parseMethodMessage<M extends string>(

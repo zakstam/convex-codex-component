@@ -108,6 +108,55 @@ export async function addStreamDeltaStats(
   });
 }
 
+export async function addStreamDeltaStatsBatch(
+  ctx: MutationCtx,
+  args: {
+    tenantId: string;
+    threadId: string;
+    updates: Array<{ streamId: string; turnId: string; deltaCount: number; latestCursor: number }>;
+  },
+): Promise<void> {
+  if (args.updates.length === 0) {
+    return;
+  }
+
+  const existingStats = await ctx.db
+    .query("codex_stream_stats")
+    .withIndex("tenantId_threadId", (q) =>
+      q.eq("tenantId", args.tenantId).eq("threadId", args.threadId),
+    )
+    .take(500);
+  const existingByStreamId = new Map(existingStats.map((stat) => [String(stat.streamId), stat]));
+  const ts = now();
+
+  await Promise.all(
+    args.updates.map(async (update) => {
+      const existing = existingByStreamId.get(update.streamId);
+      if (!existing) {
+        await ctx.db.insert("codex_stream_stats", {
+          tenantId: args.tenantId,
+          threadId: args.threadId,
+          turnId: update.turnId,
+          streamId: update.streamId,
+          state: "streaming",
+          deltaCount: update.deltaCount,
+          latestCursor: update.latestCursor,
+          updatedAt: ts,
+        });
+        return;
+      }
+
+      await ctx.db.patch(existing._id, {
+        threadId: args.threadId,
+        turnId: update.turnId,
+        deltaCount: existing.deltaCount + update.deltaCount,
+        latestCursor: Math.max(existing.latestCursor, update.latestCursor),
+        updatedAt: ts,
+      });
+    }),
+  );
+}
+
 export async function setStreamStatState(
   ctx: MutationCtx,
   args: EnsureStreamStatArgs,

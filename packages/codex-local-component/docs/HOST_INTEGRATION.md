@@ -186,6 +186,7 @@ Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 
 `sync.replay` returns deltas plus replay metadata:
 
+- `streams`: active stream list for the thread
 - `streamWindows`: per-stream status (`ok | rebased | stale`) and server window bounds
 - `nextCheckpoints`: server-computed cursors safe to persist
 

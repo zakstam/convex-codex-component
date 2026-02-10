@@ -54,7 +54,7 @@ export async function applyMessageEffectsForEvent(
         return event.durableMessage?.status ?? existing.status;
       })();
 
-      await ingest.ctx.db.patch(existing._id, {
+      cache.queueMessagePatch(existing._id, {
         role: event.durableMessage.role,
         status: nextStatus,
         text: event.durableMessage.text,
@@ -112,7 +112,7 @@ export async function applyMessageEffectsForEvent(
   }
 
   const nextText = `${existing.text}${event.durableDelta.delta}`;
-  await ingest.ctx.db.patch(existing._id, {
+  cache.queueMessagePatch(existing._id, {
     text: nextText,
     payloadJson: JSON.stringify({
       type: "agentMessage",

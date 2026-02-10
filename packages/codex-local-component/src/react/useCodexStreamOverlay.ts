@@ -8,6 +8,7 @@ import type { CodexMessagesQuery, CodexMessagesQueryArgs, CodexStreamsResult } f
 
 type StreamOverlayState = {
   threadId: string | undefined;
+  streamIds: string[];
   cursorsByStreamId: Record<string, number>;
   deltas: CodexStreamDeltaLike[];
 };
@@ -15,6 +16,7 @@ type StreamOverlayState = {
 function applyDeltaBatch(
   state: StreamOverlayState,
   payload: {
+    streams: Array<{ streamId: string; state: string }>;
     deltas: CodexStreamDeltaLike[];
     streamWindows: Array<{
       streamId: string;
@@ -25,15 +27,22 @@ function applyDeltaBatch(
     nextCheckpoints: Array<{ streamId: string; cursor: number }>;
   },
 ): StreamOverlayState {
-  const { deltas, streamWindows, nextCheckpoints } = payload;
+  const { streams, deltas, streamWindows, nextCheckpoints } = payload;
+  const nextStreamIds = streams.map((stream) => stream.streamId);
+  const activeStreamIds = new Set(nextStreamIds);
+
   if (deltas.length === 0) {
-    const nextOnly = { ...state.cursorsByStreamId };
+    const nextOnly = Object.fromEntries(
+      Object.entries(state.cursorsByStreamId).filter(([streamId]) => activeStreamIds.has(streamId)),
+    );
     const resetStreamIds = new Set<string>(
       streamWindows
         .filter((window) => window.status === "rebased" || window.status === "stale")
         .map((window) => window.streamId),
     );
-    const nextDeltas = state.deltas.filter((delta) => !resetStreamIds.has(delta.streamId));
+    const nextDeltas = state.deltas.filter(
+      (delta) => activeStreamIds.has(delta.streamId) && !resetStreamIds.has(delta.streamId),
+    );
     for (const window of streamWindows) {
       if (window.status !== "ok") {
         nextOnly[window.streamId] = window.serverCursorStart;
@@ -45,19 +54,26 @@ function applyDeltaBatch(
         checkpoint.cursor,
       );
     }
-    if (nextCheckpoints.length === 0 && resetStreamIds.size === 0) {
+    const streamIdsChanged =
+      nextStreamIds.length !== state.streamIds.length ||
+      nextStreamIds.some((streamId, index) => streamId !== state.streamIds[index]);
+    if (nextCheckpoints.length === 0 && resetStreamIds.size === 0 && !streamIdsChanged) {
       return state;
     }
-    return { ...state, cursorsByStreamId: nextOnly, deltas: nextDeltas };
+    return { ...state, streamIds: nextStreamIds, cursorsByStreamId: nextOnly, deltas: nextDeltas };
   }
 
-  const nextCursors = { ...state.cursorsByStreamId };
+  const nextCursors = Object.fromEntries(
+    Object.entries(state.cursorsByStreamId).filter(([streamId]) => activeStreamIds.has(streamId)),
+  );
   const resetStreamIds = new Set<string>(
     streamWindows
       .filter((window) => window.status === "rebased" || window.status === "stale")
       .map((window) => window.streamId),
   );
-  let nextDeltas = state.deltas.filter((delta) => !resetStreamIds.has(delta.streamId));
+  let nextDeltas = state.deltas.filter(
+    (delta) => activeStreamIds.has(delta.streamId) && !resetStreamIds.has(delta.streamId),
+  );
   for (const window of streamWindows) {
     if (window.status !== "ok") {
       nextCursors[window.streamId] = window.serverCursorStart;
@@ -88,6 +104,7 @@ function applyDeltaBatch(
 
   return {
     threadId: state.threadId,
+    streamIds: nextStreamIds,
     cursorsByStreamId: nextCursors,
     deltas: nextDeltas.slice(-5000),
   };
@@ -107,40 +124,25 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(
   const threadId = args === "skip" ? undefined : args.threadId;
   const [overlayState, setOverlayState] = useState<StreamOverlayState>({
     threadId,
+    streamIds: [],
     cursorsByStreamId: {},
     deltas: [],
   });
 
   useEffect(() => {
-    setOverlayState({ threadId, cursorsByStreamId: {}, deltas: [] });
+    setOverlayState({ threadId, streamIds: [], cursorsByStreamId: {}, deltas: [] });
   }, [threadId]);
 
-  const streamListQuery = useQuery(
+  const streamDeltaQuery = useQuery(
     query,
     !enabled || args === "skip"
       ? ("skip" as const)
       : ({
           ...args,
           paginationOpts: { cursor: null, numItems: 0 },
-          streamArgs: { kind: "list", ...(options?.startOrder !== undefined ? { startOrder: options.startOrder } : {}) },
-        } as FunctionArgs<Query>),
-  ) as ({ streams?: CodexStreamsResult } & unknown) | undefined;
-
-  const streamIds =
-    streamListQuery?.streams?.kind === "list"
-      ? streamListQuery.streams.streams.map((stream) => stream.streamId)
-      : [];
-
-  const streamDeltaQuery = useQuery(
-    query,
-    !enabled || args === "skip" || streamIds.length === 0
-      ? ("skip" as const)
-      : ({
-          ...args,
-          paginationOpts: { cursor: null, numItems: 0 },
           streamArgs: {
             kind: "deltas",
-            cursors: streamIds.map((streamId) => ({
+            cursors: overlayState.streamIds.map((streamId) => ({
               streamId,
               cursor: overlayState.cursorsByStreamId[streamId] ?? 0,
             })),
@@ -151,6 +153,7 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(
   const deltaPayload =
     streamDeltaQuery?.streams?.kind === "deltas"
       ? {
+          streams: streamDeltaQuery.streams.streams,
           deltas: streamDeltaQuery.streams.deltas,
           streamWindows: streamDeltaQuery.streams.streamWindows,
           nextCheckpoints: streamDeltaQuery.streams.nextCheckpoints,
@@ -166,8 +169,8 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(
 
   return {
     deltas: overlayState.deltas,
-    streamIds,
+    streamIds: overlayState.streamIds,
     cursorsByStreamId: overlayState.cursorsByStreamId,
-    reset: () => setOverlayState({ threadId, cursorsByStreamId: {}, deltas: [] }),
+    reset: () => setOverlayState({ threadId, streamIds: [], cursorsByStreamId: {}, deltas: [] }),
   };
 }

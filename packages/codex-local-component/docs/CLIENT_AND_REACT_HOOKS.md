@@ -59,7 +59,7 @@ And return:
 - paginated durable message rows (`messageId`, `turnId`, `role`, `status`, `text`, `orderInTurn`, timestamps)
 - optional `streams`:
   - `{ kind: "list", streams: Array<{ streamId: string; state: string }> }`
-  - `{ kind: "deltas", deltas, streamWindows, nextCheckpoints }`
+  - `{ kind: "deltas", streams, deltas, streamWindows, nextCheckpoints }`
 
 `streamWindows` entries:
 
@@ -119,6 +119,7 @@ export const listThreadMessagesForHooks = query({
         streams: streams
           ? {
               kind: "deltas" as const,
+              streams: streams.streams,
               deltas: streams.deltas,
               streamWindows: streams.streamWindows,
               nextCheckpoints: streams.nextCheckpoints,

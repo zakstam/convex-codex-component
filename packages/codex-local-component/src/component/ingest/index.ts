@@ -84,6 +84,7 @@ export async function ingestEvents(
     await applyStreamEvent(ingest, event, cache);
   }
 
+  await cache.flushMessagePatches();
   await finalizeTurns(ingest, cache);
   await finalizeApprovals(ingest, cache);
   await finalizeStreamStates(ingest, cache);

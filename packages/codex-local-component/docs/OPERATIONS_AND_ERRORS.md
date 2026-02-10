@@ -24,6 +24,10 @@ For host wrappers, prefer `sync.ingestSafe`:
 - Exposes normalized `errors[]` with recoverable classification
 - Can self-heal session mismatches via `ensureSession` semantics
 
+Ingest now coalesces message updates within a batch and flushes durable writes once
+per message before terminal turn finalization. Terminal events still force durable
+end-state persistence in the same ingest cycle.
+
 ## Replay behavior
 
 Replay is status-driven, not exception-driven.

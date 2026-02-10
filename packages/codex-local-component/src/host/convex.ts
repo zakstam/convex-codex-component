@@ -40,6 +40,7 @@ export async function listThreadMessagesForHooks<
       | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
       | {
           kind: "deltas";
+          streams: Array<{ streamId: string; state: string }>;
           deltas: Array<Record<string, unknown>>;
           streamWindows: Array<{
             streamId: string;
@@ -73,6 +74,7 @@ export async function listThreadMessagesForHooks<
       streams: streams
         ? {
             kind: "deltas",
+            streams: (streams as { streams: Array<{ streamId: string; state: string }> }).streams,
             deltas: (streams as { deltas: Array<Record<string, unknown>> }).deltas,
             streamWindows: (streams as {
               streamWindows: Array<{
@@ -92,6 +94,7 @@ export async function listThreadMessagesForHooks<
         | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
         | {
             kind: "deltas";
+            streams: Array<{ streamId: string; state: string }>;
             deltas: Array<Record<string, unknown>>;
             streamWindows: Array<{
               streamId: string;
@@ -117,6 +120,7 @@ export async function listThreadMessagesForHooks<
       | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
       | {
           kind: "deltas";
+          streams: Array<{ streamId: string; state: string }>;
           deltas: Array<Record<string, unknown>>;
           streamWindows: Array<{
             streamId: string;

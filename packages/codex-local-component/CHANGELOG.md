@@ -1,5 +1,12 @@
 # @convex-dev/codex-local-component
 
+## 0.4.0
+
+### Minor Changes
+
+- b3c3e66: Add host runtime ingest diagnostics via `getState().ingestMetrics`, including enqueued/skipped totals and per-event-kind counters, and propagate diagnostics through the Tauri example bridge/status surfaces for idle ingest debugging.
+- 50f507e: Add typed account/auth helper APIs across app-server and host runtime (`account/read`, login/cancel/logout, rate-limits read, and ChatGPT token-refresh response handling), with updated docs/tests and Tauri example wiring for end-to-end auth controls.
+
 ## 0.3.0
 
 ### Minor Changes

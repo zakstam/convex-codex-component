@@ -9,6 +9,16 @@ const vActorContext = v.object({
   deviceId: v.string(),
 });
 
+const TRUSTED_ACTOR = Object.freeze({
+  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
+  userId: process.env.ACTOR_USER_ID ?? "demo-user",
+  deviceId: process.env.ACTOR_DEVICE_ID ?? "host-device",
+});
+
+function trustedActor(_actor: { tenantId: string; userId: string; deviceId: string }) {
+  return TRUSTED_ACTOR;
+}
+
 const vStreamInboundEvent = v.object({
   type: v.literal("stream_delta"),
   eventId: v.string(),
@@ -64,7 +74,7 @@ export const ensureThread = mutation({
   },
   handler: async (ctx, args) => {
     return await ctx.runMutation(components.codexLocal.threads.create, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       threadId: args.threadId,
       localThreadId: args.threadId,
       ...(args.model !== undefined ? { model: args.model } : {}),
@@ -85,7 +95,7 @@ export const registerTurnStart = mutation({
   },
   handler: async (ctx, args) => {
     return await ctx.runMutation(components.codexLocal.turns.start, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       threadId: args.threadId,
       turnId: args.turnId,
       idempotencyKey: args.idempotencyKey,
@@ -116,7 +126,7 @@ export const ensureSession = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     return await ctx.runMutation(components.codexLocal.sync.heartbeat, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
       lastEventCursor: 0,
@@ -141,7 +151,7 @@ export const ingestEvent = mutation({
     const lifecycleEvents =
       args.event.type === "lifecycle_event" ? [args.event] : [];
     const pushed = await ctx.runMutation(components.codexLocal.sync.ingest, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
       streamDeltas,
@@ -177,7 +187,7 @@ export const ingestBatch = mutation({
         delta.type === "lifecycle_event",
     );
     return await ctx.runMutation(components.codexLocal.sync.ingest, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       sessionId: args.sessionId,
       threadId: args.threadId,
       streamDeltas,
@@ -194,7 +204,7 @@ export const threadSnapshot = query({
   },
   handler: async (ctx, args) => {
     return await ctx.runQuery(components.codexLocal.threads.getState, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       threadId: args.threadId,
     });
   },
@@ -212,7 +222,7 @@ export const persistenceStats = query({
   }),
   handler: async (ctx, args) => {
     const state = await ctx.runQuery(components.codexLocal.threads.getState, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       threadId: args.threadId,
     });
 
@@ -246,7 +256,7 @@ export const durableHistoryStats = query({
   }),
   handler: async (ctx, args) => {
     const state = await ctx.runQuery(components.codexLocal.threads.getState, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       threadId: args.threadId,
     });
     const page = state.recentMessages;
@@ -274,14 +284,14 @@ export const listThreadMessagesForHooks = query({
   },
   handler: async (ctx, args) => {
     const paginated = await ctx.runQuery(components.codexLocal.messages.listByThread, {
-      actor: args.actor,
+      actor: trustedActor(args.actor),
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
     });
 
     const streams = args.streamArgs
       ? await ctx.runQuery(components.codexLocal.sync.replay, {
-          actor: args.actor,
+          actor: trustedActor(args.actor),
           threadId: args.threadId,
           streamCursorsById:
             args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],

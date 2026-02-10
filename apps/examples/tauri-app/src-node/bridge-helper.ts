@@ -21,7 +21,6 @@ type StartPayload = {
   convexUrl: string;
   actor: ActorContext;
   sessionId: string;
-  codexBin?: string;
   model?: string;
   cwd?: string;
   deltaThrottleMs?: number;
@@ -285,7 +284,6 @@ async function startBridge(payload: StartPayload) {
 
   bridge = new CodexLocalBridge(
     {
-      ...(payload.codexBin ? { codexBin: payload.codexBin } : {}),
       cwd: payload.cwd ?? process.cwd(),
     },
     {

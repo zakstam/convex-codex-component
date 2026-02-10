@@ -21,7 +21,6 @@ pub struct HelperStartPayload {
     pub convex_url: String,
     pub actor: ActorContext,
     pub session_id: String,
-    pub codex_bin: Option<String>,
     pub model: Option<String>,
     pub cwd: Option<String>,
     pub delta_throttle_ms: Option<u64>,

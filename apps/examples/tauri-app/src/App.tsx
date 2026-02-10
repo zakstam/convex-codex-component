@@ -124,7 +124,6 @@ export default function App() {
       convexUrl: import.meta.env.VITE_CONVEX_URL,
       actor,
       sessionId,
-      codexBin: import.meta.env.VITE_CODEX_BIN,
       model: import.meta.env.VITE_CODEX_MODEL,
       cwd: import.meta.env.VITE_CODEX_CWD,
       deltaThrottleMs: 250,

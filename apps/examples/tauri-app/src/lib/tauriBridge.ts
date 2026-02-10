@@ -17,7 +17,6 @@ export async function startBridge(config: {
   convexUrl: string;
   actor: ActorContext;
   sessionId: string;
-  codexBin?: string;
   model?: string;
   cwd?: string;
   deltaThrottleMs?: number;

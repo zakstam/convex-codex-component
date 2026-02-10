@@ -82,7 +82,8 @@ function asTurnRecord(value: unknown): TurnRecord | null {
 }
 
 export function authzError(code: "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_TURN_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN", message: string): never {
-  throw new Error(`[${code}] ${message}`);
+  void message;
+  throw new Error(`[${code}] authorization failed`);
 }
 
 export async function requireThreadForActor(
@@ -106,10 +107,7 @@ export async function requireThreadForActor(
     throw new Error(`Thread not found for tenant: ${threadId}`);
   }
   if (normalized.userId !== actor.userId) {
-    authzError(
-      "E_AUTH_THREAD_FORBIDDEN",
-      `User ${actor.userId} is not allowed to access thread ${threadId}`,
-    );
+    authzError("E_AUTH_THREAD_FORBIDDEN", "thread access denied");
   }
   return normalized;
 }
@@ -137,10 +135,7 @@ export async function requireTurnForActor(
     throw new Error(`Turn not found: ${turnId}`);
   }
   if (normalized.userId !== actor.userId) {
-    authzError(
-      "E_AUTH_TURN_FORBIDDEN",
-      `User ${actor.userId} is not allowed to access turn ${turnId}`,
-    );
+    authzError("E_AUTH_TURN_FORBIDDEN", "turn access denied");
   }
   return normalized;
 }

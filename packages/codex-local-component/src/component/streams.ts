@@ -1,6 +1,6 @@
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server.js";
+import { internalMutation, internalQuery } from "./_generated/server.js";
 import { deleteStreamStat, setStreamStatState } from "./streamStats.js";
 import { now } from "./utils.js";
 
@@ -187,7 +187,7 @@ export const cleanupExpiredDeltas = internalMutation({
   },
 });
 
-export const auditDataHygiene = query({
+export const auditDataHygiene = internalQuery({
   args: {
     tenantId: v.string(),
     sampleSize: v.optional(v.number()),

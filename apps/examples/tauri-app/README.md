@@ -9,6 +9,7 @@ This example runs `codex app-server` locally inside a desktop shell and persists
 - **Rust host** spawns a Node helper process and forwards events/commands via IPC.
 - **Node helper** runs `CodexLocalBridge`, sends protocol calls, and ingests normalized events to Convex.
   - Uses `createCodexHostRuntime` from `@zakstam/codex-local-component/host` for lifecycle-safe start/resume/fork orchestration.
+  - Persists pending server requests (command approvals, file change approvals, and tool user input prompts) through Convex host wrappers.
 - **Convex backend** mounts `codexLocal` and exposes generated-type-safe host wrappers in `convex/chat.ts`,
   composed from shared `@zakstam/codex-local-component/host` helpers.
 
@@ -37,6 +38,10 @@ This starts and watches:
 
 - Pick a thread from **Resume Previous Thread** and click **Start Runtime** to resume it.
 - Leave the picker on **Start a new thread** to create a new runtime thread.
+- Use **Pending Server Requests** to triage/respond to runtime requests:
+  - command approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
+  - file change approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
+  - tool user input answers submitted per question id
 
 ## Required env
 

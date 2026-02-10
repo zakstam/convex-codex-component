@@ -10,12 +10,15 @@ import {
   ingestEventMixed,
   interruptTurnForHooksWithTrustedActor,
   listPendingApprovalsForHooksWithTrustedActor,
+  listPendingServerRequestsForHooksWithTrustedActor,
   listThreadMessagesForHooksWithTrustedActor,
   listTurnMessagesForHooksWithTrustedActor,
   persistenceStats as persistenceStatsHandler,
   registerTurnStart as registerTurnStartHandler,
   respondApprovalForHooksWithTrustedActor,
+  resolvePendingServerRequestForHooksWithTrustedActor,
   threadSnapshot as threadSnapshotHandler,
+  upsertPendingServerRequestForHooksWithTrustedActor,
   vHostActorContext,
   vHostDurableHistoryStats,
   vHostEnsureSessionResult,
@@ -201,6 +204,52 @@ export const respondApprovalForHooks = mutation({
   returns: v.null(),
   handler: async (ctx, args) =>
     respondApprovalForHooksWithTrustedActor(ctx, components.codexLocal, args),
+});
+
+export const listPendingServerRequestsForHooks = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) =>
+    listPendingServerRequestsForHooksWithTrustedActor(ctx, components.codexLocal, args),
+});
+
+export const upsertPendingServerRequestForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    requestId: v.union(v.string(), v.number()),
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    method: v.union(
+      v.literal("item/commandExecution/requestApproval"),
+      v.literal("item/fileChange/requestApproval"),
+      v.literal("item/tool/requestUserInput"),
+    ),
+    payloadJson: v.string(),
+    reason: v.optional(v.string()),
+    questionsJson: v.optional(v.string()),
+    requestedAt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    upsertPendingServerRequestForHooksWithTrustedActor(ctx, components.codexLocal, args),
+});
+
+export const resolvePendingServerRequestForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    requestId: v.union(v.string(), v.number()),
+    status: v.union(v.literal("answered"), v.literal("expired")),
+    resolvedAt: v.number(),
+    responseJson: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    resolvePendingServerRequestForHooksWithTrustedActor(ctx, components.codexLocal, args),
 });
 
 export const interruptTurnForHooks = mutation({

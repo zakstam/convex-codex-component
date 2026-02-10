@@ -3,6 +3,11 @@ export {
   respondToApproval,
 } from "./approvals.js";
 export {
+  listPendingServerRequests,
+  resolvePendingServerRequest,
+  upsertPendingServerRequest,
+} from "./serverRequests.js";
+export {
   listMessages,
   listTurnMessages,
 } from "./messages.js";

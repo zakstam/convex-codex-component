@@ -32,6 +32,8 @@ Use:
   `threadSnapshot`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`
 - hook helpers: `listThreadMessagesForHooksWithTrustedActor`, `listTurnMessagesForHooksWithTrustedActor`,
   `listPendingApprovalsForHooksWithTrustedActor`, `respondApprovalForHooksWithTrustedActor`,
+  `listPendingServerRequestsForHooksWithTrustedActor`, `upsertPendingServerRequestForHooksWithTrustedActor`,
+  `resolvePendingServerRequestForHooksWithTrustedActor`,
   `interruptTurnForHooksWithTrustedActor`
 
 ```ts
@@ -152,6 +154,10 @@ The runtime also exposes typed app-server lifecycle methods:
 - `readThread(runtimeThreadId, includeTurns?)`
 - `listThreads(params?)`
 - `listLoadedThreads(params?)`
+- `listPendingServerRequests(threadId?)`
+- `respondCommandApproval({ requestId, decision })`
+- `respondFileChangeApproval({ requestId, decision })`
+- `respondToolUserInput({ requestId, answers })`
 
 Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 
@@ -201,3 +207,25 @@ Use:
 - `components.codexLocal.approvals.respond`
 
 to drive approval UI/actions.
+
+## 8. Server-request responses
+
+App-server can send server-initiated JSON-RPC requests that require client responses:
+
+- `item/commandExecution/requestApproval`
+- `item/fileChange/requestApproval`
+- `item/tool/requestUserInput`
+
+The runtime tracks these as pending requests and exposes typed response methods.
+For persisted host workflows, wire runtime persistence hooks to:
+
+- `components.codexLocal.serverRequests.upsertPending`
+- `components.codexLocal.serverRequests.listPending`
+- `components.codexLocal.serverRequests.resolve`
+
+Recommended flow:
+
+1. listen for pending requests (`listPendingServerRequests` or Convex query)
+2. collect user decision/answers
+3. call matching runtime response API
+4. runtime sends JSON-RPC response and marks request answered/expired

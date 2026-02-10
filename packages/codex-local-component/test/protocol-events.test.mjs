@@ -8,7 +8,7 @@ import {
   terminalStatusForPayload,
   turnIdForPayload,
 } from "../dist/protocol/events.js";
-import { parseWireMessage } from "../dist/protocol/parser.js";
+import { assertValidClientMessage, parseWireMessage } from "../dist/protocol/parser.js";
 
 test("terminalStatusForPayload maps modern turn/completed statuses", () => {
   const interruptedPayload = JSON.stringify({
@@ -151,4 +151,26 @@ test("parseWireMessage accepts unknown JSON-RPC responses", () => {
 
   const parsed = parseWireMessage(unknownResponse);
   assert.equal(parsed.id, 999);
+});
+
+test("assertValidClientMessage accepts server-request response envelopes", () => {
+  assert.doesNotThrow(() =>
+    assertValidClientMessage({
+      id: 55,
+      result: {
+        decision: "accept",
+      },
+    }),
+  );
+
+  assert.doesNotThrow(() =>
+    assertValidClientMessage({
+      id: "req-1",
+      result: {
+        answers: {
+          q1: { answers: ["A"] },
+        },
+      },
+    }),
+  );
 });

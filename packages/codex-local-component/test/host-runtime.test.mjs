@@ -5,6 +5,8 @@ import { createCodexHostRuntime } from "../dist/host/index.js";
 function createHarness() {
   const sent = [];
   let handlers = null;
+  const upserted = [];
+  const resolved = [];
 
   const runtime = createCodexHostRuntime({
     bridgeFactory: (_config, nextHandlers) => {
@@ -21,6 +23,12 @@ function createHarness() {
       ensureThread: async () => ({ threadId: "local-thread", created: true }),
       ensureSession: async () => ({ sessionId: "session", threadId: "local-thread", status: "created" }),
       ingestSafe: async () => ({ status: "ok", errors: [] }),
+      upsertPendingServerRequest: async ({ request }) => {
+        upserted.push(request);
+      },
+      resolvePendingServerRequest: async (args) => {
+        resolved.push(args);
+      },
     },
   });
 
@@ -29,7 +37,12 @@ function createHarness() {
     await handlers.onGlobalMessage(response, { scope: "global", kind: "response" });
   };
 
-  return { runtime, sent, emitResponse };
+  const emitEvent = async (event) => {
+    assert.ok(handlers, "bridge handlers not initialized");
+    await handlers.onEvent(event);
+  };
+
+  return { runtime, sent, emitResponse, emitEvent, upserted, resolved };
 }
 
 test("runtime start supports threadStrategy=resume", async () => {
@@ -96,6 +109,79 @@ test("resumeThread updates active runtime thread id after response", async () =>
   runtime.sendTurn("hello");
   const turnStartRequests = sent.filter((message) => message.method === "turn/start");
   assert.equal(turnStartRequests[0].params.threadId, resumedThreadId);
+
+  await runtime.stop();
+});
+
+test("respondCommandApproval sends JSON-RPC response for pending command approval request", async () => {
+  const { runtime, sent, emitResponse, emitEvent, upserted, resolved } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await emitEvent({
+    eventId: "evt-1",
+    threadId,
+    turnId: "turn-1",
+    streamId: `${threadId}:turn-1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "item/commandExecution/requestApproval",
+    payloadJson: JSON.stringify({
+      id: 99,
+      method: "item/commandExecution/requestApproval",
+      params: {
+        threadId,
+        turnId: "turn-1",
+        itemId: "cmd-1",
+        reason: "network required",
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  assert.equal(upserted.length, 1);
+  assert.equal(upserted[0].requestId, 99);
+  assert.equal(runtime.getState().pendingServerRequestCount, 1);
+
+  await runtime.respondCommandApproval({
+    requestId: 99,
+    decision: "accept",
+  });
+
+  const responseMessage = sent.find((message) => message.id === 99 && "result" in message);
+  assert.deepEqual(responseMessage, {
+    id: 99,
+    result: {
+      decision: "accept",
+    },
+  });
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].status, "answered");
+  assert.equal(runtime.getState().pendingServerRequestCount, 0);
+
+  await runtime.stop();
+});
+
+test("respondToolUserInput rejects unknown request id", async () => {
+  const { runtime } = createHarness();
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+
+  await assert.rejects(
+    runtime.respondToolUserInput({
+      requestId: "missing",
+      answers: { q1: { answers: ["A"] } },
+    }),
+    /No pending server request found/,
+  );
 
   await runtime.stop();
 });

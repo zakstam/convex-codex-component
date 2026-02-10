@@ -8,7 +8,8 @@ import {
   extractTurnId,
   type ClassifiedMessage,
 } from "../protocol/classifier.js";
-import type { ClientOutboundMessage, NormalizedEvent, ServerInboundMessage } from "../protocol/generated.js";
+import type { NormalizedEvent, ServerInboundMessage } from "../protocol/generated.js";
+import type { ClientOutboundWireMessage } from "../protocol/outbound.js";
 
 export type BridgeConfig = {
   codexBin?: string;
@@ -66,7 +67,7 @@ export class CodexLocalBridge {
     this.process = null;
   }
 
-  send(message: ClientOutboundMessage): void {
+  send(message: ClientOutboundWireMessage): void {
     if (!this.process) {
       throw new Error("Bridge not started");
     }

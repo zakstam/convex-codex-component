@@ -12,7 +12,16 @@ export type BridgeState = {
   turnId: string | null;
   lastError: string | null;
   runtimeThreadId?: string | null;
+  pendingServerRequestCount?: number | null;
 };
+
+export type CommandApprovalDecision =
+  | "accept"
+  | "acceptForSession"
+  | "decline"
+  | "cancel";
+
+export type ToolUserInputAnswer = { answers: string[] };
 
 export async function startBridge(config: {
   convexUrl: string;
@@ -35,6 +44,27 @@ export async function sendUserTurn(text: string) {
 
 export async function interruptTurn() {
   return await invoke("interrupt_turn");
+}
+
+export async function respondCommandApproval(config: {
+  requestId: string | number;
+  decision: CommandApprovalDecision;
+}) {
+  return await invoke("respond_command_approval", { config });
+}
+
+export async function respondFileChangeApproval(config: {
+  requestId: string | number;
+  decision: CommandApprovalDecision;
+}) {
+  return await invoke("respond_file_change_approval", { config });
+}
+
+export async function respondToolUserInput(config: {
+  requestId: string | number;
+  answers: Record<string, ToolUserInputAnswer>;
+}) {
+  return await invoke("respond_tool_user_input", { config });
 }
 
 export async function stopBridge() {

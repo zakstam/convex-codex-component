@@ -8,6 +8,7 @@ Local-first Convex component for Codex integrations where Codex runs on the user
   - thread and turn lifecycle APIs
   - sync ingest/replay APIs
   - approvals APIs
+  - server-request tracking APIs (`item/*/requestApproval`, `item/tool/requestUserInput`)
 - Local adapter skeleton (`src/local-adapter`) to manage `codex app-server` over stdio
 - Typed protocol boundary (`src/protocol`) with `unknown` only at wire ingress
 
@@ -50,12 +51,14 @@ Recommended host entrypoints:
   - hooks for messages, approvals, turn state, composer, interrupts
 - `@zakstam/codex-local-component/app-server`
   - typed request builders for app-server initialize, thread lifecycle, and turn flows
+  - typed server-request response builders for command/file approval and tool user-input
 - `@zakstam/codex-local-component/host`
   - host-side Convex wrapper helpers
   - reusable host `convex/chat.ts` slice primitives (validators + handlers)
   - runtime loop orchestration helper (`createCodexHostRuntime`) with:
     - startup strategy: `threadStrategy: "start" | "resume" | "fork"`
     - runtime thread lifecycle controls (`resumeThread`, `forkThread`, `archiveThread`, `unarchiveThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`)
+    - pending server-request controls (`listPendingServerRequests`, `respondCommandApproval`, `respondFileChangeApproval`, `respondToolUserInput`)
   - for Convex server files, import the Node-safe subpath:
     - `@zakstam/codex-local-component/host/convex`
 

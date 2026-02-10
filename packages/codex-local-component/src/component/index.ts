@@ -6,5 +6,6 @@ export * as turnsInternal from "./turnsInternal.js";
 export * as sync from "./sync.js";
 export * as messages from "./messages.js";
 export * as approvals from "./approvals.js";
+export * as serverRequests from "./serverRequests.js";
 export * as sessions from "./sessions.js";
 export * as streams from "./streams.js";

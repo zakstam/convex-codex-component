@@ -1,7 +1,17 @@
 import { ConvexHttpClient } from "convex/browser";
-import { createCodexHostRuntime, type CodexHostRuntime } from "@zakstam/codex-local-component/host";
-import type { ServerInboundMessage } from "@zakstam/codex-local-component/protocol";
+import {
+  createCodexHostRuntime,
+  type CodexHostRuntime,
+} from "@zakstam/codex-local-component/host";
+import type {
+  ServerInboundMessage,
+  v2,
+} from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
+
+type CommandExecutionApprovalDecision = v2.CommandExecutionApprovalDecision;
+type FileChangeApprovalDecision = v2.FileChangeApprovalDecision;
+type ToolRequestUserInputAnswer = v2.ToolRequestUserInputAnswer;
 
 type ActorContext = { tenantId: string; userId: string; deviceId: string };
 type StartPayload = {
@@ -20,6 +30,9 @@ type StartPayload = {
 type HelperCommand =
   | { type: "start"; payload: StartPayload }
   | { type: "send_turn"; payload: { text: string } }
+  | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
+  | { type: "respond_file_change_approval"; payload: { requestId: string | number; decision: FileChangeApprovalDecision } }
+  | { type: "respond_tool_user_input"; payload: { requestId: string | number; answers: Record<string, ToolRequestUserInputAnswer> } }
   | { type: "interrupt" }
   | { type: "stop" }
   | { type: "status" };
@@ -30,10 +43,11 @@ type HelperEvent =
       payload: {
         running: boolean;
         threadId: string | null;
-        turnId: string | null;
-        lastError: string | null;
-        runtimeThreadId: string | null;
-      };
+      turnId: string | null;
+      lastError: string | null;
+      runtimeThreadId: string | null;
+      pendingServerRequestCount: number;
+    };
     }
   | { type: "event"; payload: { kind: string; threadId: string; turnId?: string; streamId?: string } }
   | { type: "global"; payload: Record<string, unknown> }
@@ -96,11 +110,13 @@ let bridgeState: {
   threadId: string | null;
   turnId: string | null;
   lastError: string | null;
+  pendingServerRequestCount: number;
 } = {
   running: false,
   threadId: null,
   turnId: null,
   lastError: null,
+  pendingServerRequestCount: 0,
 };
 
 function emitState(next?: Partial<typeof bridgeState>): void {
@@ -117,6 +133,7 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       turnId: bridgeState.turnId,
       lastError: bridgeState.lastError,
       runtimeThreadId,
+      pendingServerRequestCount: bridgeState.pendingServerRequestCount,
     },
   });
 }
@@ -251,6 +268,64 @@ async function startBridge(payload: StartPayload): Promise<void> {
           };
         }
       },
+      upsertPendingServerRequest: async ({ actor: requestActor, request }) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(
+            chatApi.upsertPendingServerRequestForHooks,
+            "api.chat.upsertPendingServerRequestForHooks",
+          ),
+          {
+            actor: requestActor,
+            requestId: request.requestId,
+            threadId: request.threadId,
+            turnId: request.turnId,
+            itemId: request.itemId,
+            method: request.method,
+            payloadJson: request.payloadJson,
+            ...(request.reason ? { reason: request.reason } : {}),
+            ...(request.questions ? { questionsJson: JSON.stringify(request.questions) } : {}),
+            requestedAt: request.createdAt,
+          },
+        );
+      },
+      resolvePendingServerRequest: async ({ threadId, requestId, status, resolvedAt, responseJson }) => {
+        if (!convex || !actor) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(
+            chatApi.resolvePendingServerRequestForHooks,
+            "api.chat.resolvePendingServerRequestForHooks",
+          ),
+          {
+            actor,
+            threadId,
+            requestId,
+            status,
+            resolvedAt,
+            ...(responseJson ? { responseJson } : {}),
+          },
+        );
+      },
+      listPendingServerRequests: async ({ threadId }) => {
+        if (!convex || !actor) {
+          return [];
+        }
+        return convex.query(
+          requireDefined(
+            chatApi.listPendingServerRequestsForHooks,
+            "api.chat.listPendingServerRequestsForHooks",
+          ),
+          {
+            actor,
+            ...(threadId ? { threadId } : {}),
+            limit: 100,
+          },
+        );
+      },
     },
     handlers: {
       onState: (state) => {
@@ -259,6 +334,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           threadId: state.threadId,
           turnId: state.turnId,
           lastError: state.lastError,
+          pendingServerRequestCount: state.pendingServerRequestCount,
         });
       },
       onEvent: (event) => {
@@ -332,6 +408,30 @@ function interruptCurrentTurn(): void {
   runtime?.interrupt();
 }
 
+async function respondCommandApproval(requestId: string | number, decision: CommandExecutionApprovalDecision): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  await runtime.respondCommandApproval({ requestId, decision });
+}
+
+async function respondFileChangeApproval(requestId: string | number, decision: FileChangeApprovalDecision): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  await runtime.respondFileChangeApproval({ requestId, decision });
+}
+
+async function respondToolUserInput(
+  requestId: string | number,
+  answers: Record<string, ToolRequestUserInputAnswer>,
+): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  await runtime.respondToolUserInput({ requestId, answers });
+}
+
 async function stopCurrentBridge(): Promise<void> {
   try {
     if (runtime) {
@@ -343,7 +443,7 @@ async function stopCurrentBridge(): Promise<void> {
     actor = null;
     activeSessionId = null;
     runtimeThreadId = null;
-    emitState({ running: false, threadId: null, turnId: null, lastError: null });
+    emitState({ running: false, threadId: null, turnId: null, lastError: null, pendingServerRequestCount: 0 });
   }
 }
 
@@ -355,6 +455,18 @@ async function handle(command: HelperCommand): Promise<void> {
     case "send_turn":
       sendTurn(command.payload.text);
       emit({ type: "ack", payload: { command: "send_turn" } });
+      return;
+    case "respond_command_approval":
+      await respondCommandApproval(command.payload.requestId, command.payload.decision);
+      emit({ type: "ack", payload: { command: "respond_command_approval" } });
+      return;
+    case "respond_file_change_approval":
+      await respondFileChangeApproval(command.payload.requestId, command.payload.decision);
+      emit({ type: "ack", payload: { command: "respond_file_change_approval" } });
+      return;
+    case "respond_tool_user_input":
+      await respondToolUserInput(command.payload.requestId, command.payload.answers);
+      emit({ type: "ack", payload: { command: "respond_tool_user_input" } });
       return;
     case "interrupt":
       interruptCurrentTurn();

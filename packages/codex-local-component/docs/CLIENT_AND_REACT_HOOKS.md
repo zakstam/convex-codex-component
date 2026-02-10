@@ -13,6 +13,9 @@ Import from `@zakstam/codex-local-component/client`:
 - `listTurnMessages`
 - `listPendingApprovals`
 - `respondToApproval`
+- `listPendingServerRequests`
+- `upsertPendingServerRequest`
+- `resolvePendingServerRequest`
 - `startTurn`
 - `interruptTurn`
 - `replayStreams`

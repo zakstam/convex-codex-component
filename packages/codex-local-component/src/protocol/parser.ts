@@ -4,13 +4,16 @@ import clientRequestSchema from "./schemas/ClientRequest.json" with { type: "jso
 import eventMsgSchema from "./schemas/EventMsg.json" with { type: "json" };
 import jsonRpcMessageSchema from "./schemas/JSONRPCMessage.json" with { type: "json" };
 import jsonRpcResponseSchema from "./schemas/JSONRPCResponse.json" with { type: "json" };
+import commandExecutionRequestApprovalResponseSchema from "./schemas/CommandExecutionRequestApprovalResponse.json" with { type: "json" };
+import fileChangeRequestApprovalResponseSchema from "./schemas/FileChangeRequestApprovalResponse.json" with { type: "json" };
 import serverNotificationSchema from "./schemas/ServerNotification.json" with { type: "json" };
 import serverRequestSchema from "./schemas/ServerRequest.json" with { type: "json" };
+import toolRequestUserInputResponseSchema from "./schemas/ToolRequestUserInputResponse.json" with { type: "json" };
 import type {
-  ClientOutboundMessage,
   LegacyEventNotification,
   ServerInboundMessage,
 } from "./generated.js";
+import type { ClientOutboundWireMessage } from "./outbound.js";
 
 type AjvError = {
   instancePath?: string;
@@ -33,6 +36,9 @@ const validateServerRequest = ajv.compile(serverRequestSchema);
 const validateJsonRpcResponse = ajv.compile(jsonRpcResponseSchema);
 const validateClientRequest = ajv.compile(clientRequestSchema);
 const validateClientNotification = ajv.compile(clientNotificationSchema);
+const validateCommandExecutionRequestApprovalResponse = ajv.compile(commandExecutionRequestApprovalResponseSchema);
+const validateFileChangeRequestApprovalResponse = ajv.compile(fileChangeRequestApprovalResponseSchema);
+const validateToolRequestUserInputResponse = ajv.compile(toolRequestUserInputResponseSchema);
 const validateEventMsg = ajv.compile(eventMsgSchema);
 
 function formatAjvErrors(errors: AjvError[] | null | undefined): string {
@@ -73,8 +79,33 @@ function isServerInboundMessage(value: unknown): value is ServerInboundMessage {
   );
 }
 
-function isClientOutboundMessage(value: unknown): value is ClientOutboundMessage {
-  return (validateClientRequest(value) as boolean) || (validateClientNotification(value) as boolean);
+function isClientServerRequestResponse(value: unknown): value is ClientOutboundWireMessage {
+  if (!(validateJsonRpcResponse(value) as boolean)) {
+    return false;
+  }
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.id !== "number" && typeof record.id !== "string") {
+    return false;
+  }
+  if (!("result" in record)) {
+    return false;
+  }
+  return (
+    (validateCommandExecutionRequestApprovalResponse(record.result) as boolean) ||
+    (validateFileChangeRequestApprovalResponse(record.result) as boolean) ||
+    (validateToolRequestUserInputResponse(record.result) as boolean)
+  );
+}
+
+function isClientOutboundMessage(value: unknown): value is ClientOutboundWireMessage {
+  return (
+    (validateClientRequest(value) as boolean) ||
+    (validateClientNotification(value) as boolean) ||
+    isClientServerRequestResponse(value)
+  );
 }
 
 // `unknown` is intentionally used only at the wire boundary.
@@ -106,14 +137,22 @@ export function parseWireMessage(line: string): ServerInboundMessage {
   return parsed;
 }
 
-export function assertValidClientMessage(message: unknown): asserts message is ClientOutboundMessage {
+export function assertValidClientMessage(message: unknown): asserts message is ClientOutboundWireMessage {
   if (isClientOutboundMessage(message)) {
     return;
   }
   const details =
     formatAjvErrors(validateClientRequest.errors as AjvError[] | null | undefined) +
     "; " +
-    formatAjvErrors(validateClientNotification.errors as AjvError[] | null | undefined);
+    formatAjvErrors(validateClientNotification.errors as AjvError[] | null | undefined) +
+    "; " +
+    formatAjvErrors(validateJsonRpcResponse.errors as AjvError[] | null | undefined) +
+    "; " +
+    formatAjvErrors(validateCommandExecutionRequestApprovalResponse.errors as AjvError[] | null | undefined) +
+    "; " +
+    formatAjvErrors(validateFileChangeRequestApprovalResponse.errors as AjvError[] | null | undefined) +
+    "; " +
+    formatAjvErrors(validateToolRequestUserInputResponse.errors as AjvError[] | null | undefined);
   throw new CodexProtocolSendError(`Invalid outbound codex client message: ${details}`);
 }
 

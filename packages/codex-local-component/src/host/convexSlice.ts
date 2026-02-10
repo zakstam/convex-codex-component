@@ -3,10 +3,13 @@ import { v } from "convex/values";
 import {
   getThreadState,
   interruptTurn,
+  listPendingServerRequests,
   listPendingApprovals,
   listTurnMessages,
+  resolvePendingServerRequest,
   respondToApproval,
   startTurn,
+  upsertPendingServerRequest,
 } from "../client/index.js";
 import {
   ingestBatchSafe,
@@ -206,6 +209,14 @@ type CodexApprovalsComponent = {
   approvals: {
     listPending: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
     respond: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+  };
+};
+
+type CodexServerRequestsComponent = {
+  serverRequests: {
+    listPending: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    upsertPending: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    resolve: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
   };
 };
 
@@ -659,6 +670,67 @@ export async function respondApprovalForHooksWithTrustedActor<
     ...args,
     actor: trustedActorFromEnv(args.actor),
   } as FunctionArgs<Component["approvals"]["respond"]>);
+}
+
+export async function listPendingServerRequestsForHooksWithTrustedActor<
+  Component extends CodexServerRequestsComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: {
+    actor: HostActorContext;
+    threadId?: string;
+    limit?: number;
+  },
+): Promise<FunctionReturnType<Component["serverRequests"]["listPending"]>> {
+  return listPendingServerRequests(ctx, component, {
+    ...args,
+    actor: trustedActorFromEnv(args.actor),
+  } as FunctionArgs<Component["serverRequests"]["listPending"]>);
+}
+
+export async function upsertPendingServerRequestForHooksWithTrustedActor<
+  Component extends CodexServerRequestsComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: {
+    actor: HostActorContext;
+    requestId: string | number;
+    threadId: string;
+    turnId: string;
+    itemId: string;
+    method: "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" | "item/tool/requestUserInput";
+    payloadJson: string;
+    reason?: string;
+    questionsJson?: string;
+    requestedAt: number;
+  },
+): Promise<FunctionReturnType<Component["serverRequests"]["upsertPending"]>> {
+  return upsertPendingServerRequest(ctx, component, {
+    ...args,
+    actor: trustedActorFromEnv(args.actor),
+  } as FunctionArgs<Component["serverRequests"]["upsertPending"]>);
+}
+
+export async function resolvePendingServerRequestForHooksWithTrustedActor<
+  Component extends CodexServerRequestsComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: {
+    actor: HostActorContext;
+    threadId: string;
+    requestId: string | number;
+    status: "answered" | "expired";
+    resolvedAt: number;
+    responseJson?: string;
+  },
+): Promise<FunctionReturnType<Component["serverRequests"]["resolve"]>> {
+  return resolvePendingServerRequest(ctx, component, {
+    ...args,
+    actor: trustedActorFromEnv(args.actor),
+  } as FunctionArgs<Component["serverRequests"]["resolve"]>);
 }
 
 export async function interruptTurnForHooksWithTrustedActor<

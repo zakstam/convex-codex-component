@@ -38,6 +38,7 @@ pub struct BridgeStateSnapshot {
     pub turn_id: Option<String>,
     pub last_error: Option<String>,
     pub runtime_thread_id: Option<String>,
+    pub pending_server_request_count: Option<u64>,
 }
 
 #[derive(Default)]
@@ -133,6 +134,48 @@ impl BridgeRuntime {
 
     pub async fn interrupt(&self, app: AppHandle) -> Result<(), String> {
         self.send_to_helper(&app, "interrupt", json!({})).await
+    }
+
+    pub async fn respond_command_approval(
+        &self,
+        app: AppHandle,
+        request_id: serde_json::Value,
+        decision: serde_json::Value,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "respond_command_approval",
+            json!({ "requestId": request_id, "decision": decision }),
+        )
+        .await
+    }
+
+    pub async fn respond_file_change_approval(
+        &self,
+        app: AppHandle,
+        request_id: serde_json::Value,
+        decision: serde_json::Value,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "respond_file_change_approval",
+            json!({ "requestId": request_id, "decision": decision }),
+        )
+        .await
+    }
+
+    pub async fn respond_tool_user_input(
+        &self,
+        app: AppHandle,
+        request_id: serde_json::Value,
+        answers: serde_json::Value,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "respond_tool_user_input",
+            json!({ "requestId": request_id, "answers": answers }),
+        )
+        .await
     }
 
     pub async fn stop(&self, app: AppHandle) -> Result<(), String> {

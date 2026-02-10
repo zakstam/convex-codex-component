@@ -233,4 +233,33 @@ export default defineSchema({
       ["tenantId", "userId", "threadId", "status", "createdAt", "itemId"],
     )
     .index("tenantId_threadId_turnId_itemId", ["tenantId", "threadId", "turnId", "itemId"]),
+
+  codex_server_requests: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    turnId: v.string(),
+    itemId: v.string(),
+    method: v.union(
+      v.literal("item/commandExecution/requestApproval"),
+      v.literal("item/fileChange/requestApproval"),
+      v.literal("item/tool/requestUserInput"),
+    ),
+    requestIdType: v.union(v.literal("string"), v.literal("number")),
+    requestIdText: v.string(),
+    payloadJson: v.string(),
+    status: v.union(v.literal("pending"), v.literal("answered"), v.literal("expired")),
+    reason: v.optional(v.string()),
+    questionsJson: v.optional(v.string()),
+    responseJson: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("tenantId_threadId_requestIdText", ["tenantId", "threadId", "requestIdText"])
+    .index("tenantId_userId_status_updatedAt", ["tenantId", "userId", "status", "updatedAt"])
+    .index(
+      "tenantId_userId_threadId_status_updatedAt",
+      ["tenantId", "userId", "threadId", "status", "updatedAt"],
+    ),
 });

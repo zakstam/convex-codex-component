@@ -10,8 +10,16 @@ import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumePara
 import type { ThreadRollbackParams } from "../protocol/schemas/v2/ThreadRollbackParams.js";
 import type { ThreadStartParams } from "../protocol/schemas/v2/ThreadStartParams.js";
 import type { ThreadUnarchiveParams } from "../protocol/schemas/v2/ThreadUnarchiveParams.js";
+import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/CommandExecutionApprovalDecision.js";
+import type { CommandExecutionRequestApprovalResponse } from "../protocol/schemas/v2/CommandExecutionRequestApprovalResponse.js";
+import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
+import type { FileChangeRequestApprovalResponse } from "../protocol/schemas/v2/FileChangeRequestApprovalResponse.js";
+import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
+import type { ToolRequestUserInputResponse } from "../protocol/schemas/v2/ToolRequestUserInputResponse.js";
 import type { TurnInterruptParams } from "../protocol/schemas/v2/TurnInterruptParams.js";
 import type { TurnStartParams } from "../protocol/schemas/v2/TurnStartParams.js";
+import type { RequestId } from "../protocol/schemas/RequestId.js";
+import type { ClientServerRequestResponse } from "../protocol/outbound.js";
 
 type RequestMethod = ClientRequest["method"];
 
@@ -153,4 +161,28 @@ export function buildTurnInterruptRequest(
 ): RequestFor<"turn/interrupt"> {
   assertUuidThreadId(params.threadId);
   return buildClientRequest("turn/interrupt", id, params);
+}
+
+export function buildCommandExecutionApprovalResponse(
+  id: RequestId,
+  decision: CommandExecutionApprovalDecision,
+): ClientServerRequestResponse {
+  const result: CommandExecutionRequestApprovalResponse = { decision };
+  return { id, result };
+}
+
+export function buildFileChangeApprovalResponse(
+  id: RequestId,
+  decision: FileChangeApprovalDecision,
+): ClientServerRequestResponse {
+  const result: FileChangeRequestApprovalResponse = { decision };
+  return { id, result };
+}
+
+export function buildToolRequestUserInputResponse(
+  id: RequestId,
+  answers: Record<string, ToolRequestUserInputAnswer>,
+): ClientServerRequestResponse {
+  const result: ToolRequestUserInputResponse = { answers };
+  return { id, result };
 }

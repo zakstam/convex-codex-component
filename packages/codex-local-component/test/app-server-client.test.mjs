@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildCommandExecutionApprovalResponse,
+  buildFileChangeApprovalResponse,
   buildThreadArchiveRequest,
   buildThreadForkRequest,
   buildThreadListRequest,
@@ -9,6 +11,7 @@ import {
   buildThreadResumeRequest,
   buildThreadRollbackRequest,
   buildThreadUnarchiveRequest,
+  buildToolRequestUserInputResponse,
   buildTurnInterruptRequest,
   buildTurnStartTextRequest,
 } from "../dist/app-server/index.js";
@@ -54,5 +57,25 @@ test("app-server request builders reject malformed thread IDs", () => {
     buildThreadResumeRequest(2, {
       threadId: "thread-not-uuid",
     }),
+  );
+});
+
+test("app-server response builders create JSON-RPC response payloads for server requests", () => {
+  assert.deepEqual(buildCommandExecutionApprovalResponse(10, "accept"), {
+    id: 10,
+    result: { decision: "accept" },
+  });
+  assert.deepEqual(buildFileChangeApprovalResponse("11", "decline"), {
+    id: "11",
+    result: { decision: "decline" },
+  });
+  assert.deepEqual(
+    buildToolRequestUserInputResponse(12, {
+      q1: { answers: ["A"] },
+    }),
+    {
+      id: 12,
+      result: { answers: { q1: { answers: ["A"] } } },
+    },
   );
 });

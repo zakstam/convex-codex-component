@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery } from "convex/react";
-import { useCodexApprovals, useCodexMessages, useCodexThreadState } from "@zakstam/codex-local-component/react";
+import { useCodexMessages, useCodexThreadState } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
-import { getBridgeState, interruptTurn, sendUserTurn, startBridge, stopBridge, type ActorContext, type BridgeState } from "./lib/tauriBridge";
+import {
+  getBridgeState,
+  interruptTurn,
+  respondCommandApproval,
+  respondFileChangeApproval,
+  respondToolUserInput,
+  sendUserTurn,
+  startBridge,
+  stopBridge,
+  type ActorContext,
+  type BridgeState,
+} from "./lib/tauriBridge";
 
 function loadStableDeviceId(): string {
   if (typeof window === "undefined") {
@@ -29,11 +40,34 @@ const sessionId = crypto.randomUUID();
 
 type BridgeStateEvent = Partial<BridgeState>;
 
+type ToolQuestion = {
+  id: string;
+  header: string;
+  question: string;
+  isOther: boolean;
+  isSecret: boolean;
+  options: Array<{ label: string; description: string }> | null;
+};
+
+type PendingServerRequest = {
+  requestId: string | number;
+  method: "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" | "item/tool/requestUserInput";
+  threadId: string;
+  turnId: string;
+  itemId: string;
+  reason?: string;
+  questions?: ToolQuestion[];
+};
+
 function requireDefined<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
     throw new Error(`Missing generated Convex reference: ${name}`);
   }
   return value;
+}
+
+function requestKey(requestId: string | number): string {
+  return `${typeof requestId}:${String(requestId)}`;
 }
 
 const chatApi = requireDefined(api.chat, "api.chat");
@@ -44,10 +78,14 @@ export default function App() {
     threadId: null,
     turnId: null,
     lastError: null,
+    pendingServerRequestCount: 0,
   });
   const [composer, setComposer] = useState("");
   const [runtimeLog, setRuntimeLog] = useState<Array<{ id: string; line: string }>>([]);
   const [selectedRuntimeThreadId, setSelectedRuntimeThreadId] = useState<string>("");
+  const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [toolOtherDrafts, setToolOtherDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null);
 
   const threadId = bridge.threadId;
   const listedThreads = useQuery(
@@ -68,17 +106,16 @@ export default function App() {
     { initialNumItems: 30, stream: true },
   );
 
-  const approvals = useCodexApprovals(
-    requireDefined(chatApi.listPendingApprovalsForHooks, "api.chat.listPendingApprovalsForHooks"),
-    threadId ? { actor, threadId } : "skip",
-    requireDefined(chatApi.respondApprovalForHooks, "api.chat.respondApprovalForHooks"),
-    { initialNumItems: 20 },
-  );
-
   const threadState = useCodexThreadState(
     requireDefined(chatApi.threadSnapshot, "api.chat.threadSnapshot"),
     threadId ? { actor, threadId } : "skip",
   );
+
+  const pendingServerRequestsRaw = useQuery(
+    requireDefined(chatApi.listPendingServerRequestsForHooks, "api.chat.listPendingServerRequestsForHooks"),
+    threadId ? { actor, threadId, limit: 50 } : "skip",
+  );
+  const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
 
   useEffect(() => {
     let unsubs: Array<() => void> = [];
@@ -160,6 +197,116 @@ export default function App() {
     }
   };
 
+  const onRespondCommandOrFile = async (
+    request: PendingServerRequest,
+    decision: "accept" | "acceptForSession" | "decline" | "cancel",
+  ) => {
+    const key = requestKey(request.requestId);
+    setSubmittingRequestKey(key);
+    try {
+      if (request.method === "item/commandExecution/requestApproval") {
+        await respondCommandApproval({
+          requestId: request.requestId,
+          decision,
+        });
+      } else {
+        await respondFileChangeApproval({
+          requestId: request.requestId,
+          decision,
+        });
+      }
+      setBridge((prev) => ({ ...prev, lastError: null }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setBridge((prev) => ({ ...prev, lastError: message }));
+    } finally {
+      setSubmittingRequestKey((current) => (current === key ? null : current));
+    }
+  };
+
+  const onRespondToolUserInput = async (request: PendingServerRequest) => {
+    const key = requestKey(request.requestId);
+    const selectedByQuestion = toolDrafts[key] ?? {};
+    const otherByQuestion = toolOtherDrafts[key] ?? {};
+    const answers: Record<string, { answers: string[] }> = {};
+
+    for (const question of request.questions ?? []) {
+      const selected = (selectedByQuestion[question.id] ?? "").trim();
+      const other = (otherByQuestion[question.id] ?? "").trim();
+
+      if (selected === "__other__") {
+        if (!other) {
+          setBridge((prev) => ({ ...prev, lastError: `Missing answer for question: ${question.header}` }));
+          return;
+        }
+        answers[question.id] = { answers: [other] };
+        continue;
+      }
+
+      if (selected) {
+        answers[question.id] = { answers: [selected] };
+        continue;
+      }
+
+      if (question.options && question.options.length > 0) {
+        setBridge((prev) => ({ ...prev, lastError: `Select an option for: ${question.header}` }));
+        return;
+      }
+
+      if (!other) {
+        setBridge((prev) => ({ ...prev, lastError: `Missing answer for question: ${question.header}` }));
+        return;
+      }
+      answers[question.id] = { answers: [other] };
+    }
+
+    setSubmittingRequestKey(key);
+    try {
+      await respondToolUserInput({
+        requestId: request.requestId,
+        answers,
+      });
+      setBridge((prev) => ({ ...prev, lastError: null }));
+      setToolDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setToolOtherDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setBridge((prev) => ({ ...prev, lastError: message }));
+    } finally {
+      setSubmittingRequestKey((current) => (current === key ? null : current));
+    }
+  };
+
+  const setToolSelected = (request: PendingServerRequest, questionId: string, value: string) => {
+    const key = requestKey(request.requestId);
+    setToolDrafts((prev) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] ?? {}),
+        [questionId]: value,
+      },
+    }));
+  };
+
+  const setToolOther = (request: PendingServerRequest, questionId: string, value: string) => {
+    const key = requestKey(request.requestId);
+    setToolOtherDrafts((prev) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] ?? {}),
+        [questionId]: value,
+      },
+    }));
+  };
+
   return (
     <div className="app">
       <section className="panel chat">
@@ -223,32 +370,112 @@ export default function App() {
           <h2>Bridge State</h2>
           <p className="code">running: {String(bridge.running)}</p>
           <p className="code">turnId: {bridge.turnId ?? "-"}</p>
+          <p className="code">pendingServerRequests: {bridge.pendingServerRequestCount ?? 0}</p>
           <p className="code">lastError: {bridge.lastError ?? "-"}</p>
         </section>
 
         <section className="panel card">
-          <h2>Pending Approvals</h2>
-          {approvals.results.length === 0 ? <p className="code">No pending approvals</p> : null}
-          {approvals.results.map((approval) => (
-            <div className="approval" key={approval.itemId}>
-              <p><strong>{approval.kind}</strong></p>
-              <p className="code">turn: {approval.turnId}</p>
-              <div className="controls">
-                <button
-                  className="secondary"
-                  onClick={() => void approvals.accept({ actor, threadId: approval.threadId, turnId: approval.turnId, itemId: approval.itemId })}
-                >
-                  Accept
-                </button>
-                <button
-                  className="danger"
-                  onClick={() => void approvals.decline({ actor, threadId: approval.threadId, turnId: approval.turnId, itemId: approval.itemId })}
-                >
-                  Decline
-                </button>
+          <h2>Pending Requests</h2>
+          {pendingServerRequests.length === 0 ? <p className="code">No pending server requests</p> : null}
+          {pendingServerRequests.map((request) => {
+            const key = requestKey(request.requestId);
+            const isSubmitting = submittingRequestKey === key;
+
+            return (
+              <div className="approval" key={key}>
+                <p><strong>{request.method}</strong></p>
+                <p className="code">requestId: {String(request.requestId)}</p>
+                <p className="code">turn: {request.turnId}</p>
+                <p className="code">item: {request.itemId}</p>
+                {request.reason ? <p className="code">reason: {request.reason}</p> : null}
+
+                {(request.method === "item/commandExecution/requestApproval" ||
+                  request.method === "item/fileChange/requestApproval") ? (
+                  <div className="controls">
+                    <button
+                      className="secondary"
+                      disabled={isSubmitting}
+                      onClick={() => void onRespondCommandOrFile(request, "accept")}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={isSubmitting}
+                      onClick={() => void onRespondCommandOrFile(request, "acceptForSession")}
+                    >
+                      Accept Session
+                    </button>
+                    <button
+                      className="danger"
+                      disabled={isSubmitting}
+                      onClick={() => void onRespondCommandOrFile(request, "decline")}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      className="danger"
+                      disabled={isSubmitting}
+                      onClick={() => void onRespondCommandOrFile(request, "cancel")}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
+
+                {request.method === "item/tool/requestUserInput" ? (
+                  <div>
+                    {(request.questions ?? []).map((question) => {
+                      const selected = toolDrafts[key]?.[question.id] ?? "";
+                      const needsOther = selected === "__other__" || (!question.options || question.options.length === 0);
+                      const showOtherInput = needsOther || question.isOther;
+
+                      return (
+                        <div className="approval" key={`${key}:${question.id}`}>
+                          <p><strong>{question.header}</strong></p>
+                          <p className="code">{question.question}</p>
+                          {question.options && question.options.length > 0 ? (
+                            <select
+                              value={selected}
+                              onChange={(event) => setToolSelected(request, question.id, event.target.value)}
+                              disabled={isSubmitting}
+                            >
+                              <option value="">Select an option</option>
+                              {question.options.map((option) => (
+                                <option key={option.label} value={option.label}>
+                                  {option.label} - {option.description}
+                                </option>
+                              ))}
+                              {question.isOther ? <option value="__other__">Other</option> : null}
+                            </select>
+                          ) : null}
+                          {showOtherInput ? (
+                            <input
+                              value={toolOtherDrafts[key]?.[question.id] ?? ""}
+                              onChange={(event) => setToolOther(request, question.id, event.target.value)}
+                              placeholder={question.isSecret ? "Enter secret" : "Enter answer"}
+                              type={question.isSecret ? "password" : "text"}
+                              disabled={isSubmitting}
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    })}
+
+                    <div className="controls">
+                      <button
+                        className="secondary"
+                        disabled={isSubmitting}
+                        onClick={() => void onRespondToolUserInput(request)}
+                      >
+                        Submit Answers
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
 
         <section className="panel card">

@@ -15,4 +15,7 @@ export {
   buildTurnStartRequest,
   buildTurnStartTextRequest,
   buildTurnInterruptRequest,
+  buildCommandExecutionApprovalResponse,
+  buildFileChangeApprovalResponse,
+  buildToolRequestUserInputResponse,
 } from "./client.js";

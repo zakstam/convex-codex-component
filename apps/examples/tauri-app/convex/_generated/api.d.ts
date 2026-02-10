@@ -121,6 +121,51 @@ export declare const components: {
         any
       >;
     };
+    serverRequests: {
+      listPending: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          limit?: number;
+          threadId?: string;
+        },
+        any
+      >;
+      resolve: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          requestId: string | number;
+          resolvedAt: number;
+          responseJson?: string;
+          status: "answered" | "expired";
+          threadId: string;
+        },
+        null
+      >;
+      upsertPending: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          itemId: string;
+          method:
+            | "item/commandExecution/requestApproval"
+            | "item/fileChange/requestApproval"
+            | "item/tool/requestUserInput";
+          payloadJson: string;
+          questionsJson?: string;
+          reason?: string;
+          requestId: string | number;
+          requestedAt: number;
+          threadId: string;
+          turnId: string;
+        },
+        null
+      >;
+    };
     sync: {
       ensureSession: FunctionReference<
         "mutation",

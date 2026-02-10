@@ -6,7 +6,10 @@ import {
   computePersistenceStats,
   ensureThreadByCreate,
   ingestBatchMixed,
+  listPendingServerRequestsForHooksWithTrustedActor,
   listThreadMessagesForHooks,
+  resolvePendingServerRequestForHooksWithTrustedActor,
+  upsertPendingServerRequestForHooksWithTrustedActor,
 } from "../dist/host/index.js";
 
 test("ensureThreadByCreate writes localThreadId and threadId", async () => {
@@ -176,4 +179,67 @@ test("listThreadMessagesForHooks returns stream list with deltas payload", async
 
   assert.equal(result.streams?.kind, "deltas");
   assert.deepEqual(result.streams?.streams, [{ streamId: "stream-1", state: "streaming" }]);
+});
+
+test("server request host wrappers pass refs and args", async () => {
+  const listRef = {};
+  const upsertRef = {};
+  const resolveRef = {};
+  const queryCalls = [];
+  const mutationCalls = [];
+
+  const queryCtx = {
+    runQuery: async (ref, args) => {
+      queryCalls.push({ ref, args });
+      return [];
+    },
+  };
+  const mutationCtx = {
+    runMutation: async (ref, args) => {
+      mutationCalls.push({ ref, args });
+      return null;
+    },
+  };
+  const component = {
+    serverRequests: {
+      listPending: listRef,
+      upsertPending: upsertRef,
+      resolve: resolveRef,
+    },
+  };
+  const actor = { tenantId: "actor-tenant", userId: "actor-user", deviceId: "actor-device" };
+
+  await listPendingServerRequestsForHooksWithTrustedActor(queryCtx, component, {
+    actor,
+    threadId: "thread-1",
+    limit: 20,
+  });
+  await upsertPendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
+    actor,
+    requestId: 1,
+    threadId: "thread-1",
+    turnId: "turn-1",
+    itemId: "item-1",
+    method: "item/commandExecution/requestApproval",
+    payloadJson: "{}",
+    requestedAt: 1,
+  });
+  await resolvePendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
+    actor,
+    threadId: "thread-1",
+    requestId: 1,
+    status: "answered",
+    resolvedAt: 2,
+    responseJson: "{\"decision\":\"accept\"}",
+  });
+
+  assert.equal(queryCalls.length, 1);
+  assert.equal(queryCalls[0].ref, listRef);
+  assert.equal(queryCalls[0].args.threadId, "thread-1");
+  assert.equal(typeof queryCalls[0].args.actor.tenantId, "string");
+  assert.equal(mutationCalls.length, 2);
+  assert.equal(mutationCalls[0].ref, upsertRef);
+  assert.equal(mutationCalls[1].ref, resolveRef);
+  assert.equal(typeof mutationCalls[0].args.actor.tenantId, "string");
+  assert.equal(typeof mutationCalls[1].args.actor.tenantId, "string");
 });

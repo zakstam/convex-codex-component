@@ -46,6 +46,18 @@ Replay is status-driven, not exception-driven.
 
 ## Runbook notes
 
+### Pending server-request responses
+
+If command/file approval or `item/tool/requestUserInput` requests appear stuck:
+
+1. query pending server requests (`components.codexLocal.serverRequests.listPending` or runtime `listPendingServerRequests`)
+2. verify request id is still pending for the active turn
+3. send typed response via runtime:
+   - `respondCommandApproval`
+   - `respondFileChangeApproval`
+   - `respondToolUserInput`
+4. if turn already completed/failed, request may be marked `expired`
+
 ### Protocol parse failures
 
 If `onProtocolError` fires:

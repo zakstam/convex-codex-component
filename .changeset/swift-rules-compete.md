@@ -2,8 +2,8 @@
 "@zakstam/codex-local-component": patch
 ---
 
-Improve streaming ingest throughput by coalescing durable message patches and batching stream stat updates during ingest.
+Add end-to-end server-request handling for app-server approval and user-input flows.
 
-Align host and React streaming payload contracts so `streams` are included with `{ kind: "deltas" }` responses, enabling a single-query overlay flow.
+Persist pending server requests (command approvals, file change approvals, tool user input) through host runtime persistence hooks and expose typed host/client wrappers.
 
-Update host/hook docs and wrapper tests for the refreshed replay/deltas contract.
+Wire the Tauri example to list, triage, and resolve pending server requests from Convex, and update host integration/docs/tests to match the new contract.

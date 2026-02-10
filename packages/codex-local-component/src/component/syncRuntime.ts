@@ -5,7 +5,6 @@ export const LIFECYCLE_EVENT_KINDS = new Set<string>([
   "item/started",
   "item/completed",
   "error",
-  "codex/event/turn_aborted",
 ]);
 export const DELTA_EVENT_KINDS = new Set<string>(["item/agentMessage/delta"]);
 export const HEARTBEAT_WRITE_MIN_INTERVAL_MS = 10_000;

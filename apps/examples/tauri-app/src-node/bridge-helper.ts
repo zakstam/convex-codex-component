@@ -97,6 +97,12 @@ let ingestQueue: IngestDelta[] = [];
 let flushTimer: NodeJS.Timeout | null = null;
 let flushTail: Promise<void> = Promise.resolve();
 
+function isIgnorableProtocolNoise(message: string): boolean {
+  return message.includes(
+    "Message is valid JSON-RPC but not a supported codex server notification/request/response shape.",
+  );
+}
+
 function requireDefined<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
     throw new Error(`Missing generated Convex reference: ${name}`);
@@ -136,16 +142,6 @@ function isServerNotification(message: ServerInboundMessage): message is ServerN
 
 function isResponse(message: ServerInboundMessage): message is CodexResponse {
   return "id" in message && !isServerNotification(message);
-}
-
-function normalizeIngestKind(kind: string): string {
-  if (kind === "codex/event/task_started") {
-    return "turn/started";
-  }
-  if (kind === "codex/event/task_complete") {
-    return "turn/completed";
-  }
-  return kind;
 }
 
 function clearFlushTimer(): void {
@@ -336,7 +332,7 @@ async function startBridge(payload: StartPayload) {
           }
         }
 
-        if (event.kind === "turn/completed" || event.kind === "codex/event/turn_aborted") {
+        if (event.kind === "turn/completed") {
           turnId = null;
           turnInFlight = false;
           turnSettled = true;
@@ -371,7 +367,7 @@ async function startBridge(payload: StartPayload) {
             ? {
                 type: "stream_delta",
                 eventId: event.eventId,
-                kind: normalizeIngestKind(event.kind),
+                kind: event.kind,
                 payloadJson: event.payloadJson,
                 cursorStart: event.cursorStart,
                 cursorEnd: event.cursorEnd,
@@ -383,7 +379,7 @@ async function startBridge(payload: StartPayload) {
             : {
                 type: "lifecycle_event",
                 eventId: event.eventId,
-                kind: normalizeIngestKind(event.kind),
+                kind: event.kind,
                 payloadJson: event.payloadJson,
                 createdAt: event.createdAt,
                 threadId: persistedThreadId,
@@ -392,7 +388,6 @@ async function startBridge(payload: StartPayload) {
 
         const forceFlush =
           event.kind === "turn/completed" ||
-          event.kind === "codex/event/turn_aborted" ||
           event.kind === "error";
 
         await enqueueIngestDelta(delta, forceFlush);
@@ -434,6 +429,17 @@ async function startBridge(payload: StartPayload) {
         emit({ type: "global", payload: message as Record<string, unknown> });
       },
       onProtocolError: async ({ line, error }) => {
+        if (isIgnorableProtocolNoise(error.message)) {
+          emit({
+            type: "global",
+            payload: {
+              kind: "protocol/ignored_message",
+              reason: error.message,
+              line,
+            },
+          });
+          return;
+        }
         updateState({ lastError: error.message });
         emit({ type: "protocol_error", payload: { message: error.message, line } });
       },

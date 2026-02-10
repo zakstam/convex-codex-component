@@ -66,7 +66,10 @@ function isServerInboundMessage(value: unknown): value is ServerInboundMessage {
     (validateServerNotification(value) as boolean) ||
     (validateServerRequest(value) as boolean) ||
     (validateJsonRpcResponse(value) as boolean) ||
-    isLegacyEventNotificationValue(value)
+    isLegacyEventNotificationValue(value) ||
+    isUnknownServerResponse(value) ||
+    isUnknownServerNotification(value) ||
+    isUnknownServerRequest(value)
   );
 }
 
@@ -112,6 +115,63 @@ export function assertValidClientMessage(message: unknown): asserts message is C
     "; " +
     formatAjvErrors(validateClientNotification.errors as AjvError[] | null | undefined);
   throw new CodexProtocolSendError(`Invalid outbound codex client message: ${details}`);
+}
+
+function isUnknownServerNotification(value: unknown): value is ServerInboundMessage {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.method !== "string") {
+    return false;
+  }
+  if (record.method.startsWith("codex/event/")) {
+    return false;
+  }
+  if ("params" in record && (typeof record.params !== "object" || record.params === null)) {
+    return false;
+  }
+  if ("id" in record) {
+    return false;
+  }
+  return true;
+}
+
+function isUnknownServerRequest(value: unknown): value is ServerInboundMessage {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.method !== "string") {
+    return false;
+  }
+  if (record.method.startsWith("codex/event/")) {
+    return false;
+  }
+  if ("params" in record && (typeof record.params !== "object" || record.params === null)) {
+    return false;
+  }
+  if (typeof record.id !== "string" && typeof record.id !== "number") {
+    return false;
+  }
+  return true;
+}
+
+function isUnknownServerResponse(value: unknown): value is ServerInboundMessage {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if ("method" in record) {
+    return false;
+  }
+  if (typeof record.id !== "string" && typeof record.id !== "number" && record.id !== null) {
+    return false;
+  }
+  if (!("result" in record) && !("error" in record)) {
+    return false;
+  }
+  return true;
 }
 
 function isLegacyEventNotificationValue(value: unknown): value is LegacyEventNotification {

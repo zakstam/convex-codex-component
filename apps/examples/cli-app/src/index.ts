@@ -17,7 +17,6 @@ let threadId: string | null = null;
 let turnId: string | null = null;
 let turnInFlight = false;
 let turnSettled = false;
-let sawModernAssistantDelta = false;
 let assistantLineOpen = false;
 
 let resolveThreadReady: (() => void) | null = null;
@@ -75,16 +74,10 @@ const bridge = new CodexLocalBridge(
         return;
       }
 
-      if (event.kind === "item/agentMessage/delta" || event.kind === "codex/event/agent_message_delta") {
+      if (event.kind === "item/agentMessage/delta") {
         const payload = JSON.parse(event.payloadJson) as ServerInboundMessage;
         const delta = extractAssistantDelta(payload);
         if (!delta) {
-          return;
-        }
-        if (event.kind === "item/agentMessage/delta") {
-          sawModernAssistantDelta = true;
-        }
-        if (event.kind === "codex/event/agent_message_delta" && sawModernAssistantDelta) {
           return;
         }
         if (!assistantLineOpen) {
@@ -111,24 +104,6 @@ const bridge = new CodexLocalBridge(
         rejectTurnDone = null;
         return;
       }
-
-      if (event.kind === "codex/event/turn_aborted") {
-        if (!turnInFlight || turnSettled) {
-          return;
-        }
-        turnSettled = true;
-        turnInFlight = false;
-        turnId = null;
-        if (assistantLineOpen) {
-          stdout.write("\n");
-          assistantLineOpen = false;
-        }
-        const error = new Error("Turn was aborted.");
-        rejectTurnDone?.(error);
-        resolveTurnDone = null;
-        rejectTurnDone = null;
-      }
-
     },
 
     onGlobalMessage: async (message) => {
@@ -202,16 +177,6 @@ function extractAssistantDelta(message: ServerInboundMessage): string | null {
   if (message.method === "item/agentMessage/delta") {
     return message.params.delta;
   }
-  if (
-    message.method === "codex/event/agent_message_delta" &&
-    "msg" in message.params &&
-    typeof message.params.msg === "object" &&
-    message.params.msg !== null &&
-    "delta" in message.params.msg &&
-    typeof message.params.msg.delta === "string"
-  ) {
-    return message.params.msg.delta;
-  }
   return null;
 }
 
@@ -237,7 +202,6 @@ async function runTurn(bridge: CodexLocalBridge, text: string): Promise<void> {
   turnInFlight = true;
   turnSettled = false;
   turnId = null;
-  sawModernAssistantDelta = false;
   assistantLineOpen = false;
 
   await new Promise<void>((resolve, reject) => {

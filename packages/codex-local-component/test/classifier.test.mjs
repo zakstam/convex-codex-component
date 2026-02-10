@@ -97,28 +97,27 @@ test("extractStreamId returns undefined for modern generated protocol", () => {
   assert.equal(extractStreamId(message), undefined);
 });
 
-test("classifyMessage accepts codex/event envelope and uses conversationId", () => {
+test("classifyMessage rejects thread-scoped messages missing threadId", () => {
   const message = {
     jsonrpc: "2.0",
-    method: "codex/event/mcp_startup_update",
+    method: "item/started",
     params: {
-      conversationId: "thread-legacy-envelope",
-      msg: {
-        type: "mcp_startup_update",
-        server: "x",
-        status: { state: "starting" },
+      turnId: "turn-1",
+      item: {
+        type: "plan",
+        id: "item-1",
+        text: "test",
       },
     },
   };
 
-  assert.deepEqual(classifyMessage(message), {
-    scope: "thread",
-    kind: "codex/event/mcp_startup_update",
-    threadId: "thread-legacy-envelope",
-  });
+  assert.throws(
+    () => classifyMessage(message),
+    /Thread-scoped protocol message missing threadId/,
+  );
 });
 
-test("classifyMessage prefers threadId when both threadId and conversationId are present", () => {
+test("classifyMessage ignores legacy conversationId fields", () => {
   const message = {
     jsonrpc: "2.0",
     method: "turn/completed",

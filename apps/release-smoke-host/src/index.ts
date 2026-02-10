@@ -89,16 +89,6 @@ function resolveConvexUrl(): string | null {
   return deploymentToUrl(merged.CONVEX_DEPLOYMENT);
 }
 
-function normalizeIngestKind(kind: string): string {
-  if (kind === "codex/event/task_started") {
-    return "turn/started";
-  }
-  if (kind === "codex/event/task_complete") {
-    return "turn/completed";
-  }
-  return kind;
-}
-
 function isServerNotification(message: ServerInboundMessage): message is ServerNotification {
   return "method" in message;
 }
@@ -114,16 +104,6 @@ function extractAssistantDelta(message: ServerInboundMessage): string | null {
 
   if (message.method === "item/agentMessage/delta") {
     return message.params.delta;
-  }
-  if (
-    message.method === "codex/event/agent_message_delta" &&
-    "msg" in message.params &&
-    typeof message.params.msg === "object" &&
-    message.params.msg !== null &&
-    "delta" in message.params.msg &&
-    typeof message.params.msg.delta === "string"
-  ) {
-    return message.params.msg.delta;
   }
   return null;
 }
@@ -153,7 +133,6 @@ let threadId: string | null = null;
 let turnId: string | null = null;
 let turnInFlight = false;
 let turnSettled = false;
-let sawModernAssistantDelta = false;
 let assistantLineOpen = false;
 let pendingTurn: { inputText: string; idempotencyKey: string } | null = null;
 let restoreSuppressedTyping: (() => void) | null = null;
@@ -292,7 +271,6 @@ async function runTurn(bridge: CodexLocalBridge, text: string): Promise<void> {
   turnInFlight = true;
   turnSettled = false;
   turnId = null;
-  sawModernAssistantDelta = false;
   assistantLineOpen = false;
   suppressTypingWhileTurnInFlight();
 
@@ -350,7 +328,7 @@ async function logPersistenceStats(): Promise<void> {
 }
 
 function requiresTurnContext(kind: string): boolean {
-  return kind.startsWith("turn/") || kind.startsWith("item/") || kind === "codex/event/turn_aborted";
+  return kind.startsWith("turn/") || kind.startsWith("item/");
 }
 
 function toIngestDelta(event: NormalizedEvent): IngestDelta | null {
@@ -368,7 +346,7 @@ function toIngestDelta(event: NormalizedEvent): IngestDelta | null {
 
   return {
     eventId: event.eventId,
-    kind: normalizeIngestKind(event.kind),
+    kind: event.kind,
     payloadJson: event.payloadJson,
     cursorStart: event.cursorStart,
     cursorEnd: event.cursorEnd,
@@ -396,12 +374,6 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
   const payload = JSON.parse(event.payloadJson) as ServerInboundMessage;
   const delta = extractAssistantDelta(payload);
   if (delta) {
-    if (event.kind === "item/agentMessage/delta") {
-      sawModernAssistantDelta = true;
-    }
-    if (event.kind === "codex/event/agent_message_delta" && sawModernAssistantDelta) {
-      return;
-    }
     if (!assistantLineOpen) {
       stdout.write("assistant> ");
       assistantLineOpen = true;
@@ -427,7 +399,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
 
   const ingested = toIngestDelta(event);
   if (ingested) {
-    const terminal = ingested.kind === "turn/completed" || ingested.kind === "codex/event/turn_aborted";
+    const terminal = ingested.kind === "turn/completed";
     await enqueueIngestDelta(ingested, terminal);
   }
 
@@ -454,31 +426,6 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     resolveTurnDone = null;
     rejectTurnDone = null;
     return;
-  }
-
-  if (event.kind === "codex/event/turn_aborted") {
-    if (!turnInFlight || turnSettled) {
-      return;
-    }
-    turnSettled = true;
-    turnInFlight = false;
-    turnId = null;
-    pendingTurn = null;
-    resumeTyping();
-
-    await flushQueue();
-
-    if (assistantLineOpen) {
-      stdout.write("\n");
-      assistantLineOpen = false;
-    }
-
-    await logPersistenceStats();
-
-    const error = new Error("Turn was aborted.");
-    rejectTurnDone?.(error);
-    resolveTurnDone = null;
-    rejectTurnDone = null;
   }
 
 }

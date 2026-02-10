@@ -1,4 +1,10 @@
 import type { CodexUIMessage } from "./client/types.js";
+import {
+  durableMessageDeltaForPayload,
+  durableMessageForPayload,
+  terminalStatusForPayload,
+  turnIdForPayload,
+} from "./protocol/events.js";
 
 export type CodexDurableMessageLike = {
   turnId: string;
@@ -37,30 +43,6 @@ const STATUS_PRIORITY: Record<CodexUIMessage["status"], number> = {
   failed: 3,
 };
 
-function parseMethodPayload(
-  payloadJson: string,
-  method: string,
-): Record<string, unknown> | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(payloadJson);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object") {
-    return null;
-  }
-  const record = parsed as Record<string, unknown>;
-  if (record.method !== method) {
-    return null;
-  }
-  const params = record.params;
-  if (!params || typeof params !== "object") {
-    return null;
-  }
-  return params as Record<string, unknown>;
-}
-
 function overlayKey(turnId: string, messageId: string): string {
   return `${turnId}:${messageId}`;
 }
@@ -82,10 +64,10 @@ export function extractCodexOverlayMessages(
 
   for (const delta of sorted) {
     if (delta.kind === "item/agentMessage/delta") {
-      const params = parseMethodPayload(delta.payloadJson, "item/agentMessage/delta");
-      const turnId = typeof params?.turnId === "string" ? params.turnId : null;
-      const messageId = typeof params?.itemId === "string" ? params.itemId : null;
-      const textDelta = typeof params?.delta === "string" ? params.delta : null;
+      const turnId = turnIdForPayload(delta.kind, delta.payloadJson);
+      const durableDelta = durableMessageDeltaForPayload(delta.kind, delta.payloadJson);
+      const messageId = durableDelta?.messageId ?? null;
+      const textDelta = durableDelta?.delta ?? null;
       if (!turnId || !messageId || textDelta === null) {
         continue;
       }
@@ -103,23 +85,19 @@ export function extractCodexOverlayMessages(
     }
 
     if (delta.kind === "item/started" || delta.kind === "item/completed") {
-      const params = parseMethodPayload(delta.payloadJson, delta.kind);
-      const turnId = typeof params?.turnId === "string" ? params.turnId : null;
-      const item =
-        params && typeof params.item === "object" && params.item
-          ? (params.item as Record<string, unknown>)
-          : null;
-      if (!turnId || !item || item.type !== "agentMessage" || typeof item.id !== "string") {
+      const turnId = turnIdForPayload(delta.kind, delta.payloadJson);
+      const message = durableMessageForPayload(delta.kind, delta.payloadJson);
+      if (!turnId || !message || message.sourceItemType !== "agentMessage") {
         continue;
       }
-      const key = overlayKey(turnId, item.id);
+      const key = overlayKey(turnId, message.messageId);
       const existing = byKey.get(key);
-      const nextText = typeof item.text === "string" ? item.text : (existing?.text ?? "");
+      const nextText = message.text || (existing?.text ?? "");
       byKey.set(key, {
         turnId,
-        messageId: item.id,
+        messageId: message.messageId,
         text: nextText,
-        status: delta.kind === "item/completed" ? "completed" : (existing?.status ?? "streaming"),
+        status: message.status === "streaming" ? (existing?.status ?? "streaming") : "completed",
         ...(existing?.error ? { error: existing.error } : {}),
         lastCursor: delta.cursorEnd,
       });
@@ -127,18 +105,9 @@ export function extractCodexOverlayMessages(
     }
 
     if (delta.kind === "error") {
-      const params = parseMethodPayload(delta.payloadJson, "error");
-      const turnId = typeof params?.turnId === "string" ? params.turnId : null;
-      const errorMessage = (() => {
-        if (!params) {
-          return "stream error";
-        }
-        const error =
-          typeof params.error === "object" && params.error
-            ? (params.error as Record<string, unknown>)
-            : null;
-        return typeof error?.message === "string" ? error.message : "stream error";
-      })();
+      const turnId = turnIdForPayload(delta.kind, delta.payloadJson);
+      const terminal = terminalStatusForPayload(delta.kind, delta.payloadJson);
+      const errorMessage = terminal?.error ?? "stream error";
       if (!turnId) {
         continue;
       }

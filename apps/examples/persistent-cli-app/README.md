@@ -68,7 +68,7 @@ The script prepares local component dependencies first and mounts the package us
 
 - local Codex runtime streaming
 - strict protocol parsing
-- Convex persistence of stream events via `codex.sync.ingest`
+- Convex persistence of stream events via `codex.sync.ingestSafe`
 - durable message history persistence via `codex.messages.listByThread`
 - persisted thread/turn state fetch via host app queries
 

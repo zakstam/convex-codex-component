@@ -149,7 +149,23 @@ export type CodexResponse = {
   };
 };
 
-export type ClientOutboundMessage = ClientRequest | ClientNotification;
+export type UnknownServerNotification = {
+  method: string;
+  params?: Record<string, unknown>;
+};
+
+export type UnknownServerRequest = {
+  method: string;
+  id: RpcId;
+  params?: Record<string, unknown>;
+};
+
+export type UnknownServerResponse = {
+  id: RpcId | null;
+  result?: unknown;
+  error?: unknown;
+};
+
 export type LegacyEventNotification = {
   method: `codex/event/${string}`;
   params: {
@@ -158,11 +174,16 @@ export type LegacyEventNotification = {
     id?: string;
   };
 };
+
+export type ClientOutboundMessage = ClientRequest | ClientNotification;
 export type ServerInboundMessage =
   | ServerNotification
   | ServerRequest
   | CodexResponse
-  | LegacyEventNotification;
+  | LegacyEventNotification
+  | UnknownServerNotification
+  | UnknownServerRequest
+  | UnknownServerResponse;
 export type CodexWireMessage = ClientOutboundMessage | ServerInboundMessage;
 
 export type NormalizedEvent = {

@@ -156,6 +156,7 @@ Use `CodexLocalBridge` from desktop/CLI runtime and provide:
 - `onEvent`: persist thread-scoped events through `components.codexLocal.sync.ingestSafe`.
 - `onGlobalMessage`: process protocol-valid non-thread messages.
 - `onProtocolError`: parse/schema failure path; log and recover/restart.
+- Modern protocol only: hosts must use app-server `thread/*`, `turn/*`, and `item/*` events.
 - Host must keep the runtime loop alive. If the loop is not running, turns can be created but no events will ingest.
 
 ## 4. Minimum ingest/replay flow

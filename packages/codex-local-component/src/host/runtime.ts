@@ -128,16 +128,6 @@ function isResponse(message: ServerInboundMessage): message is CodexResponse {
   return "id" in message && !isServerNotification(message);
 }
 
-function normalizeIngestKind(kind: string): string {
-  if (kind === "codex/event/task_started") {
-    return "turn/started";
-  }
-  if (kind === "codex/event/task_complete") {
-    return "turn/completed";
-  }
-  return kind;
-}
-
 export function createCodexHostRuntime(args: {
   bridge?: BridgeConfig;
   persistence: HostRuntimePersistence;
@@ -315,7 +305,7 @@ export function createCodexHostRuntime(args: {
             }
           }
 
-          if (event.kind === "turn/completed" || event.kind === "codex/event/turn_aborted") {
+          if (event.kind === "turn/completed") {
             turnId = null;
             turnInFlight = false;
             turnSettled = true;
@@ -342,7 +332,7 @@ export function createCodexHostRuntime(args: {
               ? {
                   type: "stream_delta",
                   eventId: event.eventId,
-                  kind: normalizeIngestKind(event.kind),
+                  kind: event.kind,
                   payloadJson: event.payloadJson,
                   cursorStart: event.cursorStart,
                   cursorEnd: event.cursorEnd,
@@ -354,7 +344,7 @@ export function createCodexHostRuntime(args: {
               : {
                   type: "lifecycle_event",
                   eventId: event.eventId,
-                  kind: normalizeIngestKind(event.kind),
+                  kind: event.kind,
                   payloadJson: event.payloadJson,
                   createdAt: event.createdAt,
                   threadId: persistedThreadId,
@@ -363,7 +353,6 @@ export function createCodexHostRuntime(args: {
 
           const forceFlush =
             event.kind === "turn/completed" ||
-            event.kind === "codex/event/turn_aborted" ||
             event.kind === "error";
 
           await enqueueIngestDelta(delta, forceFlush);

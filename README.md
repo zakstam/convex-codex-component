@@ -1,30 +1,44 @@
-# Codex + Convex Local Component
+<p align="center">
+  <strong>@zakstam/codex-local-component</strong>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/%40zakstam%2Fcodex-local-component)](https://www.npmjs.com/package/@zakstam/codex-local-component)
+<p align="center">
+  A <a href="https://convex.dev">Convex</a> component that bridges
+  <a href="https://github.com/openai/codex">Codex</a> running locally on the user's machine
+  to a persistent, real-time backend — threads, streaming, approvals, and all.
+</p>
 
-Local-first Convex component for Codex integrations where Codex runs on the user's machine (`codex app-server` over stdio).
+<p align="center">
+  <a href="https://www.npmjs.com/package/@zakstam/codex-local-component">
+    <img src="https://img.shields.io/npm/v/%40zakstam%2Fcodex-local-component" alt="npm version" />
+  </a>
+</p>
 
-## Feature Parity
+---
 
-Implemented:
+## How It Works
 
-- Initialization Handshake
-- Thread Lifecycle APIs
-- Turn Lifecycle APIs
-- Streamed Event Ingest/Replay
-- Approval Flows
-- Tool User Input Flow
-- Dynamic Tool Call Response Flow
+```
+  Your App (React)          Convex Backend            User's Machine
+ ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+ │                  │    │                  │    │                  │
+ │  useCodex*()  ◄──┼────┼── 14 tables      │    │  codex           │
+ │  hooks           │    │  threads, turns  │    │  app-server      │
+ │                  │    │  messages,       │    │  (stdio)         │
+ │  Composer ───────┼────┼─► streams,       │    │       │          │
+ │  Approvals ──────┼────┼─► approvals      │    │       │          │
+ │                  │    │                  │    │       ▼          │
+ └──────────────────┘    └────────┬─────────┘    │  CodexLocal-    │
+                                  │              │  Bridge          │
+                                  │              │       │          │
+                                  ◄──────────────┼───────┘          │
+                                 ingest events   │                  │
+                                                 └──────────────────┘
+```
 
-Not implemented:
+The bridge spawns `codex app-server` as a child process, parses its JSON-RPC output, normalizes events, and pushes them into Convex. Your React app subscribes to the same Convex tables through hooks — messages stream in real-time, approvals appear as they're requested, and thread state stays consistent across devices.
 
-- Account/Auth API Surface
-- Config Management API Surface
-- MCP Management API Surface
-- Core Runtime Utility APIs
-- Skill/App Discovery and Configuration APIs
-- Feedback API
-- Collaboration Mode Listing
+---
 
 ## Install
 
@@ -32,31 +46,40 @@ Not implemented:
 pnpm add @zakstam/codex-local-component convex
 ```
 
-## 10-Minute Quickstart
+React hooks require `react` as a peer dependency (v18 or v19).
 
-If you want the shortest successful path, use the Tauri example as the baseline:
+---
 
-1. `cd apps/examples/tauri-app`
-2. Create `.env.local` with `VITE_CONVEX_URL=...`
-3. Run `pnpm run dev`
+## Quickstart
 
-What this gives you immediately:
+> The fastest way to see everything working end-to-end is the **Tauri example** in the repo.
 
-- Convex dev + generated types
-- component build watch
-- local bridge helper watch
-- Tauri app with Vite HMR
+```bash
+cd apps/examples/tauri-app
+echo "VITE_CONVEX_URL=..." > .env.local
+pnpm run dev
+```
 
-Then copy the minimal host + UI pattern from:
+This starts Convex dev, the component build watcher, the local bridge helper, and a Tauri app with Vite HMR — all in one command.
 
-- `apps/examples/tauri-app/convex/chat.ts`
-- `apps/examples/tauri-app/src/App.tsx`
+For a headless demo, try the persistent CLI app:
 
-## 1) Mount the component in Convex
+```bash
+cd apps/examples/persistent-cli-app
+pnpm run dev:convex   # start Convex backend
+pnpm start            # start bridge + CLI
+```
 
-`convex/convex.config.ts`
+---
+
+## Integration Guide
+
+### Step 1 — Mount the component
+
+In your Convex app config, mount the component so its 14 tables and functions are available:
 
 ```ts
+// convex/convex.config.ts
 import { defineApp } from "convex/server";
 import codexLocal from "@zakstam/codex-local-component/convex.config";
 
@@ -66,33 +89,33 @@ app.use(codexLocal);
 export default app;
 ```
 
-## 2) Host wrappers with generated Convex types
+### Step 2 — Write host wrappers
 
-Always use generated types from `./_generated/*`.
+Create thin Convex functions that delegate to the component's client helpers. These are your app's public API — you control the arg shapes and auth logic.
 
-`convex/chat.ts`
+**Thread + turn management:**
 
 ```ts
+// convex/chat.ts
 import { v } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import {
-  getThreadState,
-  interruptTurn,
-  listMessages,
-  listPendingApprovals,
-  listTurnMessages,
-  respondToApproval,
-  startTurn,
-  replayStreams,
-  resumeStreamReplay,
-} from "@zakstam/codex-local-component/client";
+import { startTurn, interruptTurn, getThreadState } from "@zakstam/codex-local-component/client";
 
 const vActor = v.object({
   tenantId: v.string(),
   userId: v.string(),
   deviceId: v.string(),
+});
+
+export const ensureThread = mutation({
+  args: { actor: vActor, threadId: v.string() },
+  handler: async (ctx, args) =>
+    ctx.runMutation(components.codexLocal.threads.create, {
+      actor: args.actor,
+      threadId: args.threadId,
+      localThreadId: args.threadId,
+    }),
 });
 
 export const registerTurnStart = mutation({
@@ -115,9 +138,21 @@ export const registerTurnStart = mutation({
 
 export const interruptActiveTurn = mutation({
   args: { actor: vActor, threadId: v.string(), turnId: v.string() },
-  handler: async (ctx, args) =>
-    interruptTurn(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => interruptTurn(ctx, components.codexLocal, args),
 });
+
+export const threadState = query({
+  args: { actor: vActor, threadId: v.string() },
+  handler: async (ctx, args) => getThreadState(ctx, components.codexLocal, args),
+});
+```
+
+**Messages with streaming:**
+
+```ts
+// convex/chat.ts (continued)
+import { paginationOptsValidator } from "convex/server";
+import { listMessages, listTurnMessages, replayStreams, resumeStreamReplay } from "@zakstam/codex-local-component/client";
 
 export const threadMessages = query({
   args: {
@@ -164,14 +199,23 @@ export const threadMessages = query({
 
 export const turnMessages = query({
   args: { actor: vActor, threadId: v.string(), turnId: v.string() },
-  handler: async (ctx, args) =>
-    listTurnMessages(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => listTurnMessages(ctx, components.codexLocal, args),
 });
+```
+
+**Approvals:**
+
+```ts
+// convex/chat.ts (continued)
+import { listPendingApprovals, respondToApproval } from "@zakstam/codex-local-component/client";
 
 export const pendingApprovals = query({
   args: { actor: vActor, threadId: v.string() },
   handler: async (ctx, args) =>
-    listPendingApprovals(ctx, components.codexLocal, { actor: args.actor, threadId: args.threadId }),
+    listPendingApprovals(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+    }),
 });
 
 export const approvalRespond = mutation({
@@ -185,43 +229,12 @@ export const approvalRespond = mutation({
   },
   handler: async (ctx, args) => respondToApproval(ctx, components.codexLocal, args),
 });
+```
 
-export const threadState = query({
-  args: { actor: vActor, threadId: v.string() },
-  handler: async (ctx, args) => getThreadState(ctx, components.codexLocal, args),
-});
+**Event ingestion + stream sync:**
 
-export const streamSync = query({
-  args: {
-    actor: vActor,
-    threadId: v.string(),
-    streamCursorsById: v.array(v.object({ streamId: v.string(), cursor: v.number() })),
-  },
-  handler: async (ctx, args) =>
-    replayStreams(ctx, components.codexLocal, args),
-});
-
-export const streamResume = query({
-  args: {
-    actor: vActor,
-    threadId: v.string(),
-    turnId: v.string(),
-    fromCursor: v.number(),
-  },
-  handler: async (ctx, args) =>
-    resumeStreamReplay(ctx, components.codexLocal, args),
-});
-
-export const ensureThread = mutation({
-  args: { actor: vActor, threadId: v.string() },
-  handler: async (ctx, args) =>
-    ctx.runMutation(components.codexLocal.threads.create, {
-      actor: args.actor,
-      threadId: args.threadId,
-      localThreadId: args.threadId,
-    }),
-});
-
+```ts
+// convex/chat.ts (continued)
 export const ingestEvent = mutation({
   args: {
     actor: vActor,
@@ -258,9 +271,30 @@ export const ingestEvent = mutation({
       lifecycleEvents: args.event.type === "lifecycle_event" ? [args.event] : [],
     }),
 });
+
+export const streamSync = query({
+  args: {
+    actor: vActor,
+    threadId: v.string(),
+    streamCursorsById: v.array(v.object({ streamId: v.string(), cursor: v.number() })),
+  },
+  handler: async (ctx, args) => replayStreams(ctx, components.codexLocal, args),
+});
+
+export const streamResume = query({
+  args: {
+    actor: vActor,
+    threadId: v.string(),
+    turnId: v.string(),
+    fromCursor: v.number(),
+  },
+  handler: async (ctx, args) => resumeStreamReplay(ctx, components.codexLocal, args),
+});
 ```
 
-## 3) Local bridge + event ingestion
+### Step 3 — Set up the local bridge
+
+The bridge spawns `codex app-server` as a child process, parses its stdio output, and pushes normalized events into Convex:
 
 ```ts
 import { randomUUID } from "node:crypto";
@@ -279,10 +313,7 @@ const bridge = new CodexLocalBridge(
     onEvent: async (event) => {
       if (!threadId) {
         threadId = event.threadId;
-        await convex.mutation(api.chat.ensureThread, {
-          actor,
-          threadId,
-        });
+        await convex.mutation(api.chat.ensureThread, { actor, threadId });
       }
 
       await convex.mutation(api.chat.ingestEvent, {
@@ -293,7 +324,7 @@ const bridge = new CodexLocalBridge(
       });
     },
     onGlobalMessage: async () => {
-      // auth/config/global protocol messages
+      // handle auth/config/global protocol messages
     },
     onProtocolError: async ({ error, line }) => {
       console.error("protocol error", error.message, line);
@@ -304,7 +335,9 @@ const bridge = new CodexLocalBridge(
 bridge.start();
 ```
 
-## 4) React hooks (messages, approvals, composer, interrupt, state)
+### Step 4 — Connect React hooks
+
+The hooks subscribe to your host wrappers and handle pagination, streaming overlays, and optimistic updates:
 
 ```tsx
 import {
@@ -318,7 +351,7 @@ import { api } from "../convex/_generated/api";
 
 const actor = { tenantId: "demo", userId: "demo", deviceId: "web-1" };
 
-export function Chat({ threadId, turnId }: { threadId: string; turnId?: string }) {
+export function Chat({ threadId }: { threadId: string }) {
   const messages = useCodexMessages(
     api.chat.threadMessages,
     { actor, threadId },
@@ -335,18 +368,176 @@ export function Chat({ threadId, turnId }: { threadId: string; turnId?: string }
   const interrupt = useCodexInterruptTurn(api.chat.interruptActiveTurn);
   const state = useCodexThreadState(api.chat.threadState, { actor, threadId });
 
-  return null;
+  return (
+    <div>
+      {messages.results.map((msg) => (
+        <div key={msg._id}>{msg.text}</div>
+      ))}
+    </div>
+  );
 }
 ```
 
-## Repo examples
+---
 
-- `apps/examples/cli-app`: local runtime + streaming CLI
-- `apps/examples/persistent-cli-app`: end-to-end persistence to Convex
-- `apps/release-smoke-host`: consumer-style smoke host used for release checks
+## Package Exports
 
-## Release automation
+The package ships multiple subpath exports. Import only what you need.
 
-- Add a changeset in PRs that affect published behavior: `pnpm changeset`
-- Merge to `main` creates/updates a Changesets version PR
-- Version PR auto-merges when green, then npm publish runs automatically
+### `@zakstam/codex-local-component/client`
+
+Typed helpers for calling component functions from your Convex host wrappers.
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `createThread` | mutation | Create a new thread |
+| `resolveThread` | mutation | Resolve thread by external ID |
+| `resumeThread` | mutation | Resume an existing thread |
+| `getThreadState` | query | Get thread status and active turn |
+| `listThreads` | query | List threads for a tenant |
+| `startTurn` | mutation | Begin a new conversation turn |
+| `interruptTurn` | mutation | Cancel an active turn |
+| `listMessages` | query | Paginated thread messages |
+| `listTurnMessages` | query | Messages for a specific turn |
+| `listReasoningByThread` | query | Reasoning segments for a thread |
+| `listPendingApprovals` | query | Approvals awaiting response |
+| `respondToApproval` | mutation | Accept or decline an approval |
+| `listPendingServerRequests` | query | Pending server requests |
+| `resolvePendingServerRequest` | mutation | Resolve a server request |
+| `replayStreams` | query | Replay stream deltas from cursors |
+| `resumeStreamReplay` | query | Resume replay for a turn |
+
+### `@zakstam/codex-local-component/react`
+
+React hooks that subscribe to your host wrappers with real-time updates.
+
+| Export | Purpose |
+|---|---|
+| `useCodexMessages` | Paginated messages with streaming overlay |
+| `useCodexStreamingMessages` | Messages with delta-level streaming |
+| `useCodexReasoning` | Reasoning segments |
+| `useCodexStreamingReasoning` | Reasoning with streaming |
+| `useCodexThreadState` | Thread status and active turn info |
+| `useCodexTurn` | Turn-scoped messages and state |
+| `useCodexApprovals` | Pending approvals + respond callback |
+| `useCodexComposer` | Mutation to start a new turn |
+| `useCodexInterruptTurn` | Mutation to interrupt active turn |
+| `useCodexAutoResume` | Auto-resume streams on stale cursors |
+| `optimisticallySendCodexMessage` | Optimistic UI helper for sends |
+
+### `@zakstam/codex-local-component/bridge`
+
+Local process adapter for `codex app-server` over stdio.
+
+| Export | Purpose |
+|---|---|
+| `CodexLocalBridge` | Spawns and manages the Codex process |
+
+### `@zakstam/codex-local-component/protocol`
+
+Wire protocol types and parsing utilities.
+
+| Export | Purpose |
+|---|---|
+| `parseWireMessage` | Parse raw JSON-RPC lines |
+| `classifyMessage` | Classify messages by scope |
+| `normalizeEvent` | Normalize to `NormalizedEvent` |
+
+### `@zakstam/codex-local-component/app-server`
+
+Typed request/response builders for the Codex app-server JSON-RPC protocol.
+
+| Export | Purpose |
+|---|---|
+| `buildInitializeRequest` | Initialization handshake |
+| `buildThreadStartRequest` | Start a new thread |
+| `buildThreadResumeRequest` | Resume an existing thread |
+| `buildTurnStartTextRequest` | Start a text turn |
+| `buildTurnInterruptRequest` | Interrupt active turn |
+| `buildCommandExecutionApprovalResponse` | Respond to command approval |
+| `buildFileChangeApprovalResponse` | Respond to file change approval |
+| `buildToolRequestUserInputResponse` | Respond to tool input request |
+| `buildDynamicToolCallResponse` | Respond to dynamic tool call |
+
+### `@zakstam/codex-local-component/host`
+
+Server-side runtime orchestration for advanced integrations (Tauri, Electron, custom hosts).
+
+| Export | Purpose |
+|---|---|
+| `createCodexHostRuntime` | Full lifecycle orchestrator with startup strategy, tool registration, and server-request handling |
+| `vHostActorContext` | Convex validator for actor context |
+| `vHostInboundEvent` | Convex validator for inbound events |
+
+### `@zakstam/codex-local-component/convex.config`
+
+The Convex component definition. Used in `app.use(codexLocal)`.
+
+---
+
+## Data Model
+
+The component manages 14 Convex tables, all multi-tenant by default (scoped to `tenantId`):
+
+| Table | Purpose |
+|---|---|
+| `codex_threads` | Thread metadata (status, model, personality) |
+| `codex_thread_bindings` | External ID → internal thread mapping |
+| `codex_turns` | Turn records with status and timing |
+| `codex_items` | Generic items (user messages, agent messages, command executions) |
+| `codex_messages` | Durable text messages with role and status |
+| `codex_streams` | Stream metadata and state tracking |
+| `codex_stream_stats` | Delta counts and cursor positions |
+| `codex_stream_deltas_ttl` | Stream deltas with automatic TTL cleanup |
+| `codex_stream_checkpoints` | Per-device stream ack checkpoints |
+| `codex_reasoning_segments` | Reasoning text (summary and raw channels) |
+| `codex_sessions` | Session lifecycle and heartbeat tracking |
+| `codex_approvals` | Command/file change approvals (pending, accepted, declined) |
+| `codex_server_requests` | Dynamic server requests (tool-input, dynamic-tool-call) |
+| `codex_lifecycle_events` | Lifecycle event records |
+
+---
+
+## Feature Status
+
+**Implemented:**
+
+- Initialization handshake
+- Thread lifecycle (create, resume, fork, archive, rollback)
+- Turn lifecycle (start, interrupt, idempotency)
+- Streamed event ingest and replay with cursor-based sync
+- Command execution and file change approval flows
+- Tool user input flow
+- Dynamic tool call response flow
+- Multi-device stream checkpoints with TTL cleanup
+
+**Not yet implemented:**
+
+- Account/Auth API surface
+- Config management API surface
+- MCP management API surface
+- Core runtime utility APIs (`command/exec`, `model/list`, `review/start`)
+- Skill/App discovery and configuration APIs
+- Feedback API
+- Collaboration mode listing
+
+---
+
+## Examples
+
+| Example | What it demonstrates |
+|---|---|
+| [`apps/examples/cli-app`](apps/examples/cli-app) | Ephemeral CLI — bridge + stdio only, no persistence |
+| [`apps/examples/persistent-cli-app`](apps/examples/persistent-cli-app) | Full end-to-end — bridge, Convex ingest, message history, stream replay |
+| [`apps/examples/tauri-app`](apps/examples/tauri-app) | Desktop app — React + Vite + Tauri with multi-process bridge helper |
+| [`apps/release-smoke-host`](apps/release-smoke-host) | Consumer-style smoke host for release validation |
+
+---
+
+## Release Automation
+
+This repo uses [Changesets](https://github.com/changesets/changesets) for versioning and publishing.
+
+1. Add a changeset in PRs that affect published behavior: `pnpm changeset`
+2. Merging to `main` creates or updates a Changesets version PR
+3. The version PR auto-merges when CI passes, then `npm publish` runs automatically

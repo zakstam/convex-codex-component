@@ -66,7 +66,10 @@ async function main(): Promise<void> {
       },
     ],
   });
-  assert.equal(pushed.ackCursor, 2, "Expected ackCursor to advance to 2");
+  const acked = pushed.ackedStreams.find(
+    (entry: { streamId: string; ackCursorEnd: number }) => entry.streamId === streamId,
+  );
+  assert.equal(acked?.ackCursorEnd, 2, "Expected stream checkpoint to advance to 2");
 
   const stats = await convex.query(api.chat.persistenceStats, {
     actor,

@@ -145,7 +145,7 @@ export declare const components: {
         },
         null
       >;
-      pullState: FunctionReference<
+      replay: FunctionReference<
         "query",
         "internal",
         {
@@ -161,20 +161,18 @@ export declare const components: {
         },
         any
       >;
-      pushEvents: FunctionReference<
+      ingest: FunctionReference<
         "mutation",
         "internal",
         {
           actor: { deviceId: string; tenantId: string; userId: string };
-          deltas: Array<{
+          lifecycleEvents: Array<{
             createdAt: number;
-            cursorEnd: number;
-            cursorStart: number;
             eventId: string;
             kind: string;
             payloadJson: string;
-            streamId: string;
-            turnId: string;
+            turnId?: string;
+            type: "lifecycle_event";
           }>;
           runtime?: {
             finishedStreamDeleteDelayMs?: number;
@@ -183,11 +181,25 @@ export declare const components: {
             saveStreamDeltas?: boolean;
           };
           sessionId: string;
+          streamDeltas: Array<{
+            createdAt: number;
+            cursorEnd: number;
+            cursorStart: number;
+            eventId: string;
+            kind: string;
+            payloadJson: string;
+            streamId: string;
+            turnId: string;
+            type: "stream_delta";
+          }>;
           threadId: string;
         },
-        { ackCursor: number }
+        {
+          ackedStreams: Array<{ ackCursorEnd: number; streamId: string }>;
+          ingestStatus: "ok" | "partial";
+        }
       >;
-      resumeFromCursor: FunctionReference<
+      resumeReplay: FunctionReference<
         "query",
         "internal",
         {

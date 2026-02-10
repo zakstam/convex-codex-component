@@ -116,13 +116,17 @@ export const ingestEvent = mutation({
     threadId: v.string(),
     event: vInboundEvent,
   },
-  returns: v.object({ ackCursor: v.number() }),
+  returns: v.object({
+    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  }),
   handler: async (ctx, args) => {
-    const pushed = await ctx.runMutation(components.codexLocal.sync.pushEvents, {
+    const pushed = await ctx.runMutation(components.codexLocal.sync.ingest, {
       actor: args.actor,
       sessionId: args.sessionId,
       threadId: args.threadId,
-      deltas: [args.event],
+      streamDeltas: [{ ...args.event, type: "stream_delta" as const }],
+      lifecycleEvents: [],
     });
 
     return pushed;
@@ -136,16 +140,20 @@ export const ingestBatch = mutation({
     threadId: v.string(),
     deltas: v.array(vInboundEvent),
   },
-  returns: v.object({ ackCursor: v.number() }),
+  returns: v.object({
+    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  }),
   handler: async (ctx, args) => {
     if (args.deltas.length === 0) {
       throw new Error("ingestBatch requires at least one delta");
     }
-    return await ctx.runMutation(components.codexLocal.sync.pushEvents, {
+    return await ctx.runMutation(components.codexLocal.sync.ingest, {
       actor: args.actor,
       sessionId: args.sessionId,
       threadId: args.threadId,
-      deltas: args.deltas,
+      streamDeltas: args.deltas.map((delta) => ({ ...delta, type: "stream_delta" as const })),
+      lifecycleEvents: [],
     });
   },
 });

@@ -10,7 +10,7 @@ import {
   listTurnMessages,
   respondToApproval,
   startTurn,
-  syncStreams,
+  replayStreams,
 } from "@zakstam/codex-local-component/client";
 
 const vActorContext = v.object({
@@ -127,13 +127,17 @@ export const ingestEvent = mutation({
     threadId: v.string(),
     event: vInboundEvent,
   },
-  returns: v.object({ ackCursor: v.number() }),
+  returns: v.object({
+    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  }),
   handler: async (ctx, args) => {
-    const pushed = await ctx.runMutation(components.codexLocal.sync.pushEvents, {
+    const pushed = await ctx.runMutation(components.codexLocal.sync.ingest, {
       actor: args.actor,
       sessionId: args.sessionId,
       threadId: args.threadId,
-      deltas: [args.event],
+      streamDeltas: [{ ...args.event, type: "stream_delta" as const }],
+      lifecycleEvents: [],
     });
 
     return pushed;
@@ -148,16 +152,20 @@ export const ingestBatch = mutation({
     deltas: v.array(vInboundEvent),
     runtime: v.optional(vSyncRuntimeOptions),
   },
-  returns: v.object({ ackCursor: v.number() }),
+  returns: v.object({
+    ackedStreams: v.array(v.object({ streamId: v.string(), ackCursorEnd: v.number() })),
+    ingestStatus: v.union(v.literal("ok"), v.literal("partial")),
+  }),
   handler: async (ctx, args) => {
     if (args.deltas.length === 0) {
       throw new Error("ingestBatch requires at least one delta");
     }
-    return await ctx.runMutation(components.codexLocal.sync.pushEvents, {
+    return await ctx.runMutation(components.codexLocal.sync.ingest, {
       actor: args.actor,
       sessionId: args.sessionId,
       threadId: args.threadId,
-      deltas: args.deltas,
+      streamDeltas: args.deltas.map((delta) => ({ ...delta, type: "stream_delta" as const })),
+      lifecycleEvents: [],
       runtime: args.runtime,
     });
   },
@@ -256,7 +264,7 @@ export const listThreadMessagesForHooks = query({
     });
 
     const streams = args.streamArgs
-      ? await syncStreams(ctx, components.codexLocal, {
+      ? await replayStreams(ctx, components.codexLocal, {
           actor: args.actor,
           threadId: args.threadId,
           streamCursorsById:
@@ -272,6 +280,8 @@ export const listThreadMessagesForHooks = query({
           ? {
               kind: "deltas" as const,
               deltas: streams.deltas,
+              streamWindows: streams.streamWindows,
+              nextCheckpoints: streams.nextCheckpoints,
             }
           : undefined,
       };

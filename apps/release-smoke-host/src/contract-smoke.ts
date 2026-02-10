@@ -67,7 +67,11 @@ async function main(): Promise<void> {
     },
   });
   assert.ok(hasRecord(pushed));
-  assert.equal(pushed.ackCursor, 1);
+  const acked = Array.isArray(pushed.ackedStreams)
+    ? pushed.ackedStreams.find((entry) => hasRecord(entry) && entry.streamId === streamId)
+    : undefined;
+  assert.ok(acked);
+  assert.equal(acked.ackCursorEnd, 1);
 
   const snapshot = await convex.query(api.chat.threadSnapshot, {
     actor,

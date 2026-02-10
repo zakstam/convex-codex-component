@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server.js";
+import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 
@@ -15,24 +16,70 @@ export const listPending = query({
       await requireThreadForActor(ctx, args.actor, args.threadId);
     }
 
-    const paginated = await ctx.db
-      .query("codex_approvals")
-      .withIndex("tenantId_threadId_status")
-      .filter((q) => {
-        const base = q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
-          q.eq(q.field("userId"), args.actor.userId),
-          q.eq(q.field("status"), "pending"),
-        );
-        return args.threadId
-          ? q.and(base, q.eq(q.field("threadId"), args.threadId))
-          : base;
-      })
-      .paginate(args.paginationOpts);
+    const cursor = decodeKeysetCursor<{ createdAt: number; threadId: string; itemId: string }>(
+      args.paginationOpts.cursor,
+    );
+
+    const paginated = args.threadId
+      ? await ctx.db
+          .query("codex_approvals")
+          .withIndex("tenantId_userId_threadId_status_createdAt_itemId", (q) =>
+            q
+              .eq("tenantId", args.actor.tenantId)
+              .eq("userId", args.actor.userId)
+              .eq("threadId", args.threadId!)
+              .eq("status", "pending"),
+          )
+          .filter((q) =>
+            cursor
+              ? q.or(
+                  q.lt(q.field("createdAt"), cursor.createdAt),
+                  q.and(
+                    q.eq(q.field("createdAt"), cursor.createdAt),
+                    q.lt(q.field("itemId"), cursor.itemId),
+                  ),
+                )
+              : q.eq(q.field("threadId"), args.threadId!),
+          )
+          .order("desc")
+          .take(args.paginationOpts.numItems + 1)
+      : await ctx.db
+          .query("codex_approvals")
+          .withIndex("tenantId_userId_status_createdAt_threadId_itemId", (q) =>
+            q
+              .eq("tenantId", args.actor.tenantId)
+              .eq("userId", args.actor.userId)
+              .eq("status", "pending"),
+          )
+          .filter((q) =>
+            cursor
+              ? q.or(
+                  q.lt(q.field("createdAt"), cursor.createdAt),
+                  q.and(
+                    q.eq(q.field("createdAt"), cursor.createdAt),
+                    q.or(
+                      q.lt(q.field("threadId"), cursor.threadId),
+                      q.and(
+                        q.eq(q.field("threadId"), cursor.threadId),
+                        q.lt(q.field("itemId"), cursor.itemId),
+                      ),
+                    ),
+                  ),
+                )
+              : q.eq(q.field("tenantId"), args.actor.tenantId),
+          )
+          .order("desc")
+          .take(args.paginationOpts.numItems + 1);
+
+    const result = keysetPageResult(paginated, args.paginationOpts, (approval) => ({
+      createdAt: Number(approval.createdAt),
+      threadId: String(approval.threadId),
+      itemId: String(approval.itemId),
+    }));
 
     return {
-      ...paginated,
-      page: paginated.page.map((approval) => ({
+      ...result,
+      page: result.page.map((approval) => ({
         threadId: String(approval.threadId),
         turnId: String(approval.turnId),
         itemId: String(approval.itemId),

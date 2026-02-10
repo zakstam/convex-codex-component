@@ -1,7 +1,7 @@
 import type { QueryCtx } from "./_generated/server.js";
 import { requireThreadForActor, requireTurnForActor } from "./utils.js";
-import { assertContinuousStreamDeltas, parseItemSnapshot, type ItemSnapshot } from "./syncHelpers.js";
-import { resolveRuntimeOptions, syncError, type SyncRuntimeInput } from "./syncRuntime.js";
+import { parseItemSnapshot, type ItemSnapshot } from "./syncHelpers.js";
+import { resolveRuntimeOptions, type SyncRuntimeInput } from "./syncRuntime.js";
 
 type ActorContext = {
   tenantId: string;
@@ -24,7 +24,135 @@ type ResumeFromCursorArgs = {
   runtime?: SyncRuntimeInput;
 };
 
-export async function pullStateHandler(ctx: QueryCtx, args: PullStateArgs) {
+type WindowStatus = "ok" | "rebased" | "stale";
+
+type StreamWindow = {
+  streamId: string;
+  status: WindowStatus;
+  serverCursorStart: number;
+  serverCursorEnd: number;
+};
+
+type NormalizedDelta = {
+  streamId: string;
+  cursorStart: number;
+  cursorEnd: number;
+  kind: string;
+  payloadJson: string;
+};
+
+function takeContiguousDeltas<T extends { cursorStart: number; cursorEnd: number }>(
+  deltas: T[],
+  requestedCursor: number,
+): { deltas: T[]; startCursor: number } {
+  if (deltas.length === 0) {
+    return { deltas: [], startCursor: requestedCursor };
+  }
+
+  let startCursor = requestedCursor;
+  const first = deltas[0]!;
+  if (first.cursorStart > startCursor) {
+    startCursor = first.cursorStart;
+  }
+
+  const contiguous: T[] = [];
+  let expected = startCursor;
+  for (const delta of deltas) {
+    if (delta.cursorStart !== expected) {
+      break;
+    }
+    contiguous.push(delta);
+    expected = delta.cursorEnd;
+  }
+
+  return { deltas: contiguous, startCursor };
+}
+
+async function computeStreamReplayWindow(
+  ctx: QueryCtx,
+  args: {
+    actor: ActorContext;
+    threadId: string;
+    streamId: string;
+    requestedCursor: number;
+    maxDeltas: number;
+  },
+): Promise<{ window: StreamWindow; deltas: NormalizedDelta[]; nextCursor: number }> {
+  const checkpoint = await ctx.db
+    .query("codex_stream_checkpoints")
+    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+      q
+        .eq("tenantId", args.actor.tenantId)
+        .eq("threadId", args.threadId)
+        .eq("deviceId", args.actor.deviceId)
+        .eq("streamId", args.streamId),
+    )
+    .first();
+
+  let effectiveCursor = Math.max(args.requestedCursor, Number(checkpoint?.ackedCursor ?? 0));
+  let status: WindowStatus = "ok";
+
+  const earliest = await ctx.db
+    .query("codex_stream_deltas_ttl")
+    .withIndex("tenantId_streamId_cursorStart", (q) =>
+      q.eq("tenantId", args.actor.tenantId).eq("streamId", args.streamId),
+    )
+    .take(1);
+
+  if (earliest.length > 0 && effectiveCursor < Number(earliest[0]!.cursorStart)) {
+    effectiveCursor = Number(earliest[0]!.cursorStart);
+    status = "rebased";
+  }
+
+  const deltas = await ctx.db
+    .query("codex_stream_deltas_ttl")
+    .withIndex("tenantId_streamId_cursorStart", (q) =>
+      q
+        .eq("tenantId", args.actor.tenantId)
+        .eq("streamId", args.streamId)
+        .gte("cursorStart", effectiveCursor),
+    )
+    .take(args.maxDeltas);
+
+  const normalizedDeltas = deltas.map((delta) => ({
+    streamId: String(delta.streamId),
+    cursorStart: Number(delta.cursorStart),
+    cursorEnd: Number(delta.cursorEnd),
+    kind: String(delta.kind),
+    payloadJson: String(delta.payloadJson),
+  }));
+
+  const contiguous = takeContiguousDeltas(normalizedDeltas, effectiveCursor);
+  const serverCursorEnd = contiguous.deltas.reduce(
+    (max, delta) => Math.max(max, delta.cursorEnd),
+    contiguous.startCursor,
+  );
+
+  if (contiguous.deltas.length === 0) {
+    const stat = await ctx.db
+      .query("codex_stream_stats")
+      .withIndex("tenantId_streamId", (q) =>
+        q.eq("tenantId", args.actor.tenantId).eq("streamId", args.streamId),
+      )
+      .first();
+    if (stat && Number(stat.latestCursor) > contiguous.startCursor) {
+      status = "stale";
+    }
+  }
+
+  return {
+    window: {
+      streamId: args.streamId,
+      status,
+      serverCursorStart: contiguous.startCursor,
+      serverCursorEnd,
+    },
+    deltas: contiguous.deltas,
+    nextCursor: serverCursorEnd,
+  };
+}
+
+export async function replayHandler(ctx: QueryCtx, args: PullStateArgs) {
   await requireThreadForActor(ctx, args.actor, args.threadId);
   const runtime = resolveRuntimeOptions(args.runtime);
 
@@ -35,13 +163,9 @@ export async function pullStateHandler(ctx: QueryCtx, args: PullStateArgs) {
     )
     .take(200);
 
-  const deltaResults: Array<{
-    streamId: string;
-    cursorStart: number;
-    cursorEnd: number;
-    kind: string;
-    payloadJson: string;
-  }> = [];
+  const streamWindows: StreamWindow[] = [];
+  const nextCheckpoints: Array<{ streamId: string; cursor: number }> = [];
+  const deltaResults: NormalizedDelta[] = [];
 
   let remainingRequestBudget = runtime.maxDeltasPerRequestRead;
 
@@ -50,50 +174,19 @@ export async function pullStateHandler(ctx: QueryCtx, args: PullStateArgs) {
       break;
     }
 
-    const earliest = await ctx.db
-      .query("codex_stream_deltas_ttl")
-      .withIndex("tenantId_streamId_cursorStart", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("streamId", cursor.streamId),
-      )
-      .take(1);
-
-    if (earliest.length > 0 && cursor.cursor < Number(earliest[0]!.cursorStart)) {
-      syncError(
-        "E_SYNC_REPLAY_GAP",
-        `Requested cursor ${cursor.cursor} is older than earliest retained cursor ${Number(earliest[0]!.cursorStart)} for streamId=${cursor.streamId}`,
-      );
-    }
-
     const perStreamCap = Math.min(runtime.maxDeltasPerStreamRead, remainingRequestBudget);
-    const deltas = await ctx.db
-      .query("codex_stream_deltas_ttl")
-      .withIndex("tenantId_streamId_cursorStart", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("streamId", cursor.streamId).gte("cursorStart", cursor.cursor),
-      )
-      .take(perStreamCap);
+    const replay = await computeStreamReplayWindow(ctx, {
+      actor: args.actor,
+      threadId: args.threadId,
+      streamId: cursor.streamId,
+      requestedCursor: cursor.cursor,
+      maxDeltas: perStreamCap,
+    });
 
-    const normalizedDeltas = deltas.map((delta) => ({
-      cursorStart: Number(delta.cursorStart),
-      cursorEnd: Number(delta.cursorEnd),
-    }));
-    const continuity = assertContinuousStreamDeltas(cursor.streamId, cursor.cursor, normalizedDeltas);
-    if (!continuity.ok) {
-      syncError(
-        "E_SYNC_REPLAY_GAP",
-        `Replay gap for streamId=${cursor.streamId}: expected cursorStart=${continuity.expected}, got ${continuity.actual}`,
-      );
-    }
-
-    deltaResults.push(
-      ...deltas.map((delta) => ({
-        streamId: String(delta.streamId),
-        cursorStart: Number(delta.cursorStart),
-        cursorEnd: Number(delta.cursorEnd),
-        kind: String(delta.kind),
-        payloadJson: String(delta.payloadJson),
-      })),
-    );
-    remainingRequestBudget -= deltas.length;
+    streamWindows.push(replay.window);
+    nextCheckpoints.push({ streamId: cursor.streamId, cursor: replay.nextCursor });
+    deltaResults.push(...replay.deltas);
+    remainingRequestBudget -= replay.deltas.length;
   }
 
   const snapshotById = new Map<string, ItemSnapshot>();
@@ -114,6 +207,8 @@ export async function pullStateHandler(ctx: QueryCtx, args: PullStateArgs) {
       streamId: String(stream.streamId),
       state: String(stream.state.kind),
     })),
+    streamWindows,
+    nextCheckpoints,
     deltas: deltaResults,
     snapshots: snapshots.map((item) => ({
       itemId: item.itemId,
@@ -124,7 +219,28 @@ export async function pullStateHandler(ctx: QueryCtx, args: PullStateArgs) {
   };
 }
 
-export async function resumeFromCursorHandler(
+export async function listCheckpointsHandler(
+  ctx: QueryCtx,
+  args: { actor: ActorContext; threadId: string },
+) {
+  await requireThreadForActor(ctx, args.actor, args.threadId);
+  const rows = await ctx.db
+    .query("codex_stream_checkpoints")
+    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+      q
+        .eq("tenantId", args.actor.tenantId)
+        .eq("threadId", args.threadId)
+        .eq("deviceId", args.actor.deviceId),
+    )
+    .take(2000);
+
+  return rows.map((row) => ({
+    streamId: String(row.streamId),
+    cursor: Number(row.ackedCursor),
+  }));
+}
+
+export async function resumeReplayHandler(
   ctx: QueryCtx,
   args: ResumeFromCursorArgs,
 ) {
@@ -133,55 +249,22 @@ export async function resumeFromCursorHandler(
   const runtime = resolveRuntimeOptions(args.runtime);
 
   const streamId = `${args.threadId}:${args.turnId}:0`;
-
-  const deltas = await ctx.db
-    .query("codex_stream_deltas_ttl")
-    .withIndex("tenantId_streamId_cursorStart", (q) =>
-      q
-        .eq("tenantId", args.actor.tenantId)
-        .eq("streamId", streamId)
-        .gte("cursorStart", args.fromCursor),
-    )
-    .take(runtime.maxDeltasPerRequestRead);
-
-  const earliest = await ctx.db
-    .query("codex_stream_deltas_ttl")
-    .withIndex("tenantId_streamId_cursorStart", (q) =>
-      q.eq("tenantId", args.actor.tenantId).eq("streamId", streamId),
-    )
-    .take(1);
-
-  if (earliest.length > 0 && args.fromCursor < Number(earliest[0]!.cursorStart)) {
-    syncError(
-      "E_SYNC_REPLAY_GAP",
-      `Requested cursor ${args.fromCursor} is older than earliest retained cursor ${Number(earliest[0]!.cursorStart)} for streamId=${streamId}`,
-    );
-  }
-
-  const normalizedDeltas = deltas.map((delta) => ({
-    cursorStart: Number(delta.cursorStart),
-    cursorEnd: Number(delta.cursorEnd),
-  }));
-  const continuity = assertContinuousStreamDeltas(streamId, args.fromCursor, normalizedDeltas);
-  if (!continuity.ok) {
-    syncError(
-      "E_SYNC_REPLAY_GAP",
-      `Replay gap for streamId=${streamId}: expected cursorStart=${continuity.expected}, got ${continuity.actual}`,
-    );
-  }
-
-  const nextCursor = deltas.reduce(
-    (max, delta) => Math.max(max, Number(delta.cursorEnd)),
-    args.fromCursor,
-  );
+  const replay = await computeStreamReplayWindow(ctx, {
+    actor: args.actor,
+    threadId: args.threadId,
+    streamId,
+    requestedCursor: args.fromCursor,
+    maxDeltas: runtime.maxDeltasPerRequestRead,
+  });
 
   return {
-    deltas: deltas.map((delta) => ({
-      cursorStart: Number(delta.cursorStart),
-      cursorEnd: Number(delta.cursorEnd),
-      kind: String(delta.kind),
-      payloadJson: String(delta.payloadJson),
+    streamWindow: replay.window,
+    deltas: replay.deltas.map((delta) => ({
+      cursorStart: delta.cursorStart,
+      cursorEnd: delta.cursorEnd,
+      kind: delta.kind,
+      payloadJson: delta.payloadJson,
     })),
-    nextCursor,
+    nextCursor: replay.nextCursor,
   };
 }

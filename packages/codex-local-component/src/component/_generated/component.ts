@@ -69,23 +69,44 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null,
         Name
       >;
-      pullState: FunctionReference<
+      replay: FunctionReference<
         "query",
         "internal",
         {
           actor: { deviceId: string; tenantId: string; userId: string };
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
           streamCursorsById: Array<{ cursor: number; streamId: string }>;
           threadId: string;
         },
         any,
         Name
       >;
-      pushEvents: FunctionReference<
+      ingest: FunctionReference<
         "mutation",
         "internal",
         {
           actor: { deviceId: string; tenantId: string; userId: string };
-          deltas: Array<{
+          lifecycleEvents: Array<{
+            createdAt: number;
+            eventId: string;
+            kind: string;
+            payloadJson: string;
+            turnId?: string;
+            type: "lifecycle_event";
+          }>;
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
+          sessionId: string;
+          streamDeltas: Array<{
             createdAt: number;
             cursorEnd: number;
             cursorStart: number;
@@ -94,19 +115,50 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             payloadJson: string;
             streamId: string;
             turnId: string;
+            type: "stream_delta";
           }>;
-          sessionId: string;
           threadId: string;
         },
-        { ackCursor: number },
+        {
+          ackedStreams: Array<{ ackCursorEnd: number; streamId: string }>;
+          ingestStatus: "ok" | "partial";
+        },
         Name
       >;
-      resumeFromCursor: FunctionReference<
+      listCheckpoints: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          threadId: string;
+        },
+        Array<{ cursor: number; streamId: string }>,
+        Name
+      >;
+      upsertCheckpoint: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          cursor: number;
+          streamId: string;
+          threadId: string;
+        },
+        { ok: true },
+        Name
+      >;
+      resumeReplay: FunctionReference<
         "query",
         "internal",
         {
           actor: { deviceId: string; tenantId: string; userId: string };
           fromCursor: number;
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
           threadId: string;
           turnId: string;
         },

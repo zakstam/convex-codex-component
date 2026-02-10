@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server.js";
+import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 
@@ -126,17 +127,33 @@ export const list = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const result = await ctx.db
+    const cursor = decodeKeysetCursor<{ updatedAt: number; threadId: string }>(
+      args.paginationOpts.cursor,
+    );
+
+    const scanned = await ctx.db
       .query("codex_threads")
-      .withIndex("tenantId_updatedAt")
+      .withIndex("tenantId_userId_updatedAt_threadId", (q) =>
+        q.eq("tenantId", args.actor.tenantId).eq("userId", args.actor.userId),
+      )
       .filter((q) =>
-        q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
-          q.eq(q.field("userId"), args.actor.userId),
-        ),
+        cursor
+          ? q.or(
+              q.lt(q.field("updatedAt"), cursor.updatedAt),
+              q.and(
+                q.eq(q.field("updatedAt"), cursor.updatedAt),
+                q.lt(q.field("threadId"), cursor.threadId),
+              ),
+            )
+          : q.eq(q.field("tenantId"), args.actor.tenantId),
       )
       .order("desc")
-      .paginate(args.paginationOpts);
+      .take(args.paginationOpts.numItems + 1);
+
+    const result = keysetPageResult(scanned, args.paginationOpts, (thread) => ({
+      updatedAt: Number(thread.updatedAt),
+      threadId: String(thread.threadId),
+    }));
 
     return {
       ...result,

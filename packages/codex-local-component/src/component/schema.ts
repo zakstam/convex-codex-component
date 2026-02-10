@@ -32,6 +32,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("tenantId_updatedAt", ["tenantId", "updatedAt"])
+    .index("tenantId_userId_updatedAt_threadId", ["tenantId", "userId", "updatedAt", "threadId"])
     .index("tenantId_threadId", ["tenantId", "threadId"]),
 
   codex_turns: defineTable({
@@ -99,6 +100,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   })
     .index("tenantId_threadId_createdAt", ["tenantId", "threadId", "createdAt"])
+    .index("tenantId_threadId_createdAt_messageId", ["tenantId", "threadId", "createdAt", "messageId"])
     .index("tenantId_threadId_turnId_createdAt", ["tenantId", "threadId", "turnId", "createdAt"])
     .index("tenantId_threadId_turnId_messageId", ["tenantId", "threadId", "turnId", "messageId"])
     .index("tenantId_threadId_turnId_orderInTurn", ["tenantId", "threadId", "turnId", "orderInTurn"])
@@ -172,14 +174,30 @@ export default defineSchema({
     .index("tenantId_streamId_eventId", ["tenantId", "streamId", "eventId"])
     .index("expiresAt", ["expiresAt"]),
 
-  codex_sync_checkpoints: defineTable({
+  codex_lifecycle_events: defineTable({
     tenantId: v.string(),
     threadId: v.string(),
-    turnId: v.string(),
+    turnId: v.optional(v.string()),
+    eventId: v.string(),
+    kind: v.string(),
+    payloadJson: v.string(),
+    createdAt: v.number(),
+  })
+    .index("tenantId_threadId_createdAt", ["tenantId", "threadId", "createdAt"])
+    .index("tenantId_threadId_turnId_createdAt", ["tenantId", "threadId", "turnId", "createdAt"])
+    .index("tenantId_threadId_eventId", ["tenantId", "threadId", "eventId"]),
+
+  codex_stream_checkpoints: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
     deviceId: v.string(),
+    threadId: v.string(),
+    streamId: v.string(),
     ackedCursor: v.number(),
     updatedAt: v.number(),
-  }).index("tenantId_threadId_deviceId", ["tenantId", "threadId", "deviceId"]),
+  })
+    .index("tenantId_threadId_deviceId_streamId", ["tenantId", "threadId", "deviceId", "streamId"])
+    .index("tenantId_threadId_streamId", ["tenantId", "threadId", "streamId"]),
 
   codex_approvals: defineTable({
     tenantId: v.string(),
@@ -195,5 +213,13 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("tenantId_threadId_status", ["tenantId", "threadId", "status"])
+    .index(
+      "tenantId_userId_status_createdAt_threadId_itemId",
+      ["tenantId", "userId", "status", "createdAt", "threadId", "itemId"],
+    )
+    .index(
+      "tenantId_userId_threadId_status_createdAt_itemId",
+      ["tenantId", "userId", "threadId", "status", "createdAt", "itemId"],
+    )
     .index("tenantId_threadId_turnId_itemId", ["tenantId", "threadId", "turnId", "itemId"]),
 });

@@ -47,7 +47,8 @@ type CachedStream = {
   state: { kind: "streaming" | "finished" | "aborted" };
 };
 
-export type InboundEvent = {
+export type StreamInboundEvent = {
+  type: "stream_delta";
   eventId: string;
   turnId: string;
   streamId: string;
@@ -58,6 +59,17 @@ export type InboundEvent = {
   createdAt: number;
 };
 
+export type LifecycleInboundEvent = {
+  type: "lifecycle_event";
+  eventId: string;
+  turnId?: string;
+  kind: string;
+  payloadJson: string;
+  createdAt: number;
+};
+
+export type InboundEvent = StreamInboundEvent | LifecycleInboundEvent;
+
 type PushEventsArgs = {
   actor: {
     tenantId: string;
@@ -66,7 +78,8 @@ type PushEventsArgs = {
   };
   sessionId: string;
   threadId: string;
-  deltas: InboundEvent[];
+  streamDeltas: StreamInboundEvent[];
+  lifecycleEvents: LifecycleInboundEvent[];
   runtime?: SyncRuntimeInput;
 };
 
@@ -101,15 +114,20 @@ function syntheticTurnStatusForEvent(
   return "queued";
 }
 
-export async function pushEventsHandler(
+export async function ingestHandler(
   ctx: MutationCtx,
   args: PushEventsArgs,
-): Promise<{ ackCursor: number }> {
+): Promise<{
+  ackedStreams: Array<{ streamId: string; ackCursorEnd: number }>;
+  ingestStatus: "ok" | "partial";
+}> {
   await requireThreadForActor(ctx, args.actor, args.threadId);
   const runtime = resolveRuntimeOptions(args.runtime);
+  const deltas: InboundEvent[] = [...args.streamDeltas, ...args.lifecycleEvents];
+  deltas.sort((a, b) => a.createdAt - b.createdAt);
 
-  if (args.deltas.length === 0) {
-    syncError("E_SYNC_EMPTY_BATCH", "pushEvents received an empty delta batch");
+  if (deltas.length === 0) {
+    syncError("E_SYNC_EMPTY_BATCH", "ingest received an empty delta batch");
   }
 
   const session = await ctx.db
@@ -141,17 +159,6 @@ export async function pushEventsHandler(
     );
   }
 
-  const checkpoint = await ctx.db
-    .query("codex_sync_checkpoints")
-    .withIndex("tenantId_threadId_deviceId", (q) =>
-      q
-        .eq("tenantId", args.actor.tenantId)
-        .eq("threadId", args.threadId)
-        .eq("deviceId", args.actor.deviceId),
-    )
-    .first();
-
-  let expectedCursor = checkpoint?.ackedCursor ?? 0;
   let lastPersistedCursor = session.lastEventCursor;
   let persistedAnyEvent = false;
   const inBatchEventIds = new Set<string>();
@@ -168,6 +175,17 @@ export async function pushEventsHandler(
     string,
     { threadId: string; turnId: string; latestCursor: number; deltaCount: number }
   >();
+  const streamCheckpointCursorByStreamId = new Map<string, number>();
+  let ingestStatus: "ok" | "partial" = "ok";
+  const streamStats = await ctx.db
+    .query("codex_stream_stats")
+    .withIndex("tenantId_threadId", (q) =>
+      q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+    )
+    .take(500);
+  const expectedCursorByStreamId = new Map<string, number>(
+    streamStats.map((stat) => [String(stat.streamId), Number(stat.latestCursor)]),
+  );
 
   const nextOrderForTurn = async (turnId: string): Promise<number> => {
     const cached = messageOrderCacheByTurn.get(turnId);
@@ -281,15 +299,17 @@ export async function pushEventsHandler(
     streamById.set(streamId, value);
   };
 
-  for (const delta of args.deltas) {
-    if (!knownTurnIds.has(delta.turnId)) {
+  for (const delta of deltas) {
+    const turnId = delta.turnId;
+
+    if (turnId && !knownTurnIds.has(turnId)) {
       const existingTurn = await ctx.db
         .query("codex_turns")
         .withIndex("tenantId_threadId_turnId", (q) =>
           q
             .eq("tenantId", args.actor.tenantId)
             .eq("threadId", args.threadId)
-            .eq("turnId", delta.turnId),
+            .eq("turnId", turnId),
         )
         .first();
 
@@ -299,9 +319,9 @@ export async function pushEventsHandler(
           tenantId: args.actor.tenantId,
           userId: args.actor.userId,
           threadId: args.threadId,
-          turnId: delta.turnId,
+          turnId,
           status: syntheticStatus,
-          idempotencyKey: `sync:${args.threadId}:${delta.turnId}`,
+          idempotencyKey: `sync:${args.threadId}:${turnId}`,
           startedAt: now(),
           ...(syntheticStatus === "completed" ||
           syntheticStatus === "interrupted" ||
@@ -312,139 +332,165 @@ export async function pushEventsHandler(
       } else if (existingTurn.userId !== args.actor.userId) {
         authzError(
           "E_AUTH_TURN_FORBIDDEN",
-          `User ${args.actor.userId} is not allowed to access turn ${delta.turnId}`,
+          `User ${args.actor.userId} is not allowed to access turn ${turnId}`,
         );
       }
-      knownTurnIds.add(delta.turnId);
+      knownTurnIds.add(turnId);
     }
 
-    if (delta.kind === "turn/started") {
-      startedTurns.add(delta.turnId);
+    if (turnId && delta.kind === "turn/started") {
+      startedTurns.add(turnId);
     }
 
-    const terminal = terminalStatusForEvent(delta.kind, delta.payloadJson);
-    if (terminal) {
-      const current = terminalTurns.get(delta.turnId);
-      terminalTurns.set(delta.turnId, pickHigherPriorityTerminalStatus(current, terminal));
-    }
-
-    const approvalRequest = parseApprovalRequest(delta.kind, delta.payloadJson);
-    if (approvalRequest) {
-      pendingApprovals.set(`${delta.turnId}:${approvalRequest.itemId}`, approvalRequest);
-    }
-
-    const approvalResolution = parseApprovalResolution(delta.kind, delta.payloadJson);
-    if (approvalResolution) {
-      resolvedApprovals.set(`${delta.turnId}:${approvalResolution.itemId}`, approvalResolution);
-    }
-
-    const durableMessage = parseDurableMessageEvent(delta.kind, delta.payloadJson);
-    if (durableMessage) {
-      const existing = await getMessageRecord(delta.turnId, durableMessage.messageId);
-
-      if (!existing) {
-        const nextOrder = await nextOrderForTurn(delta.turnId);
-
-        const newId = await ctx.db.insert("codex_messages", {
-          tenantId: args.actor.tenantId,
-          userId: args.actor.userId,
-          threadId: args.threadId,
-          turnId: delta.turnId,
-          messageId: durableMessage.messageId,
-          role: durableMessage.role,
-          status: durableMessage.status,
-          text: durableMessage.text,
-          sourceItemType: durableMessage.sourceItemType,
-          orderInTurn: nextOrder,
-          payloadJson: durableMessage.payloadJson,
-          ...(durableMessage.status === "failed" ? { error: "item failed" } : {}),
-          createdAt: delta.createdAt,
-          updatedAt: now(),
-          ...(durableMessage.status !== "streaming" ? { completedAt: now() } : {}),
-        });
-        setMessageRecord(delta.turnId, durableMessage.messageId, {
-          _id: newId,
-          status: durableMessage.status,
-          text: durableMessage.text,
-        });
-      } else {
-        const nextStatus = (() => {
-          if (existing.status === "failed") {
-            return "failed" as DurableMessageStatus;
-          }
-          if (existing.status === "interrupted" && durableMessage.status !== "failed") {
-            return "interrupted" as DurableMessageStatus;
-          }
-          if (durableMessage.status === "streaming") {
-            return existing.status;
-          }
-          return durableMessage.status;
-        })();
-
-        await ctx.db.patch(existing._id, {
-          role: durableMessage.role,
-          status: nextStatus,
-          text: durableMessage.text,
-          sourceItemType: durableMessage.sourceItemType,
-          payloadJson: durableMessage.payloadJson,
-          ...(nextStatus === "failed" ? { error: "item failed" } : {}),
-          updatedAt: now(),
-          ...(nextStatus !== "streaming" ? { completedAt: now() } : {}),
-        });
-        setMessageRecord(delta.turnId, durableMessage.messageId, {
-          ...existing,
-          status: nextStatus,
-          text: durableMessage.text,
-        });
+    if (turnId) {
+      const terminal = terminalStatusForEvent(delta.kind, delta.payloadJson);
+      if (terminal) {
+        const current = terminalTurns.get(turnId);
+        terminalTurns.set(turnId, pickHigherPriorityTerminalStatus(current, terminal));
       }
-    }
 
-    const durableDelta = parseDurableMessageDeltaEvent(delta.kind, delta.payloadJson);
-    if (durableDelta) {
-      const existing = await getMessageRecord(delta.turnId, durableDelta.messageId);
+      const approvalRequest = parseApprovalRequest(delta.kind, delta.payloadJson);
+      if (approvalRequest) {
+        pendingApprovals.set(`${turnId}:${approvalRequest.itemId}`, approvalRequest);
+      }
 
-      if (!existing) {
-        const nextOrder = await nextOrderForTurn(delta.turnId);
-        const messageId = await ctx.db.insert("codex_messages", {
-          tenantId: args.actor.tenantId,
-          userId: args.actor.userId,
-          threadId: args.threadId,
-          turnId: delta.turnId,
-          messageId: durableDelta.messageId,
-          role: "assistant",
-          status: "streaming",
-          text: durableDelta.delta,
-          sourceItemType: "agentMessage",
-          orderInTurn: nextOrder,
-          payloadJson: JSON.stringify({
-            type: "agentMessage",
-            id: durableDelta.messageId,
+      const approvalResolution = parseApprovalResolution(delta.kind, delta.payloadJson);
+      if (approvalResolution) {
+        resolvedApprovals.set(`${turnId}:${approvalResolution.itemId}`, approvalResolution);
+      }
+
+      const durableMessage = parseDurableMessageEvent(delta.kind, delta.payloadJson);
+      if (durableMessage) {
+        const existing = await getMessageRecord(turnId, durableMessage.messageId);
+
+        if (!existing) {
+          const nextOrder = await nextOrderForTurn(turnId);
+
+          const newId = await ctx.db.insert("codex_messages", {
+            tenantId: args.actor.tenantId,
+            userId: args.actor.userId,
+            threadId: args.threadId,
+            turnId,
+            messageId: durableMessage.messageId,
+            role: durableMessage.role,
+            status: durableMessage.status,
+            text: durableMessage.text,
+            sourceItemType: durableMessage.sourceItemType,
+            orderInTurn: nextOrder,
+            payloadJson: durableMessage.payloadJson,
+            ...(durableMessage.status === "failed" ? { error: "item failed" } : {}),
+            createdAt: delta.createdAt,
+            updatedAt: now(),
+            ...(durableMessage.status !== "streaming" ? { completedAt: now() } : {}),
+          });
+          setMessageRecord(turnId, durableMessage.messageId, {
+            _id: newId,
+            status: durableMessage.status,
+            text: durableMessage.text,
+          });
+        } else {
+          const nextStatus = (() => {
+            if (existing.status === "failed") {
+              return "failed" as DurableMessageStatus;
+            }
+            if (existing.status === "interrupted" && durableMessage.status !== "failed") {
+              return "interrupted" as DurableMessageStatus;
+            }
+            if (durableMessage.status === "streaming") {
+              return existing.status;
+            }
+            return durableMessage.status;
+          })();
+
+          await ctx.db.patch(existing._id, {
+            role: durableMessage.role,
+            status: nextStatus,
+            text: durableMessage.text,
+            sourceItemType: durableMessage.sourceItemType,
+            payloadJson: durableMessage.payloadJson,
+            ...(nextStatus === "failed" ? { error: "item failed" } : {}),
+            updatedAt: now(),
+            ...(nextStatus !== "streaming" ? { completedAt: now() } : {}),
+          });
+          setMessageRecord(turnId, durableMessage.messageId, {
+            ...existing,
+            status: nextStatus,
+            text: durableMessage.text,
+          });
+        }
+      }
+
+      const durableDelta = parseDurableMessageDeltaEvent(delta.kind, delta.payloadJson);
+      if (durableDelta) {
+        const existing = await getMessageRecord(turnId, durableDelta.messageId);
+
+        if (!existing) {
+          const nextOrder = await nextOrderForTurn(turnId);
+          const messageId = await ctx.db.insert("codex_messages", {
+            tenantId: args.actor.tenantId,
+            userId: args.actor.userId,
+            threadId: args.threadId,
+            turnId,
+            messageId: durableDelta.messageId,
+            role: "assistant",
+            status: "streaming",
             text: durableDelta.delta,
-          }),
-          createdAt: delta.createdAt,
-          updatedAt: now(),
-        });
-        setMessageRecord(delta.turnId, durableDelta.messageId, {
-          _id: messageId,
-          status: "streaming",
-          text: durableDelta.delta,
-        });
-      } else if (existing.status === "streaming") {
-        const nextText = `${existing.text}${durableDelta.delta}`;
-        await ctx.db.patch(existing._id, {
-          text: nextText,
-          payloadJson: JSON.stringify({
-            type: "agentMessage",
-            id: durableDelta.messageId,
+            sourceItemType: "agentMessage",
+            orderInTurn: nextOrder,
+            payloadJson: JSON.stringify({
+              type: "agentMessage",
+              id: durableDelta.messageId,
+              text: durableDelta.delta,
+            }),
+            createdAt: delta.createdAt,
+            updatedAt: now(),
+          });
+          setMessageRecord(turnId, durableDelta.messageId, {
+            _id: messageId,
+            status: "streaming",
+            text: durableDelta.delta,
+          });
+        } else if (existing.status === "streaming") {
+          const nextText = `${existing.text}${durableDelta.delta}`;
+          await ctx.db.patch(existing._id, {
             text: nextText,
-          }),
-          updatedAt: now(),
-        });
-        setMessageRecord(delta.turnId, durableDelta.messageId, {
-          ...existing,
-          text: nextText,
+            payloadJson: JSON.stringify({
+              type: "agentMessage",
+              id: durableDelta.messageId,
+              text: nextText,
+            }),
+            updatedAt: now(),
+          });
+          setMessageRecord(turnId, durableDelta.messageId, {
+            ...existing,
+            text: nextText,
+          });
+        }
+      }
+    }
+
+    if (delta.type === "lifecycle_event") {
+      const existingLifecycle = await ctx.db
+        .query("codex_lifecycle_events")
+        .withIndex("tenantId_threadId_eventId", (q) =>
+          q
+            .eq("tenantId", args.actor.tenantId)
+            .eq("threadId", args.threadId)
+            .eq("eventId", delta.eventId),
+        )
+        .first();
+      if (!existingLifecycle) {
+        await ctx.db.insert("codex_lifecycle_events", {
+          tenantId: args.actor.tenantId,
+          threadId: args.threadId,
+          eventId: delta.eventId,
+          kind: delta.kind,
+          payloadJson: delta.payloadJson,
+          createdAt: delta.createdAt,
+          ...(delta.turnId ? { turnId: delta.turnId } : {}),
         });
       }
+      continue;
     }
 
     const stream = await getStreamRecord(delta.streamId);
@@ -477,14 +523,38 @@ export async function pushEventsHandler(
         `Invalid cursor range start=${delta.cursorStart} end=${delta.cursorEnd} for eventId=${delta.eventId}`,
       );
     }
-    if (delta.cursorStart < expectedCursor) {
+    const streamExpectedCursor = expectedCursorByStreamId.get(delta.streamId) ?? 0;
+    const existingStreamEvent = await ctx.db
+      .query("codex_stream_deltas_ttl")
+      .withIndex("tenantId_streamId_eventId", (q) =>
+        q
+          .eq("tenantId", args.actor.tenantId)
+          .eq("streamId", delta.streamId)
+          .eq("eventId", delta.eventId),
+      )
+      .first();
+    if (existingStreamEvent) {
+      expectedCursorByStreamId.set(
+        delta.streamId,
+        Math.max(streamExpectedCursor, Number(existingStreamEvent.cursorEnd)),
+      );
+      streamCheckpointCursorByStreamId.set(
+        delta.streamId,
+        Math.max(
+          streamCheckpointCursorByStreamId.get(delta.streamId) ?? 0,
+          Number(existingStreamEvent.cursorEnd),
+        ),
+      );
+      continue;
+    }
+    if (delta.cursorStart < streamExpectedCursor) {
       syncError(
         "E_SYNC_OUT_OF_ORDER",
-        `Expected cursorStart>=${expectedCursor} but got ${delta.cursorStart} for eventId=${delta.eventId}`,
+        `Expected cursorStart>=${streamExpectedCursor} for streamId=${delta.streamId} but got ${delta.cursorStart} for eventId=${delta.eventId}`,
       );
     }
-    if (delta.cursorStart > expectedCursor) {
-      expectedCursor = delta.cursorStart;
+    if (delta.cursorStart > streamExpectedCursor) {
+      ingestStatus = "partial";
     }
     if (inBatchEventIds.has(delta.eventId)) {
       syncError("E_SYNC_DUP_EVENT_IN_BATCH", `Duplicate eventId in request batch: ${delta.eventId}`);
@@ -522,7 +592,11 @@ export async function pushEventsHandler(
       lastPersistedCursor = delta.cursorEnd;
       persistedAnyEvent = true;
     }
-    expectedCursor = delta.cursorEnd;
+    streamCheckpointCursorByStreamId.set(
+      delta.streamId,
+      Math.max(streamCheckpointCursorByStreamId.get(delta.streamId) ?? 0, delta.cursorEnd),
+    );
+    expectedCursorByStreamId.set(delta.streamId, delta.cursorEnd);
   }
 
   for (const turnId of startedTurns) {
@@ -622,7 +696,10 @@ export async function pushEventsHandler(
     string,
     { status: "completed" | "failed" | "interrupted"; error?: string }
   >();
-  for (const delta of args.deltas) {
+  for (const delta of deltas) {
+    if (delta.type !== "stream_delta") {
+      continue;
+    }
     const terminal = terminalStatusForEvent(delta.kind, delta.payloadJson);
     if (!terminal) {
       continue;
@@ -703,8 +780,6 @@ export async function pushEventsHandler(
     });
   }
 
-  const ackCursor = expectedCursor;
-
   const sessionPatch: {
     status: "active";
     lastHeartbeatAt?: number;
@@ -723,19 +798,36 @@ export async function pushEventsHandler(
 
   await ctx.db.patch(session._id, sessionPatch);
 
-  if (checkpoint) {
-    await ctx.db.patch(checkpoint._id, { ackedCursor: ackCursor, updatedAt: now() });
-  } else {
-    const lastDelta = args.deltas[args.deltas.length - 1];
-    if (!lastDelta) {
-      syncError("E_SYNC_EMPTY_BATCH", "pushEvents received an empty delta batch");
+  const streamCheckpointRows = await ctx.db
+    .query("codex_stream_checkpoints")
+    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+      q
+        .eq("tenantId", args.actor.tenantId)
+        .eq("threadId", args.threadId)
+        .eq("deviceId", args.actor.deviceId),
+    )
+    .take(2000);
+  const existingCheckpointByStreamId = new Map(
+    streamCheckpointRows.map((row) => [row.streamId, row]),
+  );
+  for (const [streamId, cursor] of streamCheckpointCursorByStreamId) {
+    const existing = existingCheckpointByStreamId.get(streamId);
+    if (existing) {
+      if (cursor > Number(existing.ackedCursor)) {
+        await ctx.db.patch(existing._id, {
+          ackedCursor: cursor,
+          updatedAt: now(),
+        });
+      }
+      continue;
     }
-    await ctx.db.insert("codex_sync_checkpoints", {
+    await ctx.db.insert("codex_stream_checkpoints", {
       tenantId: args.actor.tenantId,
-      threadId: args.threadId,
-      turnId: lastDelta.turnId,
+      userId: args.actor.userId,
       deviceId: args.actor.deviceId,
-      ackedCursor: ackCursor,
+      threadId: args.threadId,
+      streamId,
+      ackedCursor: cursor,
       updatedAt: now(),
     });
   }
@@ -762,7 +854,55 @@ export async function pushEventsHandler(
     );
   }
 
-  return { ackCursor };
+  const ackedStreams = Array.from(streamCheckpointCursorByStreamId.entries())
+    .map(([streamId, ackCursorEnd]) => ({ streamId, ackCursorEnd }))
+    .sort((a, b) => a.streamId.localeCompare(b.streamId));
+
+  return { ackedStreams, ingestStatus };
+}
+
+export async function upsertCheckpointHandler(
+  ctx: MutationCtx,
+  args: {
+    actor: { tenantId: string; userId: string; deviceId: string };
+    threadId: string;
+    streamId: string;
+    cursor: number;
+  },
+): Promise<{ ok: true }> {
+  await requireThreadForActor(ctx, args.actor, args.threadId);
+
+  const existing = await ctx.db
+    .query("codex_stream_checkpoints")
+    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+      q
+        .eq("tenantId", args.actor.tenantId)
+        .eq("threadId", args.threadId)
+        .eq("deviceId", args.actor.deviceId)
+        .eq("streamId", args.streamId),
+    )
+    .first();
+
+  if (existing) {
+    if (args.cursor > Number(existing.ackedCursor)) {
+      await ctx.db.patch(existing._id, {
+        ackedCursor: args.cursor,
+        updatedAt: now(),
+      });
+    }
+    return { ok: true };
+  }
+
+  await ctx.db.insert("codex_stream_checkpoints", {
+    tenantId: args.actor.tenantId,
+    userId: args.actor.userId,
+    deviceId: args.actor.deviceId,
+    threadId: args.threadId,
+    streamId: args.streamId,
+    ackedCursor: Math.max(0, Math.floor(args.cursor)),
+    updatedAt: now(),
+  });
+  return { ok: true };
 }
 
 export async function heartbeatHandler(

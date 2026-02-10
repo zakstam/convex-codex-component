@@ -1,6 +1,6 @@
 # Client Helpers and React Hooks
 
-This package now ships a consumer SDK layer:
+This package ships a consumer SDK layer:
 
 - `@zakstam/codex-local-component/client`
 - `@zakstam/codex-local-component/react`
@@ -15,8 +15,8 @@ Import from `@zakstam/codex-local-component/client`:
 - `respondToApproval`
 - `startTurn`
 - `interruptTurn`
-- `syncStreams`
-- `resumeStream`
+- `replayStreams`
+- `resumeStreamReplay`
 - `getThreadState`
 
 These are thin wrappers around component function references and keep generated Convex typing end-to-end.
@@ -50,46 +50,117 @@ Your host query must accept:
 
 And return:
 
-- a paginated list of durable message docs (`messageId`, `turnId`, `role`, `status`, `text`, `orderInTurn`, timestamps)
-- optional `streams` result:
+- paginated durable message rows (`messageId`, `turnId`, `role`, `status`, `text`, `orderInTurn`, timestamps)
+- optional `streams`:
   - `{ kind: "list", streams: Array<{ streamId: string; state: string }> }`
-  - `{ kind: "deltas", deltas: Array<{ streamId, cursorStart, cursorEnd, kind, payloadJson }> }`
+  - `{ kind: "deltas", deltas, streamWindows, nextCheckpoints }`
+
+`streamWindows` entries:
+
+- `{ streamId, status: "ok" | "rebased" | "stale", serverCursorStart, serverCursorEnd }`
+
+`nextCheckpoints` entries:
+
+- `{ streamId, cursor }`
 
 ### Merge behavior
 
-`useCodexMessages` always uses durable rows as the source of truth.
-When `stream: true`, stream deltas are overlaid only while durable rows are `streaming`:
+`useCodexMessages` uses durable rows as source of truth.
+When `stream: true`, stream deltas are overlaid while durable rows are `streaming`.
 
 - terminal statuses override streaming
 - longer/extended streamed text can replace in-progress durable text
-- dedupe key preference:
-  - `(turnId, messageId)`
-  - fallback `(turnId, orderInTurn)`
+- dedupe key preference: `(turnId, messageId)` then fallback `(turnId, orderInTurn)`
 
-The hook returns `results` in chronological order (`oldest -> newest`) and mirrors `usePaginatedQuery` controls.
+## Minimal Integration (Happy Path)
 
-## Optimistic send
+Use this if you want the smallest working consumer setup.
 
-`optimisticallySendCodexMessage` inserts:
+### 1) Host query for hooks
 
-- an optimistic user message row
-- optional assistant `streaming` placeholder bound to the same turn
+```ts
+import { paginationOptsValidator } from "convex/server";
+import { v } from "convex/values";
+import { query } from "./_generated/server";
+import { components } from "./_generated/api";
 
-Use it in Convex optimistic updates with the same paginated query used by `useCodexMessages`.
+export const listThreadMessagesForHooks = query({
+  args: {
+    actor: vActor,
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const paginated = await ctx.runQuery(components.codexLocal.messages.listByThread, {
+      actor: args.actor,
+      threadId: args.threadId,
+      paginationOpts: args.paginationOpts,
+    });
 
-## Approvals hook
+    const streams = args.streamArgs
+      ? await ctx.runQuery(components.codexLocal.sync.replay, {
+          actor: args.actor,
+          threadId: args.threadId,
+          streamCursorsById:
+            args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],
+        })
+      : undefined;
 
-`useCodexApprovals` intentionally stays separate from message/thread hooks.
+    if (args.streamArgs?.kind === "deltas") {
+      return {
+        ...paginated,
+        streams: streams
+          ? {
+              kind: "deltas" as const,
+              deltas: streams.deltas,
+              streamWindows: streams.streamWindows,
+              nextCheckpoints: streams.nextCheckpoints,
+            }
+          : undefined,
+      };
+    }
 
-- subscriptions: pending approvals list (paginated)
-- actions: `accept(args)` and `decline(args)` mapped to your host approval mutation
+    return {
+      ...paginated,
+      streams: streams ? { kind: "list" as const, streams: streams.streams } : undefined,
+    };
+  },
+});
+```
 
-This keeps approval lifecycle UX decoupled from message rendering concerns.
+### 2) Host mutation for ingest
 
-## Additional hooks
+```ts
+import { mutation } from "./_generated/server";
 
-- `useCodexStreamingMessages`: stream-only materialized overlay for lightweight live transcript views.
-- `useCodexTurn`: focused turn-level view from `threadId + turnId`.
-- `useCodexInterruptTurn`: interrupt mutation wrapper with optional optimistic interruption of in-flight rows.
-- `useCodexAutoResume`: auto-resume stream deltas from a cursor, with local reset fallback (`resetToDurable`).
-- `useCodexComposer`: composer state + send helpers for starting turns with generated `turnId` and `idempotencyKey`.
+export const ingestBatch = mutation({
+  args: {
+    actor: vActor,
+    sessionId: v.string(),
+    threadId: v.string(),
+    deltas: v.array(v.union(vStreamInboundEvent, vLifecycleInboundEvent)),
+  },
+  handler: async (ctx, args) => {
+    const streamDeltas = args.deltas.filter((d) => d.type === "stream_delta");
+    const lifecycleEvents = args.deltas.filter((d) => d.type === "lifecycle_event");
+    return ctx.runMutation(components.codexLocal.sync.ingest, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      streamDeltas,
+      lifecycleEvents,
+    });
+  },
+});
+```
+
+### 3) UI hook usage
+
+```tsx
+const messages = useCodexMessages(
+  api.chat.listThreadMessagesForHooks,
+  { actor, threadId },
+  { initialNumItems: 30, stream: true },
+);
+```

@@ -9,7 +9,7 @@ This folder defines host wrappers used by the release smoke app to validate
   `@zakstam/codex-local-component/convex.config`.
 - `chat.ts`: host queries/mutations used by the smoke runner (`src/index.ts`) to:
   - create threads and turns
-  - ingest stream deltas (`sync.pushEvents`)
+  - ingest stream deltas (`sync.ingest`)
   - query thread state and persistence stats
 
 ## Development

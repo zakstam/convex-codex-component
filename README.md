@@ -8,6 +8,26 @@ Local-first Convex component for Codex integrations where Codex runs on the user
 pnpm add @zakstam/codex-local-component convex
 ```
 
+## 10-Minute Quickstart
+
+If you want the shortest successful path, use the Tauri example as the baseline:
+
+1. `cd apps/examples/tauri-app`
+2. Create `.env.local` with `VITE_CONVEX_URL=...`
+3. Run `pnpm run dev`
+
+What this gives you immediately:
+
+- Convex dev + generated types
+- component build watch
+- local bridge helper watch
+- Tauri app with Vite HMR
+
+Then copy the minimal host + UI pattern from:
+
+- `apps/examples/tauri-app/convex/chat.ts`
+- `apps/examples/tauri-app/src/App.tsx`
+
 ## 1) Mount the component in Convex
 
 `convex/convex.config.ts`
@@ -30,6 +50,7 @@ Always use generated types from `./_generated/*`.
 
 ```ts
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
@@ -40,8 +61,8 @@ import {
   listTurnMessages,
   respondToApproval,
   startTurn,
-  syncStreams,
-  resumeStream,
+  replayStreams,
+  resumeStreamReplay,
 } from "@zakstam/codex-local-component/client";
 
 const vActor = v.object({
@@ -75,9 +96,46 @@ export const interruptActiveTurn = mutation({
 });
 
 export const threadMessages = query({
-  args: { actor: vActor, threadId: v.string() },
-  handler: async (ctx, args) =>
-    listMessages(ctx, components.codexLocal, { actor: args.actor, threadId: args.threadId }),
+  args: {
+    actor: vActor,
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const paginated = await listMessages(ctx, components.codexLocal, {
+      actor: args.actor,
+      threadId: args.threadId,
+      paginationOpts: args.paginationOpts,
+    });
+    const streams = args.streamArgs
+      ? await replayStreams(ctx, components.codexLocal, {
+          actor: args.actor,
+          threadId: args.threadId,
+          streamCursorsById:
+            args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],
+        })
+      : undefined;
+
+    if (args.streamArgs?.kind === "deltas") {
+      return {
+        ...paginated,
+        streams: streams
+          ? {
+              kind: "deltas" as const,
+              deltas: streams.deltas,
+              streamWindows: streams.streamWindows,
+              nextCheckpoints: streams.nextCheckpoints,
+            }
+          : undefined,
+      };
+    }
+
+    return {
+      ...paginated,
+      streams: streams ? { kind: "list" as const, streams: streams.streams } : undefined,
+    };
+  },
 });
 
 export const turnMessages = query({
@@ -112,22 +170,69 @@ export const threadState = query({
 export const streamSync = query({
   args: {
     actor: vActor,
-    sessionId: v.string(),
     threadId: v.string(),
-    streamArgs: v.optional(v.any()),
+    streamCursorsById: v.array(v.object({ streamId: v.string(), cursor: v.number() })),
   },
-  handler: async (ctx, args) => syncStreams(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    replayStreams(ctx, components.codexLocal, args),
 });
 
 export const streamResume = query({
   args: {
     actor: vActor,
+    threadId: v.string(),
+    turnId: v.string(),
+    fromCursor: v.number(),
+  },
+  handler: async (ctx, args) =>
+    resumeStreamReplay(ctx, components.codexLocal, args),
+});
+
+export const ensureThread = mutation({
+  args: { actor: vActor, threadId: v.string() },
+  handler: async (ctx, args) =>
+    ctx.runMutation(components.codexLocal.threads.create, {
+      actor: args.actor,
+      threadId: args.threadId,
+      localThreadId: args.threadId,
+    }),
+});
+
+export const ingestEvent = mutation({
+  args: {
+    actor: vActor,
     sessionId: v.string(),
     threadId: v.string(),
-    streamId: v.string(),
-    cursor: v.number(),
+    event: v.union(
+      v.object({
+        type: v.literal("stream_delta"),
+        eventId: v.string(),
+        turnId: v.string(),
+        streamId: v.string(),
+        kind: v.string(),
+        payloadJson: v.string(),
+        cursorStart: v.number(),
+        cursorEnd: v.number(),
+        createdAt: v.number(),
+      }),
+      v.object({
+        type: v.literal("lifecycle_event"),
+        eventId: v.string(),
+        turnId: v.optional(v.string()),
+        kind: v.string(),
+        payloadJson: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
   },
-  handler: async (ctx, args) => resumeStream(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    ctx.runMutation(components.codexLocal.sync.ingest, {
+      actor: args.actor,
+      sessionId: args.sessionId,
+      threadId: args.threadId,
+      streamDeltas: args.event.type === "stream_delta" ? [args.event] : [],
+      lifecycleEvents: args.event.type === "lifecycle_event" ? [args.event] : [],
+    }),
 });
 ```
 

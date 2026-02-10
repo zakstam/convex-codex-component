@@ -1,20 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
-import {
-  buildInitializeRequest,
-  buildInitializedNotification,
-  buildThreadStartRequest,
-  buildTurnInterruptRequest,
-  buildTurnStartTextRequest,
-  isUuidLikeThreadId,
-} from "@zakstam/codex-local-component/app-server";
-import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
-import type {
-  ClientNotification,
-  ClientRequest,
-  CodexResponse,
-  ServerInboundMessage,
-  ServerNotification,
-} from "@zakstam/codex-local-component/protocol";
+import { createCodexHostRuntime, type CodexHostRuntime } from "@zakstam/codex-local-component/host";
+import type { ServerInboundMessage } from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
 
 type ActorContext = { tenantId: string; userId: string; deviceId: string };
@@ -26,6 +12,9 @@ type StartPayload = {
   cwd?: string;
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
+  threadStrategy?: "start" | "resume" | "fork";
+  runtimeThreadId?: string;
+  externalThreadId?: string;
 };
 
 type HelperCommand =
@@ -43,6 +32,7 @@ type HelperEvent =
         threadId: string | null;
         turnId: string | null;
         lastError: string | null;
+        runtimeThreadId: string | null;
       };
     }
   | { type: "event"; payload: { kind: string; threadId: string; turnId?: string; streamId?: string } }
@@ -50,52 +40,6 @@ type HelperEvent =
   | { type: "protocol_error"; payload: { message: string; line: string } }
   | { type: "ack"; payload: { command: string } }
   | { type: "error"; payload: { message: string } };
-
-type StreamIngestDelta = {
-  type: "stream_delta";
-  eventId: string;
-  kind: string;
-  payloadJson: string;
-  cursorStart: number;
-  cursorEnd: number;
-  createdAt: number;
-  threadId: string;
-  turnId: string;
-  streamId: string;
-};
-
-type LifecycleIngestEvent = {
-  type: "lifecycle_event";
-  eventId: string;
-  kind: string;
-  payloadJson: string;
-  createdAt: number;
-  threadId: string;
-  turnId?: string;
-};
-
-type IngestDelta = StreamIngestDelta | LifecycleIngestEvent;
-
-const MAX_BATCH_SIZE = 32;
-const IDLE_FLUSH_INTERVAL_MS = 5000;
-let ACTIVE_FLUSH_INTERVAL_MS = 250;
-
-let bridge: CodexLocalBridge | null = null;
-let convex: ConvexHttpClient | null = null;
-let actor: ActorContext | null = null;
-let sessionId: string | null = null;
-let threadId: string | null = null;
-let runtimeThreadId: string | null = null;
-let turnId: string | null = null;
-let turnInFlight = false;
-let turnSettled = false;
-let interruptRequested = false;
-let nextRequestId = 1;
-
-const pendingRequests = new Map<number, { method: string }>();
-let ingestQueue: IngestDelta[] = [];
-let flushTimer: NodeJS.Timeout | null = null;
-let flushTail: Promise<void> = Promise.resolve();
 
 function isIgnorableProtocolNoise(message: string): boolean {
   return message.includes(
@@ -123,230 +67,203 @@ function emit(event: HelperEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
-function updateState(next?: Partial<{ running: boolean; threadId: string | null; turnId: string | null; lastError: string | null }>) {
+function toErrorCode(value: unknown): string {
+  if (typeof value !== "string") {
+    return "UNKNOWN";
+  }
+  return value;
+}
+
+let runtime: CodexHostRuntime | null = null;
+let convex: ConvexHttpClient | null = null;
+let actor: ActorContext | null = null;
+let activeSessionId: string | null = null;
+let runtimeThreadId: string | null = null;
+let startRuntimeOptions: {
+  saveStreamDeltas: boolean;
+  maxDeltasPerStreamRead: number;
+  maxDeltasPerRequestRead: number;
+  finishedStreamDeleteDelayMs: number;
+} = {
+  saveStreamDeltas: true,
+  maxDeltasPerStreamRead: 100,
+  maxDeltasPerRequestRead: 1000,
+  finishedStreamDeleteDelayMs: 300000,
+};
+
+let bridgeState: {
+  running: boolean;
+  threadId: string | null;
+  turnId: string | null;
+  lastError: string | null;
+} = {
+  running: false,
+  threadId: null,
+  turnId: null,
+  lastError: null,
+};
+
+function emitState(next?: Partial<typeof bridgeState>): void {
+  bridgeState = {
+    ...bridgeState,
+    ...(next ?? {}),
+  };
+
   emit({
     type: "state",
     payload: {
-      running: !!bridge,
-      threadId,
-      turnId,
-      lastError: null,
-      ...next,
+      running: bridgeState.running,
+      threadId: bridgeState.threadId,
+      turnId: bridgeState.turnId,
+      lastError: bridgeState.lastError,
+      runtimeThreadId,
     },
   });
 }
 
-function isServerNotification(message: ServerInboundMessage): message is ServerNotification {
-  return "method" in message;
-}
-
-function isResponse(message: ServerInboundMessage): message is CodexResponse {
-  return "id" in message && !isServerNotification(message);
-}
-
-function clearFlushTimer(): void {
-  if (flushTimer) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-  }
-}
-
-async function flushQueue(): Promise<void> {
-  if (!convex || !actor || !sessionId) {
-    return;
-  }
-  const client = convex;
-  const activeActor = actor;
-  const activeSessionId = sessionId;
-  const next = flushTail.then(async () => {
-    clearFlushTimer();
-    while (ingestQueue.length > 0) {
-      const batch = ingestQueue.splice(0, MAX_BATCH_SIZE);
-      const first = batch[0];
-      if (!first) {
-        return;
-      }
-      const ingestPayload = {
-        actor: activeActor,
-        sessionId: activeSessionId,
-        threadId: first.threadId,
-        deltas: batch.map((delta) =>
-          delta.type === "stream_delta"
-            ? {
-                type: "stream_delta" as const,
-                eventId: delta.eventId,
-                turnId: delta.turnId,
-                streamId: delta.streamId,
-                kind: delta.kind,
-                payloadJson: delta.payloadJson,
-                cursorStart: delta.cursorStart,
-                cursorEnd: delta.cursorEnd,
-                createdAt: delta.createdAt,
-              }
-            : {
-                type: "lifecycle_event" as const,
-                eventId: delta.eventId,
-                ...(delta.turnId ? { turnId: delta.turnId } : {}),
-                kind: delta.kind,
-                payloadJson: delta.payloadJson,
-                createdAt: delta.createdAt,
-              },
-        ),
-        runtime: {
-          saveStreamDeltas: true,
-        },
-      };
-
-      try {
-        await client.mutation(requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"), ingestPayload);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const needsSessionRollover =
-          message.includes("E_SYNC_OUT_OF_ORDER") || message.includes("E_SYNC_REPLAY_GAP");
-        if (!needsSessionRollover || !convex || !actor) {
-          throw error;
-        }
-
-        const nextSessionId = randomSessionId();
-        sessionId = nextSessionId;
-        await convex.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-          actor,
-          sessionId: nextSessionId,
-          threadId: first.threadId,
-        });
-
-        emit({
-          type: "global",
-          payload: {
-            kind: "sync/session_rolled_over",
-            reason: message,
-            threadId: first.threadId,
-          },
-        });
-
-        await convex.mutation(requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"), {
-          ...ingestPayload,
-          sessionId: nextSessionId,
-        });
-      }
-    }
-  });
-
-  flushTail = next.catch(() => undefined);
-  await next;
-}
-
-function enqueueIngestDelta(delta: IngestDelta, forceFlush: boolean): Promise<void> {
-  ingestQueue.push(delta);
-
-  if (forceFlush || ingestQueue.length >= MAX_BATCH_SIZE) {
-    return flushQueue();
-  }
-
-  if (!flushTimer) {
-    flushTimer = setTimeout(() => {
-      flushTimer = null;
-      void flushQueue();
-    }, turnInFlight ? ACTIVE_FLUSH_INTERVAL_MS : IDLE_FLUSH_INTERVAL_MS);
-  }
-
-  return Promise.resolve();
-}
-
-function requestId(): number {
-  const id = nextRequestId;
-  nextRequestId += 1;
-  return id;
-}
-
-function sendMessage(message: ClientRequest | ClientNotification, trackedMethod?: string) {
-  if (!bridge) {
-    throw new Error("Bridge is not running");
-  }
-  bridge.send(message);
-  if ("id" in message && typeof message.id === "number" && trackedMethod) {
-    pendingRequests.set(message.id, { method: trackedMethod });
-  }
-}
-
-async function startBridge(payload: StartPayload) {
-  if (bridge) {
+async function startBridge(payload: StartPayload): Promise<void> {
+  if (runtime) {
+    emitState();
     emit({ type: "ack", payload: { command: "start" } });
     return;
   }
 
   convex = new ConvexHttpClient(payload.convexUrl);
   actor = payload.actor;
-  sessionId = payload.sessionId ? `${payload.sessionId}-${randomSessionId()}` : randomSessionId();
-  ACTIVE_FLUSH_INTERVAL_MS = payload.deltaThrottleMs ?? 250;
+  activeSessionId = payload.sessionId ? `${payload.sessionId}-${randomSessionId()}` : randomSessionId();
+  runtimeThreadId = payload.runtimeThreadId ?? null;
 
-  bridge = new CodexLocalBridge(
-    {
+  startRuntimeOptions = {
+    saveStreamDeltas: payload.saveStreamDeltas ?? true,
+    maxDeltasPerStreamRead: 100,
+    maxDeltasPerRequestRead: 1000,
+    finishedStreamDeleteDelayMs: 300000,
+  };
+
+  runtime = createCodexHostRuntime({
+    bridge: {
       cwd: payload.cwd ?? process.cwd(),
     },
-    {
-      onEvent: async (event) => {
-        if (!convex || !actor || !sessionId) {
-          return;
+    persistence: {
+      ensureThread: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
         }
-
-        if (
-          !runtimeThreadId ||
-          (!isUuidLikeThreadId(runtimeThreadId) && isUuidLikeThreadId(event.threadId))
-        ) {
-          runtimeThreadId = event.threadId;
+        return convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
+          actor: args.actor,
+          ...(args.externalThreadId ? { externalThreadId: args.externalThreadId } : {}),
+          ...(args.model ? { model: args.model } : {}),
+          ...(args.cwd ? { cwd: args.cwd } : {}),
+        });
+      },
+      ensureSession: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
         }
-
-        if (!threadId) {
-          const resolved = await convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
-            actor,
-            externalThreadId: runtimeThreadId,
-            ...(payload.model ? { model: payload.model } : {}),
-            ...(payload.cwd ? { cwd: payload.cwd } : {}),
-          });
-          const persistedThreadId = resolved.threadId;
-          threadId = persistedThreadId;
-          await convex.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-            actor,
-            sessionId,
-            threadId: persistedThreadId,
-          });
-          updateState({ threadId });
+        return convex.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
+          actor: args.actor,
+          sessionId: args.sessionId,
+          threadId: args.threadId,
+        });
+      },
+      ingestSafe: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
         }
+        const client = convex;
 
-        if (event.kind === "turn/started" && event.turnId) {
-          turnId = event.turnId;
-          turnInFlight = true;
-          turnSettled = false;
-          updateState({ turnId });
-          if (interruptRequested) {
-            if (!runtimeThreadId) {
-              return;
-            }
-            const interruptReq = buildTurnInterruptRequest(requestId(), {
-              threadId: runtimeThreadId,
-              turnId: event.turnId,
-            });
-            sendMessage(interruptReq, "turn/interrupt");
-            interruptRequested = false;
+        const toIngestPayload = (sessionIdOverride: string) => ({
+          actor: args.actor,
+          sessionId: sessionIdOverride,
+          threadId: args.threadId,
+          deltas: args.deltas.map((delta) =>
+            delta.type === "stream_delta"
+              ? {
+                  type: "stream_delta" as const,
+                  eventId: delta.eventId,
+                  turnId: delta.turnId,
+                  streamId: delta.streamId,
+                  kind: delta.kind,
+                  payloadJson: delta.payloadJson,
+                  cursorStart: delta.cursorStart,
+                  cursorEnd: delta.cursorEnd,
+                  createdAt: delta.createdAt,
+                }
+              : {
+                  type: "lifecycle_event" as const,
+                  eventId: delta.eventId,
+                  ...(delta.turnId ? { turnId: delta.turnId } : {}),
+                  kind: delta.kind,
+                  payloadJson: delta.payloadJson,
+                  createdAt: delta.createdAt,
+                },
+          ),
+          runtime: startRuntimeOptions,
+        });
+
+        const runIngest = async (sessionIdOverride: string) =>
+          client.mutation(requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"), toIngestPayload(sessionIdOverride));
+
+        try {
+          const result = await runIngest(args.sessionId);
+          return {
+            status: result.status,
+            errors: result.errors.map((error) => ({
+              code: toErrorCode(error.code),
+              message: error.message,
+              recoverable: error.recoverable,
+            })),
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const needsSessionRollover =
+            message.includes("E_SYNC_OUT_OF_ORDER") || message.includes("E_SYNC_REPLAY_GAP");
+
+          if (!needsSessionRollover || !activeSessionId || !actor) {
+            throw error;
           }
-        }
 
-        if (event.kind === "turn/completed") {
-          turnId = null;
-          turnInFlight = false;
-          turnSettled = true;
-          updateState({ turnId: null });
-        }
-        if (event.kind === "error") {
-          turnInFlight = false;
-          turnSettled = true;
-          if (!event.turnId || event.turnId === turnId) {
-            turnId = null;
-          }
-          updateState({ turnId });
-        }
+          const nextSessionId = randomSessionId();
+          activeSessionId = nextSessionId;
+          await client.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
+            actor,
+            sessionId: nextSessionId,
+            threadId: args.threadId,
+          });
 
+          emit({
+            type: "global",
+            payload: {
+              kind: "sync/session_rolled_over",
+              reason: message,
+              threadId: args.threadId,
+            },
+          });
+
+          const result = await runIngest(nextSessionId);
+          return {
+            status: result.status,
+            errors: result.errors.map((ingestError) => ({
+              code: toErrorCode(ingestError.code),
+              message: ingestError.message,
+              recoverable: ingestError.recoverable,
+            })),
+          };
+        }
+      },
+    },
+    handlers: {
+      onState: (state) => {
+        emitState({
+          running: state.running,
+          threadId: state.threadId,
+          turnId: state.turnId,
+          lastError: state.lastError,
+        });
+      },
+      onEvent: (event) => {
+        runtimeThreadId = event.threadId;
+        emitState();
         emit({
           type: "event",
           payload: {
@@ -356,163 +273,81 @@ async function startBridge(payload: StartPayload) {
             ...(event.streamId ? { streamId: event.streamId } : {}),
           },
         });
-
-        const persistedThreadId = threadId;
-        if (!persistedThreadId) {
-          return;
-        }
-
-        const delta: IngestDelta =
-          event.streamId && event.turnId
-            ? {
-                type: "stream_delta",
-                eventId: event.eventId,
-                kind: event.kind,
-                payloadJson: event.payloadJson,
-                cursorStart: event.cursorStart,
-                cursorEnd: event.cursorEnd,
-                createdAt: event.createdAt,
-                threadId: persistedThreadId,
-                turnId: event.turnId,
-                streamId: event.streamId,
-              }
-            : {
-                type: "lifecycle_event",
-                eventId: event.eventId,
-                kind: event.kind,
-                payloadJson: event.payloadJson,
-                createdAt: event.createdAt,
-                threadId: persistedThreadId,
-                ...(event.turnId ? { turnId: event.turnId } : {}),
-              };
-
-        const forceFlush =
-          event.kind === "turn/completed" ||
-          event.kind === "error";
-
-        await enqueueIngestDelta(delta, forceFlush);
       },
-      onGlobalMessage: async (message) => {
-        if (isResponse(message) && typeof message.id === "number") {
-          const pending = pendingRequests.get(message.id);
-          pendingRequests.delete(message.id);
-          if (
-            pending?.method === "thread/start" &&
-            !message.error &&
-            message.result &&
-            typeof message.result === "object" &&
-            "thread" in message.result &&
-            typeof message.result.thread === "object" &&
-            message.result.thread !== null &&
-            "id" in message.result.thread &&
-            typeof message.result.thread.id === "string"
-          ) {
-            runtimeThreadId = message.result.thread.id;
-          }
-          if (message.error) {
-            if (pending?.method === "turn/start") {
-              turnInFlight = false;
-              turnSettled = true;
-              turnId = null;
-              updateState({ turnId: null });
-            }
-            emit({
-              type: "error",
-              payload: {
-                message: `Request failed (${pending?.method ?? "unknown"}): ${message.error.message}`,
-              },
-            });
-          }
-          return;
+      onGlobalMessage: (message: ServerInboundMessage) => {
+        const asRecord = message as unknown;
+        if (typeof asRecord === "object" && asRecord !== null) {
+          emit({ type: "global", payload: asRecord as Record<string, unknown> });
         }
-
-        emit({ type: "global", payload: message as Record<string, unknown> });
       },
-      onProtocolError: async ({ line, error }) => {
-        if (isIgnorableProtocolNoise(error.message)) {
+      onProtocolError: ({ message, line }) => {
+        if (isIgnorableProtocolNoise(message)) {
           emit({
             type: "global",
             payload: {
               kind: "protocol/ignored_message",
-              reason: error.message,
+              reason: message,
               line,
             },
           });
           return;
         }
-        updateState({ lastError: error.message });
-        emit({ type: "protocol_error", payload: { message: error.message, line } });
-      },
-      onProcessExit: (code) => {
-        updateState({ running: false, turnId: null, lastError: `codex exited with code ${String(code)}` });
+        emitState({ lastError: message });
+        emit({ type: "protocol_error", payload: { message, line } });
       },
     },
-  );
-
-  bridge.start();
-
-  const initializeReq = buildInitializeRequest(requestId(), {
-    name: "codex_local_tauri_example",
-    title: "Codex Local Tauri Example",
-    version: "0.1.0",
   });
-  sendMessage(initializeReq, "initialize");
-  sendMessage(buildInitializedNotification());
-  const threadStartReq = buildThreadStartRequest(requestId(), {
-    ...(payload.model ? { model: payload.model } : {}),
-    ...(payload.cwd ? { cwd: payload.cwd } : {}),
-  });
-  sendMessage(threadStartReq, "thread/start");
 
-  updateState({ running: true });
-  emit({ type: "ack", payload: { command: "start" } });
+  try {
+    await runtime.start({
+      actor: payload.actor,
+      sessionId: activeSessionId,
+      ...(payload.externalThreadId ? { externalThreadId: payload.externalThreadId } : {}),
+      ...(payload.runtimeThreadId ? { runtimeThreadId: payload.runtimeThreadId } : {}),
+      ...(payload.threadStrategy ? { threadStrategy: payload.threadStrategy } : {}),
+      ...(payload.model ? { model: payload.model } : {}),
+      ...(payload.cwd ? { cwd: payload.cwd } : {}),
+      ...(payload.deltaThrottleMs ? { ingestFlushMs: payload.deltaThrottleMs } : {}),
+      runtime: startRuntimeOptions,
+    });
+
+    emitState({ running: true, lastError: null });
+    emit({ type: "ack", payload: { command: "start" } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    emitState({ running: false, lastError: message });
+    runtime = null;
+    throw error;
+  }
 }
 
-function sendTurn(text: string) {
-  if (!bridge || !runtimeThreadId) {
-    throw new Error("Bridge/thread not ready. Start runtime first.");
+function sendTurn(text: string): void {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
   }
-  if (turnInFlight && !turnSettled) {
-    throw new Error("A turn is already in flight.");
-  }
-
-  const req = buildTurnStartTextRequest(requestId(), {
-    threadId: runtimeThreadId,
-    text,
-  });
-  turnInFlight = true;
-  turnSettled = false;
-  sendMessage(req, "turn/start");
+  runtime.sendTurn(text);
 }
 
-function interruptCurrentTurn() {
-  if (!bridge || !runtimeThreadId) {
-    return;
-  }
-  if (!turnId) {
-    interruptRequested = true;
-    return;
-  }
-  const interruptReq = buildTurnInterruptRequest(requestId(), { threadId: runtimeThreadId, turnId });
-  sendMessage(interruptReq, "turn/interrupt");
+function interruptCurrentTurn(): void {
+  runtime?.interrupt();
 }
 
-async function stopCurrentBridge() {
-  clearFlushTimer();
-  await flushQueue();
-  bridge?.stop();
-  bridge = null;
-  threadId = null;
-  runtimeThreadId = null;
-  turnId = null;
-  turnInFlight = false;
-  turnSettled = false;
-  interruptRequested = false;
-  pendingRequests.clear();
-  updateState({ running: false, threadId: null, turnId: null });
+async function stopCurrentBridge(): Promise<void> {
+  try {
+    if (runtime) {
+      await runtime.stop();
+    }
+  } finally {
+    runtime = null;
+    convex = null;
+    actor = null;
+    activeSessionId = null;
+    runtimeThreadId = null;
+    emitState({ running: false, threadId: null, turnId: null, lastError: null });
+  }
 }
 
-async function handle(command: HelperCommand) {
+async function handle(command: HelperCommand): Promise<void> {
   switch (command.type) {
     case "start":
       await startBridge(command.payload);
@@ -530,7 +365,7 @@ async function handle(command: HelperCommand) {
       emit({ type: "ack", payload: { command: "stop" } });
       return;
     case "status":
-      updateState();
+      emitState();
       emit({ type: "ack", payload: { command: "status" } });
       return;
     default:

@@ -134,6 +134,27 @@ Use `CodexLocalBridge` from desktop/CLI runtime and provide:
 - Modern protocol only: hosts must use app-server `thread/*`, `turn/*`, and `item/*` events.
 - Host must keep the runtime loop alive. If the loop is not running, turns can be created but no events will ingest.
 
+### Runtime thread lifecycle controls
+
+`createCodexHostRuntime` supports startup strategy selection:
+
+- `threadStrategy: "start"` (default)
+- `threadStrategy: "resume"` with `runtimeThreadId`
+- `threadStrategy: "fork"` with `runtimeThreadId`
+
+The runtime also exposes typed app-server lifecycle methods:
+
+- `resumeThread(runtimeThreadId, params?)`
+- `forkThread(runtimeThreadId, params?)`
+- `archiveThread(runtimeThreadId)`
+- `unarchiveThread(runtimeThreadId)`
+- `rollbackThread(runtimeThreadId, numTurns)`
+- `readThread(runtimeThreadId, includeTurns?)`
+- `listThreads(params?)`
+- `listLoadedThreads(params?)`
+
+Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
+
 ## 4. Minimum ingest/replay flow
 
 1. Resolve thread identity:

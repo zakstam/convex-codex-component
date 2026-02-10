@@ -25,6 +25,9 @@ pub struct HelperStartPayload {
     pub cwd: Option<String>,
     pub delta_throttle_ms: Option<u64>,
     pub save_stream_deltas: Option<bool>,
+    pub thread_strategy: Option<String>,
+    pub runtime_thread_id: Option<String>,
+    pub external_thread_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -34,6 +37,7 @@ pub struct BridgeStateSnapshot {
     pub thread_id: Option<String>,
     pub turn_id: Option<String>,
     pub last_error: Option<String>,
+    pub runtime_thread_id: Option<String>,
 }
 
 #[derive(Default)]

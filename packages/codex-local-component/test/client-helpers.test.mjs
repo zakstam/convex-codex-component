@@ -1,13 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  createThread,
+  getExternalThreadMapping,
   getThreadState,
   interruptTurn,
+  listThreads,
   listPendingApprovals,
   listMessages,
   listTurnMessages,
+  resolveThread,
+  resolveThreadByExternalId,
   respondToApproval,
   resumeStreamReplay,
+  resumeThread,
   startTurn,
   replayStreams,
 } from "../dist/client/index.js";
@@ -164,6 +170,52 @@ test("getThreadState passes query reference and args", async () => {
 
   assert.equal(result, expected);
   assert.deepEqual(calls, [{ ref: getState, queryArgs: args }]);
+});
+
+test("thread helpers pass refs and args", async () => {
+  const create = {};
+  const resolve = {};
+  const resume = {};
+  const list = {};
+  const resolveByExternalId = {};
+  const getExternalMapping = {};
+  const getState = {};
+  const mutationCalls = [];
+  const queryCalls = [];
+  const mutationCtx = {
+    runMutation: async (ref, mutationArgs) => {
+      mutationCalls.push({ ref, mutationArgs });
+      return { ok: true };
+    },
+  };
+  const queryCtx = {
+    runQuery: async (ref, queryArgs) => {
+      queryCalls.push({ ref, queryArgs });
+      return { ok: true };
+    },
+  };
+  const component = {
+    threads: { create, resolve, resume, list, resolveByExternalId, getExternalMapping, getState },
+  };
+  const actor = { tenantId: "t", userId: "u", deviceId: "d" };
+
+  await createThread(mutationCtx, component, { actor, threadId: "thread-1" });
+  await resolveThread(mutationCtx, component, { actor, externalThreadId: "external-1" });
+  await resumeThread(mutationCtx, component, { actor, threadId: "thread-1" });
+  await listThreads(queryCtx, component, { actor, paginationOpts: { cursor: null, numItems: 10 } });
+  await resolveThreadByExternalId(queryCtx, component, { actor, externalThreadId: "external-1" });
+  await getExternalThreadMapping(queryCtx, component, { actor, threadId: "thread-1" });
+  await getThreadState(queryCtx, component, { actor, threadId: "thread-1" });
+
+  assert.equal(mutationCalls.length, 3);
+  assert.equal(queryCalls.length, 4);
+  assert.equal(mutationCalls[0].ref, create);
+  assert.equal(mutationCalls[1].ref, resolve);
+  assert.equal(mutationCalls[2].ref, resume);
+  assert.equal(queryCalls[0].ref, list);
+  assert.equal(queryCalls[1].ref, resolveByExternalId);
+  assert.equal(queryCalls[2].ref, getExternalMapping);
+  assert.equal(queryCalls[3].ref, getState);
 });
 
 test("approval helpers pass refs and args", async () => {

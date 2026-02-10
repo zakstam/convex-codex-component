@@ -11,6 +11,7 @@ export type BridgeState = {
   threadId: string | null;
   turnId: string | null;
   lastError: string | null;
+  runtimeThreadId?: string | null;
 };
 
 export async function startBridge(config: {
@@ -21,6 +22,9 @@ export async function startBridge(config: {
   cwd?: string;
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
+  threadStrategy?: "start" | "resume" | "fork";
+  runtimeThreadId?: string;
+  externalThreadId?: string;
 }) {
   return await invoke("start_bridge", { config });
 }

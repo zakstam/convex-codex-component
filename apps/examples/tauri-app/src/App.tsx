@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useQuery } from "convex/react";
 import { useCodexApprovals, useCodexMessages, useCodexThreadState } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import { getBridgeState, interruptTurn, sendUserTurn, startBridge, stopBridge, type ActorContext, type BridgeState } from "./lib/tauriBridge";
@@ -46,8 +47,13 @@ export default function App() {
   });
   const [composer, setComposer] = useState("");
   const [runtimeLog, setRuntimeLog] = useState<Array<{ id: string; line: string }>>([]);
+  const [selectedRuntimeThreadId, setSelectedRuntimeThreadId] = useState<string>("");
 
   const threadId = bridge.threadId;
+  const listedThreads = useQuery(
+    requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
+    { actor, limit: 25 },
+  );
 
   const messageArgs = useMemo(() => {
     if (!threadId) {
@@ -106,20 +112,8 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) {
-      return;
-    }
-    if (!import.meta.env.VITE_CONVEX_URL) {
-      return;
-    }
-    if (bridge.running) {
-      return;
-    }
-    void onStartBridge();
-  }, [bridge.running]);
-
   const onStartBridge = async () => {
+    const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
     await startBridge({
       convexUrl: import.meta.env.VITE_CONVEX_URL,
       actor,
@@ -128,6 +122,7 @@ export default function App() {
       cwd: import.meta.env.VITE_CODEX_CWD,
       deltaThrottleMs: 250,
       saveStreamDeltas: true,
+      ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
     });
   };
 
@@ -173,6 +168,7 @@ export default function App() {
             <h1>Codex Local Desktop</h1>
             <p className="meta">Tauri + Convex durable streams</p>
             <p className="meta">thread: {threadId ?? "(none yet)"}</p>
+            <p className="meta">runtimeThread: {bridge.runtimeThreadId ?? "(none yet)"}</p>
           </div>
           <div className="controls">
             <button onClick={onStartBridge} disabled={bridge.running}>Start Runtime</button>
@@ -180,6 +176,25 @@ export default function App() {
             <button className="danger" onClick={() => void interruptTurn()} disabled={!bridge.turnId}>Interrupt</button>
           </div>
         </header>
+
+        <div className="panel card">
+          <h2>Resume Previous Thread</h2>
+          <p className="meta">Pick a previously persisted thread mapping, then start runtime to resume it.</p>
+          <select
+            value={selectedRuntimeThreadId}
+            onChange={(event) => setSelectedRuntimeThreadId(event.target.value)}
+            disabled={bridge.running}
+          >
+            <option value="">Start a new thread</option>
+            {(listedThreads?.threads ?? [])
+              .filter((thread) => !!thread.runtimeThreadId)
+              .map((thread) => (
+                <option key={thread.threadId} value={thread.runtimeThreadId ?? ""}>
+                  {thread.threadId} • {thread.status} • runtime:{thread.runtimeThreadId}
+                </option>
+              ))}
+          </select>
+        </div>
 
         <div className="messages">
           {messages.results.map((message) => (

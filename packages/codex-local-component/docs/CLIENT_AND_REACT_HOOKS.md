@@ -17,7 +17,13 @@ Import from `@zakstam/codex-local-component/client`:
 - `interruptTurn`
 - `replayStreams`
 - `resumeStreamReplay`
+- `createThread`
+- `resolveThread`
+- `resumeThread`
 - `getThreadState`
+- `resolveThreadByExternalId`
+- `getExternalThreadMapping`
+- `listThreads`
 
 These are thin wrappers around component function references and keep generated Convex typing end-to-end.
 

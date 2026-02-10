@@ -14,6 +14,9 @@ struct StartBridgeConfig {
     cwd: Option<String>,
     delta_throttle_ms: Option<u64>,
     save_stream_deltas: Option<bool>,
+    thread_strategy: Option<String>,
+    runtime_thread_id: Option<String>,
+    external_thread_id: Option<String>,
 }
 
 #[tauri::command]
@@ -34,6 +37,9 @@ async fn start_bridge(
                 cwd: config.cwd,
                 delta_throttle_ms: config.delta_throttle_ms,
                 save_stream_deltas: config.save_stream_deltas,
+                thread_strategy: config.thread_strategy,
+                runtime_thread_id: config.runtime_thread_id,
+                external_thread_id: config.external_thread_id,
             },
         )
         .await

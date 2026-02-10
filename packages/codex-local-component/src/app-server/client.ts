@@ -1,7 +1,15 @@
 import type { ClientInfo } from "../protocol/schemas/ClientInfo.js";
 import type { ClientNotification } from "../protocol/schemas/ClientNotification.js";
 import type { ClientRequest } from "../protocol/schemas/ClientRequest.js";
+import type { ThreadArchiveParams } from "../protocol/schemas/v2/ThreadArchiveParams.js";
+import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.js";
+import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
+import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
+import type { ThreadReadParams } from "../protocol/schemas/v2/ThreadReadParams.js";
+import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
+import type { ThreadRollbackParams } from "../protocol/schemas/v2/ThreadRollbackParams.js";
 import type { ThreadStartParams } from "../protocol/schemas/v2/ThreadStartParams.js";
+import type { ThreadUnarchiveParams } from "../protocol/schemas/v2/ThreadUnarchiveParams.js";
 import type { TurnInterruptParams } from "../protocol/schemas/v2/TurnInterruptParams.js";
 import type { TurnStartParams } from "../protocol/schemas/v2/TurnStartParams.js";
 
@@ -54,6 +62,71 @@ export function buildThreadStartRequest(
     ...params,
     experimentalRawEvents: false,
   });
+}
+
+export function buildThreadResumeRequest(
+  id: number,
+  params: ThreadResumeParams,
+): RequestFor<"thread/resume"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/resume", id, params);
+}
+
+export function buildThreadForkRequest(
+  id: number,
+  params: ThreadForkParams,
+): RequestFor<"thread/fork"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/fork", id, params);
+}
+
+export function buildThreadReadRequest(
+  id: number,
+  params: Omit<ThreadReadParams, "includeTurns"> & { includeTurns?: boolean },
+): RequestFor<"thread/read"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/read", id, {
+    threadId: params.threadId,
+    includeTurns: params.includeTurns ?? false,
+  });
+}
+
+export function buildThreadListRequest(
+  id: number,
+  params: ThreadListParams = {},
+): RequestFor<"thread/list"> {
+  return buildClientRequest("thread/list", id, params);
+}
+
+export function buildThreadLoadedListRequest(
+  id: number,
+  params: ThreadLoadedListParams = {},
+): RequestFor<"thread/loaded/list"> {
+  return buildClientRequest("thread/loaded/list", id, params);
+}
+
+export function buildThreadArchiveRequest(
+  id: number,
+  params: ThreadArchiveParams,
+): RequestFor<"thread/archive"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/archive", id, params);
+}
+
+export function buildThreadUnarchiveRequest(
+  id: number,
+  params: ThreadUnarchiveParams,
+): RequestFor<"thread/unarchive"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/unarchive", id, params);
+}
+
+export function buildThreadRollbackRequest(
+  id: number,
+  params: ThreadRollbackParams,
+): RequestFor<"thread/rollback"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/rollback", id, params);
 }
 
 export function buildTurnStartRequest(

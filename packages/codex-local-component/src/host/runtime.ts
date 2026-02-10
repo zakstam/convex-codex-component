@@ -1,7 +1,15 @@
 import {
+  buildThreadArchiveRequest,
+  buildThreadForkRequest,
+  buildThreadListRequest,
+  buildThreadLoadedListRequest,
+  buildThreadReadRequest,
+  buildThreadResumeRequest,
+  buildThreadRollbackRequest,
   buildInitializeRequest,
   buildInitializedNotification,
   buildThreadStartRequest,
+  buildThreadUnarchiveRequest,
   buildTurnInterruptRequest,
   buildTurnStartTextRequest,
   isUuidLikeThreadId,
@@ -13,6 +21,11 @@ import type {
   NormalizedEvent,
   ServerInboundMessage,
 } from "../protocol/generated.js";
+import type { ClientRequest } from "../protocol/schemas/ClientRequest.js";
+import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.js";
+import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
+import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
+import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
 
 type ActorContext = { tenantId: string; userId: string; deviceId: string };
 
@@ -41,6 +54,20 @@ type LifecycleIngestEvent = {
 
 type IngestDelta = StreamIngestDelta | LifecycleIngestEvent;
 type ClientMessage = ClientOutboundMessage;
+type RequestMethod = ClientRequest["method"];
+type ClientRequestMessage = ClientRequest;
+
+type RuntimeBridge = {
+  start: () => void;
+  stop: () => void;
+  send: (message: ClientMessage) => void;
+};
+
+type PendingRequest = {
+  method: string;
+  resolve?: (message: CodexResponse) => void;
+  reject?: (error: Error) => void;
+};
 
 export type HostRuntimeState = {
   running: boolean;
@@ -55,6 +82,8 @@ export type HostRuntimeStartArgs = {
   actor: ActorContext;
   sessionId: string;
   externalThreadId?: string;
+  runtimeThreadId?: string;
+  threadStrategy?: "start" | "resume" | "fork";
   model?: string;
   cwd?: string;
   runtime?: {
@@ -109,6 +138,23 @@ export type CodexHostRuntime = {
   stop: () => Promise<void>;
   sendTurn: (text: string) => void;
   interrupt: () => void;
+  resumeThread: (
+    runtimeThreadId: string,
+    params?: Omit<ThreadResumeParams, "threadId">,
+  ) => Promise<CodexResponse>;
+  forkThread: (
+    runtimeThreadId: string,
+    params?: Omit<ThreadForkParams, "threadId">,
+  ) => Promise<CodexResponse>;
+  archiveThread: (runtimeThreadId: string) => Promise<CodexResponse>;
+  unarchiveThread: (runtimeThreadId: string) => Promise<CodexResponse>;
+  rollbackThread: (runtimeThreadId: string, numTurns: number) => Promise<CodexResponse>;
+  readThread: (
+    runtimeThreadId: string,
+    includeTurns?: boolean,
+  ) => Promise<CodexResponse>;
+  listThreads: (params?: ThreadListParams) => Promise<CodexResponse>;
+  listLoadedThreads: (params?: ThreadLoadedListParams) => Promise<CodexResponse>;
   getState: () => HostRuntimeState;
 };
 
@@ -130,10 +176,11 @@ function isResponse(message: ServerInboundMessage): message is CodexResponse {
 
 export function createCodexHostRuntime(args: {
   bridge?: BridgeConfig;
+  bridgeFactory?: (config: BridgeConfig, handlers: ConstructorParameters<typeof CodexLocalBridge>[1]) => RuntimeBridge;
   persistence: HostRuntimePersistence;
   handlers?: HostRuntimeHandlers;
 }): CodexHostRuntime {
-  let bridge: CodexLocalBridge | null = null;
+  let bridge: RuntimeBridge | null = null;
   let actor: ActorContext | null = null;
   let sessionId: string | null = null;
   let threadId: string | null = null;
@@ -150,7 +197,7 @@ export function createCodexHostRuntime(args: {
   let flushTail: Promise<void> = Promise.resolve();
   let ingestFlushMs = 250;
 
-  const pendingRequests = new Map<number, { method: string }>();
+  const pendingRequests = new Map<number, PendingRequest>();
 
   const emitState = (lastError: string | null = null) => {
     args.handlers?.onState?.({
@@ -176,13 +223,57 @@ export function createCodexHostRuntime(args: {
     return id;
   };
 
-  const sendMessage = (message: ClientMessage, trackedMethod?: string) => {
+  const assertRuntimeReady = (): RuntimeBridge => {
     if (!bridge) {
       throw new Error("Bridge not started");
     }
-    bridge.send(message);
+    return bridge;
+  };
+
+  const methodForRequest = (message: ClientRequestMessage): RequestMethod => message.method;
+
+  const sendMessage = (message: ClientMessage, trackedMethod?: string) => {
+    const runtimeBridge = assertRuntimeReady();
+    runtimeBridge.send(message);
     if ("id" in message && typeof message.id === "number" && trackedMethod) {
       pendingRequests.set(message.id, { method: trackedMethod });
+    }
+  };
+
+  const sendRequest = (message: ClientRequestMessage): Promise<CodexResponse> => {
+    const runtimeBridge = assertRuntimeReady();
+    if (typeof message.id !== "number") {
+      throw new Error("Runtime requires numeric request ids.");
+    }
+    const messageId = message.id;
+    return new Promise<CodexResponse>((resolve, reject) => {
+      pendingRequests.set(messageId, { method: methodForRequest(message), resolve, reject });
+      runtimeBridge.send(message);
+    });
+  };
+
+  const throwIfTurnMutationLocked = () => {
+    if (turnInFlight && !turnSettled) {
+      throw new Error("Cannot change thread lifecycle while a turn is in flight.");
+    }
+  };
+
+  const setRuntimeThreadFromResponse = (message: CodexResponse, method: string) => {
+    if (message.error || !message.result || typeof message.result !== "object") {
+      return;
+    }
+    if (!("thread" in message.result) || typeof message.result.thread !== "object" || message.result.thread === null) {
+      return;
+    }
+    if (!("id" in message.result.thread) || typeof message.result.thread.id !== "string") {
+      return;
+    }
+    if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
+      runtimeThreadId = message.result.thread.id;
+      if (!externalThreadId) {
+        externalThreadId = message.result.thread.id;
+      }
+      emitState();
     }
   };
 
@@ -250,9 +341,7 @@ export function createCodexHostRuntime(args: {
       bridgeConfig.cwd = resolvedCwd;
     }
 
-    bridge = new CodexLocalBridge(
-      bridgeConfig,
-      {
+    const bridgeHandlers: ConstructorParameters<typeof CodexLocalBridge>[1] = {
         onEvent: async (event) => {
           if (!actor || !sessionId) {
             return;
@@ -361,24 +450,22 @@ export function createCodexHostRuntime(args: {
           if (isResponse(message) && typeof message.id === "number") {
             const pending = pendingRequests.get(message.id);
             pendingRequests.delete(message.id);
-            if (
-              pending?.method === "thread/start" &&
-              !message.error &&
-              message.result &&
-              typeof message.result === "object" &&
-              "thread" in message.result &&
-              typeof message.result.thread === "object" &&
-              message.result.thread !== null &&
-              "id" in message.result.thread &&
-              typeof message.result.thread.id === "string"
-            ) {
-              runtimeThreadId = message.result.thread.id;
+            if (pending) {
+              setRuntimeThreadFromResponse(message, pending.method);
             }
             if (message.error && pending?.method === "turn/start") {
               turnInFlight = false;
               turnSettled = true;
               turnId = null;
               emitState();
+            }
+            if (pending?.resolve) {
+              if (message.error) {
+                const code = typeof message.error.code === "number" ? String(message.error.code) : "UNKNOWN";
+                pending.reject?.(new Error(`[${code}] ${message.error.message}`));
+              } else {
+                pending.resolve(message);
+              }
             }
           }
           args.handlers?.onGlobalMessage?.(message);
@@ -391,8 +478,10 @@ export function createCodexHostRuntime(args: {
         onProcessExit: (code) => {
           emitState(`codex exited with code ${String(code)}`);
         },
-      },
-    );
+      };
+    bridge = args.bridgeFactory
+      ? args.bridgeFactory(bridgeConfig, bridgeHandlers)
+      : new CodexLocalBridge(bridgeConfig, bridgeHandlers);
 
     bridge.start();
 
@@ -405,13 +494,38 @@ export function createCodexHostRuntime(args: {
       "initialize",
     );
     sendMessage(buildInitializedNotification());
-    sendMessage(
-      buildThreadStartRequest(requestId(), {
-        ...(startArgs.model ? { model: startArgs.model } : {}),
-        ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}),
-      }),
-      "thread/start",
-    );
+    const strategy = startArgs.threadStrategy ?? "start";
+    if ((strategy === "resume" || strategy === "fork") && !startArgs.runtimeThreadId) {
+      throw new Error(`runtimeThreadId is required when threadStrategy=\"${strategy}\".`);
+    }
+
+    if (strategy === "start") {
+      sendMessage(
+        buildThreadStartRequest(requestId(), {
+          ...(startArgs.model ? { model: startArgs.model } : {}),
+          ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}),
+        }),
+        "thread/start",
+      );
+    } else if (strategy === "resume") {
+      sendMessage(
+        buildThreadResumeRequest(requestId(), {
+          threadId: startArgs.runtimeThreadId!,
+          ...(startArgs.model ? { model: startArgs.model } : {}),
+          ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}),
+        }),
+        "thread/resume",
+      );
+    } else {
+      sendMessage(
+        buildThreadForkRequest(requestId(), {
+          threadId: startArgs.runtimeThreadId!,
+          ...(startArgs.model ? { model: startArgs.model } : {}),
+          ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}),
+        }),
+        "thread/fork",
+      );
+    }
 
     emitState();
   };
@@ -419,6 +533,9 @@ export function createCodexHostRuntime(args: {
   const stop = async () => {
     clearFlushTimer();
     await flushQueue();
+    for (const [, pending] of pendingRequests) {
+      pending.reject?.(new Error("Bridge stopped before request completed."));
+    }
     bridge?.stop();
     bridge = null;
     actor = null;
@@ -466,6 +583,77 @@ export function createCodexHostRuntime(args: {
     sendMessage(buildTurnInterruptRequest(requestId(), { threadId: runtimeThreadId, turnId }), "turn/interrupt");
   };
 
+  const resumeThread = async (
+    nextRuntimeThreadId: string,
+    params?: Omit<ThreadResumeParams, "threadId">,
+  ): Promise<CodexResponse> => {
+    throwIfTurnMutationLocked();
+    return sendRequest(
+      buildThreadResumeRequest(requestId(), {
+        threadId: nextRuntimeThreadId,
+        ...(params ?? {}),
+      }),
+    );
+  };
+
+  const forkThread = async (
+    sourceRuntimeThreadId: string,
+    params?: Omit<ThreadForkParams, "threadId">,
+  ): Promise<CodexResponse> => {
+    throwIfTurnMutationLocked();
+    return sendRequest(
+      buildThreadForkRequest(requestId(), {
+        threadId: sourceRuntimeThreadId,
+        ...(params ?? {}),
+      }),
+    );
+  };
+
+  const archiveThread = async (targetRuntimeThreadId: string): Promise<CodexResponse> => {
+    throwIfTurnMutationLocked();
+    return sendRequest(
+      buildThreadArchiveRequest(requestId(), {
+        threadId: targetRuntimeThreadId,
+      }),
+    );
+  };
+
+  const unarchiveThread = async (targetRuntimeThreadId: string): Promise<CodexResponse> => {
+    throwIfTurnMutationLocked();
+    return sendRequest(
+      buildThreadUnarchiveRequest(requestId(), {
+        threadId: targetRuntimeThreadId,
+      }),
+    );
+  };
+
+  const rollbackThread = async (targetRuntimeThreadId: string, numTurns: number): Promise<CodexResponse> => {
+    throwIfTurnMutationLocked();
+    return sendRequest(
+      buildThreadRollbackRequest(requestId(), {
+        threadId: targetRuntimeThreadId,
+        numTurns,
+      }),
+    );
+  };
+
+  const readThread = async (
+    targetRuntimeThreadId: string,
+    includeTurns = false,
+  ): Promise<CodexResponse> =>
+    sendRequest(
+      buildThreadReadRequest(requestId(), {
+        threadId: targetRuntimeThreadId,
+        includeTurns,
+      }),
+    );
+
+  const listThreads = async (params?: ThreadListParams): Promise<CodexResponse> =>
+    sendRequest(buildThreadListRequest(requestId(), params));
+
+  const listLoadedThreads = async (params?: ThreadLoadedListParams): Promise<CodexResponse> =>
+    sendRequest(buildThreadLoadedListRequest(requestId(), params));
+
   const getState = (): HostRuntimeState => ({
     running: !!bridge,
     threadId,
@@ -480,6 +668,14 @@ export function createCodexHostRuntime(args: {
     stop,
     sendTurn,
     interrupt,
+    resumeThread,
+    forkThread,
+    archiveThread,
+    unarchiveThread,
+    rollbackThread,
+    readThread,
+    listThreads,
+    listLoadedThreads,
     getState,
   };
 }

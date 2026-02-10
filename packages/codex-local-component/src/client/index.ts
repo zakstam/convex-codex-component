@@ -14,7 +14,15 @@ export {
   replayStreams,
   resumeStreamReplay,
 } from "./sync.js";
-export { getThreadState } from "./threads.js";
+export {
+  createThread,
+  resolveThread,
+  resumeThread,
+  getThreadState,
+  resolveThreadByExternalId,
+  getExternalThreadMapping,
+  listThreads,
+} from "./threads.js";
 export type {
   CodexActorContext,
   CodexComponent,

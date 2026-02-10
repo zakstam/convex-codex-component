@@ -43,16 +43,18 @@ Recommended host entrypoints:
 ## Consumer SDK exports
 
 - `@zakstam/codex-local-component/client`
-  - message/approval/turn helpers
+  - message/approval/turn/thread helpers
   - sync helpers: `replayStreams`, `resumeStreamReplay`
 - `@zakstam/codex-local-component/react`
   - hooks for messages, approvals, turn state, composer, interrupts
 - `@zakstam/codex-local-component/app-server`
-  - typed request builders for app-server initialize/thread/turn flows
+  - typed request builders for app-server initialize, thread lifecycle, and turn flows
 - `@zakstam/codex-local-component/host`
   - host-side Convex wrapper helpers
   - reusable host `convex/chat.ts` slice primitives (validators + handlers)
-  - runtime loop orchestration helper (`createCodexHostRuntime`)
+  - runtime loop orchestration helper (`createCodexHostRuntime`) with:
+    - startup strategy: `threadStrategy: "start" | "resume" | "fork"`
+    - runtime thread lifecycle controls (`resumeThread`, `forkThread`, `archiveThread`, `unarchiveThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`)
   - for Convex server files, import the Node-safe subpath:
     - `@zakstam/codex-local-component/host/convex`
 

@@ -91,6 +91,49 @@ export const threadSnapshot = query({
   handler: async (ctx, args) => threadSnapshotHandler(ctx, components.codexLocal, args),
 });
 
+export const listThreadsForPicker = query({
+  args: {
+    actor: vHostActorContext,
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const listed = await ctx.runQuery(components.codexLocal.threads.list, {
+      actor: args.actor,
+      paginationOpts: {
+        numItems: Math.max(1, Math.floor(args.limit ?? 25)),
+        cursor: null,
+      },
+    });
+
+    const page = listed.page as Array<{
+      threadId: string;
+      status: string;
+      updatedAt: number;
+    }>;
+
+    const rows = await Promise.all(
+      page.map(async (thread) => {
+        const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
+          actor: args.actor,
+          threadId: thread.threadId,
+        });
+        return {
+          threadId: thread.threadId,
+          status: thread.status,
+          updatedAt: thread.updatedAt,
+          runtimeThreadId: mapping?.externalThreadId ?? null,
+        };
+      }),
+    );
+
+    return {
+      threads: rows,
+      hasMore: !listed.isDone,
+      continueCursor: listed.continueCursor,
+    };
+  },
+});
+
 export const persistenceStats = query({
   args: {
     actor: vHostActorContext,

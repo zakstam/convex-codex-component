@@ -223,7 +223,7 @@ test("durable message parsing from item/started", () => {
   });
 });
 
-test("durable message parsing from item/completed command failure", () => {
+test("durable message parsing from item/completed command failure keeps command text", () => {
   const payload = JSON.stringify({
     jsonrpc: "2.0",
     method: "item/completed",
@@ -250,7 +250,7 @@ test("durable message parsing from item/completed command failure", () => {
   assert.equal(parsed?.role, "tool");
   assert.equal(parsed?.status, "failed");
   assert.equal(parsed?.sourceItemType, "commandExecution");
-  assert.equal(parsed?.text, "boom");
+  assert.equal(parsed?.text, "ls");
 });
 
 test("durable message delta parsing from item/agentMessage/delta", () => {

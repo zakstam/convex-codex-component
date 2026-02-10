@@ -196,7 +196,7 @@ function durableTextFromItem(item: ThreadItem): string {
     case "reasoning":
       return [...item.summary, ...item.content].join("\n").trim();
     case "commandExecution":
-      return item.aggregatedOutput ?? item.command;
+      return item.command;
     case "fileChange":
       return `File changes: ${item.changes.length}`;
     case "mcpToolCall":

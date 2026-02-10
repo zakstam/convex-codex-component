@@ -16,6 +16,25 @@ function formatTime(timestamp: number): string {
   });
 }
 
+function formatToolCallText(sourceItemType: string | undefined, messageText: string): string {
+  switch (sourceItemType) {
+    case "commandExecution":
+      return messageText.trim() ? `Command: ${messageText}` : "Command execution";
+    case "fileChange":
+      return "File change";
+    case "mcpToolCall":
+      return "MCP tool call";
+    case "collabAgentToolCall":
+      return "Collab agent tool call";
+    case "webSearch":
+      return "Web search";
+    case "imageView":
+      return "Image view";
+    default:
+      return sourceItemType ? sourceItemType : "Tool call";
+  }
+}
+
 export function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
@@ -60,7 +79,7 @@ export function MessageBubble({ message }: Props) {
         </div>
         <div className="msg-bubble">
           <div className={`msg-body ${isStreaming ? "streaming" : ""}`}>
-            {message.text || "(empty)"}
+            {isTool ? formatToolCallText(message.sourceItemType, message.text) : message.text || "(empty)"}
           </div>
         </div>
       </div>

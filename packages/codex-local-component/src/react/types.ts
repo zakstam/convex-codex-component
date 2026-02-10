@@ -9,7 +9,17 @@ export type CodexStreamArgs =
 
 export type CodexStreamsResult =
   | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
-  | { kind: "deltas"; deltas: CodexStreamDeltaLike[] };
+  | {
+      kind: "deltas";
+      deltas: CodexStreamDeltaLike[];
+      streamWindows: Array<{
+        streamId: string;
+        status: "ok" | "rebased" | "stale";
+        serverCursorStart: number;
+        serverCursorEnd: number;
+      }>;
+      nextCheckpoints: Array<{ streamId: string; cursor: number }>;
+    };
 
 export type CodexMessagesQuery<Args = Record<string, unknown>> = FunctionReference<
   "query",

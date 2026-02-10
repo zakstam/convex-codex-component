@@ -45,11 +45,11 @@ export type CodexUIMessage = {
 };
 
 export type CodexStreamOverlay = FunctionReturnType<
-  ComponentApi["sync"]["pullState"]
+  ComponentApi["sync"]["replay"]
 >;
 
 type RuntimeOptionsFromPullState = FunctionArgs<
-  ComponentApi["sync"]["pullState"]
+  ComponentApi["sync"]["replay"]
 > extends {
   runtime?: infer Runtime;
 }
@@ -57,7 +57,7 @@ type RuntimeOptionsFromPullState = FunctionArgs<
   : never;
 
 type RuntimeOptionsFromResume = FunctionArgs<
-  ComponentApi["sync"]["resumeFromCursor"]
+  ComponentApi["sync"]["resumeReplay"]
 > extends {
   runtime?: infer Runtime;
 }

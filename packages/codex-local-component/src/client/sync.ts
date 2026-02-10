@@ -7,23 +7,23 @@ import type { CodexQueryRunner } from "./types.js";
 
 type SyncComponent = {
   sync: {
-    pullState: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-    resumeFromCursor: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    resumeReplay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
   };
 };
 
-export async function syncStreams<Component extends SyncComponent>(
+export async function replayStreams<Component extends SyncComponent>(
   ctx: CodexQueryRunner,
   component: Component,
-  args: FunctionArgs<Component["sync"]["pullState"]>,
-): Promise<FunctionReturnType<Component["sync"]["pullState"]>> {
-  return ctx.runQuery(component.sync.pullState, args);
+  args: FunctionArgs<Component["sync"]["replay"]>,
+): Promise<FunctionReturnType<Component["sync"]["replay"]>> {
+  return ctx.runQuery(component.sync.replay, args);
 }
 
-export async function resumeStream<Component extends SyncComponent>(
+export async function resumeStreamReplay<Component extends SyncComponent>(
   ctx: CodexQueryRunner,
   component: Component,
-  args: FunctionArgs<Component["sync"]["resumeFromCursor"]>,
-): Promise<FunctionReturnType<Component["sync"]["resumeFromCursor"]>> {
-  return ctx.runQuery(component.sync.resumeFromCursor, args);
+  args: FunctionArgs<Component["sync"]["resumeReplay"]>,
+): Promise<FunctionReturnType<Component["sync"]["resumeReplay"]>> {
+  return ctx.runQuery(component.sync.resumeReplay, args);
 }

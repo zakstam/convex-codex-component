@@ -7,9 +7,9 @@ import {
   listMessages,
   listTurnMessages,
   respondToApproval,
-  resumeStream,
+  resumeStreamReplay,
   startTurn,
-  syncStreams,
+  replayStreams,
 } from "../dist/client/index.js";
 
 test("listMessages passes query reference and args", async () => {
@@ -106,11 +106,11 @@ test("startTurn and interruptTurn pass mutation refs and args", async () => {
   ]);
 });
 
-test("syncStreams and resumeStream pass query refs and args", async () => {
-  const pullState = {};
-  const resumeFromCursor = {};
+test("replayStreams and resumeStreamReplay pass query refs and args", async () => {
+  const replay = {};
+  const resumeReplay = {};
   const component = {
-    sync: { pullState, resumeFromCursor },
+    sync: { replay, resumeReplay },
   };
   const syncArgs = {
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
@@ -127,18 +127,18 @@ test("syncStreams and resumeStream pass query refs and args", async () => {
   const ctx = {
     runQuery: async (ref, queryArgs) => {
       calls.push({ ref, queryArgs });
-      return ref === pullState ? { streams: [] } : { deltas: [], nextCursor: 0 };
+      return ref === replay ? { streams: [] } : { deltas: [], nextCursor: 0 };
     },
   };
 
-  const syncResult = await syncStreams(ctx, component, syncArgs);
-  const resumeResult = await resumeStream(ctx, component, resumeArgs);
+  const syncResult = await replayStreams(ctx, component, syncArgs);
+  const resumeResult = await resumeStreamReplay(ctx, component, resumeArgs);
 
   assert.deepEqual(syncResult, { streams: [] });
   assert.deepEqual(resumeResult, { deltas: [], nextCursor: 0 });
   assert.deepEqual(calls, [
-    { ref: pullState, queryArgs: syncArgs },
-    { ref: resumeFromCursor, queryArgs: resumeArgs },
+    { ref: replay, queryArgs: syncArgs },
+    { ref: resumeReplay, queryArgs: resumeArgs },
   ]);
 });
 

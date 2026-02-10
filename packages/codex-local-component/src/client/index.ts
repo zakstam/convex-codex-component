@@ -11,8 +11,8 @@ export {
   interruptTurn,
 } from "./turns.js";
 export {
-  syncStreams,
-  resumeStream,
+  replayStreams,
+  resumeStreamReplay,
 } from "./sync.js";
 export { getThreadState } from "./threads.js";
 export type {

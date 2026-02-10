@@ -14,14 +14,55 @@ type StreamOverlayState = {
 
 function applyDeltaBatch(
   state: StreamOverlayState,
-  deltas: CodexStreamDeltaLike[],
+  payload: {
+    deltas: CodexStreamDeltaLike[];
+    streamWindows: Array<{
+      streamId: string;
+      status: "ok" | "rebased" | "stale";
+      serverCursorStart: number;
+      serverCursorEnd: number;
+    }>;
+    nextCheckpoints: Array<{ streamId: string; cursor: number }>;
+  },
 ): StreamOverlayState {
+  const { deltas, streamWindows, nextCheckpoints } = payload;
   if (deltas.length === 0) {
-    return state;
+    const nextOnly = { ...state.cursorsByStreamId };
+    const resetStreamIds = new Set<string>(
+      streamWindows
+        .filter((window) => window.status === "rebased" || window.status === "stale")
+        .map((window) => window.streamId),
+    );
+    const nextDeltas = state.deltas.filter((delta) => !resetStreamIds.has(delta.streamId));
+    for (const window of streamWindows) {
+      if (window.status !== "ok") {
+        nextOnly[window.streamId] = window.serverCursorStart;
+      }
+    }
+    for (const checkpoint of nextCheckpoints) {
+      nextOnly[checkpoint.streamId] = Math.max(
+        nextOnly[checkpoint.streamId] ?? 0,
+        checkpoint.cursor,
+      );
+    }
+    if (nextCheckpoints.length === 0 && resetStreamIds.size === 0) {
+      return state;
+    }
+    return { ...state, cursorsByStreamId: nextOnly, deltas: nextDeltas };
   }
 
   const nextCursors = { ...state.cursorsByStreamId };
-  const nextDeltas = [...state.deltas];
+  const resetStreamIds = new Set<string>(
+    streamWindows
+      .filter((window) => window.status === "rebased" || window.status === "stale")
+      .map((window) => window.streamId),
+  );
+  let nextDeltas = state.deltas.filter((delta) => !resetStreamIds.has(delta.streamId));
+  for (const window of streamWindows) {
+    if (window.status !== "ok") {
+      nextCursors[window.streamId] = window.serverCursorStart;
+    }
+  }
   const sorted = [...deltas].sort((a, b) => a.cursorEnd - b.cursorEnd);
 
   for (const delta of sorted) {
@@ -29,11 +70,20 @@ function applyDeltaBatch(
     if (delta.cursorEnd <= currentCursor) {
       continue;
     }
-    if (delta.cursorStart !== currentCursor) {
+    if (delta.cursorStart > currentCursor) {
+      nextDeltas = nextDeltas.filter((existing) => existing.streamId !== delta.streamId);
+      nextCursors[delta.streamId] = delta.cursorStart;
+    } else if (delta.cursorStart < currentCursor) {
       continue;
     }
     nextDeltas.push(delta);
     nextCursors[delta.streamId] = delta.cursorEnd;
+  }
+  for (const checkpoint of nextCheckpoints) {
+    nextCursors[checkpoint.streamId] = Math.max(
+      nextCursors[checkpoint.streamId] ?? 0,
+      checkpoint.cursor,
+    );
   }
 
   return {
@@ -98,15 +148,21 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(
         } as FunctionArgs<Query>),
   ) as ({ streams?: CodexStreamsResult } & unknown) | undefined;
 
-  const newDeltas =
-    streamDeltaQuery?.streams?.kind === "deltas" ? streamDeltaQuery.streams.deltas : undefined;
+  const deltaPayload =
+    streamDeltaQuery?.streams?.kind === "deltas"
+      ? {
+          deltas: streamDeltaQuery.streams.deltas,
+          streamWindows: streamDeltaQuery.streams.streamWindows,
+          nextCheckpoints: streamDeltaQuery.streams.nextCheckpoints,
+        }
+      : undefined;
 
   useEffect(() => {
-    if (!newDeltas || newDeltas.length === 0) {
+    if (!deltaPayload) {
       return;
     }
-    setOverlayState((current) => applyDeltaBatch(current, newDeltas));
-  }, [newDeltas]);
+    setOverlayState((current) => applyDeltaBatch(current, deltaPayload));
+  }, [deltaPayload]);
 
   return {
     deltas: overlayState.deltas,

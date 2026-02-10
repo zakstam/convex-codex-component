@@ -1,0 +1,101 @@
+import { resolveRuntimeOptions, syncError } from "../syncRuntime.js";
+import type { MutationCtx } from "../_generated/server.js";
+import { normalizeInboundEvents } from "./normalize.js";
+import { createIngestStateCache } from "./stateCache.js";
+import { requireBoundSession } from "./sessionGuard.js";
+import type { PushEventsArgs } from "./types.js";
+import { ensureTurnForEvent, collectTurnSignals, finalizeTurns } from "./applyTurns.js";
+import { applyMessageEffectsForEvent } from "./applyMessages.js";
+import { collectApprovalEffects, finalizeApprovals } from "./applyApprovals.js";
+import {
+  applyStreamEvent,
+  finalizeStreamStates,
+  flushStreamStats,
+  persistLifecycleEventIfMissing,
+} from "./applyStreams.js";
+import { applyStreamCheckpoints } from "./checkpoints.js";
+import { patchSessionAfterIngest, schedulePostIngestMaintenance } from "./postIngest.js";
+
+export async function ingestEvents(
+  ctx: MutationCtx,
+  args: PushEventsArgs,
+): Promise<{ ackedStreams: Array<{ streamId: string; ackCursorEnd: number }>; ingestStatus: "ok" | "partial" }> {
+  const runtime = resolveRuntimeOptions(args.runtime);
+  const deltas = normalizeInboundEvents({
+    streamDeltas: [...args.streamDeltas, ...args.lifecycleEvents],
+  });
+
+  if (deltas.length === 0) {
+    syncError("E_SYNC_EMPTY_BATCH", "ingest received an empty delta batch");
+  }
+
+  const session = await requireBoundSession(ctx, args);
+
+  const streamStats = await ctx.db
+    .query("codex_stream_stats")
+    .withIndex("tenantId_threadId", (q) =>
+      q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+    )
+    .take(500);
+
+  const ingest = {
+    ctx,
+    args,
+    runtime,
+    session,
+    collected: {
+      inBatchEventIds: new Set<string>(),
+      knownTurnIds: new Set<string>(),
+      startedTurns: new Set<string>(),
+      terminalTurns: new Map(),
+      terminalByStream: new Map(),
+      pendingApprovals: new Map(),
+      resolvedApprovals: new Map(),
+    },
+    streamState: {
+      persistedStatsByStreamId: new Map(),
+      streamCheckpointCursorByStreamId: new Map<string, number>(),
+      expectedCursorByStreamId: new Map<string, number>(
+        streamStats.map((stat) => [String(stat.streamId), Number(stat.latestCursor)]),
+      ),
+    },
+    lastPersistedCursor: session.lastEventCursor,
+    persistedAnyEvent: false,
+    ingestStatus: "ok" as const,
+  };
+
+  const cache = createIngestStateCache({
+    ctx,
+    tenantId: args.actor.tenantId,
+    threadId: args.threadId,
+  });
+
+  for (const event of deltas) {
+    await ensureTurnForEvent(ingest, event);
+    collectTurnSignals(ingest, event);
+    collectApprovalEffects(ingest, event);
+    await applyMessageEffectsForEvent(ingest, event, cache);
+
+    if (event.type === "lifecycle_event") {
+      await persistLifecycleEventIfMissing(ingest, event);
+      continue;
+    }
+
+    await applyStreamEvent(ingest, event, cache);
+  }
+
+  await finalizeTurns(ingest, cache);
+  await finalizeApprovals(ingest, cache);
+  await finalizeStreamStates(ingest, cache);
+  await flushStreamStats(ingest);
+  await applyStreamCheckpoints(ingest);
+
+  const nowMs = await patchSessionAfterIngest(ingest);
+  await schedulePostIngestMaintenance(ingest, nowMs);
+
+  const ackedStreams = Array.from(ingest.streamState.streamCheckpointCursorByStreamId.entries())
+    .map(([streamId, ackCursorEnd]) => ({ streamId, ackCursorEnd }))
+    .sort((a, b) => a.streamId.localeCompare(b.streamId));
+
+  return { ackedStreams, ingestStatus: ingest.ingestStatus };
+}

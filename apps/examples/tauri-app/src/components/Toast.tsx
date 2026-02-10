@@ -6,6 +6,12 @@ export type ToastItem = {
   message: string;
 };
 
+const TOAST_ICONS: Record<string, string> = {
+  error: "!",
+  success: "\u2713",
+  info: "i",
+};
+
 type ToastProps = {
   toast: ToastItem;
   onDismiss: (id: string) => void;
@@ -19,6 +25,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
 
   return (
     <div className={`toast toast-${toast.type}`} role="alert" aria-live="assertive">
+      <span className="toast-icon">{TOAST_ICONS[toast.type]}</span>
       <span className="toast-message">{toast.message}</span>
       <button
         className="toast-dismiss"

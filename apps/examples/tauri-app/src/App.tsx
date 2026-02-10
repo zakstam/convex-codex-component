@@ -126,7 +126,7 @@ export default function App() {
   const messages = useCodexMessages(
     requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
     messageArgs,
-    { initialNumItems: 30, stream: false },
+    { initialNumItems: 30, stream: true },
   );
 
   const threadState = useCodexThreadState(

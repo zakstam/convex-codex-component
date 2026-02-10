@@ -4,8 +4,14 @@ import { useQuery } from "convex/react";
 import { useCodexMessages, useCodexThreadState } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
+  cancelAccountLogin,
   getBridgeState,
   interruptTurn,
+  loginAccount,
+  logoutAccount,
+  readAccount,
+  readAccountRateLimits,
+  respondChatgptAuthTokensRefresh,
   respondCommandApproval,
   respondFileChangeApproval,
   respondToolUserInput,
@@ -14,6 +20,7 @@ import {
   stopBridge,
   type ActorContext,
   type BridgeState,
+  type LoginAccountParams,
 } from "./lib/tauriBridge";
 import { Header } from "./components/Header";
 import { BridgeStatus } from "./components/BridgeStatus";
@@ -71,6 +78,16 @@ type PendingServerRequest = {
   questions?: ToolQuestion[];
 };
 
+type PendingAuthRefreshRequest = {
+  requestId: string | number;
+  reason: string;
+  previousAccountId: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
 function requireDefined<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
     throw new Error(`Missing generated Convex reference: ${name}`);
@@ -104,6 +121,13 @@ export default function App() {
   const [toolOtherDrafts, setToolOtherDrafts] = useState<Record<string, Record<string, string>>>({});
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [idToken, setIdToken] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [cancelLoginId, setCancelLoginId] = useState("");
+  const [authSummary, setAuthSummary] = useState<string>("No account action yet.");
+  const [pendingAuthRefresh, setPendingAuthRefresh] = useState<PendingAuthRefreshRequest[]>([]);
 
   const addToast = useCallback((type: ToastItem["type"], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -198,12 +222,57 @@ export default function App() {
         }),
         listen<Record<string, unknown>>("codex:global_message", (event) => {
           const payload = event.payload ?? {};
-          if (payload.error) {
+          const record = asRecord(payload);
+          if (!record) {
+            return;
+          }
+          if (record.error) {
             console.error("[codex:global_message:error]", payload);
-          } else if (payload.kind === "sync/session_rolled_over") {
+          } else if (record.kind === "sync/session_rolled_over") {
             console.warn("[codex:global_message:session_rolled_over]", payload);
           } else {
             console.debug("[codex:global_message]", payload);
+          }
+
+          const method = typeof record.method === "string" ? record.method : null;
+          if (method === "account/chatgptAuthTokens/refresh") {
+            const requestId = record.id;
+            const params = asRecord(record.params);
+            if ((typeof requestId === "string" || typeof requestId === "number") && params) {
+              const reason = typeof params.reason === "string" ? params.reason : "unknown";
+              const previousAccountId =
+                typeof params.previousAccountId === "string" ? params.previousAccountId : null;
+              setPendingAuthRefresh((prev) => {
+                const key = `${typeof requestId}:${String(requestId)}`;
+                const filtered = prev.filter(
+                  (item) => `${typeof item.requestId}:${String(item.requestId)}` !== key,
+                );
+                return [...filtered, { requestId, reason, previousAccountId }];
+              });
+              addToast("info", "Auth token refresh requested by runtime");
+            }
+            return;
+          }
+
+          if (method === "account/login/completed") {
+            const params = asRecord(record.params);
+            const success = typeof params?.success === "boolean" ? params.success : null;
+            if (success === true) {
+              addToast("success", "Login completed");
+            } else if (success === false) {
+              addToast("error", "Login failed");
+            }
+            return;
+          }
+
+          if (
+            record.kind === "account/read_result" ||
+            record.kind === "account/login_start_result" ||
+            record.kind === "account/login_cancel_result" ||
+            record.kind === "account/logout_result" ||
+            record.kind === "account/rate_limits_read_result"
+          ) {
+            setAuthSummary(JSON.stringify(record.response ?? {}, null, 2));
           }
         }),
       ]);
@@ -381,6 +450,101 @@ export default function App() {
     }));
   };
 
+  const runAuthAction = async (name: string, fn: () => Promise<unknown>) => {
+    setAuthBusy(true);
+    try {
+      await fn();
+      setBridge((prev) => ({ ...prev, lastError: null }));
+      addToast("success", name);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setBridge((prev) => ({ ...prev, lastError: message }));
+      addToast("error", message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const onAccountRead = (refreshToken: boolean) =>
+    void runAuthAction(refreshToken ? "Account read (refresh requested)" : "Account read", async () => {
+      await readAccount({ refreshToken });
+    });
+
+  const onLoginApiKey = () => {
+    const key = apiKey.trim();
+    if (!key) {
+      addToast("error", "API key is required.");
+      return;
+    }
+    void runAuthAction("API key login started", async () => {
+      const params: LoginAccountParams = { type: "apiKey", apiKey: key };
+      await loginAccount({ params });
+    });
+  };
+
+  const onLoginChatgpt = () =>
+    void runAuthAction("ChatGPT login started", async () => {
+      const params: LoginAccountParams = { type: "chatgpt" };
+      await loginAccount({ params });
+    });
+
+  const onLoginChatgptTokens = () => {
+    const id = idToken.trim();
+    const access = accessToken.trim();
+    if (!id || !access) {
+      addToast("error", "ID token and access token are required.");
+      return;
+    }
+    void runAuthAction("ChatGPT token login started", async () => {
+      const params: LoginAccountParams = {
+        type: "chatgptAuthTokens",
+        idToken: id,
+        accessToken: access,
+      };
+      await loginAccount({ params });
+    });
+  };
+
+  const onCancelLogin = () => {
+    const loginId = cancelLoginId.trim();
+    if (!loginId) {
+      addToast("error", "Login ID is required.");
+      return;
+    }
+    void runAuthAction("Login cancel requested", async () => {
+      await cancelAccountLogin({ loginId });
+    });
+  };
+
+  const onLogout = () =>
+    void runAuthAction("Logout requested", async () => {
+      await logoutAccount();
+    });
+
+  const onReadRateLimits = () =>
+    void runAuthAction("Rate limits read requested", async () => {
+      await readAccountRateLimits();
+    });
+
+  const onRespondAuthRefresh = (requestId: string | number) => {
+    const id = idToken.trim();
+    const access = accessToken.trim();
+    if (!id || !access) {
+      addToast("error", "Provide ID token and access token before responding.");
+      return;
+    }
+    void runAuthAction("Auth refresh response sent", async () => {
+      await respondChatgptAuthTokensRefresh({
+        requestId,
+        idToken: id,
+        accessToken: access,
+      });
+      setPendingAuthRefresh((prev) =>
+        prev.filter((item) => `${typeof item.requestId}:${String(item.requestId)}` !== `${typeof requestId}:${String(requestId)}`),
+      );
+    });
+  };
+
   return (
     <div className="app" role="main">
       <section className="panel chat">
@@ -426,6 +590,143 @@ export default function App() {
           setToolSelected={setToolSelected}
           setToolOther={setToolOther}
         />
+        <section className="panel card" aria-label="Account and auth controls">
+          <h2>Account/Auth</h2>
+          <div className="auth-controls">
+            <div className="auth-row">
+              <button
+                className="secondary"
+                onClick={() => onAccountRead(false)}
+                disabled={!bridge.running || authBusy}
+              >
+                Read Account
+              </button>
+              <button
+                className="secondary"
+                onClick={() => onAccountRead(true)}
+                disabled={!bridge.running || authBusy}
+              >
+                Read + Refresh
+              </button>
+              <button
+                className="danger"
+                onClick={onLogout}
+                disabled={!bridge.running || authBusy}
+              >
+                Logout
+              </button>
+            </div>
+
+            <label className="auth-label" htmlFor="api-key-login">
+              API Key Login
+            </label>
+            <div className="auth-row">
+              <input
+                id="api-key-login"
+                type="password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="sk-..."
+                disabled={!bridge.running || authBusy}
+              />
+              <button onClick={onLoginApiKey} disabled={!bridge.running || authBusy}>
+                Login
+              </button>
+            </div>
+
+            <label className="auth-label" htmlFor="chatgpt-login">
+              ChatGPT Login
+            </label>
+            <div className="auth-row">
+              <button
+                id="chatgpt-login"
+                className="secondary"
+                onClick={onLoginChatgpt}
+                disabled={!bridge.running || authBusy}
+              >
+                Start OAuth Login
+              </button>
+            </div>
+
+            <label className="auth-label" htmlFor="id-token-input">
+              ChatGPT Token Login
+            </label>
+            <div className="auth-grid">
+              <input
+                id="id-token-input"
+                type="password"
+                value={idToken}
+                onChange={(event) => setIdToken(event.target.value)}
+                placeholder="idToken"
+                disabled={!bridge.running || authBusy}
+              />
+              <input
+                type="password"
+                value={accessToken}
+                onChange={(event) => setAccessToken(event.target.value)}
+                placeholder="accessToken"
+                disabled={!bridge.running || authBusy}
+              />
+            </div>
+            <div className="auth-row">
+              <button onClick={onLoginChatgptTokens} disabled={!bridge.running || authBusy}>
+                Login With Tokens
+              </button>
+            </div>
+
+            <label className="auth-label" htmlFor="cancel-login-id">
+              Cancel Login
+            </label>
+            <div className="auth-row">
+              <input
+                id="cancel-login-id"
+                type="text"
+                value={cancelLoginId}
+                onChange={(event) => setCancelLoginId(event.target.value)}
+                placeholder="loginId"
+                disabled={!bridge.running || authBusy}
+              />
+              <button
+                className="secondary"
+                onClick={onCancelLogin}
+                disabled={!bridge.running || authBusy}
+              >
+                Cancel
+              </button>
+              <button
+                className="secondary"
+                onClick={onReadRateLimits}
+                disabled={!bridge.running || authBusy}
+              >
+                Read Rate Limits
+              </button>
+            </div>
+
+            {pendingAuthRefresh.length > 0 && (
+              <div className="auth-refresh-list">
+                <h3>Pending Auth Token Refresh</h3>
+                {pendingAuthRefresh.map((request) => (
+                  <div className="auth-refresh-item" key={`${typeof request.requestId}:${String(request.requestId)}`}>
+                    <p className="code auth-refresh-meta">
+                      id={String(request.requestId)} reason={request.reason}
+                      {request.previousAccountId ? ` previousAccountId=${request.previousAccountId}` : ""}
+                    </p>
+                    <button
+                      className="secondary"
+                      onClick={() => onRespondAuthRefresh(request.requestId)}
+                      disabled={!bridge.running || authBusy}
+                    >
+                      Respond With Tokens
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <h3>Last Auth Result</h3>
+            <pre className="auth-summary code">{authSummary}</pre>
+          </div>
+        </section>
         <EventLog threadState={threadState} runtimeLog={runtimeLog} />
       </aside>
 

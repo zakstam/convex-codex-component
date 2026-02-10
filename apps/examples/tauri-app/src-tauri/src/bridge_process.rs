@@ -189,6 +189,73 @@ impl BridgeRuntime {
         .await
     }
 
+    pub async fn read_account(
+        &self,
+        app: AppHandle,
+        refresh_token: Option<bool>,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "account_read",
+            json!({ "refreshToken": refresh_token.unwrap_or(false) }),
+        )
+        .await
+    }
+
+    pub async fn login_account(
+        &self,
+        app: AppHandle,
+        params: serde_json::Value,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "account_login_start",
+            json!({ "params": params }),
+        )
+        .await
+    }
+
+    pub async fn cancel_account_login(
+        &self,
+        app: AppHandle,
+        login_id: String,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "account_login_cancel",
+            json!({ "loginId": login_id }),
+        )
+        .await
+    }
+
+    pub async fn logout_account(&self, app: AppHandle) -> Result<(), String> {
+        self.send_to_helper(&app, "account_logout", json!({})).await
+    }
+
+    pub async fn read_account_rate_limits(&self, app: AppHandle) -> Result<(), String> {
+        self.send_to_helper(&app, "account_rate_limits_read", json!({}))
+            .await
+    }
+
+    pub async fn respond_chatgpt_auth_tokens_refresh(
+        &self,
+        app: AppHandle,
+        request_id: serde_json::Value,
+        id_token: String,
+        access_token: String,
+    ) -> Result<(), String> {
+        self.send_to_helper(
+            &app,
+            "respond_chatgpt_auth_tokens_refresh",
+            json!({
+                "requestId": request_id,
+                "idToken": id_token,
+                "accessToken": access_token
+            }),
+        )
+        .await
+    }
+
     pub async fn stop(&self, app: AppHandle) -> Result<(), String> {
         let mut inner = self.inner.lock().await;
         if let Some(process) = inner.as_mut() {

@@ -54,8 +54,8 @@ Recommended host entrypoints:
 - `@zakstam/codex-local-component/react`
   - hooks for messages/reasoning, approvals, turn state, composer, interrupts
 - `@zakstam/codex-local-component/app-server`
-  - typed request builders for app-server initialize, thread lifecycle, and turn flows
-  - typed server-request response builders for command/file approval, tool user-input, and dynamic tool calls
+  - typed request builders for app-server initialize, thread lifecycle, turn flows, and account/auth flows
+  - typed server-request response builders for command/file approval, tool user-input, dynamic tool calls, and ChatGPT auth-token refresh
 - `@zakstam/codex-local-component/host`
   - host-side Convex wrapper helpers
   - reusable host `convex/chat.ts` slice primitives (validators + handlers)
@@ -63,7 +63,9 @@ Recommended host entrypoints:
     - startup strategy: `threadStrategy: "start" | "resume" | "fork"`
     - dynamic tool registration on startup/resume via `dynamicTools`
     - runtime thread lifecycle controls (`resumeThread`, `forkThread`, `archiveThread`, `unarchiveThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`)
+    - runtime account/auth controls (`readAccount`, `loginAccount`, `cancelAccountLogin`, `logoutAccount`, `readAccountRateLimits`)
     - pending server-request controls (`listPendingServerRequests`, `respondCommandApproval`, `respondFileChangeApproval`, `respondToolUserInput`, `respondDynamicToolCall`)
+    - auth-token refresh response control (`respondChatgptAuthTokensRefresh`) for `account/chatgptAuthTokens/refresh` (in-memory pending tracking)
     - runtime ingest diagnostics via `getState().ingestMetrics` (enqueued/skipped counts by event kind)
   - for Convex server files, import the Node-safe subpath:
     - `@zakstam/codex-local-component/host/convex`

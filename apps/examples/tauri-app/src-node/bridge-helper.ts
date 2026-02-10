@@ -14,6 +14,7 @@ type FileChangeApprovalDecision = v2.FileChangeApprovalDecision;
 type ToolRequestUserInputAnswer = v2.ToolRequestUserInputAnswer;
 type DynamicToolSpec = v2.DynamicToolSpec;
 type DynamicToolCallOutputContentItem = v2.DynamicToolCallOutputContentItem;
+type LoginAccountParams = v2.LoginAccountParams;
 
 type ActorContext = { tenantId: string; userId: string; deviceId: string };
 type StartPayload = {
@@ -35,6 +36,15 @@ type HelperCommand =
   | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
   | { type: "respond_file_change_approval"; payload: { requestId: string | number; decision: FileChangeApprovalDecision } }
   | { type: "respond_tool_user_input"; payload: { requestId: string | number; answers: Record<string, ToolRequestUserInputAnswer> } }
+  | { type: "account_read"; payload: { refreshToken?: boolean } }
+  | { type: "account_login_start"; payload: { params: LoginAccountParams } }
+  | { type: "account_login_cancel"; payload: { loginId: string } }
+  | { type: "account_logout"; payload: Record<string, never> }
+  | { type: "account_rate_limits_read"; payload: Record<string, never> }
+  | {
+      type: "respond_chatgpt_auth_tokens_refresh";
+      payload: { requestId: string | number; idToken: string; accessToken: string };
+    }
   | { type: "interrupt" }
   | { type: "stop" }
   | { type: "status" };
@@ -734,6 +744,61 @@ async function respondToolUserInput(
   await runtime.respondToolUserInput({ requestId, answers });
 }
 
+async function readAccount(refreshToken?: boolean): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  const response = await runtime.readAccount({ refreshToken: refreshToken ?? false });
+  emit({ type: "global", payload: { kind: "account/read_result", response } });
+}
+
+async function loginAccount(params: LoginAccountParams): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  const response = await runtime.loginAccount(params);
+  emit({ type: "global", payload: { kind: "account/login_start_result", response } });
+}
+
+async function cancelAccountLogin(loginId: string): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  const response = await runtime.cancelAccountLogin({ loginId });
+  emit({ type: "global", payload: { kind: "account/login_cancel_result", response } });
+}
+
+async function logoutAccount(): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  const response = await runtime.logoutAccount();
+  emit({ type: "global", payload: { kind: "account/logout_result", response } });
+}
+
+async function readAccountRateLimits(): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  const response = await runtime.readAccountRateLimits();
+  emit({ type: "global", payload: { kind: "account/rate_limits_read_result", response } });
+}
+
+async function respondChatgptAuthTokensRefresh(args: {
+  requestId: string | number;
+  idToken: string;
+  accessToken: string;
+}): Promise<void> {
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  await runtime.respondChatgptAuthTokensRefresh({
+    requestId: args.requestId,
+    idToken: args.idToken,
+    accessToken: args.accessToken,
+  });
+}
+
 async function stopCurrentBridge(): Promise<void> {
   try {
     if (runtime) {
@@ -779,6 +844,30 @@ async function handle(command: HelperCommand): Promise<void> {
     case "respond_tool_user_input":
       await respondToolUserInput(command.payload.requestId, command.payload.answers);
       emit({ type: "ack", payload: { command: "respond_tool_user_input" } });
+      return;
+    case "account_read":
+      await readAccount(command.payload.refreshToken);
+      emit({ type: "ack", payload: { command: "account_read" } });
+      return;
+    case "account_login_start":
+      await loginAccount(command.payload.params);
+      emit({ type: "ack", payload: { command: "account_login_start" } });
+      return;
+    case "account_login_cancel":
+      await cancelAccountLogin(command.payload.loginId);
+      emit({ type: "ack", payload: { command: "account_login_cancel" } });
+      return;
+    case "account_logout":
+      await logoutAccount();
+      emit({ type: "ack", payload: { command: "account_logout" } });
+      return;
+    case "account_rate_limits_read":
+      await readAccountRateLimits();
+      emit({ type: "ack", payload: { command: "account_rate_limits_read" } });
+      return;
+    case "respond_chatgpt_auth_tokens_refresh":
+      await respondChatgptAuthTokensRefresh(command.payload);
+      emit({ type: "ack", payload: { command: "respond_chatgpt_auth_tokens_refresh" } });
       return;
     case "interrupt":
       interruptCurrentTurn();

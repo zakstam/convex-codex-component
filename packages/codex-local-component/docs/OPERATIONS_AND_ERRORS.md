@@ -57,6 +57,7 @@ If command/file approval, `item/tool/requestUserInput`, or `item/tool/call` requ
    - `respondFileChangeApproval`
    - `respondToolUserInput`
    - `respondDynamicToolCall`
+   - `respondChatgptAuthTokensRefresh` (for `account/chatgptAuthTokens/refresh` global requests)
 4. if turn already completed/failed, request may be marked `expired`
 
 ### Protocol parse failures

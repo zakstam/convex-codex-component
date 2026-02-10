@@ -2,7 +2,11 @@ import type { ClientInfo } from "../protocol/schemas/ClientInfo.js";
 import type { ClientNotification } from "../protocol/schemas/ClientNotification.js";
 import type { ClientRequest } from "../protocol/schemas/ClientRequest.js";
 import type { ThreadArchiveParams } from "../protocol/schemas/v2/ThreadArchiveParams.js";
+import type { CancelLoginAccountParams } from "../protocol/schemas/v2/CancelLoginAccountParams.js";
+import type { ChatgptAuthTokensRefreshResponse } from "../protocol/schemas/v2/ChatgptAuthTokensRefreshResponse.js";
 import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.js";
+import type { GetAccountParams } from "../protocol/schemas/v2/GetAccountParams.js";
+import type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
 import type { ThreadReadParams } from "../protocol/schemas/v2/ThreadReadParams.js";
@@ -176,6 +180,42 @@ export function buildTurnInterruptRequest(
   return buildClientRequest("turn/interrupt", id, params);
 }
 
+export function buildAccountReadRequest(
+  id: number,
+  params?: { refreshToken?: boolean },
+): RequestFor<"account/read"> {
+  const requestParams: GetAccountParams = {
+    refreshToken: params?.refreshToken ?? false,
+  };
+  return buildClientRequest("account/read", id, requestParams);
+}
+
+export function buildAccountLoginStartRequest(
+  id: number,
+  params: LoginAccountParams,
+): RequestFor<"account/login/start"> {
+  return buildClientRequest("account/login/start", id, params);
+}
+
+export function buildAccountLoginCancelRequest(
+  id: number,
+  params: CancelLoginAccountParams,
+): RequestFor<"account/login/cancel"> {
+  return buildClientRequest("account/login/cancel", id, params);
+}
+
+export function buildAccountLogoutRequest(id: number): RequestFor<"account/logout"> {
+  return buildClientRequest("account/logout", id, undefined as RequestParams<"account/logout">);
+}
+
+export function buildAccountRateLimitsReadRequest(id: number): RequestFor<"account/rateLimits/read"> {
+  return buildClientRequest(
+    "account/rateLimits/read",
+    id,
+    undefined as RequestParams<"account/rateLimits/read">,
+  );
+}
+
 export function buildCommandExecutionApprovalResponse(
   id: RequestId,
   decision: CommandExecutionApprovalDecision,
@@ -209,4 +249,11 @@ export function buildDynamicToolCallResponse(
     contentItems: args.contentItems,
   };
   return { id, result };
+}
+
+export function buildChatgptAuthTokensRefreshResponse(
+  id: RequestId,
+  tokens: ChatgptAuthTokensRefreshResponse,
+): ClientServerRequestResponse {
+  return { id, result: tokens };
 }

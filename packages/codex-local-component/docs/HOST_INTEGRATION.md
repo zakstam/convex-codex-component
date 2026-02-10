@@ -154,6 +154,11 @@ The runtime also exposes typed app-server lifecycle methods:
 - `unarchiveThread(runtimeThreadId)`
 - `rollbackThread(runtimeThreadId, numTurns)`
 - `readThread(runtimeThreadId, includeTurns?)`
+- `readAccount(params?)`
+- `loginAccount(params)`
+- `cancelAccountLogin(params)`
+- `logoutAccount()`
+- `readAccountRateLimits()`
 - `listThreads(params?)`
 - `listLoadedThreads(params?)`
 - `listPendingServerRequests(localThreadId?)`
@@ -161,8 +166,10 @@ The runtime also exposes typed app-server lifecycle methods:
 - `respondFileChangeApproval({ requestId, decision })`
 - `respondToolUserInput({ requestId, answers })`
 - `respondDynamicToolCall({ requestId, success, contentItems })`
+- `respondChatgptAuthTokensRefresh({ requestId, idToken, accessToken })`
 
 `listPendingServerRequests` filters by the persisted local thread id (Convex `threadId`), not the app-server runtime thread id.
+`account/chatgptAuthTokens/refresh` pending requests are tracked in runtime memory only (not persisted in Convex `serverRequests` tables).
 `getState()` includes ingest counters (`enqueuedEventCount`, `skippedEventCount`, and per-kind breakdowns) so hosts can diagnose unexpected idle ingest traffic.
 
 Guardrail: lifecycle mutation methods are blocked while a turn is in flight.

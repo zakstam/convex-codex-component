@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildAccountLoginCancelRequest,
+  buildAccountLoginStartRequest,
+  buildAccountLogoutRequest,
+  buildAccountRateLimitsReadRequest,
+  buildAccountReadRequest,
+  buildChatgptAuthTokensRefreshResponse,
   buildCommandExecutionApprovalResponse,
   buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
@@ -100,5 +106,47 @@ test("app-server response builders create JSON-RPC response payloads for server 
   assert.deepEqual(buildDynamicToolCallResponse(13, { success: true, contentItems: [] }), {
     id: 13,
     result: { success: true, contentItems: [] },
+  });
+  assert.deepEqual(
+    buildChatgptAuthTokensRefreshResponse(14, {
+      idToken: "id-token",
+      accessToken: "access-token",
+    }),
+    {
+      id: 14,
+      result: { idToken: "id-token", accessToken: "access-token" },
+    },
+  );
+});
+
+test("app-server account/auth request builders create typed request envelopes", () => {
+  assert.deepEqual(buildAccountReadRequest(20), {
+    method: "account/read",
+    id: 20,
+    params: { refreshToken: false },
+  });
+  assert.deepEqual(buildAccountReadRequest(21, { refreshToken: true }).params.refreshToken, true);
+  assert.deepEqual(
+    buildAccountLoginStartRequest(22, { type: "apiKey", apiKey: "test-api-key" }),
+    {
+      method: "account/login/start",
+      id: 22,
+      params: { type: "apiKey", apiKey: "test-api-key" },
+    },
+  );
+  assert.deepEqual(buildAccountLoginCancelRequest(23, { loginId: "login-1" }), {
+    method: "account/login/cancel",
+    id: 23,
+    params: { loginId: "login-1" },
+  });
+  assert.deepEqual(buildAccountLogoutRequest(24), {
+    method: "account/logout",
+    id: 24,
+    params: undefined,
+  });
+  assert.deepEqual(buildAccountRateLimitsReadRequest(25), {
+    method: "account/rateLimits/read",
+    id: 25,
+    params: undefined,
   });
 });

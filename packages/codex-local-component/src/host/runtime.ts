@@ -1,4 +1,10 @@
 import {
+  buildAccountLoginCancelRequest,
+  buildAccountLoginStartRequest,
+  buildAccountLogoutRequest,
+  buildAccountRateLimitsReadRequest,
+  buildAccountReadRequest,
+  buildChatgptAuthTokensRefreshResponse,
   buildCommandExecutionApprovalResponse,
   buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
@@ -27,11 +33,14 @@ import type {
 } from "../protocol/generated.js";
 import type { ClientOutboundWireMessage } from "../protocol/outbound.js";
 import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/CommandExecutionApprovalDecision.js";
+import type { CancelLoginAccountParams } from "../protocol/schemas/v2/CancelLoginAccountParams.js";
 import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
 import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
 import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
+import type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 import type { DynamicToolCallOutputContentItem } from "../protocol/schemas/v2/DynamicToolCallOutputContentItem.js";
 import type { DynamicToolSpec } from "../protocol/schemas/v2/DynamicToolSpec.js";
+import type { ChatgptAuthTokensRefreshParams } from "../protocol/schemas/v2/ChatgptAuthTokensRefreshParams.js";
 import type { ClientRequest } from "../protocol/schemas/ClientRequest.js";
 import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.js";
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
@@ -113,6 +122,12 @@ type PendingRequest = {
   method: string;
   resolve?: (message: CodexResponse) => void;
   reject?: (error: Error) => void;
+};
+
+type PendingAuthTokensRefreshRequest = {
+  requestId: RpcId;
+  params: ChatgptAuthTokensRefreshParams;
+  createdAt: number;
 };
 
 export type HostRuntimeState = {
@@ -227,6 +242,11 @@ export type CodexHostRuntime = {
     runtimeThreadId: string,
     includeTurns?: boolean,
   ) => Promise<CodexResponse>;
+  readAccount: (params?: { refreshToken?: boolean }) => Promise<CodexResponse>;
+  loginAccount: (params: LoginAccountParams) => Promise<CodexResponse>;
+  cancelAccountLogin: (params: CancelLoginAccountParams) => Promise<CodexResponse>;
+  logoutAccount: () => Promise<CodexResponse>;
+  readAccountRateLimits: () => Promise<CodexResponse>;
   listThreads: (params?: ThreadListParams) => Promise<CodexResponse>;
   listLoadedThreads: (params?: ThreadLoadedListParams) => Promise<CodexResponse>;
   listPendingServerRequests: (threadId?: string) => Promise<HostRuntimePersistedServerRequest[]>;
@@ -246,6 +266,11 @@ export type CodexHostRuntime = {
     requestId: RpcId;
     success: boolean;
     contentItems: DynamicToolCallOutputContentItem[];
+  }) => Promise<void>;
+  respondChatgptAuthTokensRefresh: (args: {
+    requestId: RpcId;
+    idToken: string;
+    accessToken: string;
   }) => Promise<void>;
   getState: () => HostRuntimeState;
 };
@@ -342,6 +367,26 @@ function isServerNotification(message: ServerInboundMessage): message is ServerI
   return "method" in message;
 }
 
+function isChatgptAuthTokensRefreshRequest(
+  message: ServerInboundMessage,
+): message is {
+  method: "account/chatgptAuthTokens/refresh";
+  id: RpcId;
+  params: ChatgptAuthTokensRefreshParams;
+} {
+  if (
+    !("method" in message) ||
+    message.method !== "account/chatgptAuthTokens/refresh" ||
+    !("id" in message) ||
+    (typeof message.id !== "number" && typeof message.id !== "string") ||
+    !("params" in message)
+  ) {
+    return false;
+  }
+  const params = asObject(message.params);
+  return !!params && typeof params.reason === "string";
+}
+
 function isResponse(message: ServerInboundMessage): message is CodexResponse {
   return "id" in message && !isServerNotification(message);
 }
@@ -369,6 +414,7 @@ export function createCodexHostRuntime(args: {
   let flushTail: Promise<void> = Promise.resolve();
   let ingestFlushMs = 250;
   const pendingServerRequests = new Map<string, PendingServerRequest>();
+  const pendingAuthTokensRefreshRequests = new Map<string, PendingAuthTokensRefreshRequest>();
   const enqueuedByKind = new Map<string, number>();
   const skippedByKind = new Map<string, number>();
   let enqueuedEventCount = 0;
@@ -518,6 +564,22 @@ export function createCodexHostRuntime(args: {
       status: "answered",
       responseJson: JSON.stringify(responseMessage),
     });
+  };
+
+  const registerPendingAuthTokensRefreshRequest = (request: PendingAuthTokensRefreshRequest): void => {
+    pendingAuthTokensRefreshRequests.set(toRequestKey(request.requestId), request);
+  };
+
+  const getPendingAuthTokensRefreshRequest = (requestId: RpcId): PendingAuthTokensRefreshRequest => {
+    const pending = pendingAuthTokensRefreshRequests.get(toRequestKey(requestId));
+    if (!pending) {
+      throw new Error(`No pending auth token refresh request found for id ${String(requestId)}`);
+    }
+    return pending;
+  };
+
+  const resolvePendingAuthTokensRefreshRequest = (requestId: RpcId): void => {
+    pendingAuthTokensRefreshRequests.delete(toRequestKey(requestId));
   };
 
   const throwIfTurnMutationLocked = () => {
@@ -745,6 +807,14 @@ export function createCodexHostRuntime(args: {
           await enqueueIngestDelta(delta, forceFlush);
         },
         onGlobalMessage: async (message) => {
+          if (isChatgptAuthTokensRefreshRequest(message)) {
+            registerPendingAuthTokensRefreshRequest({
+              requestId: message.id,
+              params: message.params,
+              createdAt: Date.now(),
+            });
+          }
+
           if (isResponse(message) && typeof message.id === "number") {
             const pending = pendingRequests.get(message.id);
             pendingRequests.delete(message.id);
@@ -855,6 +925,7 @@ export function createCodexHostRuntime(args: {
     interruptRequested = false;
     pendingRequests.clear();
     pendingServerRequests.clear();
+    pendingAuthTokensRefreshRequests.clear();
     resetIngestMetrics();
     emitState();
   };
@@ -956,6 +1027,21 @@ export function createCodexHostRuntime(args: {
       }),
     );
 
+  const readAccount = async (params?: { refreshToken?: boolean }): Promise<CodexResponse> =>
+    sendRequest(buildAccountReadRequest(requestId(), params));
+
+  const loginAccount = async (params: LoginAccountParams): Promise<CodexResponse> =>
+    sendRequest(buildAccountLoginStartRequest(requestId(), params));
+
+  const cancelAccountLogin = async (params: CancelLoginAccountParams): Promise<CodexResponse> =>
+    sendRequest(buildAccountLoginCancelRequest(requestId(), params));
+
+  const logoutAccount = async (): Promise<CodexResponse> =>
+    sendRequest(buildAccountLogoutRequest(requestId()));
+
+  const readAccountRateLimits = async (): Promise<CodexResponse> =>
+    sendRequest(buildAccountRateLimitsReadRequest(requestId()));
+
   const listThreads = async (params?: ThreadListParams): Promise<CodexResponse> =>
     sendRequest(buildThreadListRequest(requestId(), params));
 
@@ -1042,6 +1128,20 @@ export function createCodexHostRuntime(args: {
     );
   };
 
+  const respondChatgptAuthTokensRefresh = async (argsForTokens: {
+    requestId: RpcId;
+    idToken: string;
+    accessToken: string;
+  }): Promise<void> => {
+    getPendingAuthTokensRefreshRequest(argsForTokens.requestId);
+    const responseMessage = buildChatgptAuthTokensRefreshResponse(argsForTokens.requestId, {
+      idToken: argsForTokens.idToken,
+      accessToken: argsForTokens.accessToken,
+    });
+    sendMessage(responseMessage);
+    resolvePendingAuthTokensRefreshRequest(argsForTokens.requestId);
+  };
+
   const getState = (): HostRuntimeState => ({
     running: !!bridge,
     threadId,
@@ -1069,6 +1169,11 @@ export function createCodexHostRuntime(args: {
     unarchiveThread,
     rollbackThread,
     readThread,
+    readAccount,
+    loginAccount,
+    cancelAccountLogin,
+    logoutAccount,
+    readAccountRateLimits,
     listThreads,
     listLoadedThreads,
     listPendingServerRequests,
@@ -1076,6 +1181,7 @@ export function createCodexHostRuntime(args: {
     respondFileChangeApproval,
     respondToolUserInput,
     respondDynamicToolCall,
+    respondChatgptAuthTokensRefresh,
     getState,
   };
 }

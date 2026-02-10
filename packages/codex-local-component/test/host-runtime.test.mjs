@@ -41,12 +41,17 @@ function createHarness() {
     await handlers.onGlobalMessage(response, { scope: "global", kind: "response" });
   };
 
+  const emitGlobalMessage = async (message) => {
+    assert.ok(handlers, "bridge handlers not initialized");
+    await handlers.onGlobalMessage(message, { scope: "global", kind: "message" });
+  };
+
   const emitEvent = async (event) => {
     assert.ok(handlers, "bridge handlers not initialized");
     await handlers.onEvent(event);
   };
 
-  return { runtime, sent, emitResponse, emitEvent, upserted, resolved, ingestCalls };
+  return { runtime, sent, emitResponse, emitGlobalMessage, emitEvent, upserted, resolved, ingestCalls };
 }
 
 test("runtime start supports threadStrategy=resume", async () => {
@@ -335,6 +340,103 @@ test("runtime ingests turn-scoped events", async () => {
   assert.equal(state.ingestMetrics.enqueuedEventCount, 1);
   assert.equal(state.ingestMetrics.skippedEventCount, 0);
   assert.deepEqual(state.ingestMetrics.enqueuedByKind, [{ kind: "turn/completed", count: 1 }]);
+
+  await runtime.stop();
+});
+
+test("runtime account/auth helper methods send account requests and resolve responses", async () => {
+  const { runtime, sent, emitResponse } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  const readAccountPromise = runtime.readAccount({ refreshToken: true });
+  const readAccountRequest = sent.find((message) => message.method === "account/read");
+  await emitResponse({
+    id: readAccountRequest.id,
+    result: { account: null, requiresOpenaiAuth: true },
+  });
+  await readAccountPromise;
+
+  const loginPromise = runtime.loginAccount({ type: "apiKey", apiKey: "sk-test" });
+  const loginRequest = sent.find((message) => message.method === "account/login/start");
+  await emitResponse({ id: loginRequest.id, result: { type: "apiKey" } });
+  await loginPromise;
+
+  const cancelPromise = runtime.cancelAccountLogin({ loginId: "login-1" });
+  const cancelRequest = sent.find((message) => message.method === "account/login/cancel");
+  await emitResponse({ id: cancelRequest.id, result: { status: "canceled" } });
+  await cancelPromise;
+
+  const logoutPromise = runtime.logoutAccount();
+  const logoutRequest = sent.find((message) => message.method === "account/logout");
+  await emitResponse({ id: logoutRequest.id, result: {} });
+  await logoutPromise;
+
+  const rateLimitPromise = runtime.readAccountRateLimits();
+  const rateLimitRequest = sent.find((message) => message.method === "account/rateLimits/read");
+  await emitResponse({ id: rateLimitRequest.id, result: { rateLimits: {} } });
+  await rateLimitPromise;
+
+  assert.equal(readAccountRequest.params.refreshToken, true);
+  assert.equal(logoutRequest.params, undefined);
+  assert.equal(rateLimitRequest.params, undefined);
+
+  await runtime.stop();
+});
+
+test("respondChatgptAuthTokensRefresh responds to pending auth token refresh request", async () => {
+  const { runtime, sent, emitGlobalMessage } = createHarness();
+
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+
+  await emitGlobalMessage({
+    method: "account/chatgptAuthTokens/refresh",
+    id: 501,
+    params: { reason: "unauthorized", previousAccountId: "acct_123" },
+  });
+
+  await runtime.respondChatgptAuthTokensRefresh({
+    requestId: 501,
+    idToken: "id-token",
+    accessToken: "access-token",
+  });
+
+  const responseMessage = sent.find((message) => message.id === 501 && "result" in message);
+  assert.deepEqual(responseMessage, {
+    id: 501,
+    result: {
+      idToken: "id-token",
+      accessToken: "access-token",
+    },
+  });
+
+  await runtime.stop();
+});
+
+test("respondChatgptAuthTokensRefresh rejects unknown request id", async () => {
+  const { runtime } = createHarness();
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+  });
+
+  await assert.rejects(
+    runtime.respondChatgptAuthTokensRefresh({
+      requestId: "missing",
+      idToken: "id-token",
+      accessToken: "access-token",
+    }),
+    /No pending auth token refresh request found/,
+  );
 
   await runtime.stop();
 });

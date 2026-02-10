@@ -155,7 +155,7 @@ body {
 
 .side {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   gap: 12px;
   height: calc(100vh - 24px);
   overflow-y: auto;
@@ -1166,7 +1166,68 @@ input:disabled {
   margin-top: 8px;
 }
 
-/* ── 20. Empty State ───────────────────────────────────────── */
+/* ── 20.5 Account/Auth Panel ─────────────────────────────── */
+
+.auth-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.auth-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.auth-label {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.auth-refresh-list {
+  margin-top: 4px;
+}
+
+.auth-refresh-item {
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  margin-bottom: 8px;
+}
+
+.auth-refresh-meta {
+  margin: 0 0 8px;
+}
+
+.auth-summary {
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border);
+  background: var(--bg-inset);
+  min-height: 72px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+/* ── 21. Empty State ───────────────────────────────────────── */
 
 .empty-state {
   display: flex;
@@ -1210,7 +1271,7 @@ input:disabled {
   max-width: 280px;
 }
 
-/* ── 21. Loading Spinner ───────────────────────────────────── */
+/* ── 22. Loading Spinner ───────────────────────────────────── */
 
 .loading-container {
   display: flex;
@@ -1233,7 +1294,7 @@ input:disabled {
   to { transform: rotate(360deg); }
 }
 
-/* ── 22. Event Log ─────────────────────────────────────────── */
+/* ── 23. Event Log ─────────────────────────────────────────── */
 
 .event-log {
   overflow: hidden;
@@ -1266,7 +1327,7 @@ input:disabled {
   background: var(--bg-surface);
 }
 
-/* ── 23. Toast Notifications ───────────────────────────────── */
+/* ── 24. Toast Notifications ───────────────────────────────── */
 
 .toast-container {
   position: fixed;

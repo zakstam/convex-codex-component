@@ -26,6 +26,10 @@ export type CommandApprovalDecision =
   | "cancel";
 
 export type ToolUserInputAnswer = { answers: string[] };
+export type LoginAccountParams =
+  | { type: "apiKey"; apiKey: string }
+  | { type: "chatgpt" }
+  | { type: "chatgptAuthTokens"; idToken: string; accessToken: string };
 
 export async function startBridge(config: {
   convexUrl: string;
@@ -69,6 +73,34 @@ export async function respondToolUserInput(config: {
   answers: Record<string, ToolUserInputAnswer>;
 }) {
   return await invoke("respond_tool_user_input", { config });
+}
+
+export async function readAccount(config?: { refreshToken?: boolean }) {
+  return await invoke("read_account", { config: config ?? {} });
+}
+
+export async function loginAccount(config: { params: LoginAccountParams }) {
+  return await invoke("login_account", { config });
+}
+
+export async function cancelAccountLogin(config: { loginId: string }) {
+  return await invoke("cancel_account_login", { config });
+}
+
+export async function logoutAccount() {
+  return await invoke("logout_account");
+}
+
+export async function readAccountRateLimits() {
+  return await invoke("read_account_rate_limits");
+}
+
+export async function respondChatgptAuthTokensRefresh(config: {
+  requestId: string | number;
+  idToken: string;
+  accessToken: string;
+}) {
+  return await invoke("respond_chatgpt_auth_tokens_refresh", { config });
 }
 
 export async function stopBridge() {

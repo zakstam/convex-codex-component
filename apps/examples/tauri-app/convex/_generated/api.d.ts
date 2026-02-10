@@ -145,31 +145,6 @@ export declare const components: {
         },
         null
       >;
-      listCheckpoints: FunctionReference<
-        "query",
-        "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          threadId: string;
-        },
-        any
-      >;
-      replay: FunctionReference<
-        "query",
-        "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          runtime?: {
-            finishedStreamDeleteDelayMs?: number;
-            maxDeltasPerRequestRead?: number;
-            maxDeltasPerStreamRead?: number;
-            saveStreamDeltas?: boolean;
-          };
-          streamCursorsById: Array<{ cursor: number; streamId: string }>;
-          threadId: string;
-        },
-        any
-      >;
       ingest: FunctionReference<
         "mutation",
         "internal",
@@ -207,6 +182,31 @@ export declare const components: {
           ackedStreams: Array<{ ackCursorEnd: number; streamId: string }>;
           ingestStatus: "ok" | "partial";
         }
+      >;
+      listCheckpoints: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          threadId: string;
+        },
+        any
+      >;
+      replay: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          runtime?: {
+            finishedStreamDeleteDelayMs?: number;
+            maxDeltasPerRequestRead?: number;
+            maxDeltasPerStreamRead?: number;
+            saveStreamDeltas?: boolean;
+          };
+          streamCursorsById: Array<{ cursor: number; streamId: string }>;
+          threadId: string;
+        },
+        any
       >;
       resumeReplay: FunctionReference<
         "query",

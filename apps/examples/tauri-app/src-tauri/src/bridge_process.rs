@@ -34,7 +34,7 @@ pub struct HelperStartPayload {
 #[serde(rename_all = "camelCase")]
 pub struct BridgeStateSnapshot {
     pub running: bool,
-    pub thread_id: Option<String>,
+    pub local_thread_id: Option<String>,
     pub turn_id: Option<String>,
     pub last_error: Option<String>,
     pub runtime_thread_id: Option<String>,
@@ -191,7 +191,17 @@ impl BridgeRuntime {
 
         let mut snapshot = self.snapshot.lock().await;
         *snapshot = BridgeStateSnapshot::default();
-        let _ = app.emit("codex:bridge_state", json!({ "running": false }));
+        let _ = app.emit(
+            "codex:bridge_state",
+            json!({
+                "running": false,
+                "localThreadId": null,
+                "turnId": null,
+                "runtimeThreadId": null,
+                "pendingServerRequestCount": 0,
+                "lastError": null
+            }),
+        );
         Ok(())
     }
 
@@ -235,12 +245,22 @@ impl BridgeRuntime {
         {
             let mut snapshot = self.snapshot.lock().await;
             snapshot.running = false;
+            snapshot.local_thread_id = None;
             snapshot.turn_id = None;
+            snapshot.runtime_thread_id = None;
+            snapshot.pending_server_request_count = Some(0);
             snapshot.last_error = Some(message.clone());
         }
         let _ = app.emit(
             "codex:bridge_state",
-            json!({ "running": false, "turnId": null, "lastError": message }),
+            json!({
+                "running": false,
+                "localThreadId": null,
+                "turnId": null,
+                "runtimeThreadId": null,
+                "pendingServerRequestCount": 0,
+                "lastError": message
+            }),
         );
     }
 }

@@ -15,7 +15,8 @@ type PendingServerRequest = {
   method:
     | "item/commandExecution/requestApproval"
     | "item/fileChange/requestApproval"
-    | "item/tool/requestUserInput";
+    | "item/tool/requestUserInput"
+    | "item/tool/call";
   threadId: string;
   turnId: string;
   itemId: string;

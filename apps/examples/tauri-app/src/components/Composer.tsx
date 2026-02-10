@@ -4,11 +4,12 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onInsertToolPrompt?: () => void;
   disabled: boolean;
   sending?: boolean;
 };
 
-export function Composer({ value, onChange, onSubmit, disabled, sending }: Props) {
+export function Composer({ value, onChange, onSubmit, onInsertToolPrompt, disabled, sending }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKeyDown = useCallback(
@@ -30,6 +31,17 @@ export function Composer({ value, onChange, onSubmit, disabled, sending }: Props
 
   return (
     <div className="composer" role="form" aria-label="Message composer">
+      <div className="composer-actions">
+        <button
+          className="secondary"
+          type="button"
+          onClick={onInsertToolPrompt}
+          disabled={disabled || sending}
+          aria-label="Insert dynamic tool prompt"
+        >
+          Use Snapshot Tool
+        </button>
+      </div>
       <textarea
         ref={textareaRef}
         value={value}
@@ -40,6 +52,7 @@ export function Composer({ value, onChange, onSubmit, disabled, sending }: Props
         disabled={disabled}
       />
       <button
+        type="button"
         onClick={handleSubmit}
         disabled={disabled || !value.trim() || sending}
         aria-label="Send message"

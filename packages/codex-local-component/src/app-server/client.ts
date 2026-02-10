@@ -14,6 +14,9 @@ import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/Co
 import type { CommandExecutionRequestApprovalResponse } from "../protocol/schemas/v2/CommandExecutionRequestApprovalResponse.js";
 import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
 import type { FileChangeRequestApprovalResponse } from "../protocol/schemas/v2/FileChangeRequestApprovalResponse.js";
+import type { DynamicToolCallOutputContentItem } from "../protocol/schemas/v2/DynamicToolCallOutputContentItem.js";
+import type { DynamicToolCallResponse } from "../protocol/schemas/v2/DynamicToolCallResponse.js";
+import type { DynamicToolSpec } from "../protocol/schemas/v2/DynamicToolSpec.js";
 import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
 import type { ToolRequestUserInputResponse } from "../protocol/schemas/v2/ToolRequestUserInputResponse.js";
 import type { TurnInterruptParams } from "../protocol/schemas/v2/TurnInterruptParams.js";
@@ -50,11 +53,17 @@ export function buildClientRequest<M extends RequestMethod>(
 }
 
 export function buildInitializeRequest(id: number, clientInfo: ClientInfo): RequestFor<"initialize"> {
+  return buildInitializeRequestWithCapabilities(id, clientInfo, { experimentalApi: false });
+}
+
+export function buildInitializeRequestWithCapabilities(
+  id: number,
+  clientInfo: ClientInfo,
+  capabilities: { experimentalApi: boolean },
+): RequestFor<"initialize"> {
   return buildClientRequest("initialize", id, {
     clientInfo,
-    capabilities: {
-      experimentalApi: false,
-    },
+    capabilities,
   });
 }
 
@@ -64,20 +73,24 @@ export function buildInitializedNotification(): ClientNotification {
 
 export function buildThreadStartRequest(
   id: number,
-  params?: Omit<ThreadStartParams, "experimentalRawEvents">,
+  params?: Omit<ThreadStartParams, "experimentalRawEvents"> & { dynamicTools?: DynamicToolSpec[] },
 ): RequestFor<"thread/start"> {
-  return buildClientRequest("thread/start", id, {
-    ...params,
-    experimentalRawEvents: false,
-  });
+  return buildClientRequest(
+    "thread/start",
+    id,
+    {
+      ...params,
+      experimentalRawEvents: false,
+    } as RequestParams<"thread/start">,
+  );
 }
 
 export function buildThreadResumeRequest(
   id: number,
-  params: ThreadResumeParams,
+  params: ThreadResumeParams & { dynamicTools?: DynamicToolSpec[] },
 ): RequestFor<"thread/resume"> {
   assertUuidThreadId(params.threadId);
-  return buildClientRequest("thread/resume", id, params);
+  return buildClientRequest("thread/resume", id, params as RequestParams<"thread/resume">);
 }
 
 export function buildThreadForkRequest(
@@ -184,5 +197,16 @@ export function buildToolRequestUserInputResponse(
   answers: Record<string, ToolRequestUserInputAnswer>,
 ): ClientServerRequestResponse {
   const result: ToolRequestUserInputResponse = { answers };
+  return { id, result };
+}
+
+export function buildDynamicToolCallResponse(
+  id: RequestId,
+  args: { success: boolean; contentItems: DynamicToolCallOutputContentItem[] },
+): ClientServerRequestResponse {
+  const result: DynamicToolCallResponse = {
+    success: args.success,
+    contentItems: args.contentItems,
+  };
   return { id, result };
 }

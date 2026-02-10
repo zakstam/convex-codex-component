@@ -59,7 +59,11 @@ type ToolQuestion = {
 
 type PendingServerRequest = {
   requestId: string | number;
-  method: "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" | "item/tool/requestUserInput";
+  method:
+    | "item/commandExecution/requestApproval"
+    | "item/fileChange/requestApproval"
+    | "item/tool/requestUserInput"
+    | "item/tool/call";
   threadId: string;
   turnId: string;
   itemId: string;
@@ -83,7 +87,7 @@ const chatApi = requireDefined(api.chat, "api.chat");
 export default function App() {
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
-    threadId: null,
+    localThreadId: null,
     turnId: null,
     lastError: null,
     pendingServerRequestCount: 0,
@@ -106,7 +110,7 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const threadId = bridge.threadId;
+  const threadId = bridge.localThreadId;
   const listedThreads = useQuery(
     requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
     { actor, limit: 25 },
@@ -122,7 +126,7 @@ export default function App() {
   const messages = useCodexMessages(
     requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
     messageArgs,
-    { initialNumItems: 30, stream: true },
+    { initialNumItems: 30, stream: false },
   );
 
   const threadState = useCodexThreadState(
@@ -140,7 +144,7 @@ export default function App() {
     let unsubs: Array<() => void> = [];
 
     const attach = async () => {
-      const [stateUnsub, eventUnsub, errorUnsub] = await Promise.all([
+      const [stateUnsub, eventUnsub, errorUnsub, globalUnsub] = await Promise.all([
         listen<BridgeStateEvent>("codex:bridge_state", (event) => {
           setBridge((prev) => {
             const next = { ...prev, ...event.payload };
@@ -156,10 +160,21 @@ export default function App() {
         }),
         listen<{ message: string }>("codex:protocol_error", (event) => {
           setBridge((prev) => ({ ...prev, lastError: event.payload.message }));
+          console.error("[codex:protocol_error]", event.payload.message, event.payload);
           addToast("error", event.payload.message);
         }),
+        listen<Record<string, unknown>>("codex:global_message", (event) => {
+          const payload = event.payload ?? {};
+          if (payload.error) {
+            console.error("[codex:global_message:error]", payload);
+          } else if (payload.kind === "sync/session_rolled_over") {
+            console.warn("[codex:global_message:session_rolled_over]", payload);
+          } else {
+            console.debug("[codex:global_message]", payload);
+          }
+        }),
       ]);
-      unsubs = [stateUnsub, eventUnsub, errorUnsub];
+      unsubs = [stateUnsub, eventUnsub, errorUnsub, globalUnsub];
 
       const state = await getBridgeState();
       setBridge(state);
@@ -223,6 +238,12 @@ export default function App() {
     } finally {
       setSending(false);
     }
+  };
+
+  const onInsertDynamicToolPrompt = () => {
+    const prompt =
+      "Use the dynamic tool `tauri_get_runtime_snapshot` with includePendingRequests=true and summarize the response.";
+    setComposer((prev) => (prev.trim() ? `${prev}\n\n${prompt}` : prompt));
   };
 
   const onRespondCommandOrFile = async (
@@ -347,6 +368,7 @@ export default function App() {
           value={composer}
           onChange={setComposer}
           onSubmit={onSubmit}
+          onInsertToolPrompt={onInsertDynamicToolPrompt}
           disabled={!bridge.running}
           sending={sending}
         />

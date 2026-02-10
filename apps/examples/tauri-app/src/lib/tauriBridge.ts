@@ -8,7 +8,7 @@ export type ActorContext = {
 
 export type BridgeState = {
   running: boolean;
-  threadId: string | null;
+  localThreadId: string | null;
   turnId: string | null;
   lastError: string | null;
   runtimeThreadId?: string | null;

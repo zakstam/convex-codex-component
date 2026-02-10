@@ -15,7 +15,7 @@ export function Header({ bridge, onStart, onStop, onInterrupt }: Props) {
     <header className="header" role="toolbar" aria-label="Runtime controls">
       <div className="header-info">
         <h1>Codex Local Desktop</h1>
-        <p className="meta">thread: {bridge.threadId ?? "(none yet)"}</p>
+        <p className="meta">local thread: {bridge.localThreadId ?? "(none yet)"}</p>
         <p className="meta">runtime: {bridge.runtimeThreadId ?? "(none yet)"}</p>
       </div>
       <div className="controls">

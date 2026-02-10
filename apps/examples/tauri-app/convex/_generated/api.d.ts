@@ -154,7 +154,8 @@ export declare const components: {
           method:
             | "item/commandExecution/requestApproval"
             | "item/fileChange/requestApproval"
-            | "item/tool/requestUserInput";
+            | "item/tool/requestUserInput"
+            | "item/tool/call";
           payloadJson: string;
           questionsJson?: string;
           reason?: string;

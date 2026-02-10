@@ -244,6 +244,7 @@ export default defineSchema({
       v.literal("item/commandExecution/requestApproval"),
       v.literal("item/fileChange/requestApproval"),
       v.literal("item/tool/requestUserInput"),
+      v.literal("item/tool/call"),
     ),
     requestIdType: v.union(v.literal("string"), v.literal("number")),
     requestIdText: v.string(),

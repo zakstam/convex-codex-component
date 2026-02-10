@@ -1,5 +1,6 @@
 import {
   buildCommandExecutionApprovalResponse,
+  buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
   buildThreadArchiveRequest,
   buildThreadForkRequest,
@@ -8,7 +9,7 @@ import {
   buildThreadReadRequest,
   buildThreadResumeRequest,
   buildThreadRollbackRequest,
-  buildInitializeRequest,
+  buildInitializeRequestWithCapabilities,
   buildInitializedNotification,
   buildThreadStartRequest,
   buildThreadUnarchiveRequest,
@@ -29,6 +30,8 @@ import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/Co
 import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
 import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
 import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
+import type { DynamicToolCallOutputContentItem } from "../protocol/schemas/v2/DynamicToolCallOutputContentItem.js";
+import type { DynamicToolSpec } from "../protocol/schemas/v2/DynamicToolSpec.js";
 import type { ClientRequest } from "../protocol/schemas/ClientRequest.js";
 import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.js";
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
@@ -67,7 +70,8 @@ type ClientRequestMessage = ClientRequest;
 type ManagedServerRequestMethod =
   | "item/commandExecution/requestApproval"
   | "item/fileChange/requestApproval"
-  | "item/tool/requestUserInput";
+  | "item/tool/requestUserInput"
+  | "item/tool/call";
 
 type PendingServerRequest = {
   requestId: RpcId;
@@ -135,6 +139,7 @@ export type HostRuntimeStartArgs = {
     maxDeltasPerRequestRead?: number;
     finishedStreamDeleteDelayMs?: number;
   };
+  dynamicTools?: DynamicToolSpec[];
   ingestFlushMs?: number;
 };
 
@@ -199,7 +204,7 @@ export type CodexHostRuntime = {
   interrupt: () => void;
   resumeThread: (
     runtimeThreadId: string,
-    params?: Omit<ThreadResumeParams, "threadId">,
+    params?: Omit<ThreadResumeParams, "threadId"> & { dynamicTools?: DynamicToolSpec[] },
   ) => Promise<CodexResponse>;
   forkThread: (
     runtimeThreadId: string,
@@ -227,6 +232,11 @@ export type CodexHostRuntime = {
     requestId: RpcId;
     answers: Record<string, ToolRequestUserInputAnswer>;
   }) => Promise<void>;
+  respondDynamicToolCall: (args: {
+    requestId: RpcId;
+    success: boolean;
+    contentItems: DynamicToolCallOutputContentItem[];
+  }) => Promise<void>;
   getState: () => HostRuntimeState;
 };
 
@@ -235,6 +245,7 @@ const MANAGED_SERVER_REQUEST_METHODS = new Set<ManagedServerRequestMethod>([
   "item/commandExecution/requestApproval",
   "item/fileChange/requestApproval",
   "item/tool/requestUserInput",
+  "item/tool/call",
 ]);
 
 function toRequestKey(requestId: RpcId): string {
@@ -271,15 +282,20 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
   if (!params) {
     return null;
   }
-  if (
-    typeof params.threadId !== "string" ||
-    typeof params.turnId !== "string" ||
-    typeof params.itemId !== "string"
-  ) {
+  if (typeof params.threadId !== "string" || typeof params.turnId !== "string") {
     return null;
   }
 
   const method = message.method as ManagedServerRequestMethod;
+  const itemId =
+    typeof params.itemId === "string"
+      ? params.itemId
+      : method === "item/tool/call" && typeof params.callId === "string"
+        ? params.callId
+        : null;
+  if (!itemId) {
+    return null;
+  }
   const reason = typeof params.reason === "string" ? params.reason : undefined;
   const questionsRaw = params.questions;
   const questions =
@@ -292,7 +308,7 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
     method,
     threadId: params.threadId,
     turnId: params.turnId,
-    itemId: params.itemId,
+    itemId,
     payloadJson: event.payloadJson,
     createdAt: event.createdAt,
     ...(reason ? { reason } : {}),
@@ -716,11 +732,17 @@ export function createCodexHostRuntime(args: {
     bridge.start();
 
     sendMessage(
-      buildInitializeRequest(requestId(), {
-        name: "codex_local_host_runtime",
-        title: "Codex Local Host Runtime",
-        version: "0.1.0",
-      }),
+      buildInitializeRequestWithCapabilities(
+        requestId(),
+        {
+          name: "codex_local_host_runtime",
+          title: "Codex Local Host Runtime",
+          version: "0.1.0",
+        },
+        {
+          experimentalApi: Array.isArray(startArgs.dynamicTools) && startArgs.dynamicTools.length > 0,
+        },
+      ),
       "initialize",
     );
     sendMessage(buildInitializedNotification());
@@ -734,6 +756,7 @@ export function createCodexHostRuntime(args: {
         buildThreadStartRequest(requestId(), {
           ...(startArgs.model ? { model: startArgs.model } : {}),
           ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}),
+          ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}),
         }),
         "thread/start",
       );
@@ -743,6 +766,7 @@ export function createCodexHostRuntime(args: {
           threadId: startArgs.runtimeThreadId!,
           ...(startArgs.model ? { model: startArgs.model } : {}),
           ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}),
+          ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}),
         }),
         "thread/resume",
       );
@@ -816,7 +840,7 @@ export function createCodexHostRuntime(args: {
 
   const resumeThread = async (
     nextRuntimeThreadId: string,
-    params?: Omit<ThreadResumeParams, "threadId">,
+    params?: Omit<ThreadResumeParams, "threadId"> & { dynamicTools?: DynamicToolSpec[] },
   ): Promise<CodexResponse> => {
     throwIfTurnMutationLocked();
     return sendRequest(
@@ -945,6 +969,26 @@ export function createCodexHostRuntime(args: {
     );
   };
 
+  const respondDynamicToolCall = async (argsForResult: {
+    requestId: RpcId;
+    success: boolean;
+    contentItems: DynamicToolCallOutputContentItem[];
+  }): Promise<void> => {
+    const pending = getPendingServerRequest(argsForResult.requestId);
+    if (pending.method !== "item/tool/call") {
+      throw new Error(
+        `Server request ${String(argsForResult.requestId)} is ${pending.method}, expected item/tool/call`,
+      );
+    }
+    await sendServerRequestResponse(
+      argsForResult.requestId,
+      buildDynamicToolCallResponse(argsForResult.requestId, {
+        success: argsForResult.success,
+        contentItems: argsForResult.contentItems,
+      }),
+    );
+  };
+
   const getState = (): HostRuntimeState => ({
     running: !!bridge,
     threadId,
@@ -972,6 +1016,7 @@ export function createCodexHostRuntime(args: {
     respondCommandApproval,
     respondFileChangeApproval,
     respondToolUserInput,
+    respondDynamicToolCall,
     getState,
   };
 }

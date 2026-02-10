@@ -5,6 +5,7 @@ import eventMsgSchema from "./schemas/EventMsg.json" with { type: "json" };
 import jsonRpcMessageSchema from "./schemas/JSONRPCMessage.json" with { type: "json" };
 import jsonRpcResponseSchema from "./schemas/JSONRPCResponse.json" with { type: "json" };
 import commandExecutionRequestApprovalResponseSchema from "./schemas/CommandExecutionRequestApprovalResponse.json" with { type: "json" };
+import dynamicToolCallResponseSchema from "./schemas/DynamicToolCallResponse.json" with { type: "json" };
 import fileChangeRequestApprovalResponseSchema from "./schemas/FileChangeRequestApprovalResponse.json" with { type: "json" };
 import serverNotificationSchema from "./schemas/ServerNotification.json" with { type: "json" };
 import serverRequestSchema from "./schemas/ServerRequest.json" with { type: "json" };
@@ -37,6 +38,7 @@ const validateJsonRpcResponse = ajv.compile(jsonRpcResponseSchema);
 const validateClientRequest = ajv.compile(clientRequestSchema);
 const validateClientNotification = ajv.compile(clientNotificationSchema);
 const validateCommandExecutionRequestApprovalResponse = ajv.compile(commandExecutionRequestApprovalResponseSchema);
+const validateDynamicToolCallResponse = ajv.compile(dynamicToolCallResponseSchema);
 const validateFileChangeRequestApprovalResponse = ajv.compile(fileChangeRequestApprovalResponseSchema);
 const validateToolRequestUserInputResponse = ajv.compile(toolRequestUserInputResponseSchema);
 const validateEventMsg = ajv.compile(eventMsgSchema);
@@ -95,6 +97,7 @@ function isClientServerRequestResponse(value: unknown): value is ClientOutboundW
   }
   return (
     (validateCommandExecutionRequestApprovalResponse(record.result) as boolean) ||
+    (validateDynamicToolCallResponse(record.result) as boolean) ||
     (validateFileChangeRequestApprovalResponse(record.result) as boolean) ||
     (validateToolRequestUserInputResponse(record.result) as boolean)
   );
@@ -149,6 +152,8 @@ export function assertValidClientMessage(message: unknown): asserts message is C
     formatAjvErrors(validateJsonRpcResponse.errors as AjvError[] | null | undefined) +
     "; " +
     formatAjvErrors(validateCommandExecutionRequestApprovalResponse.errors as AjvError[] | null | undefined) +
+    "; " +
+    formatAjvErrors(validateDynamicToolCallResponse.errors as AjvError[] | null | undefined) +
     "; " +
     formatAjvErrors(validateFileChangeRequestApprovalResponse.errors as AjvError[] | null | undefined) +
     "; " +

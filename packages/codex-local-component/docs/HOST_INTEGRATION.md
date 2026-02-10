@@ -143,6 +143,7 @@ Use `CodexLocalBridge` from desktop/CLI runtime and provide:
 - `threadStrategy: "start"` (default)
 - `threadStrategy: "resume"` with `runtimeThreadId`
 - `threadStrategy: "fork"` with `runtimeThreadId`
+- optional `dynamicTools` on `start` and `resumeThread` for dynamic tool registration
 
 The runtime also exposes typed app-server lifecycle methods:
 
@@ -154,10 +155,13 @@ The runtime also exposes typed app-server lifecycle methods:
 - `readThread(runtimeThreadId, includeTurns?)`
 - `listThreads(params?)`
 - `listLoadedThreads(params?)`
-- `listPendingServerRequests(threadId?)`
+- `listPendingServerRequests(localThreadId?)`
 - `respondCommandApproval({ requestId, decision })`
 - `respondFileChangeApproval({ requestId, decision })`
 - `respondToolUserInput({ requestId, answers })`
+- `respondDynamicToolCall({ requestId, success, contentItems })`
+
+`listPendingServerRequests` filters by the persisted local thread id (Convex `threadId`), not the app-server runtime thread id.
 
 Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 
@@ -215,6 +219,7 @@ App-server can send server-initiated JSON-RPC requests that require client respo
 - `item/commandExecution/requestApproval`
 - `item/fileChange/requestApproval`
 - `item/tool/requestUserInput`
+- `item/tool/call`
 
 The runtime tracks these as pending requests and exposes typed response methods.
 For persisted host workflows, wire runtime persistence hooks to:

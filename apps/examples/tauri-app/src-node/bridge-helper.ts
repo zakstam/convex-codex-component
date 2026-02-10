@@ -12,6 +12,8 @@ import { api } from "../convex/_generated/api.js";
 type CommandExecutionApprovalDecision = v2.CommandExecutionApprovalDecision;
 type FileChangeApprovalDecision = v2.FileChangeApprovalDecision;
 type ToolRequestUserInputAnswer = v2.ToolRequestUserInputAnswer;
+type DynamicToolSpec = v2.DynamicToolSpec;
+type DynamicToolCallOutputContentItem = v2.DynamicToolCallOutputContentItem;
 
 type ActorContext = { tenantId: string; userId: string; deviceId: string };
 type StartPayload = {
@@ -42,12 +44,12 @@ type HelperEvent =
       type: "state";
       payload: {
         running: boolean;
-        threadId: string | null;
-      turnId: string | null;
-      lastError: string | null;
-      runtimeThreadId: string | null;
-      pendingServerRequestCount: number;
-    };
+        localThreadId: string | null;
+        turnId: string | null;
+        lastError: string | null;
+        runtimeThreadId: string | null;
+        pendingServerRequestCount: number;
+      };
     }
   | { type: "event"; payload: { kind: string; threadId: string; turnId?: string; streamId?: string } }
   | { type: "global"; payload: Record<string, unknown> }
@@ -81,6 +83,10 @@ function emit(event: HelperEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
+function isRecoverableSyncCode(code: unknown): boolean {
+  return code === "OUT_OF_ORDER" || code === "REPLAY_GAP";
+}
+
 function toErrorCode(value: unknown): string {
   if (typeof value !== "string") {
     return "UNKNOWN";
@@ -107,17 +113,41 @@ let startRuntimeOptions: {
 
 let bridgeState: {
   running: boolean;
-  threadId: string | null;
+  localThreadId: string | null;
   turnId: string | null;
   lastError: string | null;
   pendingServerRequestCount: number;
 } = {
   running: false,
-  threadId: null,
+  localThreadId: null,
   turnId: null,
   lastError: null,
   pendingServerRequestCount: 0,
 };
+
+const DYNAMIC_TOOLS: DynamicToolSpec[] = [
+  {
+    name: "tauri_get_runtime_snapshot",
+    description:
+      "Return a local runtime snapshot from the Tauri host, including timestamp, runtime ids, and optional pending request summary.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        includePendingRequests: {
+          type: "boolean",
+          description: "Whether to include pending request ids and methods for the current thread.",
+        },
+        note: {
+          type: "string",
+          description: "Optional user note to echo in the tool response.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+];
+
+const inFlightDynamicToolCalls = new Set<string>();
 
 function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
@@ -129,13 +159,193 @@ function emitState(next?: Partial<typeof bridgeState>): void {
     type: "state",
     payload: {
       running: bridgeState.running,
-      threadId: bridgeState.threadId,
+      localThreadId: bridgeState.localThreadId,
       turnId: bridgeState.turnId,
       lastError: bridgeState.lastError,
       runtimeThreadId,
       pendingServerRequestCount: bridgeState.pendingServerRequestCount,
     },
   });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function dynamicToolCallKey(requestId: string | number): string {
+  return `${typeof requestId}:${String(requestId)}`;
+}
+
+function parseDynamicToolCallRequest(payloadJson: string): {
+  requestId: string | number;
+  threadId: string;
+  turnId: string;
+  callId: string;
+  tool: string;
+  arguments: unknown;
+} | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+  const root = asRecord(parsed);
+  if (!root || root.method !== "item/tool/call") {
+    return null;
+  }
+  const requestId = root.id;
+  if (typeof requestId !== "string" && typeof requestId !== "number") {
+    return null;
+  }
+  const params = asRecord(root.params);
+  if (!params) {
+    return null;
+  }
+  const threadId = typeof params.threadId === "string" ? params.threadId : null;
+  const turnId = typeof params.turnId === "string" ? params.turnId : null;
+  const callId = typeof params.callId === "string" ? params.callId : null;
+  const tool = typeof params.tool === "string" ? params.tool : null;
+  if (!threadId || !turnId || !callId || !tool) {
+    return null;
+  }
+  return {
+    requestId,
+    threadId,
+    turnId,
+    callId,
+    tool,
+    arguments: params.arguments,
+  };
+}
+
+async function executeDynamicToolCall(
+  toolCall: ReturnType<typeof parseDynamicToolCallRequest> extends infer T
+    ? Exclude<T, null>
+    : never,
+): Promise<{ success: boolean; contentItems: DynamicToolCallOutputContentItem[] }> {
+  if (toolCall.tool !== "tauri_get_runtime_snapshot") {
+    return {
+      success: false,
+      contentItems: [
+        {
+          type: "inputText",
+          text: `Unknown dynamic tool: ${toolCall.tool}`,
+        },
+      ],
+    };
+  }
+
+  const args = asRecord(toolCall.arguments) ?? {};
+  const includePendingRequests = args.includePendingRequests === true;
+  const note = typeof args.note === "string" ? args.note : null;
+
+  let pendingSummary: Array<{ requestId: string | number; method: string }> = [];
+  if (includePendingRequests && runtime) {
+    const pending = bridgeState.localThreadId
+      ? await runtime.listPendingServerRequests(bridgeState.localThreadId)
+      : await runtime.listPendingServerRequests();
+    pendingSummary = pending.map((request) => ({
+      requestId: request.requestId,
+      method: request.method,
+    }));
+  }
+
+  const snapshot = {
+    tool: toolCall.tool,
+    generatedAt: new Date().toISOString(),
+    threadId: toolCall.threadId,
+    localThreadId: bridgeState.localThreadId,
+    turnId: toolCall.turnId,
+    runtimeThreadId,
+    helperPid: process.pid,
+    cwd: process.cwd(),
+    ...(note ? { note } : {}),
+    ...(includePendingRequests ? { pendingRequests: pendingSummary } : {}),
+  };
+
+  return {
+    success: true,
+    contentItems: [
+      {
+        type: "inputText",
+        text: JSON.stringify(snapshot, null, 2),
+      },
+    ],
+  };
+}
+
+async function handlePendingDynamicToolCalls(threadId: string): Promise<void> {
+  if (!runtime) {
+    return;
+  }
+
+  try {
+    // Pending server requests are stored against local Convex thread IDs.
+    // Avoid filtering with runtime thread IDs (external IDs) to prevent false
+    // "Thread not found for tenant" errors during dynamic tool dispatch.
+    const pending = await runtime.listPendingServerRequests();
+    for (const request of pending) {
+      if (request.method !== "item/tool/call") {
+        continue;
+      }
+
+      const key = dynamicToolCallKey(request.requestId);
+      if (inFlightDynamicToolCalls.has(key)) {
+        continue;
+      }
+      inFlightDynamicToolCalls.add(key);
+
+      try {
+        const parsed = parseDynamicToolCallRequest(request.payloadJson);
+        if (!parsed) {
+          await runtime.respondDynamicToolCall({
+            requestId: request.requestId,
+            success: false,
+            contentItems: [{ type: "inputText", text: "Invalid dynamic tool call payload." }],
+          });
+          continue;
+        }
+
+        if (parsed.threadId !== threadId) {
+          continue;
+        }
+
+        const result = await executeDynamicToolCall(parsed);
+        await runtime.respondDynamicToolCall({
+          requestId: request.requestId,
+          success: result.success,
+          contentItems: result.contentItems,
+        });
+
+        emit({
+          type: "global",
+          payload: {
+            kind: "dynamic_tool/executed",
+            tool: parsed.tool,
+            threadId: parsed.threadId,
+            turnId: parsed.turnId,
+            callId: parsed.callId,
+            success: result.success,
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (runtime) {
+          await runtime.respondDynamicToolCall({
+            requestId: request.requestId,
+            success: false,
+            contentItems: [{ type: "inputText", text: message }],
+          });
+        }
+      } finally {
+        inFlightDynamicToolCalls.delete(key);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    emit({ type: "protocol_error", payload: { message, line: "handlePendingDynamicToolCalls" } });
+  }
 }
 
 async function startBridge(payload: StartPayload): Promise<void> {
@@ -222,10 +432,67 @@ async function startBridge(payload: StartPayload): Promise<void> {
           client.mutation(requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"), toIngestPayload(sessionIdOverride));
 
         try {
-          const result = await runIngest(args.sessionId);
+          const initialResult = await runIngest(args.sessionId);
+          if (initialResult.status !== "rejected") {
+            return {
+              status: initialResult.status,
+              errors: initialResult.errors.map((error) => ({
+                code: toErrorCode(error.code),
+                message: error.message,
+                recoverable: error.recoverable,
+              })),
+            };
+          }
+
+          const hasRecoverableRejection = initialResult.errors.some((error) =>
+            isRecoverableSyncCode(error.code),
+          );
+          if (hasRecoverableRejection && activeSessionId && actor) {
+            const nextSessionId = randomSessionId();
+            activeSessionId = nextSessionId;
+            await client.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
+              actor,
+              sessionId: nextSessionId,
+              threadId: args.threadId,
+            });
+
+            emit({
+              type: "global",
+              payload: {
+                kind: "sync/session_rolled_over",
+                reason: "recoverable_rejected_status",
+                threadId: args.threadId,
+                errors: initialResult.errors.map((error) => ({
+                  code: toErrorCode(error.code),
+                  message: error.message,
+                })),
+              },
+            });
+
+            const retriedResult = await runIngest(nextSessionId);
+            if (retriedResult.status === "rejected") {
+              return {
+                status: "partial",
+                errors: retriedResult.errors.map((error) => ({
+                  code: toErrorCode(error.code),
+                  message: error.message,
+                  recoverable: true,
+                })),
+              };
+            }
+            return {
+              status: retriedResult.status,
+              errors: retriedResult.errors.map((error) => ({
+                code: toErrorCode(error.code),
+                message: error.message,
+                recoverable: error.recoverable,
+              })),
+            };
+          }
+
           return {
-            status: result.status,
-            errors: result.errors.map((error) => ({
+            status: initialResult.status,
+            errors: initialResult.errors.map((error) => ({
               code: toErrorCode(error.code),
               message: error.message,
               recoverable: error.recoverable,
@@ -331,7 +598,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
       onState: (state) => {
         emitState({
           running: state.running,
-          threadId: state.threadId,
+          localThreadId: state.threadId,
           turnId: state.turnId,
           lastError: state.lastError,
           pendingServerRequestCount: state.pendingServerRequestCount,
@@ -340,6 +607,9 @@ async function startBridge(payload: StartPayload): Promise<void> {
       onEvent: (event) => {
         runtimeThreadId = event.threadId;
         emitState();
+        if (event.kind === "item/tool/call") {
+          void handlePendingDynamicToolCalls(event.threadId);
+        }
         emit({
           type: "event",
           payload: {
@@ -353,6 +623,17 @@ async function startBridge(payload: StartPayload): Promise<void> {
       onGlobalMessage: (message: ServerInboundMessage) => {
         const asRecord = message as unknown;
         if (typeof asRecord === "object" && asRecord !== null) {
+          const possibleError = (asRecord as { error?: { message?: unknown } }).error;
+          if (possibleError && typeof possibleError.message === "string") {
+            emitState({ lastError: possibleError.message });
+            emit({
+              type: "protocol_error",
+              payload: {
+                message: possibleError.message,
+                line: JSON.stringify(asRecord),
+              },
+            });
+          }
           emit({ type: "global", payload: asRecord as Record<string, unknown> });
         }
       },
@@ -384,6 +665,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
       ...(payload.model ? { model: payload.model } : {}),
       ...(payload.cwd ? { cwd: payload.cwd } : {}),
       ...(payload.deltaThrottleMs ? { ingestFlushMs: payload.deltaThrottleMs } : {}),
+      dynamicTools: DYNAMIC_TOOLS,
       runtime: startRuntimeOptions,
     });
 
@@ -443,7 +725,13 @@ async function stopCurrentBridge(): Promise<void> {
     actor = null;
     activeSessionId = null;
     runtimeThreadId = null;
-    emitState({ running: false, threadId: null, turnId: null, lastError: null, pendingServerRequestCount: 0 });
+    emitState({
+      running: false,
+      localThreadId: null,
+      turnId: null,
+      lastError: null,
+      pendingServerRequestCount: 0,
+    });
   }
 }
 
@@ -511,3 +799,15 @@ process.stdin.on("data", (chunk) => {
 });
 
 process.stdin.resume();
+
+process.on("unhandledRejection", (reason) => {
+  const message = reason instanceof Error ? reason.stack ?? reason.message : String(reason);
+  emit({ type: "error", payload: { message: `Unhandled rejection: ${message}` } });
+  emit({ type: "protocol_error", payload: { message: String(message), line: "unhandledRejection" } });
+});
+
+process.on("uncaughtException", (error) => {
+  const message = error.stack ?? error.message;
+  emit({ type: "error", payload: { message: `Uncaught exception: ${message}` } });
+  emit({ type: "protocol_error", payload: { message, line: "uncaughtException" } });
+});

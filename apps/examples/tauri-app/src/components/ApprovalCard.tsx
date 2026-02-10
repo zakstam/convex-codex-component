@@ -12,7 +12,8 @@ type PendingServerRequest = {
   method:
     | "item/commandExecution/requestApproval"
     | "item/fileChange/requestApproval"
-    | "item/tool/requestUserInput";
+    | "item/tool/requestUserInput"
+    | "item/tool/call";
   threadId: string;
   turnId: string;
   itemId: string;
@@ -48,6 +49,7 @@ function getUrgency(method: string): { level: string; label: string } {
     return { level: "high", label: "COMMAND" };
   if (method === "item/fileChange/requestApproval")
     return { level: "medium", label: "FILE CHANGE" };
+  if (method === "item/tool/call") return { level: "medium", label: "TOOL CALL" };
   return { level: "low", label: "INPUT" };
 }
 
@@ -187,6 +189,9 @@ export function ApprovalCard({
             </button>
           </div>
         </div>
+      )}
+      {request.method === "item/tool/call" && (
+        <p className="code approval-meta">Handled automatically by helper runtime.</p>
       )}
     </div>
   );

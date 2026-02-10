@@ -9,7 +9,9 @@ This example runs `codex app-server` locally inside a desktop shell and persists
 - **Rust host** spawns a Node helper process and forwards events/commands via IPC.
 - **Node helper** runs `CodexLocalBridge`, sends protocol calls, and ingests normalized events to Convex.
   - Uses `createCodexHostRuntime` from `@zakstam/codex-local-component/host` for lifecycle-safe start/resume/fork orchestration.
+  - Keeps thread identity explicit: `runtimeThreadId` (app-server UUID) and `localThreadId` (Convex persisted thread id).
   - Persists pending server requests (command approvals, file change approvals, and tool user input prompts) through Convex host wrappers.
+  - Registers a custom dynamic tool `tauri_get_runtime_snapshot` and auto-responds to `item/tool/call` with local runtime context.
 - **Convex backend** mounts `codexLocal` and exposes generated-type-safe host wrappers in `convex/chat.ts`,
   composed from shared `@zakstam/codex-local-component/host` helpers.
 
@@ -42,6 +44,7 @@ This starts and watches:
   - command approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
   - file change approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
   - tool user input answers submitted per question id
+- Use **Use Snapshot Tool** in the composer, then send. This inserts a prompt that asks Codex to call `tauri_get_runtime_snapshot`.
 
 ## Required env
 

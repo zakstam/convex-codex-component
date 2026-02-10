@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildCommandExecutionApprovalResponse,
+  buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
   buildThreadArchiveRequest,
   buildThreadForkRequest,
@@ -10,6 +11,7 @@ import {
   buildThreadReadRequest,
   buildThreadResumeRequest,
   buildThreadRollbackRequest,
+  buildThreadStartRequest,
   buildThreadUnarchiveRequest,
   buildToolRequestUserInputResponse,
   buildTurnInterruptRequest,
@@ -46,6 +48,23 @@ test("app-server thread lifecycle builders create typed request envelopes", () =
   assert.deepEqual(buildThreadLoadedListRequest(9, {}).method, "thread/loaded/list");
 });
 
+test("app-server thread lifecycle builders pass dynamicTools on start and resume", () => {
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  const dynamicTools = [
+    {
+      name: "search_docs",
+      description: "Search internal docs",
+      inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+    },
+  ];
+
+  const start = buildThreadStartRequest(1, { dynamicTools });
+  const resume = buildThreadResumeRequest(2, { threadId, dynamicTools });
+
+  assert.deepEqual(start.params.dynamicTools, dynamicTools);
+  assert.deepEqual(resume.params.dynamicTools, dynamicTools);
+});
+
 test("app-server request builders reject malformed thread IDs", () => {
   assert.throws(() =>
     buildTurnStartTextRequest(1, {
@@ -78,4 +97,8 @@ test("app-server response builders create JSON-RPC response payloads for server 
       result: { answers: { q1: { answers: ["A"] } } },
     },
   );
+  assert.deepEqual(buildDynamicToolCallResponse(13, { success: true, contentItems: [] }), {
+    id: 13,
+    result: { success: true, contentItems: [] },
+  });
 });

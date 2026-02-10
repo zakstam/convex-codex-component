@@ -700,7 +700,11 @@ export async function upsertPendingServerRequestForHooksWithTrustedActor<
     threadId: string;
     turnId: string;
     itemId: string;
-    method: "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" | "item/tool/requestUserInput";
+    method:
+      | "item/commandExecution/requestApproval"
+      | "item/fileChange/requestApproval"
+      | "item/tool/requestUserInput"
+      | "item/tool/call";
     payloadJson: string;
     reason?: string;
     questionsJson?: string;

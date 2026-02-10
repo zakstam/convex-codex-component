@@ -224,6 +224,16 @@ test("server request host wrappers pass refs and args", async () => {
     payloadJson: "{}",
     requestedAt: 1,
   });
+  await upsertPendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
+    actor,
+    requestId: 2,
+    threadId: "thread-1",
+    turnId: "turn-1",
+    itemId: "call-1",
+    method: "item/tool/call",
+    payloadJson: "{}",
+    requestedAt: 2,
+  });
   await resolvePendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
     actor,
     threadId: "thread-1",
@@ -237,9 +247,11 @@ test("server request host wrappers pass refs and args", async () => {
   assert.equal(queryCalls[0].ref, listRef);
   assert.equal(queryCalls[0].args.threadId, "thread-1");
   assert.equal(typeof queryCalls[0].args.actor.tenantId, "string");
-  assert.equal(mutationCalls.length, 2);
+  assert.equal(mutationCalls.length, 3);
   assert.equal(mutationCalls[0].ref, upsertRef);
-  assert.equal(mutationCalls[1].ref, resolveRef);
+  assert.equal(mutationCalls[1].ref, upsertRef);
+  assert.equal(mutationCalls[2].ref, resolveRef);
   assert.equal(typeof mutationCalls[0].args.actor.tenantId, "string");
   assert.equal(typeof mutationCalls[1].args.actor.tenantId, "string");
+  assert.equal(typeof mutationCalls[2].args.actor.tenantId, "string");
 });

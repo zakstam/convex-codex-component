@@ -13,6 +13,42 @@ type StreamOverlayState = {
   deltas: CodexStreamDeltaLike[];
 };
 
+function areStreamIdsEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((streamId, index) => streamId === b[index]);
+}
+
+function areCursorsEqual(a: Record<string, number>, b: Record<string, number>): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) {
+    return false;
+  }
+  return aKeys.every((key) => a[key] === b[key]);
+}
+
+function areDeltasEqual(a: CodexStreamDeltaLike[], b: CodexStreamDeltaLike[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index];
+    const right = b[index];
+    if (!left || !right) {
+      return false;
+    }
+    if (
+      left.streamId !== right.streamId ||
+      left.cursorStart !== right.cursorStart ||
+      left.cursorEnd !== right.cursorEnd ||
+      left.kind !== right.kind ||
+      left.payloadJson !== right.payloadJson
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function applyDeltaBatch(
   state: StreamOverlayState,
   payload: {
@@ -60,7 +96,20 @@ function applyDeltaBatch(
     if (nextCheckpoints.length === 0 && resetStreamIds.size === 0 && !streamIdsChanged) {
       return state;
     }
-    return { ...state, streamIds: nextStreamIds, cursorsByStreamId: nextOnly, deltas: nextDeltas };
+    const nextState: StreamOverlayState = {
+      ...state,
+      streamIds: nextStreamIds,
+      cursorsByStreamId: nextOnly,
+      deltas: nextDeltas,
+    };
+    if (
+      areStreamIdsEqual(nextState.streamIds, state.streamIds) &&
+      areCursorsEqual(nextState.cursorsByStreamId, state.cursorsByStreamId) &&
+      areDeltasEqual(nextState.deltas, state.deltas)
+    ) {
+      return state;
+    }
+    return nextState;
   }
 
   const nextCursors = Object.fromEntries(
@@ -102,12 +151,20 @@ function applyDeltaBatch(
     );
   }
 
-  return {
+  const nextState: StreamOverlayState = {
     threadId: state.threadId,
     streamIds: nextStreamIds,
     cursorsByStreamId: nextCursors,
     deltas: nextDeltas.slice(-5000),
   };
+  if (
+    areStreamIdsEqual(nextState.streamIds, state.streamIds) &&
+    areCursorsEqual(nextState.cursorsByStreamId, state.cursorsByStreamId) &&
+    areDeltasEqual(nextState.deltas, state.deltas)
+  ) {
+    return state;
+  }
+  return nextState;
 }
 
 export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(

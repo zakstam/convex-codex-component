@@ -1,6 +1,7 @@
 export {
   buildClientRequest,
   buildInitializeRequest,
+  buildInitializeRequestWithCapabilities,
   buildInitializedNotification,
   isUuidLikeThreadId,
   buildThreadStartRequest,
@@ -16,6 +17,7 @@ export {
   buildTurnStartTextRequest,
   buildTurnInterruptRequest,
   buildCommandExecutionApprovalResponse,
+  buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
   buildToolRequestUserInputResponse,
 } from "./client.js";

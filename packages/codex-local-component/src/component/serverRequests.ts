@@ -8,6 +8,7 @@ const vManagedServerRequestMethod = v.union(
   v.literal("item/commandExecution/requestApproval"),
   v.literal("item/fileChange/requestApproval"),
   v.literal("item/tool/requestUserInput"),
+  v.literal("item/tool/call"),
 );
 
 function toRequestStorageId(requestId: string | number): {

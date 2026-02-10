@@ -48,7 +48,7 @@ Replay is status-driven, not exception-driven.
 
 ### Pending server-request responses
 
-If command/file approval or `item/tool/requestUserInput` requests appear stuck:
+If command/file approval, `item/tool/requestUserInput`, or `item/tool/call` requests appear stuck:
 
 1. query pending server requests (`components.codexLocal.serverRequests.listPending` or runtime `listPendingServerRequests`)
 2. verify request id is still pending for the active turn
@@ -56,6 +56,7 @@ If command/file approval or `item/tool/requestUserInput` requests appear stuck:
    - `respondCommandApproval`
    - `respondFileChangeApproval`
    - `respondToolUserInput`
+   - `respondDynamicToolCall`
 4. if turn already completed/failed, request may be marked `expired`
 
 ### Protocol parse failures

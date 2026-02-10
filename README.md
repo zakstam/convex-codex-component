@@ -454,10 +454,16 @@ Typed request/response builders for the Codex app-server JSON-RPC protocol.
 | `buildThreadResumeRequest` | Resume an existing thread |
 | `buildTurnStartTextRequest` | Start a text turn |
 | `buildTurnInterruptRequest` | Interrupt active turn |
+| `buildAccountReadRequest` | Read account/auth state |
+| `buildAccountLoginStartRequest` | Start account login |
+| `buildAccountLoginCancelRequest` | Cancel account login |
+| `buildAccountLogoutRequest` | Log out account |
+| `buildAccountRateLimitsReadRequest` | Read account rate limits |
 | `buildCommandExecutionApprovalResponse` | Respond to command approval |
 | `buildFileChangeApprovalResponse` | Respond to file change approval |
 | `buildToolRequestUserInputResponse` | Respond to tool input request |
 | `buildDynamicToolCallResponse` | Respond to dynamic tool call |
+| `buildChatgptAuthTokensRefreshResponse` | Respond to ChatGPT auth-token refresh request |
 
 ### `@zakstam/codex-local-component/host`
 
@@ -506,14 +512,15 @@ The component manages 14 Convex tables, all multi-tenant by default (scoped to `
 - Thread lifecycle (create, resume, fork, archive, rollback)
 - Turn lifecycle (start, interrupt, idempotency)
 - Streamed event ingest and replay with cursor-based sync
+- Account/Auth API surface (`account/read`, `account/login/start`, `account/login/cancel`, `account/logout`, `account/rateLimits/read`)
 - Command execution and file change approval flows
 - Tool user input flow
 - Dynamic tool call response flow
+- ChatGPT auth-token refresh response flow (`account/chatgptAuthTokens/refresh`)
 - Multi-device stream checkpoints with TTL cleanup
 
 **Not yet implemented:**
 
-- Account/Auth API surface
 - Config management API surface
 - MCP management API surface
 - Core runtime utility APIs (`command/exec`, `model/list`, `review/start`)

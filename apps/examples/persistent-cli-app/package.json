@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm --filter @zakstam/codex-local-component run build",
+    "prepare:component": "pnpm -C ../../.. run host:generate",
     "dev:convex": "pnpm run prepare:component && convex dev",
     "dev:convex:once": "pnpm run prepare:component && convex dev --once",
+    "wiring:smoke": "pnpm run dev:convex:once && node ./scripts/check-wiring-convex.mjs",
     "start": "pnpm run prepare:component && tsx src/index.ts",
     "typecheck": "pnpm run prepare:component && tsc --noEmit"
   },

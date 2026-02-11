@@ -110,6 +110,60 @@ function toErrorCode(value: unknown): string {
   return value;
 }
 
+function formatWiringValidationFailure(result: unknown): string {
+  if (typeof result !== "object" || result === null) {
+    return "Host wiring validation failed: unexpected result shape.";
+  }
+  const record = result as {
+    ok?: unknown;
+    checks?: Array<{ name?: unknown; ok?: unknown; error?: unknown }>;
+  };
+  const checks = Array.isArray(record.checks) ? record.checks : [];
+  const failed = checks.filter((check) => check && check.ok === false);
+  if (record.ok === true && failed.length === 0) {
+    return "";
+  }
+  if (failed.length === 0) {
+    return "Host wiring validation failed: one or more checks failed.";
+  }
+  const detail = failed
+    .map((check) => {
+      const name = typeof check.name === "string" ? check.name : "unknown";
+      const error = typeof check.error === "string" ? check.error : "unknown error";
+      return `${name}: ${error}`;
+    })
+    .join("; ");
+  return `Host wiring validation failed: ${detail}`;
+}
+
+type IngestBatchError = {
+  code: unknown;
+  message: string;
+  recoverable: boolean;
+};
+
+function mapIngestErrors(errors: IngestBatchError[]): Array<{
+  code: string;
+  message: string;
+  recoverable: boolean;
+}> {
+  return errors.map((ingestError: IngestBatchError) => ({
+    code: toErrorCode(ingestError.code),
+    message: ingestError.message,
+    recoverable: ingestError.recoverable,
+  }));
+}
+
+function mapIngestErrorCodes(errors: IngestBatchError[]): Array<{
+  code: string;
+  message: string;
+}> {
+  return errors.map((ingestError: IngestBatchError) => ({
+    code: toErrorCode(ingestError.code),
+    message: ingestError.message,
+  }));
+}
+
 let runtime: CodexHostRuntime | null = null;
 let convex: ConvexHttpClient | null = null;
 let actor: ActorContext | null = null;
@@ -427,6 +481,15 @@ async function startBridge(payload: StartPayload): Promise<void> {
   activeSessionId = payload.sessionId ? `${payload.sessionId}-${randomSessionId()}` : randomSessionId();
   runtimeThreadId = payload.runtimeThreadId ?? null;
 
+  const wiringValidation = await convex.query(
+    requireDefined(chatApi.validateHostWiring, "api.chat.validateHostWiring"),
+    { actor },
+  );
+  const wiringFailure = formatWiringValidationFailure(wiringValidation);
+  if (wiringFailure) {
+    throw new Error(wiringFailure);
+  }
+
   startRuntimeOptions = {
     saveStreamDeltas: payload.saveStreamDeltas ?? true,
     maxDeltasPerStreamRead: 100,
@@ -503,16 +566,13 @@ async function startBridge(payload: StartPayload): Promise<void> {
           if (initialResult.status !== "rejected") {
             return {
               status: initialResult.status,
-              errors: initialResult.errors.map((error) => ({
-                code: toErrorCode(error.code),
-                message: error.message,
-                recoverable: error.recoverable,
-              })),
+              errors: mapIngestErrors(initialResult.errors as IngestBatchError[]),
             };
           }
 
-          const hasRecoverableRejection = initialResult.errors.some((error) =>
-            isRecoverableSyncCode(error.code),
+          const initialErrors = initialResult.errors as IngestBatchError[];
+          const hasRecoverableRejection = initialErrors.some((ingestError: IngestBatchError) =>
+            isRecoverableSyncCode(ingestError.code),
           );
           if (hasRecoverableRejection && activeSessionId && actor) {
             const nextSessionId = randomSessionId();
@@ -529,10 +589,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
                 kind: "sync/session_rolled_over",
                 reason: "recoverable_rejected_status",
                 threadId: args.threadId,
-                errors: initialResult.errors.map((error) => ({
-                  code: toErrorCode(error.code),
-                  message: error.message,
-                })),
+                errors: mapIngestErrorCodes(initialErrors),
               },
             });
 
@@ -540,30 +597,21 @@ async function startBridge(payload: StartPayload): Promise<void> {
             if (retriedResult.status === "rejected") {
               return {
                 status: "partial",
-                errors: retriedResult.errors.map((error) => ({
-                  code: toErrorCode(error.code),
-                  message: error.message,
+                errors: mapIngestErrors(retriedResult.errors as IngestBatchError[]).map((error) => ({
+                  ...error,
                   recoverable: true,
                 })),
               };
             }
             return {
               status: retriedResult.status,
-              errors: retriedResult.errors.map((error) => ({
-                code: toErrorCode(error.code),
-                message: error.message,
-                recoverable: error.recoverable,
-              })),
+              errors: mapIngestErrors(retriedResult.errors as IngestBatchError[]),
             };
           }
 
           return {
             status: initialResult.status,
-            errors: initialResult.errors.map((error) => ({
-              code: toErrorCode(error.code),
-              message: error.message,
-              recoverable: error.recoverable,
-            })),
+            errors: mapIngestErrors(initialErrors),
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -594,11 +642,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           const result = await runIngest(nextSessionId);
           return {
             status: result.status,
-            errors: result.errors.map((ingestError) => ({
-              code: toErrorCode(ingestError.code),
-              message: ingestError.message,
-              recoverable: ingestError.recoverable,
-            })),
+            errors: mapIngestErrors(result.errors as IngestBatchError[]),
           };
         }
       },

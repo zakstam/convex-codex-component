@@ -153,6 +153,7 @@ export declare const components: {
           attemptCount: number;
           cancelledAt?: number;
           claimOwner?: string;
+          claimToken?: string;
           completedAt?: number;
           createdAt: number;
           dispatchId: string;

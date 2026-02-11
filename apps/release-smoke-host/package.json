@@ -3,15 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "node ./scripts/prepare-component.mjs",
+    "prepare:component": "pnpm -C ../.. run host:generate && node ./scripts/prepare-component.mjs",
     "dev:convex": "pnpm run prepare:component && convex dev",
     "dev:convex:once": "pnpm run prepare:component && convex dev --once",
     "start": "pnpm run prepare:component && tsx src/index.ts",
     "typecheck": "pnpm run prepare:component && tsc --noEmit",
     "typecheck:convex": "pnpm run prepare:component && tsc --noEmit -p convex/tsconfig.json",
+    "wiring:smoke": "pnpm run dev:convex:once && node ./scripts/check-wiring-convex.mjs",
     "runtime:smoke": "pnpm run dev:convex:once && tsx src/runtime-smoke.ts",
     "contract:smoke": "pnpm run dev:convex:once && tsx src/contract-smoke.ts",
-    "smoke:checks": "pnpm run dev:convex:once && tsx src/contract-smoke.ts && tsx src/runtime-smoke.ts"
+    "smoke:checks": "pnpm run dev:convex:once && node ./scripts/check-wiring-convex.mjs && tsx src/contract-smoke.ts && tsx src/runtime-smoke.ts"
   },
   "dependencies": {
     "convex": "^1.17.4"

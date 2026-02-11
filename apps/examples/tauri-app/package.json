@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm --filter @zakstam/codex-local-component run build",
+    "prepare:component": "pnpm -C ../../.. run host:generate",
     "prepare:component:watch": "pnpm --filter @zakstam/codex-local-component run build:watch",
     "prepare:tauri-assets": "node ./scripts/prepare-tauri-assets.mjs",
     "check:generated:convex": "node ./scripts/check-generated-convex.mjs",
+    "check:wiring:convex": "node ./scripts/check-wiring-convex.mjs",
     "build:node": "esbuild src-node/bridge-helper.ts --bundle --platform=node --format=esm --outfile=dist-node/bridge-helper.js",
     "build:node:watch": "esbuild src-node/bridge-helper.ts --bundle --platform=node --format=esm --outfile=dist-node/bridge-helper.js --watch",
     "dev:convex": "pnpm run prepare:component && convex dev",
@@ -16,7 +17,7 @@
     "start": "pnpm run prepare:component && pnpm run prepare:tauri-assets && pnpm run build:node && tauri dev",
     "build": "pnpm run prepare:tauri-assets && pnpm run build:node && vite build && tauri build",
     "typecheck": "pnpm run prepare:component && pnpm run check:generated:convex && tsc --noEmit",
-    "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:generated:convex && tsc --noEmit",
+    "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:generated:convex && pnpm run check:wiring:convex && tsc --noEmit",
     "tauri:check": "pnpm run prepare:tauri-assets && (cd src-tauri && cargo check)"
   },
   "dependencies": {

@@ -31,14 +31,14 @@ import {
 } from "./convex.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 
-type HostMutationRunner = {
+export type HostMutationRunner = {
   runMutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
     mutation: Mutation,
     args: FunctionArgs<Mutation>,
   ): Promise<FunctionReturnType<Mutation>>;
 };
 
-type HostQueryRunner = {
+export type HostQueryRunner = {
   runQuery<Query extends FunctionReference<"query", "public" | "internal">>(
     query: Query,
     args: FunctionArgs<Query>,
@@ -271,76 +271,102 @@ export const vHostDataHygiene = v.object({
 
 type CodexThreadsCreateComponent = {
   threads: {
-    create: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    create: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
 type CodexThreadsResolveComponent = {
   threads: {
-    resolve: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    resolve: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
 type CodexTurnsComponent = {
   turns: {
-    interrupt: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    interrupt: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
 type CodexSyncComponent = {
   sync: {
-    ensureSession: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    ingestSafe: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, HostReplayResult>;
+    ensureSession: FunctionReference<"mutation", "public" | "internal">;
+    ingestSafe: FunctionReference<"mutation", "public" | "internal">;
+    replay: FunctionReference<
+      "query",
+      "public" | "internal",
+      {
+        actor: HostActorContext;
+        threadId: string;
+        streamCursorsById: Array<{ streamId: string; cursor: number }>;
+        runtime?: HostSyncRuntimeOptions;
+      },
+      HostReplayResult
+    >;
   };
 };
 
 type CodexMessagesComponent = {
   messages: {
-    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, object>;
-    getByTurn: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    listByThread: FunctionReference<"query", "public" | "internal">;
+    getByTurn: FunctionReference<"query", "public" | "internal">;
   };
 };
 
 type CodexApprovalsComponent = {
   approvals: {
-    listPending: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-    respond: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    listPending: FunctionReference<"query", "public" | "internal">;
+    respond: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
 type CodexServerRequestsComponent = {
   serverRequests: {
-    listPending: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-    upsertPending: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    resolve: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    listPending: FunctionReference<"query", "public" | "internal">;
+    upsertPending: FunctionReference<"mutation", "public" | "internal">;
+    resolve: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
 type CodexDispatchComponent = {
   dispatch: {
-    enqueueTurnDispatch: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    claimNextTurnDispatch: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    markTurnStarted: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    markTurnCompleted: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    markTurnFailed: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    cancelTurnDispatch: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    getTurnDispatchState: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    enqueueTurnDispatch: FunctionReference<"mutation", "public" | "internal">;
+    claimNextTurnDispatch: FunctionReference<"mutation", "public" | "internal">;
+    markTurnStarted: FunctionReference<"mutation", "public" | "internal">;
+    markTurnCompleted: FunctionReference<"mutation", "public" | "internal">;
+    markTurnFailed: FunctionReference<"mutation", "public" | "internal">;
+    cancelTurnDispatch: FunctionReference<"mutation", "public" | "internal">;
+    getTurnDispatchState: FunctionReference<"query", "public" | "internal">;
   };
 };
 
 type CodexThreadsStateComponent = {
   threads: {
-    getState: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    getState: FunctionReference<"query", "public" | "internal">;
   };
 };
 
 type CodexHooksComponent = CodexMessagesComponent & CodexSyncComponent;
 type CodexReasoningComponent = {
   reasoning: {
-    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    listByThread: FunctionReference<"query", "public" | "internal">;
   };
 };
+
+export type CodexHostComponentRefs =
+  & CodexThreadsCreateComponent
+  & CodexThreadsResolveComponent
+  & CodexTurnsComponent
+  & CodexSyncComponent
+  & CodexMessagesComponent
+  & CodexApprovalsComponent
+  & CodexServerRequestsComponent
+  & CodexDispatchComponent
+  & CodexThreadsStateComponent
+  & CodexReasoningComponent;
+
+export type CodexHostComponentsInput<Refs extends CodexHostComponentRefs = CodexHostComponentRefs> =
+  | Refs
+  | { codexLocal: Refs };
 
 type EnsureThreadCreateArgs = {
   actor: HostActorContext;

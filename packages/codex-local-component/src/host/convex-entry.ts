@@ -1,4 +1,25 @@
 export {
+  defineDispatchManagedHostSlice,
+  defineRuntimeOwnedHostSlice,
+  type CodexHostSliceFeatures,
+  type CodexHostSliceIngestMode,
+  type CodexHostSliceProfile,
+  type CodexHostSliceThreadMode,
+  type DefineDispatchManagedHostSliceOptions,
+  type DefineRuntimeOwnedHostSliceOptions,
+  type DispatchManagedHostDefinitions,
+  type RuntimeOwnedHostDefinitions,
+} from "./convexPreset.js";
+export { wrapHostDefinitions } from "./wrapDefinitions.js";
+export {
+  HOST_PRESET_DEFINITIONS,
+  HOST_SURFACE_MANIFEST,
+  type HostSurfaceProfile,
+  type HostSurfaceMutationKey,
+  type HostSurfaceQueryKey,
+} from "./surfaceManifest.js";
+
+export {
   ingestBatchSafe,
   listThreadMessagesForHooks,
   listThreadReasoningForHooks,
@@ -67,5 +88,7 @@ export {
   vHostStreamArgs,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
+  type CodexHostComponentRefs,
+  type CodexHostComponentsInput,
   type HostActorContext,
 } from "./convexSlice.js";

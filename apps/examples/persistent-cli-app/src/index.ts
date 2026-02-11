@@ -352,6 +352,7 @@ function requireDefined<T>(value: T | undefined, name: string): T {
 }
 
 const chatFns = {
+  validateHostWiring: requireDefined(chatApi.validateHostWiring, "chat.validateHostWiring"),
   ensureThread: requireDefined(chatApi.ensureThread, "chat.ensureThread"),
   enqueueTurnDispatch: requireDefined(chatApi.enqueueTurnDispatch, "chat.enqueueTurnDispatch"),
   ensureSession: requireDefined(chatApi.ensureSession, "chat.ensureSession"),
@@ -360,6 +361,19 @@ const chatFns = {
   durableHistoryStats: requireDefined(chatApi.durableHistoryStats, "chat.durableHistoryStats"),
   threadSnapshot: requireDefined(chatApi.threadSnapshot, "chat.threadSnapshot"),
 } as const;
+
+async function assertHostWiring(): Promise<void> {
+  const validation = await convex.query(chatFns.validateHostWiring, { actor });
+  const checks = validation.checks as Array<{ name: string; ok: boolean; error?: string }>;
+  if (validation.ok) {
+    return;
+  }
+  const failed = checks.filter((check: { ok: boolean }) => !check.ok);
+  const reason = failed.length
+    ? failed.map((check: { name: string; error?: string }) => `${check.name}: ${check.error ?? "unknown error"}`).join("; ")
+    : "unknown wiring failure";
+  throw new Error(`Host wiring validation failed: ${reason}`);
+}
 
 const sessionId = randomUUID();
 const runId = randomUUID();
@@ -974,6 +988,8 @@ async function main(): Promise<void> {
     `[persist-config] saveStreamDeltas=${String(saveStreamDeltas)} deltaThrottleMs=${String(activeFlushIntervalMs)}`,
   );
   updateStatus();
+  await assertHostWiring();
+  tui.appendLine("[wiring] validateHostWiring passed");
 
   await startFlow();
 }

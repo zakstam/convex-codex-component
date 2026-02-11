@@ -44,3 +44,38 @@ src/component/index.ts:12:export * as streams from "./streams.js";
 src/component/ingest/index.ts:64:    ingestStatus: "ok" as const,
 src/component/ingest/applyMessages.ts:46:          return "failed" as const;
 src/component/ingest/applyMessages.ts:49:          return "interrupted" as const;
+src/host/wrapDefinitions.ts:21:  const mutationWrapper = wrap.mutation as (
+src/host/wrapDefinitions.ts:24:  const queryWrapper = wrap.query as (
+src/host/wrapDefinitions.ts:30:    mutationWrapper(definition as Defs["mutations"][keyof Defs["mutations"]]),
+src/host/wrapDefinitions.ts:34:    queryWrapper(definition as Defs["queries"][keyof Defs["queries"]]),
+src/host/wrapDefinitions.ts:39:    mutations: Object.fromEntries(mutationEntries) as WrappedDefinitionMap<Defs["mutations"], MutationWrap>,
+src/host/wrapDefinitions.ts:40:    queries: Object.fromEntries(queryEntries) as WrappedDefinitionMap<Defs["queries"], QueryWrap>,
+src/host/convexSlice.ts:519:  const record = value as Record<string, unknown>;
+src/host/convexSlice.ts:531:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+src/host/convexSlice.ts:539:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+src/host/convexSlice.ts:547:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+src/host/convexSlice.ts:561:  const turns = (state as { turns?: ThreadStateTurn[] | null }).turns;
+src/host/convexSlice.ts:809:      ? (dispatch.turnId as string | undefined)
+src/host/convexSlice.ts:820:      ? (dispatch.claimOwner as string | undefined)
+src/host/convexSlice.ts:824:      ? (dispatch.claimToken as string | undefined)
+src/host/convexSlice.ts:828:      ? (dispatch.leaseExpiresAt as number | undefined)
+src/host/convexSlice.ts:832:      ? (dispatch.runtimeThreadId as string | undefined)
+src/host/convexSlice.ts:836:      ? (dispatch.runtimeTurnId as string | undefined)
+src/host/convexSlice.ts:840:      ? (dispatch.dispatchId as string | undefined)
+src/component/dispatch.ts:95:        status: existingByIdempotency.status as DispatchStatus,
+src/host/convexPreset.ts:10:  ensureSession as ensureSessionHandler,
+src/host/convexPreset.ts:92:  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
+src/host/convexPreset.ts:96:  return components as ExtractCodexHostComponentRefs<Components>;
+src/host/convexPreset.ts:1077:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
+src/host/runtime.ts:385:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/host/runtime.ts:517:    const parsed = JSON.parse(payloadJson) as unknown;
+src/host/runtime.ts:1233:                ? (message.result as Record<string, unknown>)
+src/host/runtime.ts:1236:                ? (resultObj.turn as Record<string, unknown>)
+src/protocol/events.ts:85:  return item as ThreadItem;
+src/protocol/events.ts:109:  const message = parsed as ServerInboundMessage;
+src/protocol/events.ts:127:  return message as Extract<ServerInboundMessage, { method: M }>;
+src/protocol/events.ts:260:  const params = message.params as Record<string, unknown>;
+src/protocol/events.ts:296:      ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:301:    const msg = params.msg as Record<string, unknown>;
+src/protocol/events.ts:314:    ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:428:    ? (message.params as Record<string, unknown>)

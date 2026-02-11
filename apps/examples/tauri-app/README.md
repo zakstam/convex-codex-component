@@ -1,13 +1,12 @@
 # Tauri Example (Desktop + Convex Persistence)
 
-This app is a desktop-oriented example.
-It is not the canonical consumer onboarding path.
+This app is the blessed reference integration for production-grade React + Convex host wiring.
+React hooks are the official recommendation for consumer integrations.
 
-Canonical consumer implementation path:
-
-- `packages/codex-local-component/LLMS.md`
-
-This example intentionally demonstrates an advanced dispatch-managed runtime shape for desktop orchestration.
+Canonical wiring in this app centers on:
+- `useCodexConversationController`
+- `useCodexThreadState`
+- generated host wrappers in `convex/chat.generated.ts`
 
 ## Run
 

@@ -14,7 +14,7 @@ async function waitForMessage(sent, predicate, timeoutMs = 500) {
   throw new Error("Timed out waiting for message");
 }
 
-function createHarness() {
+function createHarness(options = {}) {
   const sent = [];
   let handlers = null;
   const upserted = [];
@@ -38,10 +38,10 @@ function createHarness() {
     persistence: {
       ensureThread: async () => ({ threadId: "local-thread", created: true }),
       ensureSession: async () => ({ sessionId: "session", threadId: "local-thread", status: "created" }),
-      ingestSafe: async (args) => {
+      ingestSafe: options.ingestSafe ?? (async (args) => {
         ingestCalls.push(args);
         return { status: "ok", errors: [] };
-      },
+      }),
       upsertPendingServerRequest: async ({ request }) => {
         upserted.push(request);
       },
@@ -458,6 +458,51 @@ test("runtime ingests turn-scoped events", async () => {
   assert.equal(state.ingestMetrics.enqueuedEventCount, 1);
   assert.equal(state.ingestMetrics.skippedEventCount, 0);
   assert.deepEqual(state.ingestMetrics.enqueuedByKind, [{ kind: "turn/completed", count: 1 }]);
+
+  await runtime.stop();
+});
+
+test("runtime drops OUT_OF_ORDER rejected ingest batches without protocol error", async () => {
+  const { runtime, sent, emitResponse, emitEvent, protocolErrors, ingestCalls } = createHarness({
+    ingestSafe: async (args) => {
+      ingestCalls.push(args);
+      return {
+        status: "rejected",
+        errors: [{ code: "OUT_OF_ORDER", message: "cursor out of order", recoverable: false }],
+      };
+    },
+  });
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6d";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+    dispatchManaged: false,
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await emitEvent({
+    eventId: "evt-turn-completed-out-of-order",
+    threadId,
+    turnId: "turn-1",
+    streamId: `${threadId}:turn-1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/completed",
+    payloadJson: JSON.stringify({
+      method: "turn/completed",
+      params: {
+        threadId,
+        turn: { id: "turn-1", items: [], status: "completed", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  assert.equal(ingestCalls.length, 1);
+  assert.equal(protocolErrors.length, 0);
+  assert.equal(runtime.getState().lastErrorCode, null);
 
   await runtime.stop();
 });

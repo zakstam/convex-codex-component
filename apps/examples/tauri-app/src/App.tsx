@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery } from "convex/react";
-import { useCodexMessages, useCodexThreadState } from "@zakstam/codex-local-component/react";
+import {
+  useCodexConversationController,
+  useCodexThreadState,
+} from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
   cancelAccountLogin,
@@ -97,8 +100,6 @@ export default function App() {
     ingestEnqueuedByKind: [],
     ingestSkippedByKind: [],
   });
-  const [composer, setComposer] = useState("");
-  const [sending, setSending] = useState(false);
   const [runtimeLog, setRuntimeLog] = useState<Array<{ id: string; line: string }>>([]);
   const [selectedRuntimeThreadId, setSelectedRuntimeThreadId] = useState<string>("");
   const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -128,18 +129,71 @@ export default function App() {
     { actor, limit: 25 },
   );
 
-  const messageArgs = useMemo(() => {
-    if (!threadId) {
-      return "skip" as const;
-    }
-    return { actor, threadId };
-  }, [threadId]);
+  const startBridgeWithSelection = useCallback(async () => {
+    const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
+    await startBridge({
+      convexUrl: import.meta.env.VITE_CONVEX_URL,
+      actor,
+      sessionId,
+      model: import.meta.env.VITE_CODEX_MODEL,
+      cwd: import.meta.env.VITE_CODEX_CWD,
+      deltaThrottleMs: 250,
+      saveStreamDeltas: true,
+      ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
+    });
+  }, [selectedRuntimeThreadId]);
 
-  const messages = useCodexMessages(
-    requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
-    messageArgs,
-    { initialNumItems: 30, stream: true },
-  );
+  const conversation = useCodexConversationController({
+    messages: {
+      query: requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
+      args: threadId ? { actor, threadId } : "skip",
+      initialNumItems: 30,
+      stream: true,
+    },
+    threadState: {
+      query: requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
+      args: threadId ? { actor, threadId } : "skip",
+    },
+    composer: {
+      onSend: async (text: string) => {
+        try {
+          await sendUserTurn(text);
+          setBridge((prev) => ({ ...prev, lastError: null }));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const transientBridgeFailure =
+            message.includes("Broken pipe") ||
+            message.includes("bridge helper is not running") ||
+            message.includes("failed to write command");
+
+          if (transientBridgeFailure) {
+            try {
+              await startBridgeWithSelection();
+              await sendUserTurn(text);
+              setBridge((prev) => ({ ...prev, lastError: null }));
+              return;
+            } catch (retryError) {
+              const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+              setBridge((prev) => ({ ...prev, lastError: retryMessage }));
+              addToast("error", retryMessage);
+              throw retryError;
+            }
+          }
+
+          setBridge((prev) => ({ ...prev, lastError: message }));
+          addToast("error", message);
+          throw error;
+        }
+      },
+    },
+    interrupt: {
+      onInterrupt: async () => {
+        await interruptTurn();
+      },
+    },
+  });
+
+  const messages = conversation.messages;
   const displayMessages = useMemo(
     () => messages.results.filter((message) => message.sourceItemType !== "reasoning"),
     [messages.results],
@@ -171,9 +225,11 @@ export default function App() {
   }, [messages.results]);
 
   const threadState = useCodexThreadState(
-    requireDefined(chatApi.threadSnapshot, "api.chat.threadSnapshot"),
+    requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
     threadId ? { actor, threadId } : "skip",
   );
+  const threadActivity = conversation.activity;
+  const ingestHealth = conversation.ingestHealth;
 
   const pendingServerRequestsRaw = useQuery(
     requireDefined(chatApi.listPendingServerRequestsForHooks, "api.chat.listPendingServerRequestsForHooks"),
@@ -275,61 +331,14 @@ export default function App() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onStartBridge = async () => {
-    const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
-    await startBridge({
-      convexUrl: import.meta.env.VITE_CONVEX_URL,
-      actor,
-      sessionId,
-      model: import.meta.env.VITE_CODEX_MODEL,
-      cwd: import.meta.env.VITE_CODEX_CWD,
-      deltaThrottleMs: 250,
-      saveStreamDeltas: true,
-      ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
-    });
-  };
-
-  const onSubmit = async () => {
-    const text = composer.trim();
-    if (!text) return;
-
-    setSending(true);
-    try {
-      await sendUserTurn(text);
-      setComposer("");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const transientBridgeFailure =
-        message.includes("Broken pipe") ||
-        message.includes("bridge helper is not running") ||
-        message.includes("failed to write command");
-
-      if (transientBridgeFailure) {
-        try {
-          await onStartBridge();
-          await sendUserTurn(text);
-          setComposer("");
-          setBridge((prev) => ({ ...prev, lastError: null }));
-          return;
-        } catch (retryError) {
-          const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
-          setBridge((prev) => ({ ...prev, lastError: retryMessage }));
-          addToast("error", retryMessage);
-          return;
-        }
-      }
-
-      setBridge((prev) => ({ ...prev, lastError: message }));
-      addToast("error", message);
-    } finally {
-      setSending(false);
-    }
-  };
+  const onStartBridge = useCallback(async () => {
+    await startBridgeWithSelection();
+  }, [startBridgeWithSelection]);
 
   const onInsertDynamicToolPrompt = () => {
     const prompt =
       "Use the dynamic tool `tauri_get_runtime_snapshot` with includePendingRequests=true and summarize the response.";
-    setComposer((prev) => (prev.trim() ? `${prev}\n\n${prompt}` : prompt));
+    conversation.composer.setValue((prev) => (prev.trim() ? `${prev}\n\n${prompt}` : prompt));
   };
 
   const onRespondCommandOrFile = async (
@@ -536,7 +545,7 @@ export default function App() {
           bridge={bridge}
           onStart={onStartBridge}
           onStop={() => void stopBridge()}
-          onInterrupt={() => void interruptTurn()}
+          onInterrupt={() => void conversation.interrupt()}
         />
         <ThreadPicker
           threads={listedThreads?.threads ?? []}
@@ -552,12 +561,12 @@ export default function App() {
           </div>
         )}
         <Composer
-          value={composer}
-          onChange={setComposer}
-          onSubmit={onSubmit}
+          value={conversation.composer.value}
+          onChange={(value) => conversation.composer.setValue(value)}
+          onSubmit={() => void conversation.composer.send()}
           onInsertToolPrompt={onInsertDynamicToolPrompt}
           disabled={!bridge.running}
-          sending={sending}
+          sending={conversation.composer.isSending}
         />
       </section>
 
@@ -711,7 +720,12 @@ export default function App() {
             <pre className="auth-summary code">{authSummary}</pre>
           </div>
         </section>
-        <EventLog threadState={threadState} runtimeLog={runtimeLog} />
+        <EventLog
+          threadState={threadState}
+          threadActivity={threadActivity}
+          ingestHealth={ingestHealth}
+          runtimeLog={runtimeLog}
+        />
       </aside>
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

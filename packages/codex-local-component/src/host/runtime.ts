@@ -78,6 +78,7 @@ type IngestDelta = StreamIngestDelta | LifecycleIngestEvent;
 type ClientMessage = ClientOutboundWireMessage;
 type RequestMethod = ClientRequest["method"];
 type ClientRequestMessage = ClientRequest;
+type IngestSafeError = { code: string; message: string; recoverable: boolean };
 type ManagedServerRequestMethod =
   | "item/commandExecution/requestApproval"
   | "item/fileChange/requestApproval"
@@ -119,6 +120,13 @@ type RuntimeBridge = {
   stop: () => void;
   send: (message: ClientMessage) => void;
 };
+
+function shouldDropRejectedIngestBatch(errors: IngestSafeError[]): boolean {
+  if (errors.length === 0) {
+    return false;
+  }
+  return errors.every((error) => error.code === "OUT_OF_ORDER");
+}
 
 type PendingRequest = {
   method: string;
@@ -953,6 +961,9 @@ export function createCodexHostRuntime(args: {
           deltas: normalizedBatch,
         });
         if (result.status === "rejected") {
+          if (shouldDropRejectedIngestBatch(result.errors)) {
+            continue;
+          }
           throw new Error(`ingestSafe rejected: ${result.errors.map((err) => err.code).join(",")}`);
         }
       }

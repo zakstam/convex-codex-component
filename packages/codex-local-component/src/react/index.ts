@@ -17,6 +17,22 @@ export {
   type CodexThreadStateQuery,
 } from "./useCodexThreadState.js";
 export {
+  useCodexThreadActivity,
+  type CodexThreadActivityQuery,
+} from "./useCodexThreadActivity.js";
+export {
+  useCodexIngestHealth,
+  type CodexIngestHealthQuery,
+} from "./useCodexIngestHealth.js";
+export {
+  useCodexBranchActivity,
+  type CodexBranchActivityQuery,
+} from "./useCodexBranchActivity.js";
+export {
+  useCodexConversationController,
+  type CodexConversationControllerConfig,
+} from "./useCodexConversationController.js";
+export {
   useCodexTurn,
   type CodexTurnMessagesQuery,
   type CodexTurnStateQuery,
@@ -53,3 +69,32 @@ export type {
   CodexStreamArgs,
   CodexStreamsResult,
 } from "./types.js";
+export type {
+  CodexThreadActivity,
+  CodexThreadActivityPhase,
+  CodexThreadActivityThreadState,
+  CodexThreadActivityMessageLike,
+  CodexThreadActivityDispatchLike,
+  CodexThreadActivityStreamStatLike,
+  CodexThreadActivityTurnLike,
+} from "./threadActivity.js";
+export {
+  deriveCodexThreadActivity,
+} from "./threadActivity.js";
+export type {
+  CodexIngestHealth,
+  CodexIngestHealthIssue,
+  CodexIngestHealthStatus,
+  CodexIngestHealthThreadState,
+} from "./ingestHealth.js";
+export {
+  deriveCodexIngestHealth,
+} from "./ingestHealth.js";
+export type {
+  CodexBranchActivityOptions,
+  CodexBranchActivityThreadState,
+  CodexThreadActivityPendingApprovalLike,
+} from "./branchActivity.js";
+export {
+  deriveCodexBranchActivity,
+} from "./branchActivity.js";

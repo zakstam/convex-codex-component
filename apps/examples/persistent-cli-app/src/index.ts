@@ -353,7 +353,7 @@ function requireDefined<T>(value: T | undefined, name: string): T {
 
 const chatFns = {
   ensureThread: requireDefined(chatApi.ensureThread, "chat.ensureThread"),
-  registerTurnStart: requireDefined(chatApi.registerTurnStart, "chat.registerTurnStart"),
+  enqueueTurnDispatch: requireDefined(chatApi.enqueueTurnDispatch, "chat.enqueueTurnDispatch"),
   ensureSession: requireDefined(chatApi.ensureSession, "chat.ensureSession"),
   ingestBatch: requireDefined(chatApi.ingestBatch, "chat.ingestBatch"),
   persistenceStats: requireDefined(chatApi.persistenceStats, "chat.persistenceStats"),
@@ -690,7 +690,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     await convex.mutation(chatFns.ensureThread, {
       actor,
       threadId,
-      model: model ?? undefined,
+      ...(model ? { model } : {}),
       cwd,
     });
     resolveThreadReady?.();
@@ -716,14 +716,13 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
       sendMessage(bridge, interruptReq, "turn/interrupt");
     }
     if (pendingTurn && threadId) {
-      await convex.mutation(chatFns.registerTurnStart, {
+      await convex.mutation(chatFns.enqueueTurnDispatch, {
         actor,
         threadId,
+        dispatchId: randomUUID(),
         turnId: event.turnId,
-        inputText: pendingTurn.inputText,
         idempotencyKey: pendingTurn.idempotencyKey,
-        model: model ?? undefined,
-        cwd,
+        input: [{ type: "text", text: pendingTurn.inputText }],
       });
       pendingTurn = null;
     }

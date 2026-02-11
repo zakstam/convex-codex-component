@@ -25,7 +25,7 @@ Run `npx convex dev` so `components.codexLocal.*` references are generated.
 
 Start with one `convex/chat.ts` that handles:
 
-- turn start
+- turn dispatch enqueue
 - event ingest
 - messages query for `useCodexMessages`
 
@@ -34,7 +34,10 @@ Use:
 
 - validators: `vHostActorContext`, `vHostInboundEvent`, `vHostStreamInboundEvent`, `vHostLifecycleInboundEvent`
 - shared returns: `vHostEnsureSessionResult`, `vHostIngestSafeResult`
-- handlers: `ensureThreadByCreate` or `ensureThreadByResolve`, `ensureSession`, `registerTurnStart`,
+- handlers: `ensureThreadByCreate` or `ensureThreadByResolve`, `ensureSession`,
+  `enqueueTurnDispatchForActor`, `claimNextTurnDispatchForActor`, `markTurnDispatchStartedForActor`,
+  `markTurnDispatchCompletedForActor`, `markTurnDispatchFailedForActor`, `cancelTurnDispatchForActor`,
+  `getTurnDispatchStateForActor`,
   `ingestEventStreamOnly` / `ingestEventMixed`, `ingestBatchStreamOnly` / `ingestBatchMixed`,
   `threadSnapshot`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`
 - hook helpers: `listThreadMessagesForHooksForActor`, `listTurnMessagesForHooksForActor`,
@@ -50,11 +53,12 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
+  enqueueTurnDispatchForActor,
   ensureSession as ensureSessionHandler,
   ensureThreadByCreate,
   ingestBatchMixed,
   listThreadMessagesForHooksForActor,
-  registerTurnStart as registerTurnStartHandler,
+  vHostEnqueueTurnDispatchResult,
   vHostActorContext,
   vHostEnsureSessionResult,
   vHostIngestSafeResult,
@@ -70,15 +74,24 @@ const SERVER_ACTOR = {
   deviceId: process.env.ACTOR_DEVICE_ID ?? "server-device",
 };
 
-export const registerTurnStart = mutation({
+export const enqueueTurnDispatch = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
     turnId: v.string(),
-    inputText: v.string(),
     idempotencyKey: v.string(),
+    input: v.array(
+      v.object({
+        type: v.string(),
+        text: v.optional(v.string()),
+        url: v.optional(v.string()),
+        path: v.optional(v.string()),
+      }),
+    ),
   },
-  handler: async (ctx, args) => registerTurnStartHandler(ctx, components.codexLocal, args),
+  returns: vHostEnqueueTurnDispatchResult,
+  handler: async (ctx, args) =>
+    enqueueTurnDispatchForActor(ctx, components.codexLocal, args),
 });
 
 export const ensureThread = mutation({

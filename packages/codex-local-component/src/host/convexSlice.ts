@@ -1,14 +1,21 @@
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 import { v } from "convex/values";
 import {
+  cancelTurnDispatch,
+  claimNextTurnDispatch,
+  enqueueTurnDispatch,
   getThreadState,
   interruptTurn,
   listPendingServerRequests,
   listPendingApprovals,
   listTurnMessages,
+  markTurnCompleted,
+  markTurnFailed,
+  markTurnStarted,
   resolvePendingServerRequest,
   respondToApproval,
   startTurn,
+  getTurnDispatchState,
   upsertPendingServerRequest,
 } from "../client/index.js";
 import {
@@ -129,6 +136,67 @@ export const vHostEnsureSessionResult = v.object({
   status: v.union(v.literal("created"), v.literal("active")),
 });
 
+export const vHostDispatchStatus = v.union(
+  v.literal("queued"),
+  v.literal("claimed"),
+  v.literal("started"),
+  v.literal("completed"),
+  v.literal("failed"),
+  v.literal("cancelled"),
+);
+
+export const vHostTurnInput = v.array(
+  v.object({
+    type: v.string(),
+    text: v.optional(v.string()),
+    url: v.optional(v.string()),
+    path: v.optional(v.string()),
+  }),
+);
+
+export const vHostEnqueueTurnDispatchResult = v.object({
+  dispatchId: v.string(),
+  turnId: v.string(),
+  status: vHostDispatchStatus,
+  accepted: v.boolean(),
+});
+
+export const vHostClaimedTurnDispatch = v.union(
+  v.null(),
+  v.object({
+    dispatchId: v.string(),
+    turnId: v.string(),
+    idempotencyKey: v.string(),
+    inputText: v.string(),
+    claimToken: v.string(),
+    leaseExpiresAt: v.number(),
+    attemptCount: v.number(),
+  }),
+);
+
+export const vHostTurnDispatchState = v.union(
+  v.null(),
+  v.object({
+    dispatchId: v.string(),
+    turnId: v.string(),
+    status: vHostDispatchStatus,
+    idempotencyKey: v.string(),
+    inputText: v.string(),
+    claimOwner: v.optional(v.string()),
+    leaseExpiresAt: v.number(),
+    attemptCount: v.number(),
+    runtimeThreadId: v.optional(v.string()),
+    runtimeTurnId: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+  }),
+);
+
 export const vHostStreamArgs = v.optional(
   v.union(
     v.object({
@@ -186,7 +254,6 @@ type CodexThreadsResolveComponent = {
 
 type CodexTurnsComponent = {
   turns: {
-    start: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
     interrupt: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
   };
 };
@@ -221,6 +288,18 @@ type CodexServerRequestsComponent = {
   };
 };
 
+type CodexDispatchComponent = {
+  dispatch: {
+    enqueueTurnDispatch: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    claimNextTurnDispatch: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    markTurnStarted: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    markTurnCompleted: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    markTurnFailed: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    cancelTurnDispatch: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    getTurnDispatchState: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+  };
+};
+
 type CodexThreadsStateComponent = {
   threads: {
     getState: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
@@ -248,14 +327,65 @@ type EnsureThreadResolveArgs = {
   cwd?: string;
 };
 
-type RegisterTurnStartArgs = {
+type EnqueueTurnDispatchArgs = {
   actor: HostActorContext;
   threadId: string;
+  dispatchId?: string;
   turnId: string;
-  inputText: string;
   idempotencyKey: string;
-  model?: string;
-  cwd?: string;
+  input: Array<{
+    type: string;
+    text?: string;
+    url?: string;
+    path?: string;
+  }>;
+};
+
+type ClaimNextTurnDispatchArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  claimOwner: string;
+  leaseMs?: number;
+};
+
+type MarkTurnDispatchStartedArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  dispatchId: string;
+  claimToken: string;
+  runtimeThreadId?: string;
+  runtimeTurnId?: string;
+};
+
+type MarkTurnDispatchCompletedArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  dispatchId: string;
+  claimToken: string;
+};
+
+type MarkTurnDispatchFailedArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  dispatchId: string;
+  claimToken: string;
+  code?: string;
+  reason: string;
+};
+
+type CancelTurnDispatchArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  dispatchId: string;
+  claimToken?: string;
+  reason: string;
+};
+
+type GetTurnDispatchStateArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  dispatchId?: string;
+  turnId?: string;
 };
 
 type EnsureSessionArgs = {
@@ -448,27 +578,115 @@ export async function ensureThreadByResolve<
   });
 }
 
-export async function registerTurnStart<
-  Component extends CodexTurnsComponent,
+export async function enqueueTurnDispatchForActor<
+  Component extends CodexDispatchComponent,
 >(
   ctx: HostMutationRunner,
   component: Component,
-  args: RegisterTurnStartArgs,
-): Promise<FunctionReturnType<Component["turns"]["start"]>> {
-  return startTurn(ctx, component, {
+  args: EnqueueTurnDispatchArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["enqueueTurnDispatch"]>> {
+  return enqueueTurnDispatch(ctx, component, {
     actor: args.actor,
     threadId: args.threadId,
+    ...(args.dispatchId !== undefined ? { dispatchId: args.dispatchId } : {}),
     turnId: args.turnId,
     idempotencyKey: args.idempotencyKey,
-    input: [{ type: "text", text: args.inputText }],
-    ...(args.model !== undefined || args.cwd !== undefined
-      ? {
-          options: {
-            ...(args.model !== undefined ? { model: args.model } : {}),
-            ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
-          },
-        }
-      : {}),
+    input: args.input,
+  });
+}
+
+export async function claimNextTurnDispatchForActor<
+  Component extends CodexDispatchComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: ClaimNextTurnDispatchArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["claimNextTurnDispatch"]>> {
+  return claimNextTurnDispatch(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+    claimOwner: args.claimOwner,
+    ...(args.leaseMs !== undefined ? { leaseMs: args.leaseMs } : {}),
+  });
+}
+
+export async function markTurnDispatchStartedForActor<
+  Component extends CodexDispatchComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: MarkTurnDispatchStartedArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["markTurnStarted"]>> {
+  return markTurnStarted(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+    dispatchId: args.dispatchId,
+    claimToken: args.claimToken,
+    ...(args.runtimeThreadId !== undefined ? { runtimeThreadId: args.runtimeThreadId } : {}),
+    ...(args.runtimeTurnId !== undefined ? { runtimeTurnId: args.runtimeTurnId } : {}),
+  });
+}
+
+export async function markTurnDispatchCompletedForActor<
+  Component extends CodexDispatchComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: MarkTurnDispatchCompletedArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["markTurnCompleted"]>> {
+  return markTurnCompleted(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+    dispatchId: args.dispatchId,
+    claimToken: args.claimToken,
+  });
+}
+
+export async function markTurnDispatchFailedForActor<
+  Component extends CodexDispatchComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: MarkTurnDispatchFailedArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["markTurnFailed"]>> {
+  return markTurnFailed(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+    dispatchId: args.dispatchId,
+    claimToken: args.claimToken,
+    ...(args.code !== undefined ? { code: args.code } : {}),
+    reason: args.reason,
+  });
+}
+
+export async function cancelTurnDispatchForActor<
+  Component extends CodexDispatchComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: CancelTurnDispatchArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["cancelTurnDispatch"]>> {
+  return cancelTurnDispatch(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+    dispatchId: args.dispatchId,
+    ...(args.claimToken !== undefined ? { claimToken: args.claimToken } : {}),
+    reason: args.reason,
+  });
+}
+
+export async function getTurnDispatchStateForActor<
+  Component extends CodexDispatchComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: GetTurnDispatchStateArgs,
+): Promise<FunctionReturnType<Component["dispatch"]["getTurnDispatchState"]>> {
+  return getTurnDispatchState(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+    ...(args.dispatchId !== undefined ? { dispatchId: args.dispatchId } : {}),
+    ...(args.turnId !== undefined ? { turnId: args.turnId } : {}),
   });
 }
 

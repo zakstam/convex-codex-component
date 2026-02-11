@@ -3,6 +3,7 @@ export { default as schema } from "./schema.js";
 export * as threads from "./threads.js";
 export * as turns from "./turns.js";
 export * as turnsInternal from "./turnsInternal.js";
+export * as dispatch from "./dispatch.js";
 export * as sync from "./sync.js";
 export * as messages from "./messages.js";
 export * as reasoning from "./reasoning.js";

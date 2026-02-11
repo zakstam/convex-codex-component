@@ -388,14 +388,13 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
   if (event.kind === "turn/started" && event.turnId) {
     turnId = event.turnId;
     if (pendingTurn && threadId) {
-      await convex.mutation(api.chat.registerTurnStart, {
+      await convex.mutation(api.chat.enqueueTurnDispatch, {
         actor,
         threadId,
+        dispatchId: randomUUID(),
         turnId: event.turnId,
-        inputText: pendingTurn.inputText,
         idempotencyKey: pendingTurn.idempotencyKey,
-        ...(model !== null ? { model } : {}),
-        cwd,
+        input: [{ type: "text", text: pendingTurn.inputText }],
       });
       pendingTurn = null;
     }

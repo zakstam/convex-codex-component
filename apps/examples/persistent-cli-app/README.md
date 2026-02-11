@@ -89,7 +89,7 @@ so host wrapper behavior stays aligned with other examples/smoke apps.
 - `chat.listTurnMessagesForHooks` for `useCodexTurn`
 - `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks` for `useCodexApprovals`
 - `chat.interruptTurnForHooks` for `useCodexInterruptTurn`
-- `chat.registerTurnStart` for `useCodexComposer`
+- `chat.enqueueTurnDispatch` for `useCodexComposer`
 
 Example usage:
 
@@ -112,5 +112,5 @@ const approvals = useCodexApprovals(
   { initialNumItems: 20 },
 );
 
-const composer = useCodexComposer(api.chat.registerTurnStart);
+const composer = useCodexComposer(api.chat.enqueueTurnDispatch);
 ```

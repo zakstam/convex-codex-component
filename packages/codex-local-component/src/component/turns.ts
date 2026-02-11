@@ -48,18 +48,6 @@ export const start = mutation({
       startedAt: ts,
     });
 
-    await ctx.scheduler.runAfter(
-      0,
-      makeFunctionReference<"mutation">("turnsInternal:startExecution"),
-      {
-        actor: args.actor,
-        threadId: args.threadId,
-        turnId: args.turnId,
-        input: args.input,
-        options: args.options,
-      },
-    );
-
     return { turnId: args.turnId, accepted: true };
   },
 });

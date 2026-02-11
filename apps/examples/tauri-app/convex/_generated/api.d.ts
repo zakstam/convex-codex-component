@@ -79,6 +79,140 @@ export declare const components: {
         null
       >;
     };
+    dispatch: {
+      cancelTurnDispatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          claimToken?: string;
+          dispatchId: string;
+          reason: string;
+          threadId: string;
+        },
+        null
+      >;
+      claimNextTurnDispatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          claimOwner: string;
+          leaseMs?: number;
+          threadId: string;
+        },
+        null | {
+          attemptCount: number;
+          claimToken: string;
+          dispatchId: string;
+          idempotencyKey: string;
+          inputText: string;
+          leaseExpiresAt: number;
+          turnId: string;
+        }
+      >;
+      enqueueTurnDispatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          dispatchId?: string;
+          idempotencyKey: string;
+          input: Array<{
+            path?: string;
+            text?: string;
+            type: string;
+            url?: string;
+          }>;
+          threadId: string;
+          turnId: string;
+        },
+        {
+          accepted: boolean;
+          dispatchId: string;
+          status:
+            | "queued"
+            | "claimed"
+            | "started"
+            | "completed"
+            | "failed"
+            | "cancelled";
+          turnId: string;
+        }
+      >;
+      getTurnDispatchState: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          dispatchId?: string;
+          threadId: string;
+          turnId?: string;
+        },
+        null | {
+          attemptCount: number;
+          cancelledAt?: number;
+          claimOwner?: string;
+          completedAt?: number;
+          createdAt: number;
+          dispatchId: string;
+          failureCode?: string;
+          failureReason?: string;
+          idempotencyKey: string;
+          inputText: string;
+          leaseExpiresAt: number;
+          runtimeThreadId?: string;
+          runtimeTurnId?: string;
+          startedAt?: number;
+          status:
+            | "queued"
+            | "claimed"
+            | "started"
+            | "completed"
+            | "failed"
+            | "cancelled";
+          turnId: string;
+          updatedAt: number;
+        }
+      >;
+      markTurnCompleted: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          claimToken: string;
+          dispatchId: string;
+          threadId: string;
+        },
+        null
+      >;
+      markTurnFailed: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          claimToken: string;
+          code?: string;
+          dispatchId: string;
+          reason: string;
+          threadId: string;
+        },
+        null
+      >;
+      markTurnStarted: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { deviceId: string; tenantId: string; userId: string };
+          claimToken: string;
+          dispatchId: string;
+          runtimeThreadId?: string;
+          runtimeTurnId?: string;
+          threadId: string;
+        },
+        null
+      >;
+    };
     messages: {
       getByTurn: FunctionReference<
         "query",
@@ -399,6 +533,24 @@ export declare const components: {
         {
           activeStreams: Array<{ state: string; streamId: string }>;
           allStreams: Array<{ state: string; streamId: string }>;
+          dispatches: Array<{
+            attemptCount: number;
+            claimOwner?: string;
+            createdAt: number;
+            dispatchId: string;
+            failureCode?: string;
+            failureReason?: string;
+            leaseExpiresAt: number;
+            status:
+              | "queued"
+              | "claimed"
+              | "started"
+              | "completed"
+              | "failed"
+              | "cancelled";
+            turnId: string;
+            updatedAt: number;
+          }>;
           pendingApprovals: Array<{
             itemId: string;
             kind: string;

@@ -2,12 +2,25 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createCodexHostRuntime } from "../dist/host/index.js";
 
+async function waitForMessage(sent, predicate, timeoutMs = 500) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const message = sent.find(predicate);
+    if (message) {
+      return message;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("Timed out waiting for message");
+}
+
 function createHarness() {
   const sent = [];
   let handlers = null;
   const upserted = [];
   const resolved = [];
   const ingestCalls = [];
+  const dispatchQueue = [];
 
   const runtime = createCodexHostRuntime({
     bridgeFactory: (_config, nextHandlers) => {
@@ -33,6 +46,38 @@ function createHarness() {
       resolvePendingServerRequest: async (args) => {
         resolved.push(args);
       },
+      listPendingServerRequests: async () => [],
+      enqueueTurnDispatch: async (args) => {
+        const queued = {
+          dispatchId: `${args.turnId}-dispatch`,
+          turnId: args.turnId,
+          idempotencyKey: args.idempotencyKey,
+          inputText: args.input?.[0]?.text ?? "",
+          status: "queued",
+          accepted: true,
+        };
+        dispatchQueue.push(queued);
+        return queued;
+      },
+      claimNextTurnDispatch: async () => {
+        const next = dispatchQueue.shift();
+        if (!next) {
+          return null;
+        }
+        return {
+          dispatchId: next.dispatchId,
+          turnId: next.turnId,
+          idempotencyKey: next.idempotencyKey,
+          inputText: next.inputText,
+          claimToken: `${next.dispatchId}-claim`,
+          leaseExpiresAt: Date.now() + 15_000,
+          attemptCount: 1,
+        };
+      },
+      markTurnDispatchStarted: async () => undefined,
+      markTurnDispatchCompleted: async () => undefined,
+      markTurnDispatchFailed: async () => undefined,
+      cancelTurnDispatch: async () => undefined,
     },
   });
 
@@ -72,7 +117,7 @@ test("runtime start supports threadStrategy=resume", async () => {
   await emitResponse({ id: resumeRequest.id, result: { thread: { id: threadId } } });
 
   runtime.sendTurn("hello");
-  const turnStartRequest = sent.find((message) => message.method === "turn/start");
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
   assert.equal(turnStartRequest.params.threadId, threadId);
 
   await runtime.stop();
@@ -110,6 +155,7 @@ test("runtime thread lifecycle mutations are blocked while turn is in flight", a
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
 
   runtime.sendTurn("hello");
+  await waitForMessage(sent, (message) => message.method === "turn/start");
   await assert.rejects(
     runtime.archiveThread(threadId),
     /Cannot change thread lifecycle while a turn is in flight/,
@@ -136,6 +182,7 @@ test("resumeThread updates active runtime thread id after response", async () =>
   await resumePromise;
 
   runtime.sendTurn("hello");
+  await waitForMessage(sent, (message) => message.method === "turn/start");
   const turnStartRequests = sent.filter((message) => message.method === "turn/start");
   assert.equal(turnStartRequests[0].params.threadId, resumedThreadId);
 

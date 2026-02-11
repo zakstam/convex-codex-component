@@ -21,6 +21,13 @@ Import from `@zakstam/codex-local-component/client`:
 - `resolvePendingServerRequest`
 - `startTurn`
 - `interruptTurn`
+- `enqueueTurnDispatch`
+- `claimNextTurnDispatch`
+- `markTurnStarted`
+- `markTurnCompleted`
+- `markTurnFailed`
+- `cancelTurnDispatch`
+- `getTurnDispatchState`
 - `replayStreams`
 - `resumeStreamReplay`
 - `createThread`
@@ -85,6 +92,17 @@ When `stream: true`, stream deltas are overlaid while durable rows are `streamin
 - terminal statuses override streaming
 - longer/extended streamed text can replace in-progress durable text
 - dedupe key preference: `(turnId, messageId)` then fallback `(turnId, orderInTurn)`
+
+### Composer send contract
+
+`useCodexComposer` should target a host mutation that accepts:
+
+- `threadId`
+- `turnId`
+- `idempotencyKey`
+- `input: Array<{ type, text?, url?, path? }>`
+
+Recommended: wire it to your host `enqueueTurnDispatch` mutation so accepted user sends are immediately observable in dispatch state (`queued` minimum).
 
 ### Reasoning APIs
 

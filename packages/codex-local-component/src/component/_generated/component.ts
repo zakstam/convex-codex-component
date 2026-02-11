@@ -56,6 +56,40 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Name
       >;
     };
+    dispatch: {
+      enqueueTurnDispatch: FunctionReference<
+        "mutation",
+        "internal",
+        Record<string, unknown>,
+        {
+          accepted: boolean;
+          dispatchId: string;
+          status: "queued" | "claimed" | "started" | "completed" | "failed" | "cancelled";
+          turnId: string;
+        },
+        Name
+      >;
+      claimNextTurnDispatch: FunctionReference<
+        "mutation",
+        "internal",
+        Record<string, unknown>,
+        {
+          attemptCount: number;
+          claimToken: string;
+          dispatchId: string;
+          idempotencyKey: string;
+          inputText: string;
+          leaseExpiresAt: number;
+          turnId: string;
+        } | null,
+        Name
+      >;
+      markTurnStarted: FunctionReference<"mutation", "internal", Record<string, unknown>, null, Name>;
+      markTurnCompleted: FunctionReference<"mutation", "internal", Record<string, unknown>, null, Name>;
+      markTurnFailed: FunctionReference<"mutation", "internal", Record<string, unknown>, null, Name>;
+      cancelTurnDispatch: FunctionReference<"mutation", "internal", Record<string, unknown>, null, Name>;
+      getTurnDispatchState: FunctionReference<"query", "internal", Record<string, unknown>, unknown, Name>;
+    };
     sync: {
       heartbeat: FunctionReference<
         "mutation",

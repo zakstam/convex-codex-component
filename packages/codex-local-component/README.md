@@ -49,11 +49,12 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
+  enqueueTurnDispatchForActor,
   ensureSession as ensureSessionHandler,
   ensureThreadByCreate,
   ingestBatchMixed,
   listThreadMessagesForHooksForActor,
-  registerTurnStart as registerTurnStartHandler,
+  vHostEnqueueTurnDispatchResult,
   vHostActorContext,
   vHostEnsureSessionResult,
   vHostIngestSafeResult,
@@ -74,15 +75,24 @@ export const ensureThread = mutation({
   handler: async (ctx, args) => ensureThreadByCreate(ctx, components.codexLocal, args),
 });
 
-export const registerTurnStart = mutation({
+export const enqueueTurnDispatch = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
     turnId: v.string(),
-    inputText: v.string(),
     idempotencyKey: v.string(),
+    input: v.array(
+      v.object({
+        type: v.string(),
+        text: v.optional(v.string()),
+        url: v.optional(v.string()),
+        path: v.optional(v.string()),
+      }),
+    ),
   },
-  handler: async (ctx, args) => registerTurnStartHandler(ctx, components.codexLocal, args),
+  returns: vHostEnqueueTurnDispatchResult,
+  handler: async (ctx, args) =>
+    enqueueTurnDispatchForActor(ctx, components.codexLocal, args),
 });
 
 export const ensureSession = mutation({

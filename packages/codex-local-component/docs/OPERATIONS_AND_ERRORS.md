@@ -48,6 +48,37 @@ Replay is status-driven, not exception-driven.
 
 ## Runbook notes
 
+### Dispatch queue lifecycle
+
+Use `dispatch.getTurnDispatchState` (or host wrapper equivalent) as the canonical source of send/execution state:
+
+- `queued`: accepted and awaiting claim
+- `claimed`: worker ownership acquired with active lease
+- `started`: runtime accepted turn execution
+- `completed`: terminal success
+- `failed`: terminal failure with explicit reason/code
+- `cancelled`: explicit cancellation
+
+If a message send is accepted, dispatch state should exist immediately at `queued` minimum.
+
+### Dispatch failure modes
+
+1. queued but unclaimed
+- check worker availability and `claimNextTurnDispatch` polling cadence
+- verify actor/thread identity used by claimer matches enqueuer scope
+
+2. claim lease expired/reclaimed
+- expected during worker crash/restart
+- verify lease duration and reclaim behavior; a new worker should claim and continue
+
+3. started but no completion
+- inspect runtime connectivity and ingest health
+- if runtime died after start, mark explicit failure or cancel based on host policy
+
+4. failed with reason taxonomy
+- include machine code (`failureCode`) and human reason (`failureReason`)
+- use reason codes to distinguish send failures, runtime errors, and policy cancellations
+
 ### Pending server-request responses
 
 If command/file approval, `item/tool/requestUserInput`, or `item/tool/call` requests appear stuck:

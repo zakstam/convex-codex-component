@@ -120,6 +120,9 @@ type RuntimeBridge = {
 
 type PendingRequest = {
   method: string;
+  dispatchId?: string;
+  claimToken?: string;
+  turnId?: string;
   resolve?: (message: CodexResponse) => void;
   reject?: (error: Error) => void;
 };
@@ -213,6 +216,67 @@ export type HostRuntimePersistence = {
     actor: ActorContext;
     threadId?: string;
   }) => Promise<HostRuntimePersistedServerRequest[]>;
+  enqueueTurnDispatch: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId?: string;
+    turnId: string;
+    idempotencyKey: string;
+    input: Array<{
+      type: string;
+      text?: string;
+      url?: string;
+      path?: string;
+    }>;
+  }) => Promise<{
+    dispatchId: string;
+    turnId: string;
+    status: "queued" | "claimed" | "started" | "completed" | "failed" | "cancelled";
+    accepted: boolean;
+  }>;
+  claimNextTurnDispatch: (args: {
+    actor: ActorContext;
+    threadId: string;
+    claimOwner: string;
+    leaseMs?: number;
+  }) => Promise<{
+    dispatchId: string;
+    turnId: string;
+    idempotencyKey: string;
+    inputText: string;
+    claimToken: string;
+    leaseExpiresAt: number;
+    attemptCount: number;
+  } | null>;
+  markTurnDispatchStarted: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    claimToken: string;
+    runtimeThreadId?: string;
+    runtimeTurnId?: string;
+  }) => Promise<void>;
+  markTurnDispatchCompleted: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    claimToken: string;
+  }) => Promise<void>;
+  markTurnDispatchFailed: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    claimToken: string;
+    code?: string;
+    reason: string;
+  }) => Promise<void>;
+  cancelTurnDispatch: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    claimToken?: string;
+    reason: string;
+  }) => Promise<void>;
 };
 
 export type HostRuntimeHandlers = {
@@ -419,6 +483,25 @@ function isResponse(message: ServerInboundMessage): message is CodexResponse {
   return "id" in message && !isServerNotification(message);
 }
 
+function parseTurnCompletedStatus(payloadJson: string): "completed" | "failed" | "cancelled" {
+  try {
+    const parsed = JSON.parse(payloadJson) as unknown;
+    const root = asObject(parsed);
+    const params = asObject(root?.params);
+    const turn = asObject(params?.turn);
+    const status = typeof turn?.status === "string" ? turn.status : null;
+    if (status === "failed") {
+      return "failed";
+    }
+    if (status === "interrupted") {
+      return "cancelled";
+    }
+  } catch {
+    // ignore malformed payload and fallback to completed.
+  }
+  return "completed";
+}
+
 export function createCodexHostRuntime(args: {
   bridge?: BridgeConfig;
   bridgeFactory?: (config: BridgeConfig, handlers: ConstructorParameters<typeof CodexLocalBridge>[1]) => RuntimeBridge;
@@ -436,6 +519,19 @@ export function createCodexHostRuntime(args: {
   let turnSettled = false;
   let interruptRequested = false;
   let nextRequestId = 1;
+  let pendingDispatchTextQueue: string[] = [];
+  let claimLoopRunning = false;
+  const dispatchByTurnId = new Map<string, { dispatchId: string; claimToken: string }>();
+  let activeDispatch:
+    | {
+        dispatchId: string;
+        claimToken: string;
+        turnId: string;
+        text: string;
+      }
+    | null = null;
+  let startupModel: string | undefined;
+  let startupCwd: string | undefined;
 
   let ingestQueue: IngestDelta[] = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -635,6 +731,138 @@ export function createCodexHostRuntime(args: {
     }
   };
 
+  const ensureThreadBinding = async (preferredRuntimeThreadId?: string): Promise<void> => {
+    if (!actor || !sessionId || threadId) {
+      return;
+    }
+    const nextRuntimeThreadId = preferredRuntimeThreadId ?? runtimeThreadId;
+    if (!nextRuntimeThreadId) {
+      return;
+    }
+    const binding = await args.persistence.ensureThread({
+      actor,
+      externalThreadId: externalThreadId ?? nextRuntimeThreadId,
+      ...(startupModel !== undefined ? { model: startupModel } : {}),
+      ...(startupCwd !== undefined ? { cwd: startupCwd } : {}),
+      localThreadId: nextRuntimeThreadId,
+    });
+    threadId = binding.threadId;
+    externalThreadId = binding.externalThreadId ?? nextRuntimeThreadId;
+    await args.persistence.ensureSession({
+      actor,
+      sessionId,
+      threadId,
+      lastEventCursor: 0,
+    });
+    emitState();
+  };
+
+  const sendClaimedDispatch = async (claimed: {
+    dispatchId: string;
+    turnId: string;
+    idempotencyKey: string;
+    inputText: string;
+    claimToken: string;
+    leaseExpiresAt: number;
+    attemptCount: number;
+  }) => {
+    if (!runtimeThreadId) {
+      throw new Error("Cannot dispatch turn before runtime thread is ready.");
+    }
+    activeDispatch = {
+      dispatchId: claimed.dispatchId,
+      claimToken: claimed.claimToken,
+      turnId: claimed.turnId,
+      text: claimed.inputText,
+    };
+    turnId = claimed.turnId;
+    turnInFlight = true;
+    turnSettled = false;
+    emitState();
+
+    const reqId = requestId();
+    pendingRequests.set(reqId, {
+      method: "turn/start",
+      dispatchId: claimed.dispatchId,
+      claimToken: claimed.claimToken,
+      turnId: claimed.turnId,
+    });
+    assertRuntimeReady().send(
+      buildTurnStartTextRequest(reqId, {
+        threadId: runtimeThreadId,
+        text: claimed.inputText,
+      }),
+    );
+  };
+
+  const processDispatchQueue = async (): Promise<void> => {
+    if (claimLoopRunning) {
+      return;
+    }
+    claimLoopRunning = true;
+    try {
+      while (true) {
+        if (!actor || !threadId) {
+          return;
+        }
+        if (turnInFlight && !turnSettled) {
+          return;
+        }
+        if (pendingDispatchTextQueue.length === 0) {
+          return;
+        }
+
+        const nextText = pendingDispatchTextQueue[0];
+        if (nextText === undefined) {
+          return;
+        }
+        const enqueueResult = await args.persistence.enqueueTurnDispatch({
+          actor,
+          threadId,
+          turnId: randomSessionId(),
+          idempotencyKey: randomSessionId(),
+          input: [{ type: "text", text: nextText }],
+        });
+        if (!enqueueResult.accepted) {
+          pendingDispatchTextQueue.shift();
+          continue;
+        }
+        const claimed = await args.persistence.claimNextTurnDispatch({
+          actor,
+          threadId,
+          claimOwner: actor.deviceId,
+        });
+        if (!claimed) {
+          return;
+        }
+        pendingDispatchTextQueue.shift();
+        try {
+          await sendClaimedDispatch(claimed);
+        } catch (error) {
+          if (actor && threadId) {
+            await args.persistence.markTurnDispatchFailed({
+              actor,
+              threadId,
+              dispatchId: claimed.dispatchId,
+              claimToken: claimed.claimToken,
+              code: "TURN_START_DISPATCH_SEND_FAILED",
+              reason: error instanceof Error ? error.message : String(error),
+            });
+          }
+          turnInFlight = false;
+          turnSettled = true;
+          turnId = null;
+          activeDispatch = null;
+          emitState();
+          continue;
+        }
+        return;
+      }
+    } finally {
+      claimLoopRunning = false;
+    }
+  };
+
   const flushQueue = async () => {
     if (!actor || !sessionId || !threadId) {
       return;
@@ -713,6 +941,8 @@ export function createCodexHostRuntime(args: {
     actor = startArgs.actor;
     sessionId = startArgs.sessionId ? `${startArgs.sessionId}-${randomSessionId()}` : randomSessionId();
     externalThreadId = startArgs.externalThreadId ?? null;
+    startupModel = startArgs.model;
+    startupCwd = startArgs.cwd;
     ingestFlushMs = startArgs.ingestFlushMs ?? 250;
     resetIngestMetrics();
 
@@ -738,30 +968,27 @@ export function createCodexHostRuntime(args: {
             runtimeThreadId = event.threadId;
           }
 
-          if (!threadId) {
-            const binding = await args.persistence.ensureThread({
-              actor,
-              externalThreadId: externalThreadId ?? runtimeThreadId,
-              ...(startArgs.model !== undefined ? { model: startArgs.model } : {}),
-              ...(startArgs.cwd !== undefined ? { cwd: startArgs.cwd } : {}),
-              localThreadId: event.threadId,
-            });
-            threadId = binding.threadId;
-            externalThreadId = binding.externalThreadId ?? runtimeThreadId;
-
-            await args.persistence.ensureSession({
-              actor,
-              sessionId,
-              threadId,
-              lastEventCursor: 0,
-            });
-            emitState();
-          }
+          await ensureThreadBinding(event.threadId);
 
           if (event.kind === "turn/started" && event.turnId) {
             turnId = event.turnId;
             turnInFlight = true;
             turnSettled = false;
+            if (activeDispatch && actor && threadId) {
+              dispatchByTurnId.set(event.turnId, {
+                dispatchId: activeDispatch.dispatchId,
+                claimToken: activeDispatch.claimToken,
+              });
+              await args.persistence.markTurnDispatchStarted({
+                actor,
+                threadId,
+                dispatchId: activeDispatch.dispatchId,
+                claimToken: activeDispatch.claimToken,
+                ...(runtimeThreadId ? { runtimeThreadId } : {}),
+                runtimeTurnId: event.turnId,
+              });
+              activeDispatch = null;
+            }
             emitState();
             if (interruptRequested) {
               if (!runtimeThreadId) {
@@ -779,6 +1006,38 @@ export function createCodexHostRuntime(args: {
           }
 
           if (event.kind === "turn/completed") {
+            if (actor && threadId && event.turnId) {
+              const dispatch = dispatchByTurnId.get(event.turnId);
+              if (dispatch) {
+                const terminal = parseTurnCompletedStatus(event.payloadJson);
+                if (terminal === "completed") {
+                  await args.persistence.markTurnDispatchCompleted({
+                    actor,
+                    threadId,
+                    dispatchId: dispatch.dispatchId,
+                    claimToken: dispatch.claimToken,
+                  });
+                } else if (terminal === "cancelled") {
+                  await args.persistence.cancelTurnDispatch({
+                    actor,
+                    threadId,
+                    dispatchId: dispatch.dispatchId,
+                    claimToken: dispatch.claimToken,
+                    reason: "interrupted",
+                  });
+                } else {
+                  await args.persistence.markTurnDispatchFailed({
+                    actor,
+                    threadId,
+                    dispatchId: dispatch.dispatchId,
+                    claimToken: dispatch.claimToken,
+                    code: "TURN_COMPLETED_FAILED",
+                    reason: "turn/completed reported failed status",
+                  });
+                }
+                dispatchByTurnId.delete(event.turnId);
+              }
+            }
             turnId = null;
             turnInFlight = false;
             turnSettled = true;
@@ -787,8 +1046,23 @@ export function createCodexHostRuntime(args: {
               threadId: threadId ?? event.threadId,
               ...(event.turnId ? { turnId: event.turnId } : {}),
             });
+            await processDispatchQueue();
           }
           if (event.kind === "error") {
+            if (actor && threadId && event.turnId) {
+              const dispatch = dispatchByTurnId.get(event.turnId);
+              if (dispatch) {
+                await args.persistence.markTurnDispatchFailed({
+                  actor,
+                  threadId,
+                  dispatchId: dispatch.dispatchId,
+                  claimToken: dispatch.claimToken,
+                  code: "TURN_ERROR_EVENT",
+                  reason: "Runtime emitted error event for turn",
+                });
+                dispatchByTurnId.delete(event.turnId);
+              }
+            }
             turnInFlight = false;
             turnSettled = true;
             if (!event.turnId || event.turnId === turnId) {
@@ -799,6 +1073,7 @@ export function createCodexHostRuntime(args: {
               threadId: threadId ?? event.threadId,
               ...(event.turnId ? { turnId: event.turnId } : {}),
             });
+            await processDispatchQueue();
           }
 
           const pendingServerRequest = parseManagedServerRequestFromEvent(event);
@@ -848,12 +1123,51 @@ export function createCodexHostRuntime(args: {
             pendingRequests.delete(message.id);
             if (pending) {
               setRuntimeThreadFromResponse(message, pending.method);
+              if (pending.method === "thread/start" || pending.method === "thread/resume" || pending.method === "thread/fork") {
+                await ensureThreadBinding(runtimeThreadId ?? undefined);
+                await processDispatchQueue();
+              }
             }
             if (message.error && pending?.method === "turn/start") {
+              if (actor && threadId && pending.dispatchId && pending.claimToken) {
+                await args.persistence.markTurnDispatchFailed({
+                  actor,
+                  threadId,
+                  dispatchId: pending.dispatchId,
+                  claimToken: pending.claimToken,
+                  code: typeof message.error.code === "number" ? String(message.error.code) : "TURN_START_FAILED",
+                  reason: message.error.message,
+                });
+              }
+              activeDispatch = null;
               turnInFlight = false;
               turnSettled = true;
               turnId = null;
               emitState();
+              await processDispatchQueue();
+            } else if (!message.error && pending?.method === "turn/start" && actor && threadId && pending.dispatchId && pending.claimToken) {
+              const resultObj = typeof message.result === "object" && message.result !== null
+                ? (message.result as Record<string, unknown>)
+                : null;
+              const turnObj = resultObj && typeof resultObj.turn === "object" && resultObj.turn !== null
+                ? (resultObj.turn as Record<string, unknown>)
+                : null;
+              const runtimeTurnId = typeof turnObj?.id === "string" ? turnObj.id : pending.turnId;
+              await args.persistence.markTurnDispatchStarted({
+                actor,
+                threadId,
+                dispatchId: pending.dispatchId,
+                claimToken: pending.claimToken,
+                ...(runtimeThreadId ? { runtimeThreadId } : {}),
+                ...(runtimeTurnId ? { runtimeTurnId } : {}),
+              });
+              if (runtimeTurnId) {
+                dispatchByTurnId.set(runtimeTurnId, {
+                  dispatchId: pending.dispatchId,
+                  claimToken: pending.claimToken,
+                });
+              }
+              activeDispatch = null;
             }
             if (pending?.resolve) {
               if (message.error) {
@@ -951,6 +1265,12 @@ export function createCodexHostRuntime(args: {
     turnInFlight = false;
     turnSettled = false;
     interruptRequested = false;
+    pendingDispatchTextQueue = [];
+    claimLoopRunning = false;
+    dispatchByTurnId.clear();
+    activeDispatch = null;
+    startupModel = undefined;
+    startupCwd = undefined;
     pendingRequests.clear();
     pendingServerRequests.clear();
     pendingAuthTokensRefreshRequests.clear();
@@ -959,24 +1279,14 @@ export function createCodexHostRuntime(args: {
   };
 
   const sendTurn = (text: string) => {
-    if (!bridge || !runtimeThreadId) {
+    if (!bridge) {
       throw new Error("Bridge/thread not ready. Start runtime first.");
     }
     if (turnInFlight && !turnSettled) {
       throw new Error("A turn is already in flight.");
     }
-
-    turnInFlight = true;
-    turnSettled = false;
-    emitState();
-
-    sendMessage(
-      buildTurnStartTextRequest(requestId(), {
-        threadId: runtimeThreadId,
-        text,
-      }),
-      "turn/start",
-    );
+    pendingDispatchTextQueue.push(text);
+    void ensureThreadBinding(runtimeThreadId ?? undefined).then(() => processDispatchQueue());
   };
 
   const interrupt = () => {

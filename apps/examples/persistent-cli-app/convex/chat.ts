@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
+  enqueueTurnDispatchForActor,
   durableHistoryStats as durableHistoryStatsHandler,
   ensureSession as ensureSessionHandler,
   ensureThreadByCreate,
@@ -13,17 +14,18 @@ import {
   listThreadMessagesForHooksForActor,
   listTurnMessagesForHooksForActor,
   persistenceStats as persistenceStatsHandler,
-  registerTurnStart as registerTurnStartHandler,
   respondApprovalForHooksForActor,
   threadSnapshot as threadSnapshotHandler,
   vHostActorContext,
   vHostDurableHistoryStats,
+  vHostEnqueueTurnDispatchResult,
   vHostEnsureSessionResult,
   vHostInboundEvent,
   vHostIngestSafeResult,
   vHostPersistenceStats,
   vHostStreamArgs,
   vHostSyncRuntimeOptions,
+  vHostTurnInput,
   type HostActorContext,
 } from "@zakstam/codex-local-component/host/convex";
 
@@ -47,18 +49,18 @@ export const ensureThread = mutation({
   handler: async (ctx, args) => ensureThreadByCreate(ctx, components.codexLocal, withServerActor(args)),
 });
 
-export const registerTurnStart = mutation({
+export const enqueueTurnDispatch = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
+    dispatchId: v.optional(v.string()),
     turnId: v.string(),
-    inputText: v.string(),
     idempotencyKey: v.string(),
-    model: v.optional(v.string()),
-    cwd: v.optional(v.string()),
+    input: vHostTurnInput,
   },
+  returns: vHostEnqueueTurnDispatchResult,
   handler: async (ctx, args) =>
-    registerTurnStartHandler(ctx, components.codexLocal, withServerActor(args)),
+    enqueueTurnDispatchForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ensureSession = mutation({

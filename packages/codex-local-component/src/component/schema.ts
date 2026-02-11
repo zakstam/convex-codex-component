@@ -68,6 +68,42 @@ export default defineSchema({
     .index("tenantId_idempotencyKey", ["tenantId", "idempotencyKey"])
     .index("tenantId_threadId_turnId", ["tenantId", "threadId", "turnId"]),
 
+  codex_turn_dispatches: defineTable({
+    tenantId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+    dispatchId: v.string(),
+    turnId: v.string(),
+    idempotencyKey: v.string(),
+    inputText: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("claimed"),
+      v.literal("started"),
+      v.literal("completed"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    claimOwner: v.optional(v.string()),
+    claimToken: v.optional(v.string()),
+    leaseExpiresAt: v.number(),
+    attemptCount: v.number(),
+    runtimeThreadId: v.optional(v.string()),
+    runtimeTurnId: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+  })
+    .index("tenantId_threadId_dispatchId", ["tenantId", "threadId", "dispatchId"])
+    .index("tenantId_threadId_turnId", ["tenantId", "threadId", "turnId"])
+    .index("tenantId_threadId_idempotencyKey", ["tenantId", "threadId", "idempotencyKey"])
+    .index("tenantId_threadId_status_createdAt", ["tenantId", "threadId", "status", "createdAt"])
+    .index("tenantId_threadId_status_leaseExpiresAt", ["tenantId", "threadId", "status", "leaseExpiresAt"]),
+
   codex_items: defineTable({
     tenantId: v.string(),
     userId: v.string(),

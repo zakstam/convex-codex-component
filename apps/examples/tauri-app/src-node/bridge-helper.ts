@@ -619,6 +619,97 @@ async function startBridge(payload: StartPayload): Promise<void> {
           },
         );
       },
+      enqueueTurnDispatch: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        return convex.mutation(
+          requireDefined(chatApi.enqueueTurnDispatch, "api.chat.enqueueTurnDispatch"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            ...(args.dispatchId ? { dispatchId: args.dispatchId } : {}),
+            turnId: args.turnId,
+            idempotencyKey: args.idempotencyKey,
+            input: args.input,
+          },
+        );
+      },
+      claimNextTurnDispatch: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        return convex.mutation(
+          requireDefined(chatApi.claimNextTurnDispatch, "api.chat.claimNextTurnDispatch"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            claimOwner: args.claimOwner,
+            ...(args.leaseMs ? { leaseMs: args.leaseMs } : {}),
+          },
+        );
+      },
+      markTurnDispatchStarted: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(chatApi.markTurnDispatchStarted, "api.chat.markTurnDispatchStarted"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            dispatchId: args.dispatchId,
+            claimToken: args.claimToken,
+            ...(args.runtimeThreadId ? { runtimeThreadId: args.runtimeThreadId } : {}),
+            ...(args.runtimeTurnId ? { runtimeTurnId: args.runtimeTurnId } : {}),
+          },
+        );
+      },
+      markTurnDispatchCompleted: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(chatApi.markTurnDispatchCompleted, "api.chat.markTurnDispatchCompleted"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            dispatchId: args.dispatchId,
+            claimToken: args.claimToken,
+          },
+        );
+      },
+      markTurnDispatchFailed: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(chatApi.markTurnDispatchFailed, "api.chat.markTurnDispatchFailed"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            dispatchId: args.dispatchId,
+            claimToken: args.claimToken,
+            ...(args.code ? { code: args.code } : {}),
+            reason: args.reason,
+          },
+        );
+      },
+      cancelTurnDispatch: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(chatApi.cancelTurnDispatch, "api.chat.cancelTurnDispatch"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            dispatchId: args.dispatchId,
+            ...(args.claimToken ? { claimToken: args.claimToken } : {}),
+            reason: args.reason,
+          },
+        );
+      },
     },
     handlers: {
       onState: (state) => {

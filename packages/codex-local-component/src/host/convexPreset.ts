@@ -28,6 +28,7 @@ import {
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
   threadSnapshot,
+  threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
   vHostActorContext,
   vHostClaimedTurnDispatch,
@@ -812,6 +813,24 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         },
       ) =>
         threadSnapshot(
+          ctx,
+          component,
+          withServerActor(args, options.serverActor),
+        ),
+    },
+    threadSnapshotSafe: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+      },
+      handler: async (
+        ctx: HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+        },
+      ) =>
+        threadSnapshotSafe(
           ctx,
           component,
           withServerActor(args, options.serverActor),

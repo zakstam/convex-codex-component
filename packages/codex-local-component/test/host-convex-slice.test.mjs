@@ -11,6 +11,7 @@ import {
   listThreadMessagesForHooks,
   normalizeInboundDeltas,
   resolvePendingServerRequestForHooksForActor,
+  threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
 
@@ -280,6 +281,50 @@ test("listThreadMessagesForHooks returns stream list with deltas payload", async
 
   assert.equal(result.streams?.kind, "deltas");
   assert.deepEqual(result.streams?.streams, [{ streamId: "stream-1", state: "streaming" }]);
+});
+
+test("threadSnapshotSafe returns null when thread is missing", async () => {
+  const getStateRef = {};
+  const ctx = {
+    runQuery: async () => {
+      throw new Error("Thread not found for scope: thread-1");
+    },
+  };
+  const component = {
+    threads: {
+      getState: getStateRef,
+    },
+  };
+
+  const snapshot = await threadSnapshotSafe(ctx, component, {
+    actor: { userId: "u" },
+    threadId: "thread-1",
+  });
+
+  assert.equal(snapshot, null);
+});
+
+test("threadSnapshotSafe rethrows unexpected errors", async () => {
+  const getStateRef = {};
+  const ctx = {
+    runQuery: async () => {
+      throw new Error("Unexpected DB issue");
+    },
+  };
+  const component = {
+    threads: {
+      getState: getStateRef,
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      threadSnapshotSafe(ctx, component, {
+        actor: { userId: "u" },
+        threadId: "thread-1",
+      }),
+    /Unexpected DB issue/,
+  );
 });
 
 test("server request host wrappers pass refs and args", async () => {

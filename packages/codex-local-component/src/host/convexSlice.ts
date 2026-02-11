@@ -30,6 +30,7 @@ import {
   type HostSyncRuntimeOptions,
 } from "./convex.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
+import { isSessionForbidden, isThreadForbidden, isThreadMissing } from "../errors.js";
 
 export type HostMutationRunner = {
   runMutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
@@ -981,6 +982,27 @@ export async function threadSnapshot<
   args: ThreadSnapshotArgs,
 ): Promise<FunctionReturnType<Component["threads"]["getState"]>> {
   return getThreadState(ctx, component, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
+}
+
+function isThreadSnapshotSafeError(error: unknown): boolean {
+  return isThreadMissing(error) || isThreadForbidden(error) || isSessionForbidden(error);
+}
+
+export async function threadSnapshotSafe<
+  Component extends CodexThreadsStateComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: ThreadSnapshotArgs,
+): Promise<FunctionReturnType<Component["threads"]["getState"]> | null> {
+  try {
+    return await threadSnapshot(ctx, component, args);
+  } catch (error) {
+    if (isThreadSnapshotSafeError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function persistenceStats<

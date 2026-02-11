@@ -30,6 +30,14 @@ This is an operations/runbook companion to `../LLMS.md`.
 
 Use `sync.ingestSafe` in host wrappers so recoverable conditions return structured status instead of hard-failing the loop.
 
+Public classifier utilities are available for consistent host/app fallback handling:
+
+- `parseErrorCode(error)`
+- `isThreadMissing(error)`
+- `isThreadForbidden(error)`
+- `isSessionForbidden(error)`
+- `isRecoverableIngestError(errorOrSafeEntry)`
+
 ## Terminal Status Parsing Errors
 
 - `E_TERMINAL_PAYLOAD_PARSE_FAILED`: could not decode terminal event payload.

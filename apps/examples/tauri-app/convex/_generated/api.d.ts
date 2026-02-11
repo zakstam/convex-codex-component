@@ -538,6 +538,7 @@ export declare const components: {
             itemId: string;
             kind: string;
             reason?: string;
+            turnId: string;
           }>;
           recentMessages: Array<{
             createdAt: number;

@@ -60,6 +60,7 @@ const vThreadState = v.object({
   ),
   pendingApprovals: v.array(
     v.object({
+      turnId: v.string(),
       itemId: v.string(),
       kind: v.string(),
       reason: v.optional(v.string()),
@@ -531,6 +532,7 @@ export const getState = query({
         latestCursor: Number(stat.latestCursor),
       })),
       pendingApprovals: approvals.map((approval) => ({
+        turnId: String(approval.turnId),
         itemId: String(approval.itemId),
         kind: String(approval.kind),
         ...(approval.reason ? { reason: String(approval.reason) } : {}),

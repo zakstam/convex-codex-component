@@ -19,6 +19,7 @@ All focused preset builders include:
 - `getTurnDispatchState`
 - `getDispatchObservability`
 - `threadSnapshot`
+- `threadSnapshotSafe`
 - `persistenceStats`
 - `durableHistoryStats`
 - `listThreadMessagesForHooks`

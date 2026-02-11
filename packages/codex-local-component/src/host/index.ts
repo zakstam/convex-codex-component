@@ -51,6 +51,14 @@ export {
 } from "./normalizeInboundDeltas.js";
 
 export { hasRecoverableIngestErrors, type HostIngestErrorLike } from "./ingestRecovery.js";
+export {
+  RECOVERABLE_INGEST_ERROR_CODES,
+  isRecoverableIngestError,
+  isSessionForbidden,
+  isThreadForbidden,
+  isThreadMissing,
+  parseErrorCode,
+} from "../errors.js";
 
 export {
   computeDataHygiene,
@@ -84,6 +92,7 @@ export {
   respondApprovalForHooksForActor,
   resolvePendingServerRequestForHooksForActor,
   threadSnapshot,
+  threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
   vHostActorContext,
   vHostDataHygiene,

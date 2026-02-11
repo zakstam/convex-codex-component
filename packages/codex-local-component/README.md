@@ -39,6 +39,8 @@ That file is the normative, single-path consumer strategy.
 - `@zakstam/codex-local-component/convex.config`
 - `@zakstam/codex-local-component/host/convex`
 - `@zakstam/codex-local-component/react`
+- `@zakstam/codex-local-component/react-integration`
+- `@zakstam/codex-local-component/errors`
 - `@zakstam/codex-local-component/client`
 - `@zakstam/codex-local-component/bridge`
 - `@zakstam/codex-local-component/app-server`

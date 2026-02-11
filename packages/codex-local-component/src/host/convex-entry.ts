@@ -39,6 +39,15 @@ export {
 } from "./normalizeInboundDeltas.js";
 
 export {
+  RECOVERABLE_INGEST_ERROR_CODES,
+  isRecoverableIngestError,
+  isSessionForbidden,
+  isThreadForbidden,
+  isThreadMissing,
+  parseErrorCode,
+} from "../errors.js";
+
+export {
   computeDataHygiene,
   computeDurableHistoryStats,
   computePersistenceStats,
@@ -70,6 +79,7 @@ export {
   respondApprovalForHooksForActor,
   resolvePendingServerRequestForHooksForActor,
   threadSnapshot,
+  threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
   vHostActorContext,
   vHostDataHygiene,

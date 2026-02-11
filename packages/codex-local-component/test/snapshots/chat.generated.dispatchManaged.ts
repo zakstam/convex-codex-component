@@ -41,6 +41,7 @@ export const validateHostWiring = query(defs.queries.validateHostWiring);
 export const getTurnDispatchState = query(defs.queries.getTurnDispatchState);
 export const getDispatchObservability = query(defs.queries.getDispatchObservability);
 export const threadSnapshot = query(defs.queries.threadSnapshot);
+export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
 export const persistenceStats = query(defs.queries.persistenceStats);
 export const durableHistoryStats = query(defs.queries.durableHistoryStats);
 export const listThreadMessagesForHooks = query(defs.queries.listThreadMessagesForHooks);

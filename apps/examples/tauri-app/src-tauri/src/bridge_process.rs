@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::Mutex;
+use tokio::time::{timeout, Duration};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,15 +259,26 @@ impl BridgeRuntime {
     }
 
     pub async fn stop(&self, app: AppHandle) -> Result<(), String> {
-        let mut inner = self.inner.lock().await;
-        if let Some(process) = inner.as_mut() {
+        let process = {
+            let mut inner = self.inner.lock().await;
+            inner.take()
+        };
+        if let Some(mut process) = process {
             let line = json!({ "type": "stop", "payload": {} }).to_string();
             let _ = process.stdin.write_all(line.as_bytes()).await;
             let _ = process.stdin.write_all(b"\n").await;
             let _ = process.stdin.flush().await;
-            let _ = process.child.kill().await;
+            let waited = timeout(Duration::from_millis(1200), process.child.wait()).await;
+            let needs_force_kill = match waited {
+                Ok(Ok(_)) => false,
+                Ok(Err(_)) => true,
+                Err(_) => true,
+            };
+            if needs_force_kill {
+                let _ = process.child.kill().await;
+                let _ = timeout(Duration::from_millis(500), process.child.wait()).await;
+            }
         }
-        *inner = None;
 
         let mut snapshot = self.snapshot.lock().await;
         *snapshot = BridgeStateSnapshot::default();

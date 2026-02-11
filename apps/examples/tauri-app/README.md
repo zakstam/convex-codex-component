@@ -39,6 +39,11 @@ This starts and watches:
 - Node helper (`bridge-helper.ts`) build watch
 - Tauri dev app (with Vite HMR)
 
+Stopping `pnpm run dev` now performs deterministic shutdown across the full process tree:
+- sends graceful stop first to Tauri + helper runtime
+- force-kills remaining descendants after a short timeout
+- prevents leftover `bridge-helper` / `codex app-server` processes after terminal stop or window-close exit
+
 3. In the app:
 
 - Pick a thread from **Resume Previous Thread** and click **Start Runtime** to resume it.

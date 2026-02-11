@@ -979,6 +979,34 @@ async function stopCurrentBridge(): Promise<void> {
   }
 }
 
+let shutdownPromise: Promise<void> | null = null;
+
+function gracefulShutdown(reason: string, opts?: { exitCode?: number; emitAckCommand?: string }): Promise<void> {
+  if (shutdownPromise) {
+    return shutdownPromise;
+  }
+
+  shutdownPromise = (async () => {
+    let exitCode = opts?.exitCode ?? 0;
+    try {
+      await stopCurrentBridge();
+      if (opts?.emitAckCommand) {
+        emit({ type: "ack", payload: { command: opts.emitAckCommand } });
+      }
+    } catch (error) {
+      exitCode = 1;
+      const message = error instanceof Error ? error.message : String(error);
+      emit({ type: "error", payload: { message: `shutdown failed (${reason}): ${message}` } });
+    } finally {
+      setImmediate(() => {
+        process.exit(exitCode);
+      });
+    }
+  })();
+
+  return shutdownPromise;
+}
+
 async function handle(command: HelperCommand): Promise<void> {
   switch (command.type) {
     case "start":
@@ -1029,8 +1057,7 @@ async function handle(command: HelperCommand): Promise<void> {
       emit({ type: "ack", payload: { command: "interrupt" } });
       return;
     case "stop":
-      await stopCurrentBridge();
-      emit({ type: "ack", payload: { command: "stop" } });
+      await gracefulShutdown("stop", { emitAckCommand: "stop" });
       return;
     case "status":
       emitState();
@@ -1067,6 +1094,19 @@ process.stdin.on("data", (chunk) => {
 });
 
 process.stdin.resume();
+process.stdin.on("end", () => {
+  void gracefulShutdown("stdin-end");
+});
+process.stdin.on("close", () => {
+  void gracefulShutdown("stdin-close");
+});
+
+process.on("SIGINT", () => {
+  void gracefulShutdown("SIGINT");
+});
+process.on("SIGTERM", () => {
+  void gracefulShutdown("SIGTERM");
+});
 
 process.on("unhandledRejection", (reason) => {
   const message = reason instanceof Error ? reason.stack ?? reason.message : String(reason);

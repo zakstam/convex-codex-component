@@ -63,6 +63,7 @@ pnpm run dev
 ```
 
 This starts Convex dev, the component build watcher, the local bridge helper, and a Tauri app with Vite HMR — all in one command.
+Stopping `pnpm run dev` now shuts down the Tauri runtime, helper sidecar, and spawned `codex app-server` child processes (graceful first, then forced if needed).
 
 For a headless demo, try the persistent CLI app:
 

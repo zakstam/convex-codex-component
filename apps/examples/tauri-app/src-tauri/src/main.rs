@@ -2,7 +2,7 @@ mod bridge_process;
 
 use bridge_process::{AppBridgeState, BridgeRuntime};
 use serde::Deserialize;
-use tauri::State;
+use tauri::{Manager, RunEvent, State, WindowEvent};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -210,7 +210,7 @@ async fn get_bridge_state(state: State<'_, AppBridgeState>) -> Result<bridge_pro
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(AppBridgeState {
             runtime: BridgeRuntime::default(),
         })
@@ -230,8 +230,25 @@ pub fn run() {
             stop_bridge,
             get_bridge_state
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app, event| match event {
+        RunEvent::WindowEvent {
+            event: WindowEvent::CloseRequested { .. },
+            ..
+        }
+        | RunEvent::ExitRequested { .. }
+        | RunEvent::Exit => {
+            tauri::async_runtime::block_on(async {
+                let app_handle = app.clone();
+                let state_handle = app_handle.clone();
+                let state = state_handle.state::<AppBridgeState>();
+                let _ = state.runtime.stop(app_handle).await;
+            });
+        }
+        _ => {}
+    });
 }
 
 fn main() {

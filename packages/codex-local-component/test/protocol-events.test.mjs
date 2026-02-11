@@ -112,6 +112,34 @@ test("payload helpers extract approval requests and deltas", () => {
   });
 });
 
+test("payload helpers synthesize durable messages for dynamic tool calls", () => {
+  const dynamicToolPayload = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 22,
+    method: "item/tool/call",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      callId: "call-1",
+      tool: "tauri_get_runtime_snapshot",
+      arguments: { includePendingRequests: true },
+    },
+  });
+
+  assert.deepEqual(durableMessageForPayload("item/tool/call", dynamicToolPayload), {
+    messageId: "call-1",
+    role: "tool",
+    status: "completed",
+    sourceItemType: "dynamicToolCall",
+    text: "tauri_get_runtime_snapshot",
+    payloadJson: JSON.stringify({
+      type: "dynamicToolCall",
+      id: "call-1",
+      tool: "tauri_get_runtime_snapshot",
+    }),
+  });
+});
+
 test("payload helpers extract reasoning summary/raw deltas", () => {
   const summaryPayload = JSON.stringify({
     jsonrpc: "2.0",

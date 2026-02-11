@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import {
+  useCodexAccountAuth,
   useCodexConversationController,
+  useCodexRuntimeBridge,
   useCodexThreadState,
+  useCodexThreads,
 } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
@@ -33,14 +35,13 @@ import { Composer } from "./components/Composer";
 import { ApprovalList } from "./components/ApprovalList";
 import { EventLog } from "./components/EventLog";
 import { ToastContainer, type ToastItem } from "./components/Toast";
+import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./hooks/useCodexTauriEvents";
 
 const actor: ActorContext = {
   userId: "demo-user",
 };
 
 const sessionId = crypto.randomUUID();
-
-type BridgeStateEvent = Partial<BridgeState>;
 
 type ToolQuestion = {
   id: string;
@@ -65,15 +66,12 @@ type PendingServerRequest = {
   questions?: ToolQuestion[];
 };
 
-type PendingAuthRefreshRequest = {
-  requestId: string | number;
-  reason: string;
-  previousAccountId: string | null;
+type PickerThread = {
+  threadId: string;
+  runtimeThreadId?: string | null;
+  status: string;
+  createdAt?: number;
 };
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
 
 function requireDefined<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
@@ -101,12 +99,10 @@ export default function App() {
     ingestSkippedByKind: [],
   });
   const [runtimeLog, setRuntimeLog] = useState<Array<{ id: string; line: string }>>([]);
-  const [selectedRuntimeThreadId, setSelectedRuntimeThreadId] = useState<string>("");
   const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({});
   const [toolOtherDrafts, setToolOtherDrafts] = useState<Record<string, Record<string, string>>>({});
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [authBusy, setAuthBusy] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [idToken, setIdToken] = useState("");
   const [accessToken, setAccessToken] = useState("");
@@ -124,14 +120,39 @@ export default function App() {
   }, []);
 
   const threadId = bridge.localThreadId;
-  const listedThreads = useQuery(
-    requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
-    { actor, limit: 25 },
+  const threads = useCodexThreads({
+    list: {
+      query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
+      args: { actor, limit: 25 },
+    },
+    initialSelectedThreadId: "",
+  });
+  const selectedRuntimeThreadId = threads.selectedThreadId ?? "";
+
+  const runtimeBridgeControls = useMemo(
+    () => ({
+      start: startBridge,
+      stop: stopBridge,
+      getState: getBridgeState,
+      sendTurn: sendUserTurn,
+      interrupt: interruptTurn,
+    }),
+    [],
   );
+  const runtimeBridge = useCodexRuntimeBridge(runtimeBridgeControls);
+
+  const accountAuth = useCodexAccountAuth<LoginAccountParams>({
+    readAccount,
+    loginAccount,
+    cancelAccountLogin,
+    logoutAccount,
+    readAccountRateLimits,
+    respondChatgptAuthTokensRefresh,
+  });
 
   const startBridgeWithSelection = useCallback(async () => {
     const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
-    await startBridge({
+    await runtimeBridge.start({
       convexUrl: import.meta.env.VITE_CONVEX_URL,
       actor,
       sessionId,
@@ -141,7 +162,7 @@ export default function App() {
       saveStreamDeltas: true,
       ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
     });
-  }, [selectedRuntimeThreadId]);
+  }, [runtimeBridge, selectedRuntimeThreadId]);
 
   const conversation = useCodexConversationController({
     messages: {
@@ -188,7 +209,7 @@ export default function App() {
     },
     interrupt: {
       onInterrupt: async () => {
-        await interruptTurn();
+        await runtimeBridge.interrupt();
       },
     },
   });
@@ -236,100 +257,14 @@ export default function App() {
     threadId ? { actor, threadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
-
-  useEffect(() => {
-    let unsubs: Array<() => void> = [];
-
-    const attach = async () => {
-      const [stateUnsub, eventUnsub, errorUnsub, globalUnsub] = await Promise.all([
-        listen<BridgeStateEvent>("codex:bridge_state", (event) => {
-          setBridge((prev) => {
-            const next = { ...prev, ...event.payload };
-            if (!prev.running && next.running) addToast("info", "Runtime started");
-            if (prev.running && !next.running) addToast("info", "Runtime stopped");
-            return next;
-          });
-        }),
-        listen<{ kind: string; turnId?: string; threadId?: string }>("codex:event", (event) => {
-          const line = `${event.payload.kind} (${event.payload.turnId ?? "-"})`;
-          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-          setRuntimeLog((prev) => [{ id, line }, ...prev].slice(0, 8));
-        }),
-        listen<{ message: string }>("codex:protocol_error", (event) => {
-          setBridge((prev) => ({ ...prev, lastError: event.payload.message }));
-          console.error("[codex:protocol_error]", event.payload.message, event.payload);
-          addToast("error", event.payload.message);
-        }),
-        listen<Record<string, unknown>>("codex:global_message", (event) => {
-          const payload = event.payload ?? {};
-          const record = asRecord(payload);
-          if (!record) {
-            return;
-          }
-          if (record.error) {
-            console.error("[codex:global_message:error]", payload);
-          } else if (record.kind === "sync/session_rolled_over") {
-            console.warn("[codex:global_message:session_rolled_over]", payload);
-          } else {
-            console.debug("[codex:global_message]", payload);
-          }
-
-          const method = typeof record.method === "string" ? record.method : null;
-          if (method === "account/chatgptAuthTokens/refresh") {
-            const requestId = record.id;
-            const params = asRecord(record.params);
-            if ((typeof requestId === "string" || typeof requestId === "number") && params) {
-              const reason = typeof params.reason === "string" ? params.reason : "unknown";
-              const previousAccountId =
-                typeof params.previousAccountId === "string" ? params.previousAccountId : null;
-              setPendingAuthRefresh((prev) => {
-                const key = `${typeof requestId}:${String(requestId)}`;
-                const filtered = prev.filter(
-                  (item) => `${typeof item.requestId}:${String(item.requestId)}` !== key,
-                );
-                return [...filtered, { requestId, reason, previousAccountId }];
-              });
-              addToast("info", "Auth token refresh requested by runtime");
-            }
-            return;
-          }
-
-          if (method === "account/login/completed") {
-            const params = asRecord(record.params);
-            const success = typeof params?.success === "boolean" ? params.success : null;
-            if (success === true) {
-              addToast("success", "Login completed");
-            } else if (success === false) {
-              addToast("error", "Login failed");
-            }
-            return;
-          }
-
-          if (
-            record.kind === "account/read_result" ||
-            record.kind === "account/login_start_result" ||
-            record.kind === "account/login_cancel_result" ||
-            record.kind === "account/logout_result" ||
-            record.kind === "account/rate_limits_read_result"
-          ) {
-            setAuthSummary(JSON.stringify(record.response ?? {}, null, 2));
-          }
-        }),
-      ]);
-      unsubs = [stateUnsub, eventUnsub, errorUnsub, globalUnsub];
-
-      const state = await getBridgeState();
-      setBridge(state);
-    };
-
-    void attach();
-
-    return () => {
-      for (const off of unsubs) {
-        off();
-      }
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useCodexTauriEvents({
+    setBridge,
+    setRuntimeLog,
+    setAuthSummary,
+    setPendingAuthRefresh,
+    addToast,
+    refreshBridgeState: runtimeBridge.refresh,
+  });
 
   const onStartBridge = useCallback(async () => {
     await startBridgeWithSelection();
@@ -444,7 +379,6 @@ export default function App() {
   };
 
   const runAuthAction = async (name: string, fn: () => Promise<unknown>) => {
-    setAuthBusy(true);
     try {
       await fn();
       setBridge((prev) => ({ ...prev, lastError: null }));
@@ -453,14 +387,12 @@ export default function App() {
       const message = error instanceof Error ? error.message : String(error);
       setBridge((prev) => ({ ...prev, lastError: message }));
       addToast("error", message);
-    } finally {
-      setAuthBusy(false);
     }
   };
 
   const onAccountRead = (refreshToken: boolean) =>
     void runAuthAction(refreshToken ? "Account read (refresh requested)" : "Account read", async () => {
-      await readAccount({ refreshToken });
+      await accountAuth.readAccount({ refreshToken });
     });
 
   const onLoginApiKey = () => {
@@ -471,14 +403,14 @@ export default function App() {
     }
     void runAuthAction("API key login started", async () => {
       const params: LoginAccountParams = { type: "apiKey", apiKey: key };
-      await loginAccount({ params });
+      await accountAuth.loginAccount({ params });
     });
   };
 
   const onLoginChatgpt = () =>
     void runAuthAction("ChatGPT login started", async () => {
       const params: LoginAccountParams = { type: "chatgpt" };
-      await loginAccount({ params });
+      await accountAuth.loginAccount({ params });
     });
 
   const onLoginChatgptTokens = () => {
@@ -494,7 +426,7 @@ export default function App() {
         idToken: id,
         accessToken: access,
       };
-      await loginAccount({ params });
+      await accountAuth.loginAccount({ params });
     });
   };
 
@@ -505,18 +437,18 @@ export default function App() {
       return;
     }
     void runAuthAction("Login cancel requested", async () => {
-      await cancelAccountLogin({ loginId });
+      await accountAuth.cancelAccountLogin({ loginId });
     });
   };
 
   const onLogout = () =>
     void runAuthAction("Logout requested", async () => {
-      await logoutAccount();
+      await accountAuth.logoutAccount();
     });
 
   const onReadRateLimits = () =>
     void runAuthAction("Rate limits read requested", async () => {
-      await readAccountRateLimits();
+      await accountAuth.readAccountRateLimits();
     });
 
   const onRespondAuthRefresh = (requestId: string | number) => {
@@ -527,7 +459,7 @@ export default function App() {
       return;
     }
     void runAuthAction("Auth refresh response sent", async () => {
-      await respondChatgptAuthTokensRefresh({
+      await accountAuth.respondChatgptAuthTokensRefresh({
         requestId,
         idToken: id,
         accessToken: access,
@@ -544,13 +476,13 @@ export default function App() {
         <Header
           bridge={bridge}
           onStart={onStartBridge}
-          onStop={() => void stopBridge()}
+          onStop={() => void runtimeBridge.stop()}
           onInterrupt={() => void conversation.interrupt()}
         />
         <ThreadPicker
-          threads={listedThreads?.threads ?? []}
+          threads={((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? [])}
           selected={selectedRuntimeThreadId}
-          onSelect={setSelectedRuntimeThreadId}
+          onSelect={(runtimeThreadId) => threads.setSelectedThreadId(runtimeThreadId)}
           disabled={bridge.running}
         />
         <MessageList messages={displayMessages} status={messages.status} />
@@ -590,21 +522,21 @@ export default function App() {
               <button
                 className="secondary"
                 onClick={() => onAccountRead(false)}
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               >
                 Read Account
               </button>
               <button
                 className="secondary"
                 onClick={() => onAccountRead(true)}
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               >
                 Read + Refresh
               </button>
               <button
                 className="danger"
                 onClick={onLogout}
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               >
                 Logout
               </button>
@@ -620,9 +552,9 @@ export default function App() {
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
                 placeholder="sk-..."
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               />
-              <button onClick={onLoginApiKey} disabled={!bridge.running || authBusy}>
+              <button onClick={onLoginApiKey} disabled={!bridge.running || accountAuth.isBusy}>
                 Login
               </button>
             </div>
@@ -635,7 +567,7 @@ export default function App() {
                 id="chatgpt-login"
                 className="secondary"
                 onClick={onLoginChatgpt}
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               >
                 Start OAuth Login
               </button>
@@ -651,18 +583,18 @@ export default function App() {
                 value={idToken}
                 onChange={(event) => setIdToken(event.target.value)}
                 placeholder="idToken"
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               />
               <input
                 type="password"
                 value={accessToken}
                 onChange={(event) => setAccessToken(event.target.value)}
                 placeholder="accessToken"
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               />
             </div>
             <div className="auth-row">
-              <button onClick={onLoginChatgptTokens} disabled={!bridge.running || authBusy}>
+              <button onClick={onLoginChatgptTokens} disabled={!bridge.running || accountAuth.isBusy}>
                 Login With Tokens
               </button>
             </div>
@@ -677,19 +609,19 @@ export default function App() {
                 value={cancelLoginId}
                 onChange={(event) => setCancelLoginId(event.target.value)}
                 placeholder="loginId"
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               />
               <button
                 className="secondary"
                 onClick={onCancelLogin}
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               >
                 Cancel
               </button>
               <button
                 className="secondary"
                 onClick={onReadRateLimits}
-                disabled={!bridge.running || authBusy}
+                disabled={!bridge.running || accountAuth.isBusy}
               >
                 Read Rate Limits
               </button>
@@ -707,7 +639,7 @@ export default function App() {
                     <button
                       className="secondary"
                       onClick={() => onRespondAuthRefresh(request.requestId)}
-                      disabled={!bridge.running || authBusy}
+                      disabled={!bridge.running || accountAuth.isBusy}
                     >
                       Respond With Tokens
                     </button>

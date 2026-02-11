@@ -624,6 +624,48 @@ export function durableMessageForMessage(message: ServerInboundMessage): Canonic
   if (!("method" in message)) {
     return null;
   }
+  if (message.method === "item/tool/call") {
+    const params = isMessageRecord(message.params)
+      ? (message.params as Record<string, unknown>)
+      : null;
+    const callId = params ? getStringField(params, "callId") : null;
+    const tool = params ? getStringField(params, "tool") : null;
+    if (!callId || !tool) {
+      return null;
+    }
+    return {
+      messageId: callId,
+      role: "tool",
+      status: "completed",
+      sourceItemType: "dynamicToolCall",
+      text: tool,
+      payloadJson: JSON.stringify({
+        type: "dynamicToolCall",
+        id: callId,
+        tool,
+      }),
+    };
+  }
+  if (message.method === "item/tool/requestUserInput") {
+    const params = isMessageRecord(message.params)
+      ? (message.params as Record<string, unknown>)
+      : null;
+    const itemId = params ? getStringField(params, "itemId") : null;
+    if (!itemId) {
+      return null;
+    }
+    return {
+      messageId: itemId,
+      role: "tool",
+      status: "completed",
+      sourceItemType: "toolUserInputRequest",
+      text: "Tool requested user input",
+      payloadJson: JSON.stringify({
+        type: "toolUserInputRequest",
+        id: itemId,
+      }),
+    };
+  }
   if (message.method !== "item/started" && message.method !== "item/completed") {
     return null;
   }
@@ -645,14 +687,23 @@ export function durableMessageForPayload(
   kind: string,
   payloadJson: string,
 ): CanonicalDurableMessage | null {
-  if (kind !== "item/started" && kind !== "item/completed") {
-    return null;
+  if (kind === "item/started") {
+    const parsed = parseMethodPayload(payloadJson, "item/started");
+    return parsed ? durableMessageForMessage(parsed) : null;
   }
-  const parsed =
-    kind === "item/started"
-      ? parseMethodPayload(payloadJson, "item/started")
-      : parseMethodPayload(payloadJson, "item/completed");
-  return parsed ? durableMessageForMessage(parsed) : null;
+  if (kind === "item/completed") {
+    const parsed = parseMethodPayload(payloadJson, "item/completed");
+    return parsed ? durableMessageForMessage(parsed) : null;
+  }
+  if (kind === "item/tool/call") {
+    const parsed = parseMethodPayload(payloadJson, "item/tool/call");
+    return parsed ? durableMessageForMessage(parsed) : null;
+  }
+  if (kind === "item/tool/requestUserInput") {
+    const parsed = parseMethodPayload(payloadJson, "item/tool/requestUserInput");
+    return parsed ? durableMessageForMessage(parsed) : null;
+  }
+  return null;
 }
 
 export function durableMessageDeltaForMessage(

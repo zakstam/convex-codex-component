@@ -276,6 +276,34 @@ test("durable message delta parsing from item/agentMessage/delta", () => {
   });
 });
 
+test("durable message parsing from item/tool/call", () => {
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 77,
+    method: "item/tool/call",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      callId: "call-9",
+      tool: "tauri_get_runtime_snapshot",
+      arguments: { includePendingRequests: true },
+    },
+  });
+
+  assert.deepEqual(parseDurableMessageEvent("item/tool/call", payload), {
+    messageId: "call-9",
+    role: "tool",
+    status: "completed",
+    sourceItemType: "dynamicToolCall",
+    text: "tauri_get_runtime_snapshot",
+    payloadJson: JSON.stringify({
+      type: "dynamicToolCall",
+      id: "call-9",
+      tool: "tauri_get_runtime_snapshot",
+    }),
+  });
+});
+
 test("reasoning delta parsing supports summary and raw channels", () => {
   const summaryTextPayload = JSON.stringify({
     jsonrpc: "2.0",

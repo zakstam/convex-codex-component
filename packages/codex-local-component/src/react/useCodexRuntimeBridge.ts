@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type CodexRuntimeBridgeState = {
   running: boolean;
@@ -27,8 +27,13 @@ export function useCodexRuntimeBridge<StartArgs, SendArgs = string>(
   const [state, setState] = useState<CodexRuntimeBridgeState>(
     options?.initialState ?? { running: false, threadId: null, turnId: null, lastError: null },
   );
+  const stateRef = useRef(state);
   const [busyAction, setBusyAction] = useState<null | "start" | "stop" | "refresh" | "send" | "interrupt">(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const runAction = useCallback(async <T,>(action: typeof busyAction, fn: () => Promise<T>): Promise<T> => {
     setBusyAction(action);
@@ -47,12 +52,12 @@ export function useCodexRuntimeBridge<StartArgs, SendArgs = string>(
 
   const refresh = useCallback(async () => {
     if (!controls.getState) {
-      return state;
+      return stateRef.current;
     }
     const next = await runAction("refresh", controls.getState);
     setState(next);
     return next;
-  }, [controls.getState, runAction, state]);
+  }, [controls.getState, runAction]);
 
   const start = useCallback(
     async (args: StartArgs) => {

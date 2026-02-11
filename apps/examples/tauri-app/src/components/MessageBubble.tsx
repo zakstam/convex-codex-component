@@ -26,6 +26,10 @@ function formatToolCallText(sourceItemType: string | undefined, messageText: str
       return "MCP tool call";
     case "collabAgentToolCall":
       return "Collab agent tool call";
+    case "dynamicToolCall":
+      return messageText.trim() ? `Dynamic tool: ${messageText}` : "Dynamic tool call";
+    case "toolUserInputRequest":
+      return "Tool requested user input";
     case "webSearch":
       return "Web search";
     case "imageView":

@@ -6,11 +6,18 @@ React hooks are the official recommendation for consumer integrations.
 Canonical wiring in this app centers on:
 - `useCodexConversationController`
 - `useCodexThreadState`
+- `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
 - generated host wrappers in `convex/chat.generated.ts`
 
 Canonical consumer implementation path:
 
 - `packages/codex-local-component/LLMS.md`
+
+## State Authority
+
+- Runtime start/stop UI signals must be sourced from `codex:bridge_state`.
+- `useCodexTauriEvents` is the only place that subscribes to Tauri bridge events.
+- The hook is StrictMode-safe and deduplicates transition toasts to one toast per real running-state edge.
 
 ## Run
 

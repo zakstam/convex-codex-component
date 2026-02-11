@@ -31,7 +31,30 @@ export {
 export {
   useCodexConversationController,
   type CodexConversationControllerConfig,
+  type CodexConversationApprovalDecision,
+  type CodexConversationApprovalItem,
 } from "./useCodexConversationController.js";
+export {
+  useCodexDynamicTools,
+  type CodexDynamicToolsQuery,
+  type CodexDynamicToolsRespond,
+  type CodexDynamicToolHandler,
+  type CodexDynamicToolsHandlerMap,
+} from "./useCodexDynamicTools.js";
+export {
+  useCodexRuntimeBridge,
+  type CodexRuntimeBridgeControls,
+  type CodexRuntimeBridgeState,
+} from "./useCodexRuntimeBridge.js";
+export {
+  useCodexAccountAuth,
+  type CodexAccountAuthControls,
+} from "./useCodexAccountAuth.js";
+export {
+  useCodexThreads,
+  type CodexThreadsControls,
+  type CodexThreadsListQuery,
+} from "./useCodexThreads.js";
 export {
   useCodexTurn,
   type CodexTurnMessagesQuery,
@@ -98,3 +121,12 @@ export type {
 export {
   deriveCodexBranchActivity,
 } from "./branchActivity.js";
+export type {
+  CodexDynamicToolServerRequest,
+  CodexDynamicToolCall,
+  CodexDynamicToolResponse,
+} from "./dynamicTools.js";
+export {
+  deriveCodexDynamicToolCalls,
+  parseCodexDynamicToolPayload,
+} from "./dynamicTools.js";

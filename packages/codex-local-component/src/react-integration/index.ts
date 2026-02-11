@@ -5,10 +5,12 @@ import { useCodexBranchActivity } from "../react/useCodexBranchActivity.js";
 import { useCodexConversationController } from "../react/useCodexConversationController.js";
 import { useCodexIngestHealth } from "../react/useCodexIngestHealth.js";
 import { useCodexThreadActivity } from "../react/useCodexThreadActivity.js";
+import type { CodexDynamicToolHandler, CodexDynamicToolsQuery, CodexDynamicToolsRespond } from "../react/useCodexDynamicTools.js";
 import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "../react/types.js";
 import type { CodexThreadActivityQuery } from "../react/useCodexThreadActivity.js";
 import type { CodexThreadActivity, CodexThreadActivityThreadState } from "../react/threadActivity.js";
 import type { CodexBranchActivityOptions } from "../react/branchActivity.js";
+import type { CodexConversationApprovalDecision, CodexConversationApprovalItem } from "../react/useCodexConversationController.js";
 
 export type CodexThreadScopeArgs<Actor extends Record<string, unknown>> = {
   actor: Actor;
@@ -22,6 +24,7 @@ export type CodexThreadTurnScopeArgs<Actor extends Record<string, unknown>> = Co
 export type CodexReactHostHooks<Actor extends Record<string, unknown>> = {
   listThreadMessagesForHooks: CodexMessagesQuery<{ actor: Actor }>;
   threadSnapshotSafe: CodexThreadActivityQuery<{ actor: Actor }, CodexThreadActivityThreadState>;
+  listPendingServerRequestsForHooks?: CodexDynamicToolsQuery<{ actor: Actor; threadId: string; limit?: number }>;
 };
 
 export type CodexReactConversationControllerOptions = {
@@ -31,6 +34,16 @@ export type CodexReactConversationControllerOptions = {
   composer?: {
     initialValue?: string;
     onSend: (text: string) => Promise<unknown>;
+  };
+  approvals?: {
+    onResolve: (approval: CodexConversationApprovalItem, decision: CodexConversationApprovalDecision) => Promise<unknown>;
+  };
+  dynamicTools?: {
+    respond?: CodexDynamicToolsRespond;
+    handlers?: Record<string, CodexDynamicToolHandler>;
+    autoHandle?: boolean;
+    enabled?: boolean;
+    limit?: number;
   };
   interrupt?: {
     onInterrupt: (activity: CodexThreadActivity) => Promise<unknown>;
@@ -112,6 +125,21 @@ export function createCodexReactConvexAdapter<
           args: codexThreadScopeArgs(config.actor, threadId),
           ...(options.branchOptions !== undefined ? { branchOptions: options.branchOptions } : {}),
         },
+        ...(options.approvals !== undefined ? { approvals: options.approvals } : {}),
+        ...(options.dynamicTools !== undefined && config.hooks.listPendingServerRequestsForHooks !== undefined
+          ? {
+              dynamicTools: {
+                query: config.hooks.listPendingServerRequestsForHooks,
+                args: threadId
+                  ? { actor: config.actor, threadId, ...(options.dynamicTools.limit !== undefined ? { limit: options.dynamicTools.limit } : {}) }
+                  : "skip",
+                ...(options.dynamicTools.respond !== undefined ? { respond: options.dynamicTools.respond } : {}),
+                ...(options.dynamicTools.handlers !== undefined ? { handlers: options.dynamicTools.handlers } : {}),
+                ...(options.dynamicTools.autoHandle !== undefined ? { autoHandle: options.dynamicTools.autoHandle } : {}),
+                ...(options.dynamicTools.enabled !== undefined ? { enabled: options.dynamicTools.enabled } : {}),
+              },
+            }
+          : {}),
         ...(options.composer !== undefined ? { composer: options.composer } : {}),
         ...(options.interrupt !== undefined ? { interrupt: options.interrupt } : {}),
       }),

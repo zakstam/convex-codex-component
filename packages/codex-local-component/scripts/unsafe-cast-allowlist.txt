@@ -17,6 +17,13 @@ src/protocol/parser.ts:33:  return validator.errors as AjvError[] | null | undef
 src/react/useCodexMessages.ts:15:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
 src/app-server/client.ts:56:  return { method, id, params } as RequestFor<M>;
 src/react/useCodexThreadState.ts:19:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
+src/react/useCodexDynamicTools.ts:49:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
+src/react/useCodexThreads.ts:30:    : [config.list.args] as [FunctionArgs<Query>];
+src/react/useCodexThreads.ts:31:  const listArgs = listQueryArgs as unknown as OptionalRestArgsOrSkip<Query>;
+src/react/useCodexConversationController.ts:69:  const record = value as Record<string, unknown>;
+src/react/useCodexConversationController.ts:99:      (config.threadState.query as unknown as DynamicToolsQuery),
+src/react/dynamicTools.ts:43:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/react/dynamicTools.ts:48:    const parsed = JSON.parse(payloadJson) as unknown;
 src/react/useCodexApprovals.ts:53:  return runner(...([args] as OptionalRestArgs<Mutation>));
 src/react/useCodexApprovals.ts:68:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
 src/react/useCodexAutoResume.ts:59:    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
@@ -91,6 +98,10 @@ src/component/pagination.ts:18:    return JSON.parse(cursor) as T;
 src/host/runtime.ts:388:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 src/host/runtime.ts:1264:                ? (message.result as Record<string, unknown>)
 src/host/runtime.ts:1267:                ? (resultObj.turn as Record<string, unknown>)
+src/host/runtime.ts:396:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/host/runtime.ts:1275:                ? (message.result as Record<string, unknown>)
+src/host/runtime.ts:1278:                ? (resultObj.turn as Record<string, unknown>)
+src/react/useCodexConversationController.ts:54:  const record = value as Record<string, unknown>;
 src/host/convexSlice.ts:515:  const record = value as Record<string, unknown>;
 src/host/convexSlice.ts:527:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
 src/host/convexSlice.ts:535:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;

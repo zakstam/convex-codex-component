@@ -1,6 +1,7 @@
 # LLMS: Canonical Consumer Integration (Single Path)
 
 Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Official recommendation: use React hooks as the primary consumer integration surface.
 
 ## Actor Scope Contract
 
@@ -103,12 +104,18 @@ await runtime.start({
 - Query `chat.validateHostWiring` once at process boot.
 - Fail fast if `ok` is `false`.
 
-9. Use canonical host query/mutation endpoints in React hooks.
+9. Use React hooks as the canonical UI integration path.
 
 - `useCodexMessages` -> `chat.listThreadMessagesForHooks`
 - `useCodexTurn` -> `chat.listTurnMessagesForHooks`
+- `useCodexThreadActivity` -> `chat.threadSnapshotSafe`
+- `useCodexIngestHealth` -> `chat.threadSnapshotSafe`
+- `useCodexBranchActivity` -> `chat.threadSnapshotSafe`
 - `useCodexApprovals` -> `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks`
+- `useCodexDynamicTools` -> `chat.listPendingServerRequestsForHooks` + runtime `respondDynamicToolCall(...)`
 - `useCodexComposer` -> `chat.enqueueTurnDispatch`
+- Prefer `useCodexConversationController` for bundled wiring (messages + activity + approvals + composer + interrupt).
+- Use `useCodexRuntimeBridge`, `useCodexAccountAuth`, and `useCodexThreads` for bridge lifecycle, auth flows, and thread selection state in React apps.
 
 ## Required Consumer Commands
 

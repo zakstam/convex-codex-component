@@ -52,6 +52,10 @@ Common helpers used by consumers:
 - `useCodexIngestHealth`
 - `useCodexBranchActivity`
 - `useCodexConversationController`
+- `useCodexDynamicTools`
+- `useCodexRuntimeBridge`
+- `useCodexAccountAuth`
+- `useCodexThreads`
 - `useCodexApprovals`
 - `useCodexInterruptTurn`
 - `useCodexAutoResume`
@@ -85,6 +89,8 @@ Return shape:
 - `useCodexIngestHealth` -> `chat.threadSnapshotSafe`
 - `useCodexBranchActivity` -> `chat.threadSnapshotSafe`
 - `useCodexApprovals` -> `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks`
+- `useCodexDynamicTools` -> `chat.listPendingServerRequestsForHooks` + host runtime `respondDynamicToolCall(...)`
+- `useCodexThreads` -> app thread-list query + thread lifecycle mutations
 - `useCodexInterruptTurn` -> `chat.interruptTurnForHooks`
 - `useCodexComposer` -> `chat.enqueueTurnDispatch`
 
@@ -109,6 +115,10 @@ const branchActivity = codex.useBranchActivity(threadId, { turnId: activeTurnId 
 const conversation = codex.useConversationController(threadId, {
   initialNumItems: 30,
   stream: true,
+  approvals: {
+    onResolve: async (approval, decision) =>
+      respondApproval({ actor, threadId: approval.threadId, turnId: approval.turnId, itemId: approval.itemId, decision }),
+  },
   composer: { onSend: async (text) => sendUserTurn(text) },
   interrupt: { onInterrupt: async () => interruptTurn() },
 });

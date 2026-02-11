@@ -8,6 +8,10 @@ Canonical wiring in this app centers on:
 - `useCodexThreadState`
 - generated host wrappers in `convex/chat.generated.ts`
 
+Canonical consumer implementation path:
+
+- `packages/codex-local-component/LLMS.md`
+
 ## Run
 
 ```bash

@@ -22,6 +22,7 @@ React hooks require `react` peer dependency (`^18` or `^19`).
 4. Treat `actor` (`tenantId`, `userId`, `deviceId`) as trusted server identity, not untrusted client input.
 5. Before ingesting events on startup/reconnect, call `sync.ensureSession`.
 6. For runtime ingest, prefer `sync.ingestSafe` (`ingestBatchMixed` uses this).
+7. Convex-deployed code should not import `@zakstam/codex-local-component/protocol/parser` (Ajv runtime validation). Use host wrappers and `protocol/events`-based helpers only.
 
 ## Golden Path
 
@@ -245,3 +246,10 @@ Delta stream response shape includes:
 - `docs/HOST_INTEGRATION.md`
 - `docs/CLIENT_AND_REACT_HOOKS.md`
 - `docs/OPERATIONS_AND_ERRORS.md`
+
+## Type Safety Checks
+
+- `pnpm --filter @zakstam/codex-local-component run typecheck`
+- `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`
+
+`check:unsafe-types` fails on handwritten-source `any` usage and on new casts outside `scripts/unsafe-cast-allowlist.txt` (generated files excluded).

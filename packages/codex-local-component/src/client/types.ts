@@ -6,20 +6,30 @@ import type {
 import type { Doc } from "../component/_generated/dataModel.js";
 import type { ComponentApi } from "../component/_generated/component.js";
 
-type AnyQueryRef = FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-type AnyMutationRef = FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+export type GenericQueryRef = FunctionReference<
+  "query",
+  "public" | "internal",
+  Record<string, unknown>,
+  unknown
+>;
+export type GenericMutationRef = FunctionReference<
+  "mutation",
+  "public" | "internal",
+  Record<string, unknown>,
+  unknown
+>;
 
 export type CodexComponent = ComponentApi;
 
 export type CodexQueryRunner = {
-  runQuery<Query extends AnyQueryRef>(
+  runQuery<Query extends GenericQueryRef>(
     query: Query,
     args: FunctionArgs<Query>,
   ): Promise<FunctionReturnType<Query>>;
 };
 
 export type CodexMutationRunner = {
-  runMutation<Mutation extends AnyMutationRef>(
+  runMutation<Mutation extends GenericMutationRef>(
     mutation: Mutation,
     args: FunctionArgs<Mutation>,
   ): Promise<FunctionReturnType<Mutation>>;

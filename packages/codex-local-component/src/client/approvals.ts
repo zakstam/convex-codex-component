@@ -1,14 +1,18 @@
 import type {
   FunctionArgs,
-  FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { CodexMutationRunner, CodexQueryRunner } from "./types.js";
+import type {
+  CodexMutationRunner,
+  CodexQueryRunner,
+  GenericMutationRef,
+  GenericQueryRef,
+} from "./types.js";
 
 type ApprovalsComponent = {
   approvals: {
-    listPending: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-    respond: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    listPending: GenericQueryRef;
+    respond: GenericMutationRef;
   };
 };
 

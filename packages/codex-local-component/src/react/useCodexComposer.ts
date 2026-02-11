@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import type { FunctionArgs, FunctionReference } from "convex/server";
+import type { FunctionArgs, FunctionReference, OptionalRestArgs } from "convex/server";
 import { useCallback, useMemo, useState } from "react";
 
 export type CodexStartTurnMutation<Args = Record<string, unknown>> = FunctionReference<
@@ -24,7 +24,8 @@ export type CodexStartTurnMutation<Args = Record<string, unknown>> = FunctionRef
 export type CodexComposerSendArgs<
   Mutation extends CodexStartTurnMutation<unknown>,
 > = Mutation extends CodexStartTurnMutation<unknown>
-  ? Omit<FunctionArgs<Mutation>, "input">
+  ? Omit<FunctionArgs<Mutation>, "input" | "turnId" | "idempotencyKey"> &
+      Partial<Pick<FunctionArgs<Mutation>, "turnId" | "idempotencyKey">>
   : never;
 
 function randomId() {
@@ -34,7 +35,14 @@ function randomId() {
   return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 }
 
-export function useCodexComposer<Mutation extends CodexStartTurnMutation<any>>(
+function runMutationWithArgs<Mutation extends FunctionReference<"mutation", "public">>(
+  runner: (...args: OptionalRestArgs<Mutation>) => Promise<unknown>,
+  args: FunctionArgs<Mutation>,
+): Promise<unknown> {
+  return runner(...([args] as OptionalRestArgs<Mutation>));
+}
+
+export function useCodexComposer<Mutation extends CodexStartTurnMutation<unknown>>(
   mutation: Mutation,
   options?: {
     createTurnId?: () => string;
@@ -52,7 +60,7 @@ export function useCodexComposer<Mutation extends CodexStartTurnMutation<any>>(
       setIsSending(true);
       setError(null);
       try {
-        return await runStartTurn(args);
+        return await runMutationWithArgs(runStartTurn, args);
       } catch (err) {
         const next = err instanceof Error ? err.message : String(err);
         setError(next);
@@ -70,15 +78,15 @@ export function useCodexComposer<Mutation extends CodexStartTurnMutation<any>>(
       if (!text.trim()) {
         return null;
       }
-      const payload = {
+      const payload: FunctionArgs<Mutation> = {
         ...args,
-        turnId: (args as { turnId?: string }).turnId ?? options?.createTurnId?.() ?? randomId(),
+        turnId: args.turnId ?? options?.createTurnId?.() ?? randomId(),
         idempotencyKey:
-          (args as { idempotencyKey?: string }).idempotencyKey ??
+          args.idempotencyKey ??
           options?.createIdempotencyKey?.() ??
           randomId(),
         input: [{ type: "text", text }],
-      } as FunctionArgs<Mutation>;
+      };
       const result = await send(payload);
       setValue("");
       return result;

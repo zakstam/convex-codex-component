@@ -7,7 +7,7 @@ import type { CodexUIMessage } from "../client/types.js";
 import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 import { useCodexStreamOverlay } from "./useCodexStreamOverlay.js";
 
-export function useCodexMessages<Query extends CodexMessagesQuery<any>>(
+export function useCodexMessages<Query extends CodexMessagesQuery<unknown>>(
   query: Query,
   args: CodexMessagesQueryArgs<Query> | "skip",
   options: { initialNumItems: number; stream?: boolean },

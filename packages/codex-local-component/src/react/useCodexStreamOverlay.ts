@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
 import type { FunctionArgs } from "convex/server";
 import { useEffect, useState } from "react";
 import type { CodexStreamDeltaLike } from "../mapping.js";
-import type { CodexMessagesQuery, CodexMessagesQueryArgs, CodexStreamsResult } from "./types.js";
+import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 
 type StreamOverlayState = {
   threadId: string | undefined;
@@ -167,7 +167,7 @@ function applyDeltaBatch(
   return nextState;
 }
 
-export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(
+export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>(
   query: Query,
   args: CodexMessagesQueryArgs<Query> | "skip",
   enabled: boolean,
@@ -190,22 +190,27 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<any>>(
     setOverlayState({ threadId, streamIds: [], cursorsByStreamId: {}, deltas: [] });
   }, [threadId]);
 
+  const toQueryArgs = (): FunctionArgs<Query> | "skip" => {
+    if (!enabled || args === "skip") {
+      return "skip";
+    }
+    return {
+      ...args,
+      paginationOpts: { cursor: null, numItems: 0 },
+      streamArgs: {
+        kind: "deltas",
+        cursors: overlayState.streamIds.map((streamId) => ({
+          streamId,
+          cursor: overlayState.cursorsByStreamId[streamId] ?? 0,
+        })),
+      },
+    };
+  };
+
   const streamDeltaQuery = useQuery(
     query,
-    !enabled || args === "skip"
-      ? ("skip" as const)
-      : ({
-          ...args,
-          paginationOpts: { cursor: null, numItems: 0 },
-          streamArgs: {
-            kind: "deltas",
-            cursors: overlayState.streamIds.map((streamId) => ({
-              streamId,
-              cursor: overlayState.cursorsByStreamId[streamId] ?? 0,
-            })),
-          },
-        } as FunctionArgs<Query>),
-  ) as ({ streams?: CodexStreamsResult } & unknown) | undefined;
+    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
+  );
 
   const deltaPayload =
     streamDeltaQuery?.streams?.kind === "deltas"

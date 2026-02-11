@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 
 export type CodexThreadStateQuery<Args = Record<string, unknown>, Result = unknown> = FunctionReference<
@@ -12,9 +12,10 @@ export type CodexThreadStateQuery<Args = Record<string, unknown>, Result = unkno
   Result
 >;
 
-export function useCodexThreadState<Query extends CodexThreadStateQuery<any, any>>(
+export function useCodexThreadState<Query extends CodexThreadStateQuery<unknown, unknown>>(
   query: Query,
   args: FunctionArgs<Query> | "skip",
 ): FunctionReturnType<Query> | undefined {
-  return useQuery(query, args);
+  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
+  return useQuery(query, ...queryArgs);
 }

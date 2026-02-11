@@ -292,8 +292,36 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+function isRpcId(value: unknown): value is RpcId {
+  return typeof value === "string" || typeof value === "number";
+}
+
+function isManagedServerRequestMethod(value: string): value is ManagedServerRequestMethod {
+  return (
+    value === "item/commandExecution/requestApproval" ||
+    value === "item/fileChange/requestApproval" ||
+    value === "item/tool/requestUserInput" ||
+    value === "item/tool/call"
+  );
+}
+
+function isToolRequestUserInputQuestion(value: unknown): value is ToolRequestUserInputQuestion {
+  const question = asObject(value);
+  if (!question) {
+    return false;
+  }
+  return (
+    typeof question.id === "string" &&
+    typeof question.header === "string" &&
+    typeof question.question === "string" &&
+    typeof question.isOther === "boolean" &&
+    typeof question.isSecret === "boolean" &&
+    (question.options === null || Array.isArray(question.options))
+  );
+}
+
 function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServerRequest | null {
-  if (!MANAGED_SERVER_REQUEST_METHODS.has(event.kind as ManagedServerRequestMethod)) {
+  if (!isManagedServerRequestMethod(event.kind)) {
     return null;
   }
 
@@ -308,10 +336,10 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
   if (!message || typeof message.method !== "string") {
     return null;
   }
-  if (!MANAGED_SERVER_REQUEST_METHODS.has(message.method as ManagedServerRequestMethod)) {
+  if (!isManagedServerRequestMethod(message.method)) {
     return null;
   }
-  if (typeof message.id !== "number" && typeof message.id !== "string") {
+  if (!isRpcId(message.id)) {
     return null;
   }
   const params = asObject(message.params);
@@ -322,7 +350,7 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
     return null;
   }
 
-  const method = message.method as ManagedServerRequestMethod;
+  const method = message.method;
   const itemId =
     typeof params.itemId === "string"
       ? params.itemId
@@ -336,11 +364,11 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
   const questionsRaw = params.questions;
   const questions =
     method === "item/tool/requestUserInput" && Array.isArray(questionsRaw)
-      ? (questionsRaw as ToolRequestUserInputQuestion[])
+      ? questionsRaw.filter(isToolRequestUserInputQuestion)
       : undefined;
 
   return {
-    requestId: message.id as RpcId,
+    requestId: message.id,
     method,
     threadId: params.threadId,
     turnId: params.turnId,

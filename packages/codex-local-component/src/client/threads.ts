@@ -1,49 +1,53 @@
 import type {
   FunctionArgs,
-  FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { CodexMutationRunner, CodexQueryRunner } from "./types.js";
+import type {
+  CodexMutationRunner,
+  CodexQueryRunner,
+  GenericMutationRef,
+  GenericQueryRef,
+} from "./types.js";
 
 type ThreadsCreateComponent = {
   threads: {
-    create: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    create: GenericMutationRef;
   };
 };
 
 type ThreadsResolveComponent = {
   threads: {
-    resolve: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    resolve: GenericMutationRef;
   };
 };
 
 type ThreadsResumeComponent = {
   threads: {
-    resume: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    resume: GenericMutationRef;
   };
 };
 
 type ThreadsGetStateComponent = {
   threads: {
-    getState: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    getState: GenericQueryRef;
   };
 };
 
 type ThreadsResolveByExternalIdComponent = {
   threads: {
-    resolveByExternalId: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    resolveByExternalId: GenericQueryRef;
   };
 };
 
 type ThreadsGetExternalMappingComponent = {
   threads: {
-    getExternalMapping: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    getExternalMapping: GenericQueryRef;
   };
 };
 
 type ThreadsListComponent = {
   threads: {
-    list: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    list: GenericQueryRef;
   };
 };
 

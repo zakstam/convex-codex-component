@@ -5,7 +5,7 @@ import { extractCodexOverlayMessages, type CodexOverlayMessage } from "../mappin
 import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 import { useCodexStreamOverlay } from "./useCodexStreamOverlay.js";
 
-export function useCodexStreamingMessages<Query extends CodexMessagesQuery<any>>(
+export function useCodexStreamingMessages<Query extends CodexMessagesQuery<unknown>>(
   query: Query,
   args: CodexMessagesQueryArgs<Query> | "skip",
   options?: { startOrder?: number; enabled?: boolean },

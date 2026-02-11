@@ -1,4 +1,5 @@
 import type { MutationCtx } from "../_generated/server.js";
+import type { GenericId } from "convex/values";
 import type { CachedApproval, CachedMessage, CachedStream } from "./types.js";
 
 export type IngestStateCache = {
@@ -9,7 +10,7 @@ export type IngestStateCache = {
   setApprovalRecord: (turnId: string, itemId: string, value: CachedApproval | null) => void;
   getStreamRecord: (streamId: string) => Promise<CachedStream | null>;
   setStreamRecord: (streamId: string, value: CachedStream | null) => void;
-  queueMessagePatch: (id: string, patch: Record<string, unknown>) => void;
+  queueMessagePatch: (id: GenericId<"codex_messages">, patch: Record<string, unknown>) => void;
   flushMessagePatches: () => Promise<void>;
 };
 
@@ -24,7 +25,7 @@ export function createIngestStateCache(args: {
   const messageByKey = new Map<string, CachedMessage | null>();
   const streamById = new Map<string, CachedStream | null>();
   const approvalByKey = new Map<string, CachedApproval | null>();
-  const messagePatchById = new Map<string, Record<string, unknown>>();
+  const messagePatchById = new Map<GenericId<"codex_messages">, Record<string, unknown>>();
 
   const messageKey = (turnId: string, messageId: string): string =>
     `${tenantId}:${threadId}:${turnId}:${messageId}`;
@@ -129,7 +130,7 @@ export function createIngestStateCache(args: {
     streamById.set(streamId, value);
   };
 
-  const queueMessagePatch = (id: string, patch: Record<string, unknown>): void => {
+  const queueMessagePatch = (id: GenericId<"codex_messages">, patch: Record<string, unknown>): void => {
     const existing = messagePatchById.get(id);
     if (!existing) {
       messagePatchById.set(id, { ...patch });
@@ -145,7 +146,7 @@ export function createIngestStateCache(args: {
     const pending = Array.from(messagePatchById.entries());
     messagePatchById.clear();
     await Promise.all(
-      pending.map(([id, patch]) => ctx.db.patch(id as never, patch)),
+      pending.map(([id, patch]) => ctx.db.patch(id, patch)),
     );
   };
 

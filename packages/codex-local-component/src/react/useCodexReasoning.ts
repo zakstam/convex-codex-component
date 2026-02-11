@@ -8,7 +8,7 @@ import {
 } from "../mapping.js";
 import type { CodexReasoningQuery, CodexReasoningQueryArgs } from "./types.js";
 
-export function useCodexReasoning<Query extends CodexReasoningQuery<any>>(
+export function useCodexReasoning<Query extends CodexReasoningQuery<unknown>>(
   query: Query,
   args: CodexReasoningQueryArgs<Query> | "skip",
   options: { initialNumItems: number },
@@ -16,8 +16,7 @@ export function useCodexReasoning<Query extends CodexReasoningQuery<any>>(
   const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
     initialNumItems: options.initialNumItems,
   });
-
-  const includeRaw = args !== "skip" && !!(args as { includeRaw?: boolean }).includeRaw;
+  const includeRaw = args !== "skip" && "includeRaw" in args && !!args.includeRaw;
   const mergedResults = useMemo(
     () => aggregateCodexReasoningSegments(paginated.results, { includeRaw }),
     [includeRaw, paginated.results],

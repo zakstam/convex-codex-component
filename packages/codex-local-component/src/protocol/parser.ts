@@ -21,6 +21,18 @@ type AjvError = {
   message?: string;
 };
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function isSchemaMatch(validator: (value: unknown) => unknown, value: unknown): boolean {
+  return validator(value) === true;
+}
+
+function validatorErrors(validator: { errors?: unknown }): AjvError[] | null | undefined {
+  return validator.errors as AjvError[] | null | undefined;
+}
+
 const ajv = new Ajv({ allErrors: true, strict: false });
 ajv.addFormat("int64", true);
 ajv.addFormat("int32", true);
@@ -71,9 +83,9 @@ export class CodexProtocolSendError extends Error {
 
 function isServerInboundMessage(value: unknown): value is ServerInboundMessage {
   return (
-    (validateServerNotification(value) as boolean) ||
-    (validateServerRequest(value) as boolean) ||
-    (validateJsonRpcResponse(value) as boolean) ||
+    isSchemaMatch(validateServerNotification, value) ||
+    isSchemaMatch(validateServerRequest, value) ||
+    isSchemaMatch(validateJsonRpcResponse, value) ||
     isLegacyEventNotificationValue(value) ||
     isUnknownServerResponse(value) ||
     isUnknownServerNotification(value) ||
@@ -82,13 +94,13 @@ function isServerInboundMessage(value: unknown): value is ServerInboundMessage {
 }
 
 function isClientServerRequestResponse(value: unknown): value is ClientOutboundWireMessage {
-  if (!(validateJsonRpcResponse(value) as boolean)) {
+  if (!validateJsonRpcResponse(value)) {
     return false;
   }
-  if (typeof value !== "object" || value === null) {
+  const record = asObject(value);
+  if (!record) {
     return false;
   }
-  const record = value as Record<string, unknown>;
   if (typeof record.id !== "number" && typeof record.id !== "string") {
     return false;
   }
@@ -96,17 +108,17 @@ function isClientServerRequestResponse(value: unknown): value is ClientOutboundW
     return false;
   }
   return (
-    (validateCommandExecutionRequestApprovalResponse(record.result) as boolean) ||
-    (validateDynamicToolCallResponse(record.result) as boolean) ||
-    (validateFileChangeRequestApprovalResponse(record.result) as boolean) ||
-    (validateToolRequestUserInputResponse(record.result) as boolean)
+    validateCommandExecutionRequestApprovalResponse(record.result) ||
+    validateDynamicToolCallResponse(record.result) ||
+    validateFileChangeRequestApprovalResponse(record.result) ||
+    validateToolRequestUserInputResponse(record.result)
   );
 }
 
 function isClientOutboundMessage(value: unknown): value is ClientOutboundWireMessage {
   return (
-    (validateClientRequest(value) as boolean) ||
-    (validateClientNotification(value) as boolean) ||
+    validateClientRequest(value) ||
+    validateClientNotification(value) ||
     isClientServerRequestResponse(value)
   );
 }
@@ -122,8 +134,8 @@ export function parseWireMessage(line: string): ServerInboundMessage {
     throw new CodexProtocolParseError(`Invalid JSON from codex app-server: ${reason}`, line);
   }
 
-  if (!(validateJsonRpcMessage(parsed) as boolean)) {
-    const details = formatAjvErrors(validateJsonRpcMessage.errors as AjvError[] | null | undefined);
+  if (!validateJsonRpcMessage(parsed)) {
+    const details = formatAjvErrors(validatorErrors(validateJsonRpcMessage));
     throw new CodexProtocolParseError(
       `JSON-RPC schema validation failed for codex message: ${details}`,
       line,
@@ -145,27 +157,27 @@ export function assertValidClientMessage(message: unknown): asserts message is C
     return;
   }
   const details =
-    formatAjvErrors(validateClientRequest.errors as AjvError[] | null | undefined) +
+    formatAjvErrors(validatorErrors(validateClientRequest)) +
     "; " +
-    formatAjvErrors(validateClientNotification.errors as AjvError[] | null | undefined) +
+    formatAjvErrors(validatorErrors(validateClientNotification)) +
     "; " +
-    formatAjvErrors(validateJsonRpcResponse.errors as AjvError[] | null | undefined) +
+    formatAjvErrors(validatorErrors(validateJsonRpcResponse)) +
     "; " +
-    formatAjvErrors(validateCommandExecutionRequestApprovalResponse.errors as AjvError[] | null | undefined) +
+    formatAjvErrors(validatorErrors(validateCommandExecutionRequestApprovalResponse)) +
     "; " +
-    formatAjvErrors(validateDynamicToolCallResponse.errors as AjvError[] | null | undefined) +
+    formatAjvErrors(validatorErrors(validateDynamicToolCallResponse)) +
     "; " +
-    formatAjvErrors(validateFileChangeRequestApprovalResponse.errors as AjvError[] | null | undefined) +
+    formatAjvErrors(validatorErrors(validateFileChangeRequestApprovalResponse)) +
     "; " +
-    formatAjvErrors(validateToolRequestUserInputResponse.errors as AjvError[] | null | undefined);
+    formatAjvErrors(validatorErrors(validateToolRequestUserInputResponse));
   throw new CodexProtocolSendError(`Invalid outbound codex client message: ${details}`);
 }
 
 function isUnknownServerNotification(value: unknown): value is ServerInboundMessage {
-  if (typeof value !== "object" || value === null) {
+  const record = asObject(value);
+  if (!record) {
     return false;
   }
-  const record = value as Record<string, unknown>;
   if (typeof record.method !== "string") {
     return false;
   }
@@ -182,10 +194,10 @@ function isUnknownServerNotification(value: unknown): value is ServerInboundMess
 }
 
 function isUnknownServerRequest(value: unknown): value is ServerInboundMessage {
-  if (typeof value !== "object" || value === null) {
+  const record = asObject(value);
+  if (!record) {
     return false;
   }
-  const record = value as Record<string, unknown>;
   if (typeof record.method !== "string") {
     return false;
   }
@@ -202,10 +214,10 @@ function isUnknownServerRequest(value: unknown): value is ServerInboundMessage {
 }
 
 function isUnknownServerResponse(value: unknown): value is ServerInboundMessage {
-  if (typeof value !== "object" || value === null) {
+  const record = asObject(value);
+  if (!record) {
     return false;
   }
-  const record = value as Record<string, unknown>;
   if ("method" in record) {
     return false;
   }
@@ -219,19 +231,19 @@ function isUnknownServerResponse(value: unknown): value is ServerInboundMessage 
 }
 
 function isLegacyEventNotificationValue(value: unknown): value is LegacyEventNotification {
-  if (typeof value !== "object" || value === null) {
+  const record = asObject(value);
+  if (!record) {
     return false;
   }
-  const record = value as Record<string, unknown>;
   if (typeof record.method !== "string" || !record.method.startsWith("codex/event/")) {
     return false;
   }
-  if (typeof record.params !== "object" || record.params === null) {
+  const params = asObject(record.params);
+  if (!params) {
     return false;
   }
-  const params = record.params as Record<string, unknown>;
   if (typeof params.conversationId !== "string") {
     return false;
   }
-  return validateEventMsg(params.msg) as boolean;
+  return validateEventMsg(params.msg);
 }

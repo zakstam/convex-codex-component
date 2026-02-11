@@ -11,6 +11,24 @@ const vManagedServerRequestMethod = v.union(
   v.literal("item/tool/call"),
 );
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isToolRequestUserInputQuestion(value: unknown): value is ToolRequestUserInputQuestion {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === "string" &&
+    typeof value.header === "string" &&
+    typeof value.question === "string" &&
+    typeof value.isOther === "boolean" &&
+    typeof value.isSecret === "boolean" &&
+    (value.options === null || Array.isArray(value.options))
+  );
+}
+
 function toRequestStorageId(requestId: string | number): {
   requestIdType: "string" | "number";
   requestIdText: string;
@@ -46,8 +64,8 @@ function parseQuestionsJson(questionsJson: string | undefined): ToolRequestUserI
   }
   try {
     const parsed = JSON.parse(questionsJson);
-    if (Array.isArray(parsed)) {
-      return parsed as ToolRequestUserInputQuestion[];
+    if (Array.isArray(parsed) && parsed.every(isToolRequestUserInputQuestion)) {
+      return parsed;
     }
   } catch {
     return undefined;

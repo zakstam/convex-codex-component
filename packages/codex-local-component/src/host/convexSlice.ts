@@ -18,6 +18,7 @@ import {
   type HostInboundLifecycleEvent,
   type HostInboundStreamDelta,
   type HostMessagesForHooksArgs,
+  type HostReplayResult,
   type HostReasoningForHooksArgs,
   type HostSyncRuntimeOptions,
 } from "./convex.js";
@@ -25,16 +26,22 @@ import {
 type HostMutationRunner = {
   runMutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
     mutation: Mutation,
-    ...args: unknown[]
+    args: FunctionArgs<Mutation>,
   ): Promise<FunctionReturnType<Mutation>>;
 };
 
 type HostQueryRunner = {
   runQuery<Query extends FunctionReference<"query", "public" | "internal">>(
     query: Query,
-    ...args: unknown[]
+    args: FunctionArgs<Query>,
   ): Promise<FunctionReturnType<Query>>;
 };
+
+function typedArgs<Fn extends FunctionReference<"query" | "mutation", "public" | "internal">>(
+  args: FunctionArgs<Fn>,
+): FunctionArgs<Fn> {
+  return args;
+}
 
 export type HostActorContext = {
   tenantId: string;
@@ -188,13 +195,13 @@ type CodexSyncComponent = {
   sync: {
     ensureSession: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
     ingestSafe: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, HostReplayResult>;
   };
 };
 
 type CodexMessagesComponent = {
   messages: {
-    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, object>;
     getByTurn: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
   };
 };
@@ -325,6 +332,30 @@ export function isStreamStatSummary(value: unknown): value is StreamStatSummary 
   );
 }
 
+function getStreamStatsCandidate(state: unknown): unknown[] | null {
+  if (typeof state !== "object" || state === null || !("streamStats" in state)) {
+    return null;
+  }
+  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+  return Array.isArray(streamStats) ? streamStats : null;
+}
+
+function getRecentMessagesCandidate(state: unknown): DurableHistoryMessage[] | null {
+  if (typeof state !== "object" || state === null || !("recentMessages" in state)) {
+    return null;
+  }
+  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+  return Array.isArray(recentMessages) ? recentMessages : null;
+}
+
+function getAllStreamsCandidate(state: unknown): Array<{ streamId: string }> | null {
+  if (typeof state !== "object" || state === null || !("allStreams" in state)) {
+    return null;
+  }
+  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+  return Array.isArray(allStreams) ? allStreams : null;
+}
+
 export function computePersistenceStats(state: { streamStats?: unknown[] | null }): {
   streamCount: number;
   deltaCount: number;
@@ -398,7 +429,7 @@ export async function ensureThreadByCreate<
     localThreadId: args.threadId,
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
-  } as FunctionArgs<Component["threads"]["create"]>);
+  });
 }
 
 export async function ensureThreadByResolve<
@@ -414,7 +445,7 @@ export async function ensureThreadByResolve<
     ...(args.externalThreadId !== undefined ? { localThreadId: args.externalThreadId } : {}),
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
-  } as FunctionArgs<Component["threads"]["resolve"]>);
+  });
 }
 
 export async function registerTurnStart<
@@ -438,7 +469,7 @@ export async function registerTurnStart<
           },
         }
       : {}),
-  } as FunctionArgs<Component["turns"]["start"]>);
+  });
 }
 
 export async function ensureSession<
@@ -453,7 +484,7 @@ export async function ensureSession<
     sessionId: args.sessionId,
     threadId: args.threadId,
     lastEventCursor: 0,
-  } as FunctionArgs<Component["sync"]["ensureSession"]>);
+  });
 }
 
 export async function ingestEventStreamOnly<
@@ -469,7 +500,7 @@ export async function ingestEventStreamOnly<
     threadId: args.threadId,
     streamDeltas: [{ ...args.event, type: "stream_delta" as const }],
     lifecycleEvents: [],
-  } as FunctionArgs<Component["sync"]["ingestSafe"]>);
+  });
 }
 
 export async function ingestBatchStreamOnly<
@@ -489,7 +520,7 @@ export async function ingestBatchStreamOnly<
     streamDeltas: args.deltas.map((delta) => ({ ...delta, type: "stream_delta" as const })),
     lifecycleEvents: [],
     ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
-  } as FunctionArgs<Component["sync"]["ingestSafe"]>);
+  });
 }
 
 export async function ingestEventMixed<
@@ -507,7 +538,7 @@ export async function ingestEventMixed<
     threadId: args.threadId,
     streamDeltas,
     lifecycleEvents,
-  } as FunctionArgs<Component["sync"]["ingestSafe"]>);
+  });
 }
 
 export async function ingestBatchMixed<
@@ -536,7 +567,7 @@ export async function threadSnapshot<
   component: Component,
   args: ThreadSnapshotArgs,
 ): Promise<FunctionReturnType<Component["threads"]["getState"]>> {
-  return getThreadState(ctx, component, toThreadStateQueryArgs(args) as FunctionArgs<Component["threads"]["getState"]>);
+  return getThreadState(ctx, component, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
 }
 
 export async function persistenceStats<
@@ -551,7 +582,7 @@ export async function persistenceStats<
   latestCursorByStream: Array<{ streamId: string; cursor: number }>;
 }> {
   const state = await threadSnapshot(ctx, component, args);
-  return computePersistenceStats(state as { streamStats?: unknown[] | null });
+  return computePersistenceStats({ streamStats: getStreamStatsCandidate(state) });
 }
 
 export async function durableHistoryStats<
@@ -565,7 +596,7 @@ export async function durableHistoryStats<
   latest: DurableHistoryMessage[];
 }> {
   const state = await threadSnapshot(ctx, component, args);
-  return computeDurableHistoryStats(state as { recentMessages?: DurableHistoryMessage[] | null });
+  return computeDurableHistoryStats({ recentMessages: getRecentMessagesCandidate(state) });
 }
 
 export async function dataHygiene<
@@ -580,12 +611,10 @@ export async function dataHygiene<
   orphanStreamIds: string[];
 }> {
   const state = await threadSnapshot(ctx, component, args);
-  return computeDataHygiene(
-    state as {
-      streamStats?: unknown[] | null;
-      allStreams?: Array<{ streamId: string }> | null;
-    },
-  );
+  return computeDataHygiene({
+    streamStats: getStreamStatsCandidate(state),
+    allStreams: getAllStreamsCandidate(state),
+  });
 }
 
 export async function listThreadMessagesForHooksForActor<
@@ -645,7 +674,7 @@ export async function listTurnMessagesForHooksForActor<
   return listTurnMessages(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["messages"]["getByTurn"]>);
+  });
 }
 
 export async function listPendingApprovalsForHooksForActor<
@@ -662,7 +691,7 @@ export async function listPendingApprovalsForHooksForActor<
   return listPendingApprovals(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["approvals"]["listPending"]>);
+  });
 }
 
 export async function respondApprovalForHooksForActor<
@@ -681,7 +710,7 @@ export async function respondApprovalForHooksForActor<
   return respondToApproval(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["approvals"]["respond"]>);
+  });
 }
 
 export async function listPendingServerRequestsForHooksForActor<
@@ -698,7 +727,7 @@ export async function listPendingServerRequestsForHooksForActor<
   return listPendingServerRequests(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["serverRequests"]["listPending"]>);
+  });
 }
 
 export async function upsertPendingServerRequestForHooksForActor<
@@ -726,7 +755,7 @@ export async function upsertPendingServerRequestForHooksForActor<
   return upsertPendingServerRequest(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["serverRequests"]["upsertPending"]>);
+  });
 }
 
 export async function resolvePendingServerRequestForHooksForActor<
@@ -746,7 +775,7 @@ export async function resolvePendingServerRequestForHooksForActor<
   return resolvePendingServerRequest(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["serverRequests"]["resolve"]>);
+  });
 }
 
 export async function interruptTurnForHooksForActor<
@@ -764,5 +793,5 @@ export async function interruptTurnForHooksForActor<
   return interruptTurn(ctx, component, {
     ...args,
     actor: args.actor,
-  } as FunctionArgs<Component["turns"]["interrupt"]>);
+  });
 }

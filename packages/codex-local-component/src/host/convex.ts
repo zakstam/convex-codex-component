@@ -1,6 +1,29 @@
 import type { FunctionArgs, FunctionReference, FunctionReturnType, PaginationOptions } from "convex/server";
 import type { CodexMutationRunner, CodexQueryRunner } from "../client/types.js";
 
+type HostStreamListItem = { streamId: string; state: string };
+type HostStreamWindow = {
+  streamId: string;
+  status: "ok" | "rebased" | "stale";
+  serverCursorStart: number;
+  serverCursorEnd: number;
+};
+export type HostReplayResult = {
+  streams: HostStreamListItem[];
+  deltas: Array<Record<string, unknown>>;
+  streamWindows: HostStreamWindow[];
+  nextCheckpoints: Array<{ streamId: string; cursor: number }>;
+};
+type HostHookStreams =
+  | { kind: "list"; streams: HostStreamListItem[] }
+  | {
+      kind: "deltas";
+      streams: HostStreamListItem[];
+      deltas: Array<Record<string, unknown>>;
+      streamWindows: HostStreamWindow[];
+      nextCheckpoints: Array<{ streamId: string; cursor: number }>;
+    };
+
 export type HostStreamArgs =
   | { kind: "list"; startOrder?: number }
   | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
@@ -31,12 +54,13 @@ export type HostReasoningForHooksArgs<Actor> = {
 
 export async function listThreadMessagesForHooks<
   Actor,
+  MessagesResult extends object,
   Component extends {
     messages: {
-      listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+      listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, MessagesResult>;
     };
     sync: {
-      replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+      replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, HostReplayResult>;
     };
   },
 >(
@@ -44,28 +68,15 @@ export async function listThreadMessagesForHooks<
   component: Component,
   args: HostMessagesForHooksArgs<Actor>,
 ): Promise<
-  FunctionReturnType<Component["messages"]["listByThread"]> & {
-    streams?:
-      | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
-      | {
-          kind: "deltas";
-          streams: Array<{ streamId: string; state: string }>;
-          deltas: Array<Record<string, unknown>>;
-          streamWindows: Array<{
-            streamId: string;
-            status: "ok" | "rebased" | "stale";
-            serverCursorStart: number;
-            serverCursorEnd: number;
-          }>;
-          nextCheckpoints: Array<{ streamId: string; cursor: number }>;
-        };
+  MessagesResult & {
+    streams?: HostHookStreams;
   }
 > {
   const paginated = await ctx.runQuery(component.messages.listByThread, {
     actor: args.actor,
     threadId: args.threadId,
     paginationOpts: args.paginationOpts,
-  } as FunctionArgs<Component["messages"]["listByThread"]>);
+  });
 
   const streams = args.streamArgs
     ? await ctx.runQuery(component.sync.replay, {
@@ -74,71 +85,34 @@ export async function listThreadMessagesForHooks<
         streamCursorsById:
           args.streamArgs.kind === "deltas" ? args.streamArgs.cursors : [],
         ...(args.runtime ? { runtime: args.runtime } : {}),
-      } as FunctionArgs<Component["sync"]["replay"]>)
+      })
     : undefined;
 
   if (args.streamArgs?.kind === "deltas") {
+    const streamPayload: HostHookStreams | undefined = streams
+      ? {
+          kind: "deltas",
+          streams: streams.streams,
+          deltas: streams.deltas,
+          streamWindows: streams.streamWindows,
+          nextCheckpoints: streams.nextCheckpoints,
+        }
+      : undefined;
     return {
-      ...(paginated as object),
-      streams: streams
-        ? {
-            kind: "deltas",
-            streams: (streams as { streams: Array<{ streamId: string; state: string }> }).streams,
-            deltas: (streams as { deltas: Array<Record<string, unknown>> }).deltas,
-            streamWindows: (streams as {
-              streamWindows: Array<{
-                streamId: string;
-                status: "ok" | "rebased" | "stale";
-                serverCursorStart: number;
-                serverCursorEnd: number;
-              }>;
-            }).streamWindows,
-            nextCheckpoints: (streams as {
-              nextCheckpoints: Array<{ streamId: string; cursor: number }>;
-            }).nextCheckpoints,
-          }
-        : undefined,
-    } as FunctionReturnType<Component["messages"]["listByThread"]> & {
-      streams?:
-        | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
-        | {
-            kind: "deltas";
-            streams: Array<{ streamId: string; state: string }>;
-            deltas: Array<Record<string, unknown>>;
-            streamWindows: Array<{
-              streamId: string;
-              status: "ok" | "rebased" | "stale";
-              serverCursorStart: number;
-              serverCursorEnd: number;
-            }>;
-            nextCheckpoints: Array<{ streamId: string; cursor: number }>;
-          };
+      ...paginated,
+      ...(streamPayload ? { streams: streamPayload } : {}),
     };
   }
 
+  const streamPayload: HostHookStreams | undefined = streams
+    ? {
+        kind: "list",
+        streams: streams.streams,
+      }
+    : undefined;
   return {
-    ...(paginated as object),
-    streams: streams
-      ? {
-          kind: "list",
-          streams: (streams as { streams: Array<{ streamId: string; state: string }> }).streams,
-        }
-      : undefined,
-  } as FunctionReturnType<Component["messages"]["listByThread"]> & {
-    streams?:
-      | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
-      | {
-          kind: "deltas";
-          streams: Array<{ streamId: string; state: string }>;
-          deltas: Array<Record<string, unknown>>;
-          streamWindows: Array<{
-            streamId: string;
-            status: "ok" | "rebased" | "stale";
-            serverCursorStart: number;
-            serverCursorEnd: number;
-          }>;
-          nextCheckpoints: Array<{ streamId: string; cursor: number }>;
-        };
+    ...paginated,
+    ...(streamPayload ? { streams: streamPayload } : {}),
   };
 }
 
@@ -159,7 +133,7 @@ export async function listThreadReasoningForHooks<
     threadId: args.threadId,
     paginationOpts: args.paginationOpts,
     ...(typeof args.includeRaw === "boolean" ? { includeRaw: args.includeRaw } : {}),
-  } as FunctionArgs<Component["reasoning"]["listByThread"]>);
+  });
 }
 
 export type HostInboundStreamDelta = {
@@ -215,5 +189,5 @@ export async function ingestBatchSafe<
     streamDeltas,
     lifecycleEvents,
     ...(args.runtime ? { runtime: args.runtime } : {}),
-  } as FunctionArgs<Component["sync"]["ingestSafe"]>);
+  });
 }

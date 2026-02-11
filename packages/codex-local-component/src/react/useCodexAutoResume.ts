@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CodexStreamDeltaLike } from "../mapping.js";
@@ -24,7 +24,7 @@ export type CodexResumeStreamQueryArgs<Query extends CodexResumeStreamQuery<unkn
     ? Omit<FunctionArgs<Query>, "fromCursor">
     : never;
 
-export function useCodexAutoResume<Query extends CodexResumeStreamQuery<any>>(
+export function useCodexAutoResume<Query extends CodexResumeStreamQuery<unknown>>(
   query: Query,
   args: CodexResumeStreamQueryArgs<Query> | "skip",
   options?: {
@@ -47,12 +47,17 @@ export function useCodexAutoResume<Query extends CodexResumeStreamQuery<any>>(
     setDeltas([]);
   }, [threadTurnKey, options?.initialCursor]);
 
+  const toQueryArgs = (): FunctionArgs<Query> | "skip" => {
+    if (args === "skip" || options?.enabled === false) {
+      return "skip";
+    }
+    return { ...args, fromCursor: cursor };
+  };
+
   const result = useQuery(
     query,
-    args === "skip" || options?.enabled === false
-      ? ("skip" as const)
-      : ({ ...args, fromCursor: cursor } as FunctionArgs<Query>),
-  ) as FunctionReturnType<Query> | undefined;
+    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
+  );
 
   useEffect(() => {
     if (!result || result.deltas.length === 0) {

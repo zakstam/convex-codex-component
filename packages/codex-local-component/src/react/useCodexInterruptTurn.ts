@@ -58,6 +58,13 @@ function optimisticInterruptMessages(
   }
 }
 
+function runMutationWithArgs<Mutation extends FunctionReference<"mutation", "public">>(
+  runner: (...args: OptionalRestArgs<Mutation>) => Promise<null>,
+  args: FunctionArgs<Mutation>,
+): Promise<null> {
+  return runner(...([args] as OptionalRestArgs<Mutation>));
+}
+
 export function useCodexInterruptTurn<Mutation extends InterruptMutation>(
   mutation: Mutation,
   options?: {
@@ -68,24 +75,18 @@ export function useCodexInterruptTurn<Mutation extends InterruptMutation>(
 
   const interruptWithOptionalOptimistic = useCallback(
     async (args: FunctionArgs<Mutation>) => {
-      const invoke = (
-        runner: unknown,
-        runnerArgs: FunctionArgs<Mutation>,
-      ) =>
-        (runner as (...nextArgs: OptionalRestArgs<Mutation>) => Promise<null>)(
-          ...([runnerArgs] as OptionalRestArgs<Mutation>),
-        );
-      if (!options?.optimisticMessagesQuery) {
-        return invoke(runInterrupt, args);
+      const optimisticMessagesQuery = options?.optimisticMessagesQuery;
+      if (!optimisticMessagesQuery) {
+        return runMutationWithArgs(runInterrupt, args);
       }
       const optimisticRunner = runInterrupt.withOptimisticUpdate((store, mutationArgs) => {
         optimisticInterruptMessages(
           store,
-          options.optimisticMessagesQuery!,
-          mutationArgs as { threadId: string; turnId: string; reason?: string },
+          optimisticMessagesQuery,
+          mutationArgs,
         );
       });
-      return invoke(optimisticRunner, args);
+      return runMutationWithArgs(optimisticRunner, args);
     },
     [options?.optimisticMessagesQuery, runInterrupt],
   );

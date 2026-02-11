@@ -1,14 +1,13 @@
 import type {
   FunctionArgs,
-  FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { CodexQueryRunner } from "./types.js";
+import type { CodexQueryRunner, GenericQueryRef } from "./types.js";
 
 type MessagesComponent = {
   messages: {
-    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-    getByTurn: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    listByThread: GenericQueryRef;
+    getByTurn: GenericQueryRef;
   };
 };
 

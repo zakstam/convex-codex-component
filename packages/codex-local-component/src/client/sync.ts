@@ -1,14 +1,13 @@
 import type {
   FunctionArgs,
-  FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { CodexQueryRunner } from "./types.js";
+import type { CodexQueryRunner, GenericQueryRef } from "./types.js";
 
 type SyncComponent = {
   sync: {
-    replay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
-    resumeReplay: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    replay: GenericQueryRef;
+    resumeReplay: GenericQueryRef;
   };
 };
 

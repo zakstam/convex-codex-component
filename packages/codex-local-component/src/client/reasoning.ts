@@ -1,13 +1,12 @@
 import type {
   FunctionArgs,
-  FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { CodexQueryRunner } from "./types.js";
+import type { CodexQueryRunner, GenericQueryRef } from "./types.js";
 
 type ReasoningComponent = {
   reasoning: {
-    listByThread: FunctionReference<"query", "public" | "internal", Record<string, unknown>, unknown>;
+    listByThread: GenericQueryRef;
   };
 };
 

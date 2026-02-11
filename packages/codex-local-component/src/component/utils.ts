@@ -1,85 +1,9 @@
-import type { GenericId } from "convex/values";
+import type { Doc } from "./_generated/dataModel.js";
 import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import type { ActorContext } from "./types.js";
 
-type ThreadRecord = {
-  _id: GenericId<"codex_threads">;
-  tenantId: string;
-  userId: string;
-  threadId: string;
-  status: string;
-};
-
-function asThreadRecord(value: unknown): ThreadRecord | null {
-  if (typeof value !== "object" || value === null) {
-    return null;
-  }
-  const rec = value as Record<string, unknown>;
-  if (typeof rec._id !== "string") {
-    return null;
-  }
-  if (typeof rec.tenantId !== "string") {
-    return null;
-  }
-  if (typeof rec.userId !== "string") {
-    return null;
-  }
-  if (typeof rec.threadId !== "string") {
-    return null;
-  }
-  if (typeof rec.status !== "string") {
-    return null;
-  }
-  return {
-    _id: rec._id as GenericId<"codex_threads">,
-    tenantId: rec.tenantId,
-    userId: rec.userId,
-    threadId: rec.threadId,
-    status: rec.status,
-  };
-}
-
-type TurnRecord = {
-  _id: GenericId<"codex_turns">;
-  tenantId: string;
-  userId: string;
-  threadId: string;
-  turnId: string;
-  status: string;
-};
-
-function asTurnRecord(value: unknown): TurnRecord | null {
-  if (typeof value !== "object" || value === null) {
-    return null;
-  }
-  const rec = value as Record<string, unknown>;
-  if (typeof rec._id !== "string") {
-    return null;
-  }
-  if (typeof rec.tenantId !== "string") {
-    return null;
-  }
-  if (typeof rec.userId !== "string") {
-    return null;
-  }
-  if (typeof rec.threadId !== "string") {
-    return null;
-  }
-  if (typeof rec.turnId !== "string") {
-    return null;
-  }
-  if (typeof rec.status !== "string") {
-    return null;
-  }
-  return {
-    _id: rec._id as GenericId<"codex_turns">,
-    tenantId: rec.tenantId,
-    userId: rec.userId,
-    threadId: rec.threadId,
-    turnId: rec.turnId,
-    status: rec.status,
-  };
-}
+type ThreadRecord = Doc<"codex_threads">;
+type TurnRecord = Doc<"codex_turns">;
 
 export function authzError(code: "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_TURN_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN", message: string): never {
   void message;
@@ -102,14 +26,13 @@ export async function requireThreadForActor(
     )
     .first();
 
-  const normalized = asThreadRecord(thread);
-  if (!normalized) {
+  if (!thread) {
     throw new Error(`Thread not found for tenant: ${threadId}`);
   }
-  if (normalized.userId !== actor.userId) {
+  if (thread.userId !== actor.userId) {
     authzError("E_AUTH_THREAD_FORBIDDEN", "thread access denied");
   }
-  return normalized;
+  return thread;
 }
 
 export async function requireTurnForActor(
@@ -130,14 +53,13 @@ export async function requireTurnForActor(
     )
     .first();
 
-  const normalized = asTurnRecord(turn);
-  if (!normalized) {
+  if (!turn) {
     throw new Error(`Turn not found: ${turnId}`);
   }
-  if (normalized.userId !== actor.userId) {
+  if (turn.userId !== actor.userId) {
     authzError("E_AUTH_TURN_FORBIDDEN", "turn access denied");
   }
-  return normalized;
+  return turn;
 }
 
 export function now(): number {

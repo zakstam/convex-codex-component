@@ -2,6 +2,11 @@
 
 Canonical path: in Convex server files, use `@zakstam/codex-local-component/host/convex` helper exports as the default integration path.
 
+Important runtime boundary:
+- Convex functions must not import `@zakstam/codex-local-component/protocol/parser`.
+- `protocol/parser` uses Ajv schema compilation intended for local bridge/runtime paths.
+- In Convex-deployed code, use host wrappers (`/host/convex`) and event helpers that do not require parser-level schema compilation.
+
 ## 1. Install and mount
 
 ```ts

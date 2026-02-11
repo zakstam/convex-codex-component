@@ -110,13 +110,14 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { components } from "./_generated/api";
+import { vHostStreamArgs } from "@zakstam/codex-local-component/host/convex";
 
 export const listThreadMessagesForHooks = query({
   args: {
     actor: vActor,
     threadId: v.string(),
     paginationOpts: paginationOptsValidator,
-    streamArgs: v.optional(v.any()),
+    streamArgs: vHostStreamArgs,
   },
   handler: async (ctx, args) => {
     const paginated = await ctx.runQuery(components.codexLocal.messages.listByThread, {
@@ -139,7 +140,7 @@ export const listThreadMessagesForHooks = query({
         ...paginated,
         streams: streams
           ? {
-              kind: "deltas" as const,
+              kind: "deltas",
               streams: streams.streams,
               deltas: streams.deltas,
               streamWindows: streams.streamWindows,
@@ -151,7 +152,7 @@ export const listThreadMessagesForHooks = query({
 
     return {
       ...paginated,
-      streams: streams ? { kind: "list" as const, streams: streams.streams } : undefined,
+      streams: streams ? { kind: "list", streams: streams.streams } : undefined,
     };
   },
 });

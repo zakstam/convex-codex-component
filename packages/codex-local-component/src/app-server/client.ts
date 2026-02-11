@@ -79,13 +79,14 @@ export function buildThreadStartRequest(
   id: number,
   params?: Omit<ThreadStartParams, "experimentalRawEvents"> & { dynamicTools?: DynamicToolSpec[] },
 ): RequestFor<"thread/start"> {
+  const requestParams: RequestParams<"thread/start"> = {
+    ...params,
+    experimentalRawEvents: false,
+  };
   return buildClientRequest(
     "thread/start",
     id,
-    {
-      ...params,
-      experimentalRawEvents: false,
-    } as RequestParams<"thread/start">,
+    requestParams,
   );
 }
 
@@ -94,7 +95,8 @@ export function buildThreadResumeRequest(
   params: ThreadResumeParams & { dynamicTools?: DynamicToolSpec[] },
 ): RequestFor<"thread/resume"> {
   assertUuidThreadId(params.threadId);
-  return buildClientRequest("thread/resume", id, params as RequestParams<"thread/resume">);
+  const requestParams: RequestParams<"thread/resume"> = params;
+  return buildClientRequest("thread/resume", id, requestParams);
 }
 
 export function buildThreadForkRequest(
@@ -205,15 +207,11 @@ export function buildAccountLoginCancelRequest(
 }
 
 export function buildAccountLogoutRequest(id: number): RequestFor<"account/logout"> {
-  return buildClientRequest("account/logout", id, undefined as RequestParams<"account/logout">);
+  return buildClientRequest("account/logout", id, undefined);
 }
 
 export function buildAccountRateLimitsReadRequest(id: number): RequestFor<"account/rateLimits/read"> {
-  return buildClientRequest(
-    "account/rateLimits/read",
-    id,
-    undefined as RequestParams<"account/rateLimits/read">,
-  );
+  return buildClientRequest("account/rateLimits/read", id, undefined);
 }
 
 export function buildCommandExecutionApprovalResponse(

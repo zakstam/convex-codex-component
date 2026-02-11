@@ -56,9 +56,13 @@ const vThreadState = v.object({
 });
 
 function generateUuidV4(): string {
-  const globalCrypto = globalThis.crypto as { randomUUID?: () => string } | undefined;
-  if (globalCrypto && typeof globalCrypto.randomUUID === "function") {
-    return globalCrypto.randomUUID();
+  if (
+    "crypto" in globalThis &&
+    typeof globalThis.crypto === "object" &&
+    globalThis.crypto !== null &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
   }
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
     const rand = Math.floor(Math.random() * 16);

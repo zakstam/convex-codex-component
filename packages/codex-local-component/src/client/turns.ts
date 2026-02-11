@@ -1,14 +1,13 @@
 import type {
   FunctionArgs,
-  FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { CodexMutationRunner } from "./types.js";
+import type { CodexMutationRunner, GenericMutationRef } from "./types.js";
 
 type TurnsComponent = {
   turns: {
-    start: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
-    interrupt: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
+    start: GenericMutationRef;
+    interrupt: GenericMutationRef;
   };
 };
 

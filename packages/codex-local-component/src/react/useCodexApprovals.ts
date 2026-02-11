@@ -1,7 +1,7 @@
 "use client";
 
 import { usePaginatedQuery, useMutation, type PaginatedQueryArgs, type UsePaginatedQueryResult } from "convex/react";
-import type { FunctionArgs, FunctionReference, PaginationOptions, PaginationResult } from "convex/server";
+import type { FunctionArgs, FunctionReference, OptionalRestArgs, PaginationOptions, PaginationResult } from "convex/server";
 import { useCallback } from "react";
 
 export type CodexApprovalItem = {
@@ -46,9 +46,16 @@ export type CodexApprovalRespondArgs<
   ? Omit<FunctionArgs<Mutation>, "decision">
   : never;
 
+function runMutationWithArgs<Mutation extends FunctionReference<"mutation", "public">>(
+  runner: (...args: OptionalRestArgs<Mutation>) => Promise<null>,
+  args: FunctionArgs<Mutation>,
+): Promise<null> {
+  return runner(...([args] as OptionalRestArgs<Mutation>));
+}
+
 export function useCodexApprovals<
-  Query extends CodexApprovalsQuery<any>,
-  Mutation extends CodexApprovalRespondMutation<any>,
+  Query extends CodexApprovalsQuery<unknown>,
+  Mutation extends CodexApprovalRespondMutation<unknown>,
 >(
   query: Query,
   args: CodexApprovalsQueryArgs<Query> | "skip",
@@ -65,14 +72,16 @@ export function useCodexApprovals<
 
   const accept = useCallback(
     async (nextArgs: CodexApprovalRespondArgs<Mutation>) => {
-      return respond({ ...nextArgs, decision: "accepted" } as FunctionArgs<Mutation>);
+      const payload: FunctionArgs<Mutation> = { ...nextArgs, decision: "accepted" };
+      return runMutationWithArgs(respond, payload);
     },
     [respond],
   );
 
   const decline = useCallback(
     async (nextArgs: CodexApprovalRespondArgs<Mutation>) => {
-      return respond({ ...nextArgs, decision: "declined" } as FunctionArgs<Mutation>);
+      const payload: FunctionArgs<Mutation> = { ...nextArgs, decision: "declined" };
+      return runMutationWithArgs(respond, payload);
     },
     [respond],
   );

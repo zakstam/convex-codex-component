@@ -1,3 +1,6 @@
+> [!WARNING]
+> This project is experimental and is **not** ready for production use.
+
 <p align="center">
   <strong>@zakstam/codex-local-component</strong>
 </p>

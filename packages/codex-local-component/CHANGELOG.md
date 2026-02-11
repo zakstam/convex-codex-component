@@ -1,5 +1,27 @@
 # @convex-dev/codex-local-component
 
+## 0.5.0
+
+### Minor Changes
+
+- 92ed5a0: Refactor host helper APIs to remove implicit trusted-actor behavior and make actor injection explicit in host apps.
+  - Rename host helper exports from `*WithTrustedActor` to `*ForActor`.
+  - Remove `trustedActorFromEnv` export from host helper surfaces.
+  - Update example and smoke host wrappers to pass an explicit server actor for trusted execution paths.
+  - Fix server-request upsert/resolve matching by keying on `requestIdType + requestIdText` and add the corresponding schema index.
+  - Update host slice tests to match renamed helper APIs.
+  - Harden TypeScript safety across host/client/react/protocol paths by removing explicit `any` usage and tightening generic boundaries.
+  - Add `check:unsafe-types` CI guard plus cast allowlist maintenance script for handwritten source.
+  - Update integration docs to clarify Convex-safe protocol usage (`protocol/parser` is local runtime only; do not import it in Convex-deployed code).
+
+- 180533b: Add a first-class host dispatch queue contract with atomic claim + lease semantics for deterministic turn execution ownership.
+  - Add `dispatch` component APIs: `enqueueTurnDispatch`, `claimNextTurnDispatch`, `markTurnStarted`, `markTurnCompleted`, `markTurnFailed`, `cancelTurnDispatch`, and `getTurnDispatchState`.
+  - Introduce persisted dispatch lifecycle state (`queued | claimed | started | completed | failed | cancelled`) and lease reclaim behavior to eliminate silent "accepted but never executed" gaps.
+  - Update host runtime to use enqueue-first turn send flow with claim-loop dispatching and explicit dispatch state transitions on start, completion, and failure.
+  - Remove synthetic scheduled turn execution startup path that assumed ownership before runtime confirmation.
+  - Add host/client wrapper exports for dispatch operations and migrate example/smoke wrappers to dispatch-based send paths.
+  - Extend thread state diagnostics with dispatch visibility and update integration/operations/react docs for the canonical dispatch contract.
+
 ## 0.4.0
 
 ### Minor Changes

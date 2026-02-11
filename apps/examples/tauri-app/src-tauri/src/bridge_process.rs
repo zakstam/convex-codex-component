@@ -11,9 +11,7 @@ use tokio::time::{timeout, Duration};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActorContext {
-    pub tenant_id: String,
-    pub user_id: String,
-    pub device_id: String,
+    pub user_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

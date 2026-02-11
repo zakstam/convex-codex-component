@@ -1,12 +1,11 @@
 import type { QueryCtx } from "./_generated/server.js";
 import { requireThreadForActor, requireTurnForActor } from "./utils.js";
+import { userScopeFromActor } from "./scope.js";
 import { parseItemSnapshot, type ItemSnapshot } from "./syncHelpers.js";
 import { resolveRuntimeOptions, type SyncRuntimeInput } from "./syncRuntime.js";
 
 type ActorContext = {
-  tenantId: string;
-  userId: string;
-  deviceId: string;
+  userId?: string;
 };
 
 type PullStateArgs = {
@@ -80,11 +79,10 @@ async function computeStreamReplayWindow(
 ): Promise<{ window: StreamWindow; deltas: NormalizedDelta[]; nextCursor: number }> {
   const checkpoint = await ctx.db
     .query("codex_stream_checkpoints")
-    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+    .withIndex("userScope_threadId_streamId", (q) =>
       q
-        .eq("tenantId", args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(args.actor))
         .eq("threadId", args.threadId)
-        .eq("deviceId", args.actor.deviceId)
         .eq("streamId", args.streamId),
     )
     .first();
@@ -94,8 +92,8 @@ async function computeStreamReplayWindow(
 
   const earliest = await ctx.db
     .query("codex_stream_deltas_ttl")
-    .withIndex("tenantId_streamId_cursorStart", (q) =>
-      q.eq("tenantId", args.actor.tenantId).eq("streamId", args.streamId),
+    .withIndex("userScope_streamId_cursorStart", (q) =>
+      q.eq("userScope", userScopeFromActor(args.actor)).eq("streamId", args.streamId),
     )
     .take(1);
 
@@ -106,9 +104,9 @@ async function computeStreamReplayWindow(
 
   const deltas = await ctx.db
     .query("codex_stream_deltas_ttl")
-    .withIndex("tenantId_streamId_cursorStart", (q) =>
+    .withIndex("userScope_streamId_cursorStart", (q) =>
       q
-        .eq("tenantId", args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(args.actor))
         .eq("streamId", args.streamId)
         .gte("cursorStart", effectiveCursor),
     )
@@ -131,8 +129,8 @@ async function computeStreamReplayWindow(
   if (contiguous.deltas.length === 0) {
     const stat = await ctx.db
       .query("codex_stream_stats")
-      .withIndex("tenantId_streamId", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("streamId", args.streamId),
+      .withIndex("userScope_streamId", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("streamId", args.streamId),
       )
       .first();
     if (stat && Number(stat.latestCursor) > contiguous.startCursor) {
@@ -158,8 +156,8 @@ export async function replayHandler(ctx: QueryCtx, args: PullStateArgs) {
 
   const streams = await ctx.db
     .query("codex_streams")
-    .withIndex("tenantId_threadId_state", (q) =>
-      q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+    .withIndex("userScope_threadId_state", (q) =>
+      q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
     )
     .take(200);
 
@@ -226,11 +224,10 @@ export async function listCheckpointsHandler(
   await requireThreadForActor(ctx, args.actor, args.threadId);
   const rows = await ctx.db
     .query("codex_stream_checkpoints")
-    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+    .withIndex("userScope_threadId_streamId", (q) =>
       q
-        .eq("tenantId", args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(args.actor))
         .eq("threadId", args.threadId)
-        .eq("deviceId", args.actor.deviceId),
     )
     .take(2000);
 

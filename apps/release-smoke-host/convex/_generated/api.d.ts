@@ -53,7 +53,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -70,7 +70,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           decision: "accepted" | "declined";
           itemId: string;
           threadId: string;
@@ -84,7 +84,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           claimToken?: string;
           dispatchId: string;
           reason: string;
@@ -96,7 +96,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           claimOwner: string;
           leaseMs?: number;
           threadId: string;
@@ -115,7 +115,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           dispatchId?: string;
           idempotencyKey: string;
           input: Array<{
@@ -144,7 +144,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           dispatchId?: string;
           threadId: string;
           turnId?: string;
@@ -180,7 +180,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           claimToken: string;
           dispatchId: string;
           threadId: string;
@@ -191,7 +191,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           claimToken: string;
           code?: string;
           dispatchId: string;
@@ -204,7 +204,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           claimToken: string;
           dispatchId: string;
           runtimeThreadId?: string;
@@ -218,11 +218,7 @@ export declare const components: {
       getByTurn: FunctionReference<
         "query",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          threadId: string;
-          turnId: string;
-        },
+        { actor: { userId?: string }; threadId: string; turnId: string },
         Array<{
           completedAt?: number;
           createdAt: number;
@@ -242,7 +238,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -261,7 +257,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           includeRaw?: boolean;
           paginationOpts: {
             cursor: string | null;
@@ -280,18 +276,14 @@ export declare const components: {
       listPending: FunctionReference<
         "query",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          limit?: number;
-          threadId?: string;
-        },
+        { actor: { userId?: string }; limit?: number; threadId?: string },
         any
       >;
       resolve: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           requestId: string | number;
           resolvedAt: number;
           responseJson?: string;
@@ -304,7 +296,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           itemId: string;
           method:
             | "item/commandExecution/requestApproval"
@@ -327,7 +319,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           lastEventCursor: number;
           sessionId: string;
           threadId: string;
@@ -338,7 +330,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           lastEventCursor: number;
           sessionId: string;
           threadId: string;
@@ -349,7 +341,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           lifecycleEvents: Array<{
             createdAt: number;
             eventId: string;
@@ -389,7 +381,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           ensureLastEventCursor?: number;
           lifecycleEvents: Array<{
             createdAt: number;
@@ -427,7 +419,6 @@ export declare const components: {
             code:
               | "SESSION_NOT_FOUND"
               | "SESSION_THREAD_MISMATCH"
-              | "SESSION_DEVICE_MISMATCH"
               | "OUT_OF_ORDER"
               | "REPLAY_GAP"
               | "UNKNOWN";
@@ -446,17 +437,14 @@ export declare const components: {
       listCheckpoints: FunctionReference<
         "query",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          threadId: string;
-        },
+        { actor: { userId?: string }; threadId: string },
         any
       >;
       replay: FunctionReference<
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           runtime?: {
             exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
@@ -474,7 +462,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           fromCursor: number;
           runtime?: {
             exposeRawReasoningDeltas?: boolean;
@@ -493,7 +481,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           cursor: number;
           streamId: string;
           threadId: string;
@@ -506,7 +494,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           cwd?: string;
           localThreadId?: string;
           model?: string;
@@ -518,19 +506,13 @@ export declare const components: {
       getExternalMapping: FunctionReference<
         "query",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          threadId: string;
-        },
+        { actor: { userId?: string }; threadId: string },
         null | { externalThreadId: string; threadId: string }
       >;
       getState: FunctionReference<
         "query",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          threadId: string;
-        },
+        { actor: { userId?: string }; threadId: string },
         {
           activeStreams: Array<{ state: string; streamId: string }>;
           allStreams: Array<{ state: string; streamId: string }>;
@@ -580,7 +562,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -596,7 +578,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           cwd?: string;
           externalThreadId?: string;
           localThreadId?: string;
@@ -608,19 +590,13 @@ export declare const components: {
       resolveByExternalId: FunctionReference<
         "query",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          externalThreadId: string;
-        },
+        { actor: { userId?: string }; externalThreadId: string },
         null | { externalThreadId: string; threadId: string }
       >;
       resume: FunctionReference<
         "mutation",
         "internal",
-        {
-          actor: { deviceId: string; tenantId: string; userId: string };
-          threadId: string;
-        },
+        { actor: { userId?: string }; threadId: string },
         any
       >;
     };
@@ -629,7 +605,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           reason?: string;
           threadId: string;
           turnId: string;
@@ -640,7 +616,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { deviceId: string; tenantId: string; userId: string };
+          actor: { userId?: string };
           idempotencyKey: string;
           input: Array<{
             path?: string;

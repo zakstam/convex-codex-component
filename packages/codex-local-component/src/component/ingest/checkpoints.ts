@@ -1,15 +1,15 @@
 import { now, requireThreadForActor } from "../utils.js";
 import type { MutationCtx } from "../_generated/server.js";
 import type { ActorContext, IngestContext } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 
 export async function applyStreamCheckpoints(ingest: IngestContext): Promise<void> {
   const streamCheckpointRows = await ingest.ctx.db
     .query("codex_stream_checkpoints")
-    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+    .withIndex("userScope_threadId_streamId", (q) =>
       q
-        .eq("tenantId", ingest.args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(ingest.args.actor))
         .eq("threadId", ingest.args.threadId)
-        .eq("deviceId", ingest.args.actor.deviceId),
     )
     .take(2000);
 
@@ -30,9 +30,8 @@ export async function applyStreamCheckpoints(ingest: IngestContext): Promise<voi
     }
 
     await ingest.ctx.db.insert("codex_stream_checkpoints", {
-      tenantId: ingest.args.actor.tenantId,
-      userId: ingest.args.actor.userId,
-      deviceId: ingest.args.actor.deviceId,
+      userScope: userScopeFromActor(ingest.args.actor),
+      ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
       streamId,
       ackedCursor: cursor,
@@ -54,11 +53,10 @@ export async function upsertCheckpoint(
 
   const existing = await ctx.db
     .query("codex_stream_checkpoints")
-    .withIndex("tenantId_threadId_deviceId_streamId", (q) =>
+    .withIndex("userScope_threadId_streamId", (q) =>
       q
-        .eq("tenantId", args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(args.actor))
         .eq("threadId", args.threadId)
-        .eq("deviceId", args.actor.deviceId)
         .eq("streamId", args.streamId),
     )
     .first();
@@ -74,9 +72,8 @@ export async function upsertCheckpoint(
   }
 
   await ctx.db.insert("codex_stream_checkpoints", {
-    tenantId: args.actor.tenantId,
-    userId: args.actor.userId,
-    deviceId: args.actor.deviceId,
+    userScope: userScopeFromActor(args.actor),
+    ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
     threadId: args.threadId,
     streamId: args.streamId,
     ackedCursor: Math.max(0, Math.floor(args.cursor)),

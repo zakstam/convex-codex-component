@@ -6,6 +6,7 @@ import {
 } from "../syncRuntime.js";
 import { now } from "../utils.js";
 import type { IngestContext } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 
 export async function patchSessionAfterIngest(ingest: IngestContext): Promise<number> {
   const sessionPatch: {
@@ -37,7 +38,7 @@ export async function schedulePostIngestMaintenance(
       0,
       makeFunctionReference<"mutation">("sessions:timeoutStaleSessions"),
       {
-        tenantId: ingest.args.actor.tenantId,
+        userScope: userScopeFromActor(ingest.args.actor),
         staleBeforeMs: nowMs - 1000 * 60 * 3,
       },
     );

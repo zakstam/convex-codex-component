@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { requireThreadForActor } from "./utils.js";
 
 export const listByThread = query({
@@ -21,8 +22,8 @@ export const listByThread = query({
 
     const scanned = await ctx.db
       .query("codex_reasoning_segments")
-      .withIndex("tenantId_threadId_createdAt_segmentId", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+      .withIndex("userScope_threadId_createdAt_segmentId", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
       )
       .filter((q) =>
         q.and(
@@ -34,8 +35,8 @@ export const listByThread = query({
                   q.lt(q.field("segmentId"), cursor.segmentId),
                 ),
               )
-            : q.eq(q.field("tenantId"), args.actor.tenantId),
-          args.includeRaw ? q.eq(q.field("tenantId"), args.actor.tenantId) : q.eq(q.field("channel"), "summary"),
+            : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
+          args.includeRaw ? q.eq(q.field("userScope"), userScopeFromActor(args.actor)) : q.eq(q.field("channel"), "summary"),
         ),
       )
       .order("desc")

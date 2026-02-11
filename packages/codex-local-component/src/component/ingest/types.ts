@@ -12,9 +12,7 @@ import type {
 import type { RuntimeOptions, SyncRuntimeInput } from "../syncRuntime.js";
 
 export type ActorContext = {
-  tenantId: string;
-  userId: string;
-  deviceId: string;
+  userId?: string;
 };
 
 export type StreamInboundEvent = {
@@ -67,7 +65,6 @@ export type EnsureSessionResult = {
 export type IngestSafeErrorCode =
   | "SESSION_NOT_FOUND"
   | "SESSION_THREAD_MISMATCH"
-  | "SESSION_DEVICE_MISMATCH"
   | "OUT_OF_ORDER"
   | "REPLAY_GAP"
   | "UNKNOWN";

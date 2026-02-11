@@ -4,6 +4,7 @@ import { mutation, query } from "./_generated/server.js";
 import type { MutationCtx } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 
 const vThreadState = v.object({
@@ -95,7 +96,7 @@ function generateUuidV4(): string {
 async function touchThread(
   ctx: MutationCtx,
   args: {
-    actor: { tenantId: string; userId: string };
+    actor: { userId?: string };
     threadId: string;
     model?: string;
     cwd?: string;
@@ -105,10 +106,10 @@ async function touchThread(
 ): Promise<{ threadId: string; created: boolean }> {
   const existing = await ctx.db
     .query("codex_threads")
-    .withIndex("tenantId_threadId")
+    .withIndex("userScope_threadId")
     .filter((q) =>
       q.and(
-        q.eq(q.field("tenantId"), args.actor.tenantId),
+        q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
         q.eq(q.field("threadId"), args.threadId),
       ),
     )
@@ -134,8 +135,8 @@ async function touchThread(
   }
 
   await ctx.db.insert("codex_threads", {
-    tenantId: args.actor.tenantId,
-    userId: args.actor.userId,
+    userScope: userScopeFromActor(args.actor),
+    ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
     threadId: args.threadId,
     status: "active",
     ...(args.localThreadId ? { localThreadId: args.localThreadId } : {}),
@@ -185,9 +186,9 @@ export const resolve = mutation({
     if (externalThreadId !== undefined) {
       const binding = await ctx.db
         .query("codex_thread_bindings")
-        .withIndex("tenantId_userId_externalThreadId", (q) =>
+        .withIndex("userScope_userId_externalThreadId", (q) =>
           q
-            .eq("tenantId", args.actor.tenantId)
+            .eq("userScope", userScopeFromActor(args.actor))
             .eq("userId", args.actor.userId)
             .eq("externalThreadId", externalThreadId),
         )
@@ -227,8 +228,8 @@ export const resolve = mutation({
 
     if (externalThreadId !== undefined) {
       await ctx.db.insert("codex_thread_bindings", {
-        tenantId: args.actor.tenantId,
-        userId: args.actor.userId,
+        userScope: userScopeFromActor(args.actor),
+        ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
         externalThreadId,
         threadId: touched.threadId,
         createdAt: ts,
@@ -259,9 +260,9 @@ export const resolveByExternalId = query({
   handler: async (ctx, args) => {
     const binding = await ctx.db
       .query("codex_thread_bindings")
-      .withIndex("tenantId_userId_externalThreadId", (q) =>
+      .withIndex("userScope_userId_externalThreadId", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("userId", args.actor.userId)
           .eq("externalThreadId", args.externalThreadId),
       )
@@ -295,9 +296,9 @@ export const getExternalMapping = query({
 
     const binding = await ctx.db
       .query("codex_thread_bindings")
-      .withIndex("tenantId_userId_threadId", (q) =>
+      .withIndex("userScope_userId_threadId", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("userId", args.actor.userId)
           .eq("threadId", args.threadId),
       )
@@ -337,8 +338,8 @@ export const list = query({
 
     const scanned = await ctx.db
       .query("codex_threads")
-      .withIndex("tenantId_userId_updatedAt_threadId", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("userId", args.actor.userId),
+      .withIndex("userScope_userId_updatedAt_threadId", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("userId", args.actor.userId),
       )
       .filter((q) =>
         cursor
@@ -349,7 +350,7 @@ export const list = query({
                 q.lt(q.field("threadId"), cursor.threadId),
               ),
             )
-          : q.eq(q.field("tenantId"), args.actor.tenantId),
+          : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
       )
       .order("desc")
       .take(args.paginationOpts.numItems + 1);
@@ -381,10 +382,10 @@ export const getState = query({
 
     const turns = await ctx.db
       .query("codex_turns")
-      .withIndex("tenantId_threadId_startedAt")
+      .withIndex("userScope_threadId_startedAt")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("userId"), args.actor.userId),
           q.eq(q.field("threadId"), args.threadId),
         ),
@@ -394,10 +395,10 @@ export const getState = query({
 
     const streams = await ctx.db
       .query("codex_streams")
-      .withIndex("tenantId_threadId_state")
+      .withIndex("userScope_threadId_state")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("threadId"), args.threadId),
         ),
       )
@@ -405,9 +406,9 @@ export const getState = query({
 
     const dispatches = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "queued"),
       )
@@ -415,9 +416,9 @@ export const getState = query({
       .take(50);
     const claimed = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "claimed"),
       )
@@ -425,9 +426,9 @@ export const getState = query({
       .take(50);
     const started = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "started"),
       )
@@ -435,9 +436,9 @@ export const getState = query({
       .take(50);
     const completed = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "completed"),
       )
@@ -445,9 +446,9 @@ export const getState = query({
       .take(50);
     const failed = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "failed"),
       )
@@ -455,9 +456,9 @@ export const getState = query({
       .take(50);
     const cancelled = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "cancelled"),
       )
@@ -466,17 +467,17 @@ export const getState = query({
 
     const stats = await ctx.db
       .query("codex_stream_stats")
-      .withIndex("tenantId_threadId", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+      .withIndex("userScope_threadId", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
       )
       .take(500);
 
     const approvals = await ctx.db
       .query("codex_approvals")
-      .withIndex("tenantId_threadId_status")
+      .withIndex("userScope_threadId_status")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("userId"), args.actor.userId),
           q.eq(q.field("threadId"), args.threadId),
           q.eq(q.field("status"), "pending"),
@@ -486,8 +487,8 @@ export const getState = query({
 
     const recentMessages = await ctx.db
       .query("codex_messages")
-      .withIndex("tenantId_threadId_createdAt", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+      .withIndex("userScope_threadId_createdAt", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
       )
       .order("desc")
       .take(20);

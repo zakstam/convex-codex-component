@@ -14,9 +14,7 @@ import {
 } from "@zakstam/codex-local-component/host/convex";
 
 export const SERVER_ACTOR: HostActorContext = Object.freeze({
-  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
-  userId: process.env.ACTOR_USER_ID ?? "demo-user",
-  deviceId: process.env.ACTOR_DEVICE_ID ?? "persistent-cli-server-device",
+  ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
 });
 
 const defs = defineRuntimeOwnedHostSlice({

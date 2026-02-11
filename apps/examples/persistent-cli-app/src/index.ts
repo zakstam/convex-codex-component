@@ -321,9 +321,7 @@ const model = process.env.CODEX_MODEL ?? null;
 const cwd = process.env.CODEX_CWD ?? process.cwd();
 
 const actor = {
-  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
   userId: process.env.ACTOR_USER_ID ?? "demo-user",
-  deviceId: process.env.ACTOR_DEVICE_ID ?? `device-${process.pid}`,
 };
 
 const saveStreamDeltas = parseEnvBoolean(process.env.SAVE_STREAM_DELTAS, false);

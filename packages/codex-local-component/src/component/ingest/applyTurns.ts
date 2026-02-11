@@ -2,6 +2,7 @@ import { makeFunctionReference } from "convex/server";
 import { pickHigherPriorityTerminalStatus } from "../syncHelpers.js";
 import { authzError, now, requireTurnForActor } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
 export async function ensureTurnForEvent(
@@ -15,9 +16,9 @@ export async function ensureTurnForEvent(
 
   const existingTurn = await ingest.ctx.db
     .query("codex_turns")
-    .withIndex("tenantId_threadId_turnId", (q) =>
+    .withIndex("userScope_threadId_turnId", (q) =>
       q
-        .eq("tenantId", ingest.args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(ingest.args.actor))
         .eq("threadId", ingest.args.threadId)
         .eq("turnId", turnId),
     )
@@ -25,8 +26,8 @@ export async function ensureTurnForEvent(
 
   if (!existingTurn) {
     await ingest.ctx.db.insert("codex_turns", {
-      tenantId: ingest.args.actor.tenantId,
-      userId: ingest.args.actor.userId,
+      userScope: userScopeFromActor(ingest.args.actor),
+      ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
       turnId,
       status: event.syntheticTurnStatus,
@@ -90,7 +91,7 @@ export async function finalizeTurns(
       0,
       makeFunctionReference<"mutation">("turnsInternal:finalizeTurnFromStream"),
       {
-        tenantId: ingest.args.actor.tenantId,
+        userScope: userScopeFromActor(ingest.args.actor),
         threadId: ingest.args.threadId,
         turnId,
         status: terminal.status,
@@ -104,9 +105,9 @@ export async function finalizeTurns(
 
     const pendingMessages = await ingest.ctx.db
       .query("codex_messages")
-      .withIndex("tenantId_threadId_turnId_status", (q) =>
+      .withIndex("userScope_threadId_turnId_status", (q) =>
         q
-          .eq("tenantId", ingest.args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(ingest.args.actor))
           .eq("threadId", ingest.args.threadId)
           .eq("turnId", turnId)
           .eq("status", "streaming"),

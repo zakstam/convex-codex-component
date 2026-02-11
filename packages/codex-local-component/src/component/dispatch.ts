@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { MutationCtx } from "./_generated/server.js";
 import { mutation, query } from "./_generated/server.js";
 import { vActorContext, vThreadInputItem } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor, summarizeInput } from "./utils.js";
 
 const DEFAULT_LEASE_MS = 15_000;
@@ -27,15 +28,15 @@ function ensureDispatchToken(args: {
 
 async function requireDispatchForActor(args: {
   ctx: MutationCtx;
-  actor: { tenantId: string; userId: string };
+  actor: { userId?: string };
   threadId: string;
   dispatchId: string;
 }) {
   const dispatch = await args.ctx.db
     .query("codex_turn_dispatches")
-    .withIndex("tenantId_threadId_dispatchId", (q) =>
+    .withIndex("userScope_threadId_dispatchId", (q) =>
       q
-        .eq("tenantId", args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(args.actor))
         .eq("threadId", args.threadId)
         .eq("dispatchId", args.dispatchId),
     )
@@ -80,9 +81,9 @@ export const enqueueTurnDispatch = mutation({
 
     const existingByIdempotency = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_idempotencyKey", (q) =>
+      .withIndex("userScope_threadId_idempotencyKey", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("idempotencyKey", args.idempotencyKey),
       )
@@ -100,8 +101,8 @@ export const enqueueTurnDispatch = mutation({
     const ts = now();
     const dispatchId = args.dispatchId ?? randomId();
     await ctx.db.insert("codex_turn_dispatches", {
-      tenantId: args.actor.tenantId,
-      userId: args.actor.userId,
+      userScope: userScopeFromActor(args.actor),
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
       dispatchId,
       turnId: args.turnId,
@@ -116,9 +117,9 @@ export const enqueueTurnDispatch = mutation({
 
     const existingTurn = await ctx.db
       .query("codex_turns")
-      .withIndex("tenantId_threadId_turnId", (q) =>
+      .withIndex("userScope_threadId_turnId", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("turnId", args.turnId),
       )
@@ -126,8 +127,8 @@ export const enqueueTurnDispatch = mutation({
 
     if (!existingTurn) {
       await ctx.db.insert("codex_turns", {
-        tenantId: args.actor.tenantId,
-        userId: args.actor.userId,
+        userScope: userScopeFromActor(args.actor),
+        ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
         threadId: args.threadId,
         turnId: args.turnId,
         status: "queued",
@@ -172,9 +173,9 @@ export const claimNextTurnDispatch = mutation({
 
     const queued = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_createdAt", (q) =>
+      .withIndex("userScope_threadId_status_createdAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "queued"),
       )
@@ -183,9 +184,9 @@ export const claimNextTurnDispatch = mutation({
 
     const expiredClaimed = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_status_leaseExpiresAt", (q) =>
+      .withIndex("userScope_threadId_status_leaseExpiresAt", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("status", "claimed")
           .lte("leaseExpiresAt", ts),
@@ -271,9 +272,9 @@ export const markTurnStarted = mutation({
 
     const turn = await ctx.db
       .query("codex_turns")
-      .withIndex("tenantId_threadId_turnId", (q) =>
+      .withIndex("userScope_threadId_turnId", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("turnId", String(dispatch.turnId)),
       )
@@ -466,9 +467,9 @@ export const getTurnDispatchState = query({
       const dispatchId = args.dispatchId;
       const byDispatchId = await ctx.db
         .query("codex_turn_dispatches")
-        .withIndex("tenantId_threadId_dispatchId", (q) =>
+        .withIndex("userScope_threadId_dispatchId", (q) =>
           q
-            .eq("tenantId", args.actor.tenantId)
+            .eq("userScope", userScopeFromActor(args.actor))
             .eq("threadId", args.threadId)
             .eq("dispatchId", dispatchId),
         )
@@ -505,9 +506,9 @@ export const getTurnDispatchState = query({
 
     const rows = await ctx.db
       .query("codex_turn_dispatches")
-      .withIndex("tenantId_threadId_turnId", (q) =>
+      .withIndex("userScope_threadId_turnId", (q) =>
         q
-          .eq("tenantId", args.actor.tenantId)
+          .eq("userScope", userScopeFromActor(args.actor))
           .eq("threadId", args.threadId)
           .eq("turnId", args.turnId!),
       )

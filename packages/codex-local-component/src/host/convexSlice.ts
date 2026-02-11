@@ -52,15 +52,11 @@ function typedArgs<Fn extends FunctionReference<"query" | "mutation", "public" |
 }
 
 export type HostActorContext = {
-  tenantId: string;
-  userId: string;
-  deviceId: string;
+  userId?: string;
 };
 
 export const vHostActorContext = v.object({
-  tenantId: v.string(),
-  userId: v.string(),
-  deviceId: v.string(),
+  userId: v.optional(v.string()),
 });
 
 export const vHostInboundEvent = v.object({
@@ -120,7 +116,6 @@ export const vHostIngestSafeResult = v.object({
       code: v.union(
         v.literal("SESSION_NOT_FOUND"),
         v.literal("SESSION_THREAD_MISMATCH"),
-        v.literal("SESSION_DEVICE_MISMATCH"),
         v.literal("OUT_OF_ORDER"),
         v.literal("REPLAY_GAP"),
         v.literal("UNKNOWN"),

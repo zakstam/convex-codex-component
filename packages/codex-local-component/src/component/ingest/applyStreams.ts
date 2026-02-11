@@ -15,6 +15,7 @@ import {
 } from "../streamStats.js";
 import { now } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
 export async function persistLifecycleEventIfMissing(
@@ -27,9 +28,9 @@ export async function persistLifecycleEventIfMissing(
 
   const existingLifecycle = await ingest.ctx.db
     .query("codex_lifecycle_events")
-    .withIndex("tenantId_threadId_eventId", (q) =>
+    .withIndex("userScope_threadId_eventId", (q) =>
       q
-        .eq("tenantId", ingest.args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(ingest.args.actor))
         .eq("threadId", ingest.args.threadId)
         .eq("eventId", event.eventId),
     )
@@ -40,7 +41,7 @@ export async function persistLifecycleEventIfMissing(
   }
 
   await ingest.ctx.db.insert("codex_lifecycle_events", {
-    tenantId: ingest.args.actor.tenantId,
+    userScope: userScopeFromActor(ingest.args.actor),
     threadId: ingest.args.threadId,
     eventId: event.eventId,
     kind: event.kind,
@@ -62,7 +63,7 @@ export async function applyStreamEvent(
   let stream = await cache.getStreamRecord(event.streamId);
   if (!stream) {
     const streamId = await ingest.ctx.db.insert("codex_streams", {
-      tenantId: ingest.args.actor.tenantId,
+      userScope: userScopeFromActor(ingest.args.actor),
       threadId: ingest.args.threadId,
       turnId: event.turnId,
       streamId: event.streamId,
@@ -76,7 +77,7 @@ export async function applyStreamEvent(
     };
     cache.setStreamRecord(event.streamId, stream);
     await ensureStreamStat(ingest.ctx, {
-      tenantId: ingest.args.actor.tenantId,
+      userScope: userScopeFromActor(ingest.args.actor),
       threadId: ingest.args.threadId,
       turnId: event.turnId,
       streamId: event.streamId,
@@ -94,9 +95,9 @@ export async function applyStreamEvent(
   const streamExpectedCursor = ingest.streamState.expectedCursorByStreamId.get(event.streamId) ?? 0;
   const existingStreamEvent = await ingest.ctx.db
     .query("codex_stream_deltas_ttl")
-    .withIndex("tenantId_streamId_eventId", (q) =>
+    .withIndex("userScope_streamId_eventId", (q) =>
       q
-        .eq("tenantId", ingest.args.actor.tenantId)
+        .eq("userScope", userScopeFromActor(ingest.args.actor))
         .eq("streamId", event.streamId)
         .eq("eventId", event.eventId),
     )
@@ -142,7 +143,7 @@ export async function applyStreamEvent(
 
   if (shouldPersist) {
     await ingest.ctx.db.insert("codex_stream_deltas_ttl", {
-      tenantId: ingest.args.actor.tenantId,
+      userScope: userScopeFromActor(ingest.args.actor),
       streamId: event.streamId,
       turnId: event.turnId,
       eventId: event.eventId,
@@ -193,7 +194,7 @@ export async function finalizeStreamStates(
       ingest.runtime.finishedStreamDeleteDelayMs,
       makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
       {
-        tenantId: ingest.args.actor.tenantId,
+        userScope: userScopeFromActor(ingest.args.actor),
         streamId,
         batchSize: DEFAULT_STREAM_DELETE_BATCH_SIZE,
       },
@@ -207,7 +208,7 @@ export async function finalizeStreamStates(
         cleanupFnId,
       });
       await setStreamStatState(ingest.ctx, {
-        tenantId: ingest.args.actor.tenantId,
+        userScope: userScopeFromActor(ingest.args.actor),
         threadId: ingest.args.threadId,
         turnId: stream.turnId,
         streamId,
@@ -229,7 +230,7 @@ export async function finalizeStreamStates(
         cleanupFnId,
       });
       await setStreamStatState(ingest.ctx, {
-        tenantId: ingest.args.actor.tenantId,
+        userScope: userScopeFromActor(ingest.args.actor),
         threadId: ingest.args.threadId,
         turnId: stream.turnId,
         streamId,
@@ -245,7 +246,7 @@ export async function finalizeStreamStates(
 
 export async function flushStreamStats(ingest: IngestContext): Promise<void> {
   await addStreamDeltaStatsBatch(ingest.ctx, {
-    tenantId: ingest.args.actor.tenantId,
+    userScope: userScopeFromActor(ingest.args.actor),
     threadId: ingest.args.threadId,
     updates: Array.from(ingest.streamState.persistedStatsByStreamId.entries()).map(
       ([streamId, stats]) => ({

@@ -25,9 +25,7 @@ async function main(): Promise<void> {
   const convex = new ConvexHttpClient(convexUrl);
   const suffix = randomUUID();
   const actor = {
-    tenantId: "contract-smoke-tenant",
     userId: "contract-smoke-user",
-    deviceId: `contract-smoke-device-${suffix}`,
   };
   const threadId = `contract-smoke-thread-${suffix}`;
   const turnId = `contract-smoke-turn-${suffix}`;

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server.js";
 import { setStreamStatState } from "./streamStats.js";
 import { vActorContext, vThreadInputItem, vTurnOptions } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor, requireTurnForActor, summarizeInput } from "./utils.js";
 
 const DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS = 300_000;
@@ -22,10 +23,10 @@ export const start = mutation({
 
     const existing = await ctx.db
       .query("codex_turns")
-      .withIndex("tenantId_idempotencyKey")
+      .withIndex("userScope_idempotencyKey")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("userId"), args.actor.userId),
           q.eq(q.field("idempotencyKey"), args.idempotencyKey),
         ),
@@ -38,8 +39,8 @@ export const start = mutation({
 
     const ts = now();
     await ctx.db.insert("codex_turns", {
-      tenantId: args.actor.tenantId,
-      userId: args.actor.userId,
+      userScope: userScopeFromActor(args.actor),
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
       turnId: args.turnId,
       status: "queued",
@@ -72,10 +73,10 @@ export const interrupt = mutation({
 
     const streams = await ctx.db
       .query("codex_streams")
-      .withIndex("tenantId_threadId_turnId")
+      .withIndex("userScope_threadId_turnId")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("threadId"), args.threadId),
           q.eq(q.field("turnId"), args.turnId),
         ),
@@ -92,7 +93,7 @@ export const interrupt = mutation({
         DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS,
         makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
         {
-          tenantId: args.actor.tenantId,
+          userScope: userScopeFromActor(args.actor),
           streamId: String(stream.streamId),
           batchSize: DEFAULT_STREAM_DELETE_BATCH_SIZE,
         },
@@ -110,7 +111,7 @@ export const interrupt = mutation({
       });
 
       await setStreamStatState(ctx, {
-        tenantId: args.actor.tenantId,
+        userScope: userScopeFromActor(args.actor),
         threadId: args.threadId,
         turnId: args.turnId,
         streamId: String(stream.streamId),

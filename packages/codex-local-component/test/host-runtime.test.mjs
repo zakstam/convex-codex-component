@@ -104,7 +104,7 @@ test("runtime start supports threadStrategy=resume", async () => {
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
     threadStrategy: "resume",
@@ -128,7 +128,7 @@ test("runtime start forwards dynamicTools in thread/start", async () => {
   const { runtime, sent } = createHarness();
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
     dynamicTools: [
@@ -150,7 +150,7 @@ test("dispatch-managed runtime rejects sendTurn and accepts startClaimedTurn", a
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6c";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: true,
   });
@@ -180,7 +180,7 @@ test("dispatch-managed runtime rejects sendTurn and accepts startClaimedTurn", a
 test("runtime-owned mode rejects startClaimedTurn", async () => {
   const { runtime } = createHarness();
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -203,7 +203,7 @@ test("runtime thread lifecycle mutations are blocked while turn is in flight", a
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -226,7 +226,7 @@ test("resumeThread updates active runtime thread id after response", async () =>
   const resumedThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6b";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -251,7 +251,7 @@ test("respondCommandApproval sends JSON-RPC response for pending command approva
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -305,7 +305,7 @@ test("respondCommandApproval sends JSON-RPC response for pending command approva
 test("respondToolUserInput rejects unknown request id", async () => {
   const { runtime } = createHarness();
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -326,7 +326,7 @@ test("respondDynamicToolCall responds to pending item/tool/call request", async 
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -384,7 +384,7 @@ test("runtime ignores non-turn thread-scoped events for ingest", async () => {
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -417,7 +417,7 @@ test("runtime ingests turn-scoped events", async () => {
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -458,7 +458,7 @@ test("runtime account/auth helper methods send account requests and resolve resp
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -504,7 +504,7 @@ test("respondChatgptAuthTokensRefresh responds to pending auth token refresh req
   const { runtime, sent, emitGlobalMessage } = createHarness();
 
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });
@@ -536,7 +536,7 @@ test("respondChatgptAuthTokensRefresh responds to pending auth token refresh req
 test("respondChatgptAuthTokensRefresh rejects unknown request id", async () => {
   const { runtime } = createHarness();
   await runtime.start({
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     sessionId: "s",
     dispatchManaged: false,
   });

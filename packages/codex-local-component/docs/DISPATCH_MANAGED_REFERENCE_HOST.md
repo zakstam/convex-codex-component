@@ -5,6 +5,11 @@ Use it only when dispatch-managed orchestration is explicitly requested.
 
 Canonical default remains runtime-owned in `../LLMS.md`.
 
+## Actor Scope Contract
+
+Dispatch-managed mode uses the same actor contract: `actor: { userId?: string }`.
+Identified `userId` values are user-scoped; omitted `userId` is anonymous-scoped.
+
 ## Runtime Mode
 
 Start runtime with explicit external ownership:
@@ -44,7 +49,7 @@ async function drainClaimedDispatches() {
   const claimed = await convex.mutation(api.chat.claimNextTurnDispatch, {
     actor,
     threadId: localThreadId,
-    claimOwner: actor.deviceId,
+    claimOwner: `host-claim-${process.pid}`,
   });
   if (!claimed) return;
 

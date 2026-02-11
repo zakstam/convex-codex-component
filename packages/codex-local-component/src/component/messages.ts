@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { requireThreadForActor, requireTurnForActor } from "./utils.js";
 
 export const listByThread = query({
@@ -20,8 +21,8 @@ export const listByThread = query({
 
     const scanned = await ctx.db
       .query("codex_messages")
-      .withIndex("tenantId_threadId_createdAt_messageId", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+      .withIndex("userScope_threadId_createdAt_messageId", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
       )
       .filter((q) =>
         cursor
@@ -32,7 +33,7 @@ export const listByThread = query({
                 q.lt(q.field("messageId"), cursor.messageId),
               ),
             )
-          : q.eq(q.field("tenantId"), args.actor.tenantId),
+          : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
       )
       .order("desc")
       .take(args.paginationOpts.numItems + 1);
@@ -91,8 +92,8 @@ export const getByTurn = query({
 
     const messages = await ctx.db
       .query("codex_messages")
-      .withIndex("tenantId_threadId_turnId_orderInTurn", (q) =>
-        q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId).eq("turnId", args.turnId),
+      .withIndex("userScope_threadId_turnId_orderInTurn", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId).eq("turnId", args.turnId),
       )
       .order("asc")
       .take(500);

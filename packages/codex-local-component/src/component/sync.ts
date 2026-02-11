@@ -83,7 +83,6 @@ export const ingestSafe = mutation({
         code: v.union(
           v.literal("SESSION_NOT_FOUND"),
           v.literal("SESSION_THREAD_MISMATCH"),
-          v.literal("SESSION_DEVICE_MISMATCH"),
           v.literal("OUT_OF_ORDER"),
           v.literal("REPLAY_GAP"),
           v.literal("UNKNOWN"),

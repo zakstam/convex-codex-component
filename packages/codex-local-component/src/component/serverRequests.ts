@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
 import { mutation, query } from "./_generated/server.js";
 import { vActorContext } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 
 const vManagedServerRequestMethod = v.union(
@@ -94,10 +95,10 @@ export const upsertPending = mutation({
 
     const existing = await ctx.db
       .query("codex_server_requests")
-      .withIndex("tenantId_threadId_requestIdType_requestIdText")
+      .withIndex("userScope_threadId_requestIdType_requestIdText")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("threadId"), args.threadId),
           q.eq(q.field("requestIdType"), requestId.requestIdType),
           q.eq(q.field("requestIdText"), requestId.requestIdText),
@@ -128,8 +129,8 @@ export const upsertPending = mutation({
     }
 
     await ctx.db.insert("codex_server_requests", {
-      tenantId: args.actor.tenantId,
-      userId: args.actor.userId,
+      userScope: userScopeFromActor(args.actor),
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
       turnId: args.turnId,
       itemId: args.itemId,
@@ -164,10 +165,10 @@ export const resolve = mutation({
 
     const existing = await ctx.db
       .query("codex_server_requests")
-      .withIndex("tenantId_threadId_requestIdType_requestIdText")
+      .withIndex("userScope_threadId_requestIdType_requestIdText")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("threadId"), args.threadId),
           q.eq(q.field("requestIdType"), requestId.requestIdType),
           q.eq(q.field("requestIdText"), requestId.requestIdText),
@@ -212,9 +213,9 @@ export const listPending = query({
     const rows = args.threadId
       ? await ctx.db
           .query("codex_server_requests")
-          .withIndex("tenantId_userId_threadId_status_updatedAt", (q) =>
+          .withIndex("userScope_userId_threadId_status_updatedAt", (q) =>
             q
-              .eq("tenantId", args.actor.tenantId)
+              .eq("userScope", userScopeFromActor(args.actor))
               .eq("userId", args.actor.userId)
               .eq("threadId", args.threadId!)
               .eq("status", "pending"),
@@ -223,9 +224,9 @@ export const listPending = query({
           .take(limit)
       : await ctx.db
           .query("codex_server_requests")
-          .withIndex("tenantId_userId_status_updatedAt", (q) =>
+          .withIndex("userScope_userId_status_updatedAt", (q) =>
             q
-              .eq("tenantId", args.actor.tenantId)
+              .eq("userScope", userScopeFromActor(args.actor))
               .eq("userId", args.actor.userId)
               .eq("status", "pending"),
           )

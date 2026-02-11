@@ -1,5 +1,6 @@
 import { now } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
 export async function applyMessageEffectsForEvent(
@@ -19,8 +20,8 @@ export async function applyMessageEffectsForEvent(
       const nextOrder = await cache.nextOrderForTurn(turnId);
 
       const newId = await ingest.ctx.db.insert("codex_messages", {
-        tenantId: ingest.args.actor.tenantId,
-        userId: ingest.args.actor.userId,
+        userScope: userScopeFromActor(ingest.args.actor),
+        ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
         threadId: ingest.args.threadId,
         turnId,
         messageId: event.durableMessage.messageId,
@@ -83,8 +84,8 @@ export async function applyMessageEffectsForEvent(
 
     const existingReasoningEvent = await ingest.ctx.db
       .query("codex_reasoning_segments")
-      .withIndex("tenantId_threadId_eventId", (q) =>
-        q.eq("tenantId", ingest.args.actor.tenantId).eq("threadId", ingest.args.threadId).eq("eventId", event.eventId),
+      .withIndex("userScope_threadId_eventId", (q) =>
+        q.eq("userScope", userScopeFromActor(ingest.args.actor)).eq("threadId", ingest.args.threadId).eq("eventId", event.eventId),
       )
       .first();
     if (existingReasoningEvent) {
@@ -93,8 +94,8 @@ export async function applyMessageEffectsForEvent(
 
     const segmentId = `${event.turnId}:${event.reasoningDelta.itemId}:${event.reasoningDelta.channel}:${event.reasoningDelta.segmentType}:${event.eventId}`;
     await ingest.ctx.db.insert("codex_reasoning_segments", {
-      tenantId: ingest.args.actor.tenantId,
-      userId: ingest.args.actor.userId,
+      userScope: userScopeFromActor(ingest.args.actor),
+      ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
       turnId: event.turnId,
       itemId: event.reasoningDelta.itemId,
@@ -121,8 +122,8 @@ export async function applyMessageEffectsForEvent(
   if (!existing) {
     const nextOrder = await cache.nextOrderForTurn(turnId);
     const messageId = await ingest.ctx.db.insert("codex_messages", {
-      tenantId: ingest.args.actor.tenantId,
-      userId: ingest.args.actor.userId,
+      userScope: userScopeFromActor(ingest.args.actor),
+      ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
       turnId,
       messageId: event.durableDelta.messageId,

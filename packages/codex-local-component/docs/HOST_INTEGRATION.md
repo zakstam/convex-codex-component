@@ -4,6 +4,14 @@ Canonical default: runtime-owned host integration (`dispatchManaged: false`).
 
 This doc is aligned to the single canonical implementation in `../LLMS.md`.
 
+## Actor Scope Contract
+
+Use `actor: { userId?: string }` at all host/component boundaries.
+
+- `userId` present -> identified-user isolation.
+- `userId` omitted -> anonymous-only isolation.
+- Tenant/device identifiers are not part of the contract.
+
 ## Required Flow
 
 1. Mount component in `convex/convex.config.ts`.

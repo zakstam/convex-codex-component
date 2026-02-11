@@ -30,7 +30,7 @@ test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   };
 
   await ensureThreadByCreate(ctx, component, {
-    actor: { tenantId: "ignored", userId: "ignored", deviceId: "ignored" },
+    actor: { userId: "ignored" },
     threadId: "thread-1",
     model: "m",
     cwd: "/tmp",
@@ -42,9 +42,7 @@ test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   assert.equal(calls[0].args.localThreadId, "thread-1");
   assert.equal(calls[0].args.model, "m");
   assert.equal(calls[0].args.cwd, "/tmp");
-  assert.equal(typeof calls[0].args.actor.tenantId, "string");
   assert.equal(typeof calls[0].args.actor.userId, "string");
-  assert.equal(typeof calls[0].args.actor.deviceId, "string");
 });
 
 test("ingestBatchMixed forwards stream and lifecycle events", async () => {
@@ -63,7 +61,7 @@ test("ingestBatchMixed forwards stream and lifecycle events", async () => {
   };
 
   const result = await ingestBatchMixed(ctx, component, {
-    actor: { tenantId: "ignored", userId: "ignored", deviceId: "ignored" },
+    actor: { userId: "ignored" },
     sessionId: "session-1",
     threadId: "thread-1",
     deltas: [
@@ -183,7 +181,7 @@ test("dispatchObservabilityForActor returns correlated dispatch projection", asy
   };
 
   const result = await dispatchObservabilityForActor(ctx, component, {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     dispatchId: "dispatch-1",
   });
@@ -274,7 +272,7 @@ test("listThreadMessagesForHooks returns stream list with deltas payload", async
   };
 
   const result = await listThreadMessagesForHooks(ctx, component, {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     paginationOpts: { cursor: null, numItems: 10 },
     streamArgs: { kind: "deltas", cursors: [] },
@@ -310,7 +308,7 @@ test("server request host wrappers pass refs and args", async () => {
       resolve: resolveRef,
     },
   };
-  const actor = { tenantId: "actor-tenant", userId: "actor-user", deviceId: "actor-device" };
+  const actor = { userId: "actor-user" };
 
   await listPendingServerRequestsForHooksForActor(queryCtx, component, {
     actor,
@@ -349,12 +347,12 @@ test("server request host wrappers pass refs and args", async () => {
   assert.equal(queryCalls.length, 1);
   assert.equal(queryCalls[0].ref, listRef);
   assert.equal(queryCalls[0].args.threadId, "thread-1");
-  assert.equal(typeof queryCalls[0].args.actor.tenantId, "string");
+  assert.equal(typeof queryCalls[0].args.actor.userId, "string");
   assert.equal(mutationCalls.length, 3);
   assert.equal(mutationCalls[0].ref, upsertRef);
   assert.equal(mutationCalls[1].ref, upsertRef);
   assert.equal(mutationCalls[2].ref, resolveRef);
-  assert.equal(typeof mutationCalls[0].args.actor.tenantId, "string");
-  assert.equal(typeof mutationCalls[1].args.actor.tenantId, "string");
-  assert.equal(typeof mutationCalls[2].args.actor.tenantId, "string");
+  assert.equal(typeof mutationCalls[0].args.actor.userId, "string");
+  assert.equal(typeof mutationCalls[1].args.actor.userId, "string");
+  assert.equal(typeof mutationCalls[2].args.actor.userId, "string");
 });

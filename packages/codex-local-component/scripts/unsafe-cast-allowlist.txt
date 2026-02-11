@@ -79,3 +79,16 @@ src/protocol/events.ts:296:      ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:301:    const msg = params.msg as Record<string, unknown>;
 src/protocol/events.ts:314:    ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:428:    ? (message.params as Record<string, unknown>)
+src/host/convexSlice.ts:514:  const record = value as Record<string, unknown>;
+src/host/convexSlice.ts:526:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+src/host/convexSlice.ts:534:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+src/host/convexSlice.ts:542:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+src/host/convexSlice.ts:556:  const turns = (state as { turns?: ThreadStateTurn[] | null }).turns;
+src/host/convexSlice.ts:804:      ? (dispatch.turnId as string | undefined)
+src/host/convexSlice.ts:815:      ? (dispatch.claimOwner as string | undefined)
+src/host/convexSlice.ts:819:      ? (dispatch.claimToken as string | undefined)
+src/host/convexSlice.ts:823:      ? (dispatch.leaseExpiresAt as number | undefined)
+src/host/convexSlice.ts:827:      ? (dispatch.runtimeThreadId as string | undefined)
+src/host/convexSlice.ts:831:      ? (dispatch.runtimeTurnId as string | undefined)
+src/host/convexSlice.ts:835:      ? (dispatch.dispatchId as string | undefined)
+src/component/dispatch.ts:96:        status: existingByIdempotency.status as DispatchStatus,

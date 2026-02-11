@@ -1,5 +1,6 @@
 import { now } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
 export function collectApprovalEffects(ingest: IngestContext, event: NormalizedInboundEvent): void {
@@ -35,8 +36,8 @@ export async function finalizeApprovals(
     }
 
     const approvalId = await ingest.ctx.db.insert("codex_approvals", {
-      tenantId: ingest.args.actor.tenantId,
-      userId: ingest.args.actor.userId,
+      userScope: userScopeFromActor(ingest.args.actor),
+      ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
       turnId,
       itemId: approval.itemId,

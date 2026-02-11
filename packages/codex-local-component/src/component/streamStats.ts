@@ -4,7 +4,7 @@ import { now } from "./utils.js";
 type StreamStateKind = "streaming" | "finished" | "aborted";
 
 type EnsureStreamStatArgs = {
-  tenantId: string;
+  userScope: string;
   threadId: string;
   turnId: string;
   streamId: string;
@@ -12,7 +12,7 @@ type EnsureStreamStatArgs = {
 };
 
 type AddDeltaStatsArgs = {
-  tenantId: string;
+  userScope: string;
   threadId: string;
   turnId: string;
   streamId: string;
@@ -22,23 +22,23 @@ type AddDeltaStatsArgs = {
 
 async function getByStreamId(
   ctx: MutationCtx,
-  tenantId: string,
+  userScope: string,
   streamId: string,
 ) {
   return ctx.db
     .query("codex_stream_stats")
-    .withIndex("tenantId_streamId", (q) =>
-      q.eq("tenantId", tenantId).eq("streamId", streamId),
+    .withIndex("userScope_streamId", (q) =>
+      q.eq("userScope", userScope).eq("streamId", streamId),
     )
     .first();
 }
 
 export async function deleteStreamStat(
   ctx: MutationCtx,
-  tenantId: string,
+  userScope: string,
   streamId: string,
 ): Promise<void> {
-  const existing = await getByStreamId(ctx, tenantId, streamId);
+  const existing = await getByStreamId(ctx, userScope, streamId);
   if (!existing) {
     return;
   }
@@ -49,11 +49,11 @@ export async function ensureStreamStat(
   ctx: MutationCtx,
   args: EnsureStreamStatArgs,
 ): Promise<void> {
-  const existing = await getByStreamId(ctx, args.tenantId, args.streamId);
+  const existing = await getByStreamId(ctx, args.userScope, args.streamId);
   const ts = now();
   if (!existing) {
     await ctx.db.insert("codex_stream_stats", {
-      tenantId: args.tenantId,
+      userScope: args.userScope,
       threadId: args.threadId,
       turnId: args.turnId,
       streamId: args.streamId,
@@ -83,11 +83,11 @@ export async function addStreamDeltaStats(
   ctx: MutationCtx,
   args: AddDeltaStatsArgs,
 ): Promise<void> {
-  const existing = await getByStreamId(ctx, args.tenantId, args.streamId);
+  const existing = await getByStreamId(ctx, args.userScope, args.streamId);
   const ts = now();
   if (!existing) {
     await ctx.db.insert("codex_stream_stats", {
-      tenantId: args.tenantId,
+      userScope: args.userScope,
       threadId: args.threadId,
       turnId: args.turnId,
       streamId: args.streamId,
@@ -111,7 +111,7 @@ export async function addStreamDeltaStats(
 export async function addStreamDeltaStatsBatch(
   ctx: MutationCtx,
   args: {
-    tenantId: string;
+    userScope: string;
     threadId: string;
     updates: Array<{ streamId: string; turnId: string; deltaCount: number; latestCursor: number }>;
   },
@@ -122,8 +122,8 @@ export async function addStreamDeltaStatsBatch(
 
   const existingStats = await ctx.db
     .query("codex_stream_stats")
-    .withIndex("tenantId_threadId", (q) =>
-      q.eq("tenantId", args.tenantId).eq("threadId", args.threadId),
+    .withIndex("userScope_threadId", (q) =>
+      q.eq("userScope", args.userScope).eq("threadId", args.threadId),
     )
     .take(500);
   const existingByStreamId = new Map(existingStats.map((stat) => [String(stat.streamId), stat]));
@@ -134,7 +134,7 @@ export async function addStreamDeltaStatsBatch(
       const existing = existingByStreamId.get(update.streamId);
       if (!existing) {
         await ctx.db.insert("codex_stream_stats", {
-          tenantId: args.tenantId,
+          userScope: args.userScope,
           threadId: args.threadId,
           turnId: update.turnId,
           streamId: update.streamId,

@@ -110,14 +110,12 @@ export const listThreadsForPicker = query({
 const targets = [
   {
     profile: "runtimeOwned",
-    serverDeviceIdDefault: "persistent-cli-server-device",
     chatGeneratedPath: resolve(repoRoot, "apps/examples/persistent-cli-app/convex/chat.generated.ts"),
     chatEntryPath: resolve(repoRoot, "apps/examples/persistent-cli-app/convex/chat.ts"),
     chatExtensionsPath: resolve(repoRoot, "apps/examples/persistent-cli-app/convex/chat.extensions.ts"),
     wiringPath: resolve(repoRoot, "apps/examples/persistent-cli-app/scripts/check-wiring-convex.mjs"),
     wiring: {
       resolverImportPath: "../../../shared/resolveConvexUrl.mjs",
-      actorDeviceIdDefault: "persistent-cli-wiring-smoke",
       includeConvexDirEnv: true,
       label: "persistent-cli",
       prioritizeVite: false,
@@ -126,14 +124,12 @@ const targets = [
   },
   {
     profile: "dispatchManaged",
-    serverDeviceIdDefault: "tauri-server-device",
     chatGeneratedPath: resolve(repoRoot, "apps/examples/tauri-app/convex/chat.generated.ts"),
     chatEntryPath: resolve(repoRoot, "apps/examples/tauri-app/convex/chat.ts"),
     chatExtensionsPath: resolve(repoRoot, "apps/examples/tauri-app/convex/chat.extensions.ts"),
     wiringPath: resolve(repoRoot, "apps/examples/tauri-app/scripts/check-wiring-convex.mjs"),
     wiring: {
       resolverImportPath: "../../../shared/resolveConvexUrl.mjs",
-      actorDeviceIdDefault: "tauri-wiring-smoke",
       includeConvexDirEnv: false,
       label: "tauri",
       prioritizeVite: true,
@@ -142,14 +138,12 @@ const targets = [
   },
   {
     profile: "runtimeOwned",
-    serverDeviceIdDefault: "release-smoke-server-device",
     chatGeneratedPath: resolve(repoRoot, "apps/release-smoke-host/convex/chat.generated.ts"),
     chatEntryPath: resolve(repoRoot, "apps/release-smoke-host/convex/chat.ts"),
     chatExtensionsPath: resolve(repoRoot, "apps/release-smoke-host/convex/chat.extensions.ts"),
     wiringPath: resolve(repoRoot, "apps/release-smoke-host/scripts/check-wiring-convex.mjs"),
     wiring: {
       resolverImportPath: "../../shared/resolveConvexUrl.mjs",
-      actorDeviceIdDefault: "release-smoke-wiring-device",
       includeConvexDirEnv: true,
       label: "release-smoke-host",
       prioritizeVite: false,
@@ -163,7 +157,6 @@ for (const target of targets) {
     target.chatGeneratedPath,
     renderHostChatGenerated({
       profile: target.profile,
-      serverDeviceIdDefault: target.serverDeviceIdDefault,
     }),
   );
   upsertFile(target.chatEntryPath, renderHostChatEntryModule());

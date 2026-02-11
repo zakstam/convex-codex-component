@@ -36,7 +36,7 @@ export async function ingestHandler(
 export async function upsertCheckpointHandler(
   ctx: MutationCtx,
   args: {
-    actor: { tenantId: string; userId: string; deviceId: string };
+    actor: { userId?: string };
     threadId: string;
     streamId: string;
     cursor: number;

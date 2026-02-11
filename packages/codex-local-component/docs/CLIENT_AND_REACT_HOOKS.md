@@ -4,6 +4,13 @@ Canonical default: runtime-owned host integration (`dispatchManaged: false`).
 
 This doc defines client and hook contracts for the canonical path in `../LLMS.md`.
 
+## Actor Scope Contract
+
+All hook/query/mutation args use `actor: { userId?: string }`.
+
+- `userId` present -> reads/writes isolated to that user.
+- `userId` omitted -> reads/writes isolated to anonymous scope only.
+
 ## SDK Surfaces
 
 - `@zakstam/codex-local-component/client`

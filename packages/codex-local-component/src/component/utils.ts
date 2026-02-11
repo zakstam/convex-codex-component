@@ -1,6 +1,7 @@
 import type { Doc } from "./_generated/dataModel.js";
 import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import type { ActorContext } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 
 type ThreadRecord = Doc<"codex_threads">;
 type TurnRecord = Doc<"codex_turns">;
@@ -15,22 +16,20 @@ export async function requireThreadForActor(
   actor: ActorContext,
   threadId: string,
 ): Promise<ThreadRecord> {
+  const userScope = userScopeFromActor(actor);
   const thread = await ctx.db
     .query("codex_threads")
-    .withIndex("tenantId_threadId")
+    .withIndex("userScope_threadId")
     .filter((q) =>
       q.and(
-        q.eq(q.field("tenantId"), actor.tenantId),
+        q.eq(q.field("userScope"), userScope),
         q.eq(q.field("threadId"), threadId),
       ),
     )
     .first();
 
   if (!thread) {
-    throw new Error(`Thread not found for tenant: ${threadId}`);
-  }
-  if (thread.userId !== actor.userId) {
-    authzError("E_AUTH_THREAD_FORBIDDEN", "thread access denied");
+    throw new Error(`Thread not found for scope: ${threadId}`);
   }
   return thread;
 }
@@ -41,12 +40,13 @@ export async function requireTurnForActor(
   threadId: string,
   turnId: string,
 ): Promise<TurnRecord> {
+  const userScope = userScopeFromActor(actor);
   const turn = await ctx.db
     .query("codex_turns")
-    .withIndex("tenantId_threadId_turnId")
+    .withIndex("userScope_threadId_turnId")
     .filter((q) =>
       q.and(
-        q.eq(q.field("tenantId"), actor.tenantId),
+        q.eq(q.field("userScope"), userScope),
         q.eq(q.field("threadId"), threadId),
         q.eq(q.field("turnId"), turnId),
       ),
@@ -55,9 +55,6 @@ export async function requireTurnForActor(
 
   if (!turn) {
     throw new Error(`Turn not found: ${turnId}`);
-  }
-  if (turn.userId !== actor.userId) {
-    authzError("E_AUTH_TURN_FORBIDDEN", "turn access denied");
   }
   return turn;
 }

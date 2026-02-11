@@ -7,7 +7,7 @@ import {
   wrapHostDefinitions,
 } from "../dist/host/index.js";
 
-const actor = { tenantId: "t", userId: "u", deviceId: "d" };
+const actor = { userId: "u" };
 
 function createComponentRefs() {
   return {

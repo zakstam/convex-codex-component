@@ -4,7 +4,7 @@ import { now } from "./utils.js";
 
 export const finalizeTurnFromStream = internalMutation({
   args: {
-    tenantId: v.string(),
+    userScope: v.string(),
     threadId: v.string(),
     turnId: v.string(),
     status: v.union(v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
@@ -14,10 +14,10 @@ export const finalizeTurnFromStream = internalMutation({
   handler: async (ctx, args) => {
     const turn = await ctx.db
       .query("codex_turns")
-      .withIndex("tenantId_threadId_turnId")
+      .withIndex("userScope_threadId_turnId")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.tenantId),
+          q.eq(q.field("userScope"), args.userScope),
           q.eq(q.field("threadId"), args.threadId),
           q.eq(q.field("turnId"), args.turnId),
         ),

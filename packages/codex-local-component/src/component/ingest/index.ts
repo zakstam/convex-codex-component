@@ -4,6 +4,7 @@ import { normalizeInboundEvents } from "./normalize.js";
 import { createIngestStateCache } from "./stateCache.js";
 import { requireBoundSession } from "./sessionGuard.js";
 import type { PushEventsArgs } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 import { ensureTurnForEvent, collectTurnSignals, finalizeTurns } from "./applyTurns.js";
 import { applyMessageEffectsForEvent } from "./applyMessages.js";
 import { collectApprovalEffects, finalizeApprovals } from "./applyApprovals.js";
@@ -33,8 +34,8 @@ export async function ingestEvents(
 
   const streamStats = await ctx.db
     .query("codex_stream_stats")
-    .withIndex("tenantId_threadId", (q) =>
-      q.eq("tenantId", args.actor.tenantId).eq("threadId", args.threadId),
+    .withIndex("userScope_threadId", (q) =>
+      q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
     )
     .take(500);
 
@@ -66,7 +67,7 @@ export async function ingestEvents(
 
   const cache = createIngestStateCache({
     ctx,
-    tenantId: args.actor.tenantId,
+    userScope: userScopeFromActor(args.actor),
     threadId: args.threadId,
   });
 

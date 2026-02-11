@@ -48,7 +48,7 @@ import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoaded
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 
-type ActorContext = { tenantId: string; userId: string; deviceId: string };
+type ActorContext = { userId?: string };
 
 type StreamIngestDelta = {
   type: "stream_delta";
@@ -889,7 +889,7 @@ export function createCodexHostRuntime(args: {
         const claimed = await args.persistence.claimNextTurnDispatch({
           actor,
           threadId,
-          claimOwner: actor.deviceId,
+          claimOwner: sessionId ?? "runtime-owner",
         });
         if (!claimed) {
           return;

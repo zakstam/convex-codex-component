@@ -28,7 +28,7 @@ test("listMessages passes query reference and args", async () => {
     },
   };
   const args = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     paginationOpts: { cursor: null, numItems: 10 },
   };
@@ -56,7 +56,7 @@ test("listTurnMessages passes query reference and args", async () => {
     },
   };
   const args = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     turnId: "turn-1",
   };
@@ -83,7 +83,7 @@ test("listReasoningByThread passes query reference and args", async () => {
     },
   };
   const args = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     includeRaw: false,
     paginationOpts: { cursor: null, numItems: 10 },
@@ -110,14 +110,14 @@ test("startTurn and interruptTurn pass mutation refs and args", async () => {
     turns: { start, interrupt },
   };
   const startArgs = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     turnId: "turn-1",
     input: [{ type: "text", text: "hello" }],
     idempotencyKey: "idem-1",
   };
   const interruptArgs = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     turnId: "turn-1",
     reason: "stop",
@@ -148,12 +148,12 @@ test("replayStreams and resumeStreamReplay pass query refs and args", async () =
     sync: { replay, resumeReplay },
   };
   const syncArgs = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     streamCursorsById: [{ streamId: "stream-1", cursor: 0 }],
   };
   const resumeArgs = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     turnId: "turn-1",
     fromCursor: 0,
@@ -183,7 +183,7 @@ test("getThreadState passes query reference and args", async () => {
     threads: { getState },
   };
   const args = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
   };
   const expected = { threadId: "thread-1", turns: [] };
@@ -226,7 +226,7 @@ test("thread helpers pass refs and args", async () => {
   const component = {
     threads: { create, resolve, resume, list, resolveByExternalId, getExternalMapping, getState },
   };
-  const actor = { tenantId: "t", userId: "u", deviceId: "d" };
+  const actor = { userId: "u" };
 
   await createThread(mutationCtx, component, { actor, threadId: "thread-1" });
   await resolveThread(mutationCtx, component, { actor, externalThreadId: "external-1" });
@@ -254,12 +254,12 @@ test("approval helpers pass refs and args", async () => {
     approvals: { listPending, respond },
   };
   const listArgs = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     paginationOpts: { cursor: null, numItems: 10 },
   };
   const respondArgs = {
-    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    actor: { userId: "u" },
     threadId: "thread-1",
     turnId: "turn-1",
     itemId: "item-1",

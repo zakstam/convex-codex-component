@@ -12,9 +12,7 @@ async function main() {
 
   const convex = new ConvexHttpClient(convexUrl);
   const actor = {
-    tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
-    userId: process.env.ACTOR_USER_ID ?? "demo-user",
-    deviceId: process.env.ACTOR_DEVICE_ID ?? "tauri-wiring-smoke",
+    ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
   };
   const validation = await convex.query(api.chat.validateHostWiring, { actor });
   assert.equal(validation.ok, true, `validateHostWiring failed: ${JSON.stringify(validation.checks)}`);

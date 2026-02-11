@@ -8,11 +8,11 @@ import type {
   IngestSession,
   PushEventsArgs,
 } from "./types.js";
+import { userScopeFromActor } from "../scope.js";
 
 const RECOVERABLE_INGEST_CODES = new Set([
   "E_SYNC_SESSION_NOT_FOUND",
   "E_SYNC_SESSION_THREAD_MISMATCH",
-  "E_SYNC_SESSION_DEVICE_MISMATCH",
 ]);
 
 function getErrorMessage(error: unknown): string {
@@ -31,8 +31,6 @@ export function mapIngestSafeCode(rawCode: string | null): IngestSafeErrorCode {
       return "SESSION_NOT_FOUND";
     case "E_SYNC_SESSION_THREAD_MISMATCH":
       return "SESSION_THREAD_MISMATCH";
-    case "E_SYNC_SESSION_DEVICE_MISMATCH":
-      return "SESSION_DEVICE_MISMATCH";
     case "E_SYNC_OUT_OF_ORDER":
       return "OUT_OF_ORDER";
     case "E_SYNC_REPLAY_GAP":
@@ -58,8 +56,8 @@ export async function requireBoundSession(
 
   const session = await ctx.db
     .query("codex_sessions")
-    .withIndex("tenantId_sessionId", (q) =>
-      q.eq("tenantId", args.actor.tenantId).eq("sessionId", args.sessionId),
+    .withIndex("userScope_sessionId", (q) =>
+      q.eq("userScope", userScopeFromActor(args.actor)).eq("sessionId", args.sessionId),
     )
     .first();
 
@@ -70,12 +68,6 @@ export async function requireBoundSession(
     syncError(
       "E_SYNC_SESSION_THREAD_MISMATCH",
       `Session threadId=${session.threadId} does not match request threadId=${args.threadId}`,
-    );
-  }
-  if (session.deviceId !== args.actor.deviceId) {
-    syncError(
-      "E_SYNC_SESSION_DEVICE_MISMATCH",
-      `Session deviceId=${session.deviceId} does not match actor deviceId=${args.actor.deviceId}`,
     );
   }
   if (session.userId !== args.actor.userId) {
@@ -96,16 +88,15 @@ export async function upsertSessionHeartbeat(
 
   const session = await ctx.db
     .query("codex_sessions")
-    .withIndex("tenantId_sessionId", (q) =>
-      q.eq("tenantId", args.actor.tenantId).eq("sessionId", args.sessionId),
+    .withIndex("userScope_sessionId", (q) =>
+      q.eq("userScope", userScopeFromActor(args.actor)).eq("sessionId", args.sessionId),
     )
     .first();
 
   if (!session) {
     await ctx.db.insert("codex_sessions", {
-      tenantId: args.actor.tenantId,
-      userId: args.actor.userId,
-      deviceId: args.actor.deviceId,
+      userScope: userScopeFromActor(args.actor),
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
       sessionId: args.sessionId,
       status: "active",
@@ -132,13 +123,6 @@ export async function upsertSessionHeartbeat(
       `Session threadId=${session.threadId} does not match request threadId=${args.threadId}`,
     );
   }
-  if (session.deviceId !== args.actor.deviceId) {
-    syncError(
-      "E_SYNC_SESSION_DEVICE_MISMATCH",
-      `Session deviceId=${session.deviceId} does not match actor deviceId=${args.actor.deviceId}`,
-    );
-  }
-
   await ctx.db.patch(session._id, {
     status: "active",
     lastHeartbeatAt: now(),

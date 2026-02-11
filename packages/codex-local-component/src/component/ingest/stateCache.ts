@@ -16,10 +16,10 @@ export type IngestStateCache = {
 
 export function createIngestStateCache(args: {
   ctx: MutationCtx;
-  tenantId: string;
+  userScope: string;
   threadId: string;
 }): IngestStateCache {
-  const { ctx, tenantId, threadId } = args;
+  const { ctx, userScope, threadId } = args;
 
   const messageOrderCacheByTurn = new Map<string, number>();
   const messageByKey = new Map<string, CachedMessage | null>();
@@ -28,10 +28,10 @@ export function createIngestStateCache(args: {
   const messagePatchById = new Map<GenericId<"codex_messages">, Record<string, unknown>>();
 
   const messageKey = (turnId: string, messageId: string): string =>
-    `${tenantId}:${threadId}:${turnId}:${messageId}`;
+    `${userScope}:${threadId}:${turnId}:${messageId}`;
 
   const approvalKey = (turnId: string, itemId: string): string =>
-    `${tenantId}:${threadId}:${turnId}:${itemId}`;
+    `${userScope}:${threadId}:${turnId}:${itemId}`;
 
   const nextOrderForTurn = async (turnId: string): Promise<number> => {
     const cached = messageOrderCacheByTurn.get(turnId);
@@ -42,8 +42,8 @@ export function createIngestStateCache(args: {
 
     const lastMessage = await ctx.db
       .query("codex_messages")
-      .withIndex("tenantId_threadId_turnId_orderInTurn", (q) =>
-        q.eq("tenantId", tenantId).eq("threadId", threadId).eq("turnId", turnId),
+      .withIndex("userScope_threadId_turnId_orderInTurn", (q) =>
+        q.eq("userScope", userScope).eq("threadId", threadId).eq("turnId", turnId),
       )
       .order("desc")
       .take(1);
@@ -59,9 +59,9 @@ export function createIngestStateCache(args: {
     }
     const existing = await ctx.db
       .query("codex_messages")
-      .withIndex("tenantId_threadId_turnId_messageId", (q) =>
+      .withIndex("userScope_threadId_turnId_messageId", (q) =>
         q
-          .eq("tenantId", tenantId)
+          .eq("userScope", userScope)
           .eq("threadId", threadId)
           .eq("turnId", turnId)
           .eq("messageId", messageId),
@@ -89,8 +89,8 @@ export function createIngestStateCache(args: {
     }
     const existing = await ctx.db
       .query("codex_approvals")
-      .withIndex("tenantId_threadId_turnId_itemId", (q) =>
-        q.eq("tenantId", tenantId).eq("threadId", threadId).eq("turnId", turnId).eq("itemId", itemId),
+      .withIndex("userScope_threadId_turnId_itemId", (q) =>
+        q.eq("userScope", userScope).eq("threadId", threadId).eq("turnId", turnId).eq("itemId", itemId),
       )
       .first();
     const normalized = existing
@@ -113,7 +113,7 @@ export function createIngestStateCache(args: {
     }
     const stream = await ctx.db
       .query("codex_streams")
-      .withIndex("tenantId_streamId", (q) => q.eq("tenantId", tenantId).eq("streamId", streamId))
+      .withIndex("userScope_streamId", (q) => q.eq("userScope", userScope).eq("streamId", streamId))
       .first();
     const normalized = stream
       ? {

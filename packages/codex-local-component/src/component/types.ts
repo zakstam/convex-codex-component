@@ -1,9 +1,7 @@
 import { v } from "convex/values";
 
 export const vActorContext = v.object({
-  tenantId: v.string(),
-  userId: v.string(),
-  deviceId: v.string(),
+  userId: v.optional(v.string()),
 });
 
 export const vThreadInputItem = v.object({
@@ -32,7 +30,5 @@ export const vSyncRuntimeOptions = v.object({
 });
 
 export type ActorContext = {
-  tenantId: string;
-  userId: string;
-  deviceId: string;
+  userId?: string;
 };

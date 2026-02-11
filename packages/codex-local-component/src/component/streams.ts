@@ -10,7 +10,7 @@ const DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS = 300_000;
 
 export const timeoutStream = internalMutation({
   args: {
-    tenantId: v.string(),
+    userScope: v.string(),
     streamId: v.string(),
     reason: v.optional(v.string()),
   },
@@ -18,10 +18,10 @@ export const timeoutStream = internalMutation({
   handler: async (ctx, args) => {
     const stream = await ctx.db
       .query("codex_streams")
-      .withIndex("tenantId_streamId")
+      .withIndex("userScope_streamId")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.tenantId),
+          q.eq(q.field("userScope"), args.userScope),
           q.eq(q.field("streamId"), args.streamId),
         ),
       )
@@ -36,7 +36,7 @@ export const timeoutStream = internalMutation({
       DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS,
       makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
       {
-        tenantId: args.tenantId,
+        userScope: args.userScope,
         streamId: args.streamId,
         batchSize: STREAM_CLEANUP_BATCH_SIZE_DEFAULT,
       },
@@ -54,7 +54,7 @@ export const timeoutStream = internalMutation({
     });
 
     await setStreamStatState(ctx, {
-      tenantId: args.tenantId,
+      userScope: args.userScope,
       threadId: stream.threadId,
       turnId: stream.turnId,
       streamId: args.streamId,
@@ -67,7 +67,7 @@ export const timeoutStream = internalMutation({
 
 export const cleanupFinishedStream = internalMutation({
   args: {
-    tenantId: v.string(),
+    userScope: v.string(),
     streamId: v.string(),
     batchSize: v.optional(v.number()),
   },
@@ -80,20 +80,20 @@ export const cleanupFinishedStream = internalMutation({
 
     const stream = await ctx.db
       .query("codex_streams")
-      .withIndex("tenantId_streamId", (q) =>
-        q.eq("tenantId", args.tenantId).eq("streamId", args.streamId),
+      .withIndex("userScope_streamId", (q) =>
+        q.eq("userScope", args.userScope).eq("streamId", args.streamId),
       )
       .first();
 
     if (!stream) {
-      await deleteStreamStat(ctx, args.tenantId, args.streamId);
+      await deleteStreamStat(ctx, args.userScope, args.streamId);
       return { deletedDeltas: 0, streamDeleted: false, hasMore: false };
     }
 
     const batch = await ctx.db
       .query("codex_stream_deltas_ttl")
-      .withIndex("tenantId_streamId_cursorStart", (q) =>
-        q.eq("tenantId", args.tenantId).eq("streamId", args.streamId),
+      .withIndex("userScope_streamId_cursorStart", (q) =>
+        q.eq("userScope", args.userScope).eq("streamId", args.streamId),
       )
       .take(batchSize);
 
@@ -105,7 +105,7 @@ export const cleanupFinishedStream = internalMutation({
         0,
         makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
         {
-          tenantId: args.tenantId,
+          userScope: args.userScope,
           streamId: args.streamId,
           batchSize,
         },
@@ -115,8 +115,8 @@ export const cleanupFinishedStream = internalMutation({
 
     const remaining = await ctx.db
       .query("codex_stream_deltas_ttl")
-      .withIndex("tenantId_streamId_cursorStart", (q) =>
-        q.eq("tenantId", args.tenantId).eq("streamId", args.streamId),
+      .withIndex("userScope_streamId_cursorStart", (q) =>
+        q.eq("userScope", args.userScope).eq("streamId", args.streamId),
       )
       .take(1);
 
@@ -125,7 +125,7 @@ export const cleanupFinishedStream = internalMutation({
         0,
         makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
         {
-          tenantId: args.tenantId,
+          userScope: args.userScope,
           streamId: args.streamId,
           batchSize,
         },
@@ -135,13 +135,13 @@ export const cleanupFinishedStream = internalMutation({
 
     const currentStream = await ctx.db
       .query("codex_streams")
-      .withIndex("tenantId_streamId", (q) =>
-        q.eq("tenantId", args.tenantId).eq("streamId", args.streamId),
+      .withIndex("userScope_streamId", (q) =>
+        q.eq("userScope", args.userScope).eq("streamId", args.streamId),
       )
       .first();
 
     if (!currentStream) {
-      await deleteStreamStat(ctx, args.tenantId, args.streamId);
+      await deleteStreamStat(ctx, args.userScope, args.streamId);
       return { deletedDeltas: batch.length, streamDeleted: false, hasMore: false };
     }
 
@@ -150,7 +150,7 @@ export const cleanupFinishedStream = internalMutation({
     }
 
     await ctx.db.delete(currentStream._id);
-    await deleteStreamStat(ctx, args.tenantId, args.streamId);
+    await deleteStreamStat(ctx, args.userScope, args.streamId);
     return { deletedDeltas: batch.length, streamDeleted: true, hasMore: false };
   },
 });
@@ -189,7 +189,7 @@ export const cleanupExpiredDeltas = internalMutation({
 
 export const auditDataHygiene = internalQuery({
   args: {
-    tenantId: v.string(),
+    userScope: v.string(),
     sampleSize: v.optional(v.number()),
   },
   returns: v.object({
@@ -201,7 +201,7 @@ export const auditDataHygiene = internalQuery({
     const sampleSize = Math.max(1, Math.min(args.sampleSize ?? 1000, 5000));
     const stats = await ctx.db
       .query("codex_stream_stats")
-      .withIndex("tenantId_streamId", (q) => q.eq("tenantId", args.tenantId))
+      .withIndex("userScope_streamId", (q) => q.eq("userScope", args.userScope))
       .take(sampleSize);
 
     let streamStatOrphans = 0;
@@ -210,8 +210,8 @@ export const auditDataHygiene = internalQuery({
     for (const stat of stats) {
       const stream = await ctx.db
         .query("codex_streams")
-        .withIndex("tenantId_streamId", (q) =>
-          q.eq("tenantId", args.tenantId).eq("streamId", stat.streamId),
+        .withIndex("userScope_streamId", (q) =>
+          q.eq("userScope", args.userScope).eq("streamId", stat.streamId),
         )
         .first();
 

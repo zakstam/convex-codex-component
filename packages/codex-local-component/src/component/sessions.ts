@@ -4,17 +4,17 @@ import { now } from "./utils.js";
 
 export const timeoutStaleSessions = internalMutation({
   args: {
-    tenantId: v.string(),
+    userScope: v.string(),
     staleBeforeMs: v.number(),
   },
   returns: v.object({ timedOut: v.number() }),
   handler: async (ctx, args) => {
     const stale = await ctx.db
       .query("codex_sessions")
-      .withIndex("tenantId_lastHeartbeatAt")
+      .withIndex("userScope_lastHeartbeatAt")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.tenantId),
+          q.eq(q.field("userScope"), args.userScope),
           q.lt(q.field("lastHeartbeatAt"), args.staleBeforeMs),
         ),
       )

@@ -1,9 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type ActorContext = {
-  tenantId: string;
-  userId: string;
-  deviceId: string;
+  userId?: string;
 };
 
 export type BridgeState = {

@@ -17,7 +17,7 @@ type DynamicToolSpec = v2.DynamicToolSpec;
 type DynamicToolCallOutputContentItem = v2.DynamicToolCallOutputContentItem;
 type LoginAccountParams = v2.LoginAccountParams;
 
-type ActorContext = { tenantId: string; userId: string; deviceId: string };
+type ActorContext = { userId?: string };
 type StartPayload = {
   convexUrl: string;
   actor: ActorContext;
@@ -229,6 +229,7 @@ const DYNAMIC_TOOLS: DynamicToolSpec[] = [
 
 const inFlightDynamicToolCalls = new Set<string>();
 let claimLoopRunning = false;
+const helperClaimOwner = `tauri-helper-owner-${process.pid}`;
 
 function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
@@ -273,7 +274,7 @@ async function drainClaimedDispatches(): Promise<void> {
         {
           actor,
           threadId: bridgeState.localThreadId,
-          claimOwner: actor.deviceId,
+          claimOwner: helperClaimOwner,
         },
       );
       if (!claimed) {

@@ -2,6 +2,14 @@
 
 Canonical default: runtime-owned host integration (`dispatchManaged: false`).
 
+## Actor Scope Contract
+
+- Actor payload is `actor: { userId?: string }`.
+- `userId` is optional:
+- when present, data access is scoped to that user.
+- when omitted, data access is scoped to anonymous-only rows.
+- Do not send tenant/device identifiers.
+
 ## Hard Rule
 
 - Follow this file as the only default implementation strategy.

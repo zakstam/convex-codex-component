@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
+import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 
 export const listPending = query({
@@ -23,9 +24,9 @@ export const listPending = query({
     const paginated = args.threadId
       ? await ctx.db
           .query("codex_approvals")
-          .withIndex("tenantId_userId_threadId_status_createdAt_itemId", (q) =>
+          .withIndex("userScope_userId_threadId_status_createdAt_itemId", (q) =>
             q
-              .eq("tenantId", args.actor.tenantId)
+              .eq("userScope", userScopeFromActor(args.actor))
               .eq("userId", args.actor.userId)
               .eq("threadId", args.threadId!)
               .eq("status", "pending"),
@@ -45,9 +46,9 @@ export const listPending = query({
           .take(args.paginationOpts.numItems + 1)
       : await ctx.db
           .query("codex_approvals")
-          .withIndex("tenantId_userId_status_createdAt_threadId_itemId", (q) =>
+          .withIndex("userScope_userId_status_createdAt_threadId_itemId", (q) =>
             q
-              .eq("tenantId", args.actor.tenantId)
+              .eq("userScope", userScopeFromActor(args.actor))
               .eq("userId", args.actor.userId)
               .eq("status", "pending"),
           )
@@ -66,7 +67,7 @@ export const listPending = query({
                     ),
                   ),
                 )
-              : q.eq(q.field("tenantId"), args.actor.tenantId),
+              : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           )
           .order("desc")
           .take(args.paginationOpts.numItems + 1);
@@ -105,10 +106,10 @@ export const respond = mutation({
 
     const approval = await ctx.db
       .query("codex_approvals")
-      .withIndex("tenantId_threadId_turnId_itemId")
+      .withIndex("userScope_threadId_turnId_itemId")
       .filter((q) =>
         q.and(
-          q.eq(q.field("tenantId"), args.actor.tenantId),
+          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
           q.eq(q.field("threadId"), args.threadId),
           q.eq(q.field("turnId"), args.turnId),
           q.eq(q.field("itemId"), args.itemId),

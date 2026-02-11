@@ -31,24 +31,8 @@ import { ApprovalList } from "./components/ApprovalList";
 import { EventLog } from "./components/EventLog";
 import { ToastContainer, type ToastItem } from "./components/Toast";
 
-function loadStableDeviceId(): string {
-  if (typeof window === "undefined") {
-    return `tauri-${Math.random().toString(36).slice(2, 8)}`;
-  }
-  const key = "codex-local-tauri-device-id";
-  const existing = window.localStorage.getItem(key);
-  if (existing) {
-    return existing;
-  }
-  const created = `tauri-${Math.random().toString(36).slice(2, 10)}`;
-  window.localStorage.setItem(key, created);
-  return created;
-}
-
 const actor: ActorContext = {
-  tenantId: "demo-tenant",
   userId: "demo-user",
-  deviceId: loadStableDeviceId(),
 };
 
 const sessionId = crypto.randomUUID();

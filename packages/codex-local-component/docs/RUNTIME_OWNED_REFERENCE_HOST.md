@@ -5,6 +5,11 @@ Canonical default: runtime-owned host integration (`dispatchManaged: false`).
 Use `../LLMS.md` for the normative implementation sequence.
 This file is a focused runtime-owned behavior reference.
 
+## Actor Scope Contract
+
+Use `actor: { userId?: string }` when starting runtime and calling host wrappers.
+Identified `userId` values are user-scoped; omitted `userId` is anonymous-scoped.
+
 ## Runtime Mode
 
 ```ts

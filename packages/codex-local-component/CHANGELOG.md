@@ -1,5 +1,18 @@
 # @convex-dev/codex-local-component
 
+## Unreleased
+
+### Major Changes
+
+- Refactor actor scoping contract from required `tenantId/userId/deviceId` to optional `userId` only (`actor: { userId?: string }`) across component, host runtime, generated surfaces, examples, and smoke apps.
+  - Enforce user-scope normalization internally so identified users are isolated to their own rows and omitted `userId` is isolated to anonymous-only rows.
+  - Remove tenant/device scoping fields, filters, and related schema/index usage from component query/auth/session/checkpoint paths.
+  - Remove ingest-safe `SESSION_DEVICE_MISMATCH` handling and device-mismatch session guard logic.
+  - Update runtime dispatch claim-owner sourcing away from `actor.deviceId` to runtime-local ownership identifiers.
+  - Regenerate host surfaces and dependent app/generated Convex bindings to the new actor contract.
+  - Update canonical docs and host integration references to `actor: { userId?: string }` semantics.
+  - Forward-only rollout: no backward-compat shims and no data migration layer; existing deployments with legacy rows require reset/cleanup before strict schema validation passes.
+
 ## 0.7.0
 
 ### Minor Changes

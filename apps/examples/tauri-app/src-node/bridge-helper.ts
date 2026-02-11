@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
 import {
   createCodexHostRuntime,
+  hasRecoverableIngestErrors,
   type CodexHostRuntime,
 } from "@zakstam/codex-local-component/host";
 import type {
@@ -97,10 +98,6 @@ function randomSessionId(): string {
 
 function emit(event: HelperEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
-}
-
-function isRecoverableSyncCode(code: unknown): boolean {
-  return code === "OUT_OF_ORDER" || code === "REPLAY_GAP";
 }
 
 function toErrorCode(value: unknown): string {
@@ -572,9 +569,8 @@ async function startBridge(payload: StartPayload): Promise<void> {
           }
 
           const initialErrors = initialResult.errors as IngestBatchError[];
-          const hasRecoverableRejection = initialErrors.some((ingestError: IngestBatchError) =>
-            isRecoverableSyncCode(ingestError.code),
-          );
+          // Recoverability is contract-owned by ingestSafe errors[].recoverable.
+          const hasRecoverableRejection = hasRecoverableIngestErrors(initialErrors);
           if (hasRecoverableRejection && activeSessionId && actor) {
             const nextSessionId = randomSessionId();
             activeSessionId = nextSessionId;
@@ -615,36 +611,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
             errors: mapIngestErrors(initialErrors),
           };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          const needsSessionRollover =
-            message.includes("E_SYNC_OUT_OF_ORDER") || message.includes("E_SYNC_REPLAY_GAP");
-
-          if (!needsSessionRollover || !activeSessionId || !actor) {
-            throw error;
-          }
-
-          const nextSessionId = randomSessionId();
-          activeSessionId = nextSessionId;
-          await client.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-            actor,
-            sessionId: nextSessionId,
-            threadId: args.threadId,
-          });
-
-          emit({
-            type: "global",
-            payload: {
-              kind: "sync/session_rolled_over",
-              reason: message,
-              threadId: args.threadId,
-            },
-          });
-
-          const result = await runIngest(nextSessionId);
-          return {
-            status: result.status,
-            errors: mapIngestErrors(result.errors as IngestBatchError[]),
-          };
+          throw error;
         }
       },
       upsertPendingServerRequest: async ({ actor: requestActor, request }) => {

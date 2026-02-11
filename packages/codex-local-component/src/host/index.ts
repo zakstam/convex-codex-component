@@ -50,6 +50,8 @@ export {
   type NormalizedInboundStreamDelta,
 } from "./normalizeInboundDeltas.js";
 
+export { hasRecoverableIngestErrors, type HostIngestErrorLike } from "./ingestRecovery.js";
+
 export {
   computeDataHygiene,
   computeDurableHistoryStats,

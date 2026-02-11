@@ -6,10 +6,21 @@ export type ClassifiedMessage =
   | { scope: "thread"; kind: string; threadId: string }
   | { scope: "global"; kind: string };
 
-export type CanonicalTerminalStatus = {
-  status: "completed" | "failed" | "interrupted";
-  error?: string;
-};
+export type CanonicalTerminalErrorCode =
+  | "E_TERMINAL_INTERRUPTED"
+  | "E_TERMINAL_FAILED"
+  | "E_TERMINAL_PAYLOAD_PARSE_FAILED"
+  | "E_TERMINAL_STATUS_UNEXPECTED"
+  | "E_TERMINAL_ERROR_MISSING"
+  | "E_TERMINAL_MESSAGE_MALFORMED";
+
+export type CanonicalTerminalStatus =
+  | { status: "completed" }
+  | {
+      status: "failed" | "interrupted";
+      error: string;
+      code: CanonicalTerminalErrorCode;
+    };
 
 export type CanonicalApprovalRequest = {
   itemId: string;
@@ -94,7 +105,8 @@ function parsePayloadMessage(payloadJson: string): ServerInboundMessage | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(payloadJson);
-  } catch {
+  } catch (error) {
+    void error;
     payloadMessageCache.set(payloadJson, null);
     return null;
   }
@@ -363,6 +375,14 @@ export function extractStreamId(_message: ServerInboundMessage): string | undefi
   return undefined;
 }
 
+function terminalFailure(
+  status: "failed" | "interrupted",
+  code: CanonicalTerminalErrorCode,
+  error: string,
+): CanonicalTerminalStatus {
+  return { status, code, error };
+}
+
 export function terminalStatusForMessage(message: ServerInboundMessage): CanonicalTerminalStatus | null {
   const kind = kindOf(message);
   if (!TURN_COMPLETED_KINDS.has(kind) && !TURN_FAILED_KINDS.has(kind)) {
@@ -372,31 +392,73 @@ export function terminalStatusForMessage(message: ServerInboundMessage): Canonic
   if (kind === "turn/completed") {
     const parsed = parseMethodMessage(message, "turn/completed");
     if (!parsed) {
-      return { status: "completed" };
+      return terminalFailure(
+        "failed",
+        "E_TERMINAL_MESSAGE_MALFORMED",
+        "turn/completed message shape is invalid",
+      );
     }
     if (parsed.params.turn.status === "completed") {
       return { status: "completed" };
     }
     if (parsed.params.turn.status === "interrupted") {
+      const interruptedMessage = parsed.params.turn.error?.message;
+      if (typeof interruptedMessage !== "string" || interruptedMessage.length === 0) {
+        return terminalFailure(
+          "interrupted",
+          "E_TERMINAL_ERROR_MISSING",
+          "turn/completed interrupted status missing error.message",
+        );
+      }
       return {
         status: "interrupted",
-        error: parsed.params.turn.error?.message ?? "turn interrupted",
+        code: "E_TERMINAL_INTERRUPTED",
+        error: interruptedMessage,
       };
     }
     if (parsed.params.turn.status === "failed") {
+      const failedMessage = parsed.params.turn.error?.message;
+      if (typeof failedMessage !== "string" || failedMessage.length === 0) {
+        return terminalFailure(
+          "failed",
+          "E_TERMINAL_ERROR_MISSING",
+          "turn/completed failed status missing error.message",
+        );
+      }
       return {
         status: "failed",
-        error: parsed.params.turn.error?.message ?? "turn failed",
+        code: "E_TERMINAL_FAILED",
+        error: failedMessage,
       };
     }
-    return { status: "completed" };
+    return terminalFailure(
+      "failed",
+      "E_TERMINAL_STATUS_UNEXPECTED",
+      `turn/completed reported unexpected status "${parsed.params.turn.status}"`,
+    );
   }
 
   const parsed = parseMethodMessage(message, "error");
-  if (parsed) {
-    return { status: "failed", error: parsed.params.error.message };
+  if (!parsed) {
+    return terminalFailure(
+      "failed",
+      "E_TERMINAL_MESSAGE_MALFORMED",
+      "error message shape is invalid",
+    );
   }
-  return { status: "failed", error: "stream error" };
+  const errorMessage = parsed.params.error?.message;
+  if (typeof errorMessage !== "string" || errorMessage.length === 0) {
+    return terminalFailure(
+      "failed",
+      "E_TERMINAL_ERROR_MISSING",
+      "error event missing params.error.message",
+    );
+  }
+  return {
+    status: "failed",
+    code: "E_TERMINAL_FAILED",
+    error: errorMessage,
+  };
 }
 
 export function terminalStatusForPayload(
@@ -409,15 +471,23 @@ export function terminalStatusForPayload(
   if (kind === "turn/completed") {
     const parsed = parseMethodPayload(payloadJson, "turn/completed");
     if (!parsed) {
-      return { status: "completed" };
+      return terminalFailure(
+        "failed",
+        "E_TERMINAL_PAYLOAD_PARSE_FAILED",
+        "Failed to parse payload for turn/completed terminal status",
+      );
     }
     return terminalStatusForMessage(parsed);
   }
   const parsed = parseMethodPayload(payloadJson, "error");
-  if (parsed) {
-    return terminalStatusForMessage(parsed);
+  if (!parsed) {
+    return terminalFailure(
+      "failed",
+      "E_TERMINAL_PAYLOAD_PARSE_FAILED",
+      "Failed to parse payload for error terminal status",
+    );
   }
-  return { status: "failed", error: "stream error" };
+  return terminalStatusForMessage(parsed);
 }
 
 export function approvalRequestForMessage(message: ServerInboundMessage): CanonicalApprovalRequest | null {

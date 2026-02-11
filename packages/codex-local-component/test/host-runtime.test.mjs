@@ -21,6 +21,8 @@ function createHarness() {
   const resolved = [];
   const ingestCalls = [];
   const dispatchQueue = [];
+  const protocolErrors = [];
+  const failedDispatches = [];
 
   const runtime = createCodexHostRuntime({
     bridgeFactory: (_config, nextHandlers) => {
@@ -76,8 +78,15 @@ function createHarness() {
       },
       markTurnDispatchStarted: async () => undefined,
       markTurnDispatchCompleted: async () => undefined,
-      markTurnDispatchFailed: async () => undefined,
+      markTurnDispatchFailed: async (args) => {
+        failedDispatches.push(args);
+      },
       cancelTurnDispatch: async () => undefined,
+    },
+    handlers: {
+      onProtocolError: (error) => {
+        protocolErrors.push(error);
+      },
     },
   });
 
@@ -96,7 +105,7 @@ function createHarness() {
     await handlers.onEvent(event);
   };
 
-  return { runtime, sent, emitResponse, emitGlobalMessage, emitEvent, upserted, resolved, ingestCalls };
+  return { runtime, sent, emitResponse, emitGlobalMessage, emitEvent, upserted, resolved, ingestCalls, protocolErrors, failedDispatches };
 }
 
 test("runtime start supports threadStrategy=resume", async () => {
@@ -450,6 +459,81 @@ test("runtime ingests turn-scoped events", async () => {
   assert.equal(state.ingestMetrics.skippedEventCount, 0);
   assert.deepEqual(state.ingestMetrics.enqueuedByKind, [{ kind: "turn/completed", count: 1 }]);
 
+  await runtime.stop();
+});
+
+test("runtime fail-closes malformed managed server request payloads", async () => {
+  const { runtime, sent, emitResponse, emitEvent, protocolErrors } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+    dispatchManaged: false,
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await emitEvent({
+    eventId: "evt-malformed-managed",
+    threadId,
+    turnId: "turn-1",
+    streamId: `${threadId}:turn-1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "item/commandExecution/requestApproval",
+    payloadJson: "{",
+    createdAt: Date.now(),
+  });
+
+  const state = runtime.getState();
+  assert.equal(state.lastErrorCode, "E_RUNTIME_PROTOCOL_EVENT_INVALID");
+  assert.match(state.lastError ?? "", /Failed to process event "item\/commandExecution\/requestApproval"/);
+  assert.equal(protocolErrors.length, 1);
+  assert.match(protocolErrors[0].message, /E_RUNTIME_PROTOCOL_EVENT_INVALID/);
+  await runtime.stop();
+});
+
+test("runtime fail-closes malformed turn/completed payloads by marking dispatch failed", async () => {
+  const { runtime, sent, emitResponse, emitEvent, protocolErrors, failedDispatches } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+    dispatchManaged: false,
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  runtime.sendTurn("hello");
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
+  await emitResponse({
+    id: turnStartRequest.id,
+    result: {
+      thread: { id: threadId },
+      turn: { id: "turn-1", status: "in_progress", items: [] },
+    },
+  });
+
+  await emitEvent({
+    eventId: "evt-bad-turn-completed",
+    threadId,
+    turnId: "turn-1",
+    streamId: `${threadId}:turn-1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/completed",
+    payloadJson: "{",
+    createdAt: Date.now(),
+  });
+
+  const state = runtime.getState();
+  assert.equal(state.lastErrorCode, null);
+  assert.equal(protocolErrors.length, 0);
+  assert.equal(failedDispatches.length, 1);
+  assert.equal(failedDispatches[0].code, "TURN_COMPLETED_FAILED");
+  assert.equal(failedDispatches[0].reason, "turn/completed reported failed status");
   await runtime.stop();
 });
 

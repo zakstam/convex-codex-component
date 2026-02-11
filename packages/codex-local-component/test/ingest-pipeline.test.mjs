@@ -125,7 +125,7 @@ test("collectTurnSignals tracks started turns and terminal priority by stream", 
     cursorEnd: 3,
     createdAt: 3,
     syntheticTurnStatus: "failed",
-    terminalTurnStatus: { status: "failed", error: "boom" },
+    terminalTurnStatus: { status: "failed", code: "E_TERMINAL_FAILED", error: "boom" },
     approvalRequest: null,
     approvalResolution: null,
     durableMessage: null,
@@ -133,9 +133,14 @@ test("collectTurnSignals tracks started turns and terminal priority by stream", 
   });
 
   assert.deepEqual(Array.from(ingest.collected.startedTurns), ["turn-1"]);
-  assert.deepEqual(ingest.collected.terminalTurns.get("turn-1"), { status: "failed", error: "boom" });
+  assert.deepEqual(ingest.collected.terminalTurns.get("turn-1"), {
+    status: "failed",
+    code: "E_TERMINAL_FAILED",
+    error: "boom",
+  });
   assert.deepEqual(ingest.collected.terminalByStream.get("stream-1"), {
     status: "failed",
+    code: "E_TERMINAL_FAILED",
     error: "boom",
   });
 });

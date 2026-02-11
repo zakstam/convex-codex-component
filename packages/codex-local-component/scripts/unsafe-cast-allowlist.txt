@@ -79,6 +79,18 @@ src/protocol/events.ts:296:      ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:301:    const msg = params.msg as Record<string, unknown>;
 src/protocol/events.ts:314:    ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:428:    ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:96:  return item as ThreadItem;
+src/protocol/events.ts:121:  const message = parsed as ServerInboundMessage;
+src/protocol/events.ts:139:  return message as Extract<ServerInboundMessage, { method: M }>;
+src/protocol/events.ts:272:  const params = message.params as Record<string, unknown>;
+src/protocol/events.ts:308:      ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:313:    const msg = params.msg as Record<string, unknown>;
+src/protocol/events.ts:326:    ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:498:    ? (message.params as Record<string, unknown>)
+src/component/pagination.ts:18:    return JSON.parse(cursor) as T;
+src/host/runtime.ts:388:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/host/runtime.ts:1264:                ? (message.result as Record<string, unknown>)
+src/host/runtime.ts:1267:                ? (resultObj.turn as Record<string, unknown>)
 src/host/convexSlice.ts:514:  const record = value as Record<string, unknown>;
 src/host/convexSlice.ts:526:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
 src/host/convexSlice.ts:534:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;

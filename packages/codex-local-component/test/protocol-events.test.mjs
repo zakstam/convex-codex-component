@@ -28,7 +28,16 @@ test("terminalStatusForPayload maps modern turn/completed statuses", () => {
 
   assert.deepEqual(terminalStatusForPayload("turn/completed", interruptedPayload), {
     status: "interrupted",
+    code: "E_TERMINAL_INTERRUPTED",
     error: "stopped",
+  });
+});
+
+test("terminalStatusForPayload fail-closes on malformed terminal payload", () => {
+  assert.deepEqual(terminalStatusForPayload("turn/completed", "{"), {
+    status: "failed",
+    code: "E_TERMINAL_PAYLOAD_PARSE_FAILED",
+    error: "Failed to parse payload for turn/completed terminal status",
   });
 });
 

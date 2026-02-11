@@ -10,6 +10,8 @@ This is an operations/runbook companion to `../LLMS.md`.
 - `E_RUNTIME_DISPATCH_MODE_CONFLICT`: runtime API used in the wrong mode for current startup config.
 - `E_RUNTIME_DISPATCH_TURN_IN_FLIGHT`: attempted to start another turn while one is active.
 - `E_RUNTIME_DISPATCH_CLAIM_INVALID`: claimed-turn payload was invalid.
+- `E_RUNTIME_PROTOCOL_EVENT_INVALID`: incoming event payload was malformed or inconsistent with required runtime shape.
+- `E_RUNTIME_INGEST_FLUSH_FAILED`: queued ingest flush failed and was surfaced explicitly.
 
 ## Authorization Errors
 
@@ -27,6 +29,15 @@ This is an operations/runbook companion to `../LLMS.md`.
 - `E_SYNC_DUP_EVENT_IN_BATCH`
 
 Use `sync.ingestSafe` in host wrappers so recoverable conditions return structured status instead of hard-failing the loop.
+
+## Terminal Status Parsing Errors
+
+- `E_TERMINAL_PAYLOAD_PARSE_FAILED`: could not decode terminal event payload.
+- `E_TERMINAL_MESSAGE_MALFORMED`: terminal message shape was invalid.
+- `E_TERMINAL_STATUS_UNEXPECTED`: `turn/completed` carried an unexpected terminal status.
+- `E_TERMINAL_ERROR_MISSING`: terminal status/event was missing a required `error.message`.
+- `E_TERMINAL_INTERRUPTED`: interrupted terminal status with explicit error details.
+- `E_TERMINAL_FAILED`: failed terminal status with explicit error details.
 
 ## Replay Recovery
 

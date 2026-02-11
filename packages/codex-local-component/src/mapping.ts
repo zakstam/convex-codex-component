@@ -195,7 +195,10 @@ export function extractCodexOverlayMessages(
     if (delta.kind === "error") {
       const turnId = turnIdForPayload(delta.kind, delta.payloadJson);
       const terminal = terminalStatusForPayload(delta.kind, delta.payloadJson);
-      const errorMessage = terminal?.error ?? "stream error";
+      if (!terminal || terminal.status === "completed") {
+        continue;
+      }
+      const errorMessage = terminal.error;
       if (!turnId) {
         continue;
       }

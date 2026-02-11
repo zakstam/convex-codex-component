@@ -48,9 +48,14 @@ test("terminal status mapping works", () => {
   assert.deepEqual(terminalStatusForEvent("turn/completed", completedPayload), { status: "completed" });
   assert.deepEqual(terminalStatusForEvent("turn/completed", interruptedPayload), {
     status: "interrupted",
+    code: "E_TERMINAL_INTERRUPTED",
     error: "stopped",
   });
-  assert.deepEqual(terminalStatusForEvent("error", failedPayload), { status: "failed", error: "boom" });
+  assert.deepEqual(terminalStatusForEvent("error", failedPayload), {
+    status: "failed",
+    code: "E_TERMINAL_FAILED",
+    error: "boom",
+  });
   assert.equal(terminalStatusForEvent("codex/event/turn_aborted", "{}"), null);
   assert.equal(terminalStatusForEvent("other", completedPayload), null);
 });

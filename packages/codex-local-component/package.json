@@ -67,8 +67,9 @@
     "test": "pnpm run build && node --test test/*.test.mjs",
     "check:mount-imports": "node ./scripts/check-mount-imports.mjs",
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
+    "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run test && pnpm run check:mount-imports && pnpm run check:host-surfaces && pnpm run check:docs:single-path"
+    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:host-surfaces && pnpm run check:docs:single-path"
   },
   "dependencies": {
     "ajv": "^8.17.1",

@@ -1,13 +1,24 @@
 import type { PaginationOptions, PaginationResult } from "convex/server";
 
+export class KeysetCursorDecodeError extends Error {
+  readonly cursor: string;
+
+  constructor(cursor: string, cause: string) {
+    super(`[E_KEYSET_CURSOR_INVALID] Invalid keyset cursor: ${cause}`);
+    this.name = "KeysetCursorDecodeError";
+    this.cursor = cursor;
+  }
+}
+
 function parseJsonCursor<T>(cursor: string | null): T | null {
   if (!cursor) {
     return null;
   }
   try {
     return JSON.parse(cursor) as T;
-  } catch {
-    return null;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new KeysetCursorDecodeError(cursor, reason);
   }
 }
 

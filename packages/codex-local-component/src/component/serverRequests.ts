@@ -63,15 +63,17 @@ function parseQuestionsJson(questionsJson: string | undefined): ToolRequestUserI
   if (!questionsJson) {
     return undefined;
   }
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(questionsJson);
-    if (Array.isArray(parsed) && parsed.every(isToolRequestUserInputQuestion)) {
-      return parsed;
-    }
-  } catch {
-    return undefined;
+    parsed = JSON.parse(questionsJson);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`[E_SERVER_REQUEST_QUESTIONS_JSON_INVALID] Failed to parse questions JSON: ${reason}`);
   }
-  return undefined;
+  if (Array.isArray(parsed) && parsed.every(isToolRequestUserInputQuestion)) {
+    return parsed;
+  }
+  throw new Error("[E_SERVER_REQUEST_QUESTIONS_JSON_INVALID] questionsJson is not a valid ToolRequestUserInputQuestion[]");
 }
 
 export const upsertPending = mutation({

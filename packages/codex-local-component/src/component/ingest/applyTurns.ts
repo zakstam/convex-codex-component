@@ -95,7 +95,7 @@ export async function finalizeTurns(
         threadId: ingest.args.threadId,
         turnId,
         status: terminal.status,
-        ...(terminal.error ? { error: terminal.error } : {}),
+        ...(terminal.status !== "completed" ? { error: terminal.error } : {}),
       },
     );
 
@@ -118,7 +118,7 @@ export async function finalizeTurns(
       pendingMessages.map((message) =>
         ingest.ctx.db.patch(message._id, {
           status: terminal.status,
-          ...(terminal.error ? { error: terminal.error } : {}),
+          error: terminal.error,
           updatedAt: now(),
           completedAt: now(),
         }),

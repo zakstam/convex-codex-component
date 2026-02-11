@@ -47,6 +47,7 @@ import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.j
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
+import { terminalStatusForPayload } from "../protocol/events.js";
 
 type ActorContext = { userId?: string };
 
@@ -158,7 +159,9 @@ export type HostRuntimeErrorCode =
   | "E_RUNTIME_DISPATCH_MODE_CONFLICT"
   | "E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE"
   | "E_RUNTIME_DISPATCH_TURN_IN_FLIGHT"
-  | "E_RUNTIME_DISPATCH_CLAIM_INVALID";
+  | "E_RUNTIME_DISPATCH_CLAIM_INVALID"
+  | "E_RUNTIME_PROTOCOL_EVENT_INVALID"
+  | "E_RUNTIME_INGEST_FLUSH_FAILED";
 
 export class CodexHostRuntimeError extends Error {
   readonly code: HostRuntimeErrorCode;
@@ -421,26 +424,27 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
   let parsed: unknown;
   try {
     parsed = JSON.parse(event.payloadJson);
-  } catch {
-    return null;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse managed server request payload: ${reason}`);
   }
 
   const message = asObject(parsed);
   if (!message || typeof message.method !== "string") {
-    return null;
+    throw new Error("Managed server request payload missing method");
   }
   if (!isManagedServerRequestMethod(message.method)) {
-    return null;
+    throw new Error(`Managed server request method mismatch: ${String(message.method)}`);
   }
   if (!isRpcId(message.id)) {
-    return null;
+    throw new Error("Managed server request payload missing valid JSON-RPC id");
   }
   const params = asObject(message.params);
   if (!params) {
-    return null;
+    throw new Error("Managed server request payload missing params object");
   }
   if (typeof params.threadId !== "string" || typeof params.turnId !== "string") {
-    return null;
+    throw new Error("Managed server request payload missing threadId/turnId");
   }
 
   const method = message.method;
@@ -451,14 +455,20 @@ function parseManagedServerRequestFromEvent(event: NormalizedEvent): PendingServ
         ? params.callId
         : null;
   if (!itemId) {
-    return null;
+    throw new Error(`Managed server request payload missing item id for ${method}`);
   }
   const reason = typeof params.reason === "string" ? params.reason : undefined;
   const questionsRaw = params.questions;
-  const questions =
-    method === "item/tool/requestUserInput" && Array.isArray(questionsRaw)
-      ? questionsRaw.filter(isToolRequestUserInputQuestion)
-      : undefined;
+  let questions: ToolRequestUserInputQuestion[] | undefined;
+  if (method === "item/tool/requestUserInput") {
+    if (!Array.isArray(questionsRaw)) {
+      throw new Error("Managed tool requestUserInput payload missing questions array");
+    }
+    if (!questionsRaw.every(isToolRequestUserInputQuestion)) {
+      throw new Error("Managed tool requestUserInput payload has invalid question shape");
+    }
+    questions = questionsRaw;
+  }
 
   return {
     requestId: message.id,
@@ -513,20 +523,15 @@ function isResponse(message: ServerInboundMessage): message is CodexResponse {
 }
 
 function parseTurnCompletedStatus(payloadJson: string): "completed" | "failed" | "cancelled" {
-  try {
-    const parsed = JSON.parse(payloadJson) as unknown;
-    const root = asObject(parsed);
-    const params = asObject(root?.params);
-    const turn = asObject(params?.turn);
-    const status = typeof turn?.status === "string" ? turn.status : null;
-    if (status === "failed") {
-      return "failed";
-    }
-    if (status === "interrupted") {
-      return "cancelled";
-    }
-  } catch {
-    // ignore malformed payload and fallback to completed.
+  const terminal = terminalStatusForPayload("turn/completed", payloadJson);
+  if (!terminal) {
+    throw new Error("turn/completed payload did not produce terminal status");
+  }
+  if (terminal.status === "failed") {
+    return "failed";
+  }
+  if (terminal.status === "interrupted") {
+    return "cancelled";
   }
   return "completed";
 }
@@ -953,7 +958,14 @@ export function createCodexHostRuntime(args: {
       }
     });
 
-    flushTail = next.catch(() => undefined);
+    flushTail = next.catch((error) => {
+      const reason = error instanceof Error ? error.message : String(error);
+      const coded = runtimeError("E_RUNTIME_INGEST_FLUSH_FAILED", `Failed to flush ingest queue: ${reason}`);
+      args.handlers?.onProtocolError?.({
+        message: coded.message,
+        line: "[runtime:flushQueue]",
+      });
+    });
     await next;
   };
 
@@ -993,7 +1005,14 @@ export function createCodexHostRuntime(args: {
     if (!flushTimer) {
       flushTimer = setTimeout(() => {
         flushTimer = null;
-        void flushQueue();
+        void flushQueue().catch((error) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          const coded = runtimeError("E_RUNTIME_INGEST_FLUSH_FAILED", `Deferred ingest flush failed: ${reason}`);
+          args.handlers?.onProtocolError?.({
+            message: coded.message,
+            line: "[runtime:flushTimer]",
+          });
+        });
       }, turnInFlight ? ingestFlushMs : 5000);
     }
   };
@@ -1030,7 +1049,8 @@ export function createCodexHostRuntime(args: {
     }
 
     const bridgeHandlers: ConstructorParameters<typeof CodexLocalBridge>[1] = {
-        onEvent: async (event) => {
+      onEvent: async (event) => {
+        try {
           if (!actor || !sessionId) {
             return;
           }
@@ -1081,10 +1101,10 @@ export function createCodexHostRuntime(args: {
           }
 
           if (event.kind === "turn/completed") {
+            const terminal = parseTurnCompletedStatus(event.payloadJson);
             if (actor && threadId && event.turnId) {
               const dispatch = dispatchByTurnId.get(event.turnId);
               if (dispatch) {
-                const terminal = parseTurnCompletedStatus(event.payloadJson);
                 if (terminal === "completed") {
                   await args.persistence.markTurnDispatchCompleted({
                     actor,
@@ -1187,8 +1207,19 @@ export function createCodexHostRuntime(args: {
             event.kind === "error";
 
           await enqueueIngestDelta(delta, forceFlush);
-        },
-        onGlobalMessage: async (message) => {
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          const coded = runtimeError(
+            "E_RUNTIME_PROTOCOL_EVENT_INVALID",
+            `Failed to process event "${event.kind}": ${reason}`,
+          );
+          args.handlers?.onProtocolError?.({
+            message: coded.message,
+            line: event.payloadJson,
+          });
+        }
+      },
+      onGlobalMessage: async (message) => {
           if (isChatgptAuthTokensRefreshRequest(message)) {
             registerPendingAuthTokensRefreshRequest({
               requestId: message.id,
@@ -1263,20 +1294,20 @@ export function createCodexHostRuntime(args: {
             }
           }
           args.handlers?.onGlobalMessage?.(message);
-        },
-        onProtocolError: async ({ line, error }) => {
-          const message = error instanceof Error ? error.message : String(error);
-          lastErrorCode = null;
-          lastErrorMessage = message;
-          emitState();
-          args.handlers?.onProtocolError?.({ message, line });
-        },
-        onProcessExit: (code) => {
-          lastErrorCode = null;
-          lastErrorMessage = `codex exited with code ${String(code)}`;
-          emitState();
-        },
-      };
+      },
+      onProtocolError: async ({ line, error }) => {
+        const message = error instanceof Error ? error.message : String(error);
+        lastErrorCode = null;
+        lastErrorMessage = message;
+        emitState();
+        args.handlers?.onProtocolError?.({ message, line });
+      },
+      onProcessExit: (code) => {
+        lastErrorCode = null;
+        lastErrorMessage = `codex exited with code ${String(code)}`;
+        emitState();
+      },
+    };
     bridge = args.bridgeFactory
       ? args.bridgeFactory(bridgeConfig, bridgeHandlers)
       : new CodexLocalBridge(bridgeConfig, bridgeHandlers);

@@ -37,21 +37,52 @@ app.use(codexLocal);
 export default app;
 ```
 
-3. Generate host surfaces from the canonical manifest.
+3. Generate Convex app types once before host wiring.
+
+```bash
+npx convex dev --once
+```
+
+- Required so app-generated `./_generated/api` and `./_generated/server` exist and stay authoritative.
+
+4. Generate host surfaces from the canonical manifest.
 
 ```bash
 pnpm run host:generate
 ```
 
-4. Keep host files in this split:
+5. Keep host files in this split:
 
 - `convex/chat.generated.ts`: generated preset wrappers (do not edit)
 - `convex/chat.extensions.ts`: app-owned custom endpoints
 - `convex/chat.ts`: stable entrypoint (`export *` from generated + extensions)
 
-5. Use runtime-owned host preset behavior only.
+6. Use runtime-owned host preset behavior only.
 
 - Generated wrappers are based on `defineRuntimeOwnedHostSlice(...)`.
+- Construct runtime with explicit persistence wiring:
+
+```ts
+import { createCodexHostRuntime } from "@zakstam/codex-local-component/host";
+
+const runtime = createCodexHostRuntime({
+  persistence: {
+    ensureThread,
+    ensureSession,
+    ingestSafe,
+    upsertPendingServerRequest,
+    resolvePendingServerRequest,
+    listPendingServerRequests,
+    enqueueTurnDispatch,
+    claimNextTurnDispatch,
+    markTurnDispatchStarted,
+    markTurnDispatchCompleted,
+    markTurnDispatchFailed,
+    cancelTurnDispatch,
+  },
+});
+```
+
 - Runtime startup must be explicit runtime-owned:
 
 ```ts
@@ -63,16 +94,16 @@ await runtime.start({
 });
 ```
 
-6. Start turns through `runtime.sendTurn(text)`.
+7. Start turns through `runtime.sendTurn(text)`.
 
 - Do not call `startClaimedTurn` in the canonical path.
 
-7. Validate host wiring during startup.
+8. Validate host wiring during startup.
 
 - Query `chat.validateHostWiring` once at process boot.
 - Fail fast if `ok` is `false`.
 
-8. Use canonical host query/mutation endpoints in React hooks.
+9. Use canonical host query/mutation endpoints in React hooks.
 
 - `useCodexMessages` -> `chat.listThreadMessagesForHooks`
 - `useCodexTurn` -> `chat.listTurnMessagesForHooks`
@@ -88,6 +119,13 @@ pnpm run host:generate
 pnpm run host:check
 ```
 
+If your app does not define monorepo wrappers, run local equivalents:
+
+```bash
+pnpm run generate:host-surfaces
+pnpm run check:host-surfaces
+```
+
 From each host app:
 
 ```bash
@@ -95,6 +133,8 @@ pnpm run dev:convex:once
 pnpm run wiring:smoke
 pnpm run typecheck
 ```
+
+If your app does not define `wiring:smoke`, run the check inline with `ConvexHttpClient` against `chat.validateHostWiring`.
 
 ## Required Host Surface Ownership
 

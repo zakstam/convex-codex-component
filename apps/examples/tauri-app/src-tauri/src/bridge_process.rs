@@ -36,6 +36,7 @@ pub struct BridgeStateSnapshot {
     pub running: bool,
     pub local_thread_id: Option<String>,
     pub turn_id: Option<String>,
+    pub last_error_code: Option<String>,
     pub last_error: Option<String>,
     pub runtime_thread_id: Option<String>,
     pub pending_server_request_count: Option<u64>,
@@ -281,6 +282,7 @@ impl BridgeRuntime {
                 "ingestSkippedEventCount": 0,
                 "ingestEnqueuedByKind": [],
                 "ingestSkippedByKind": [],
+                "lastErrorCode": null,
                 "lastError": null
             }),
         );
@@ -335,6 +337,7 @@ impl BridgeRuntime {
             snapshot.ingest_skipped_event_count = Some(0);
             snapshot.ingest_enqueued_by_kind = Some(Vec::new());
             snapshot.ingest_skipped_by_kind = Some(Vec::new());
+            snapshot.last_error_code = None;
             snapshot.last_error = Some(message.clone());
         }
         let _ = app.emit(
@@ -349,6 +352,7 @@ impl BridgeRuntime {
                 "ingestSkippedEventCount": 0,
                 "ingestEnqueuedByKind": [],
                 "ingestSkippedByKind": [],
+                "lastErrorCode": null,
                 "lastError": message
             }),
         );

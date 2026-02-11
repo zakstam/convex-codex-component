@@ -170,7 +170,30 @@ Use `CodexLocalBridge` from desktop/CLI runtime and provide:
 - `threadStrategy: "start"` (default)
 - `threadStrategy: "resume"` with `runtimeThreadId`
 - `threadStrategy: "fork"` with `runtimeThreadId`
+- required mode switch: `dispatchManaged: true | false`
 - optional `dynamicTools` on `start` and `resumeThread` for dynamic tool registration
+
+Runtime dispatch ownership is explicit and non-overlapping:
+
+- `dispatchManaged: false`: runtime owns enqueue/claim via `sendTurn(text)`.
+- `dispatchManaged: true`: external worker owns enqueue/claim and runtime only executes claimed work via:
+  - `startClaimedTurn({ dispatchId, claimToken, turnId, inputText, idempotencyKey? })`
+
+Reference docs per mode:
+
+- `RUNTIME_OWNED_REFERENCE_HOST.md` for runtime-owned orchestration (`dispatchManaged: false`).
+- `DISPATCH_MANAGED_REFERENCE_HOST.md` for external dispatch orchestration (`dispatchManaged: true`).
+
+Guardrails:
+
+- `sendTurn` throws `E_RUNTIME_DISPATCH_MODE_CONFLICT` when `dispatchManaged: true`.
+- `startClaimedTurn` throws `E_RUNTIME_DISPATCH_MODE_CONFLICT` when `dispatchManaged: false`.
+- Runtime uses explicit error codes:
+  - `E_RUNTIME_DISPATCH_MODE_REQUIRED`
+  - `E_RUNTIME_DISPATCH_MODE_CONFLICT`
+  - `E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE`
+  - `E_RUNTIME_DISPATCH_TURN_IN_FLIGHT`
+  - `E_RUNTIME_DISPATCH_CLAIM_INVALID`
 
 The runtime also exposes typed app-server lifecycle methods:
 
@@ -188,6 +211,7 @@ The runtime also exposes typed app-server lifecycle methods:
 - `listThreads(params?)`
 - `listLoadedThreads(params?)`
 - `listPendingServerRequests(localThreadId?)`
+- `startClaimedTurn({ dispatchId, claimToken, turnId, inputText, idempotencyKey? })`
 - `respondCommandApproval({ requestId, decision })`
 - `respondFileChangeApproval({ requestId, decision })`
 - `respondToolUserInput({ requestId, answers })`
@@ -196,7 +220,7 @@ The runtime also exposes typed app-server lifecycle methods:
 
 `listPendingServerRequests` filters by the persisted local thread id (Convex `threadId`), not the app-server runtime thread id.
 `account/chatgptAuthTokens/refresh` pending requests are tracked in runtime memory only (not persisted in Convex `serverRequests` tables).
-`getState()` includes ingest counters (`enqueuedEventCount`, `skippedEventCount`, and per-kind breakdowns) so hosts can diagnose unexpected idle ingest traffic.
+`getState()` includes `dispatchManaged`, `lastErrorCode`, and ingest counters (`enqueuedEventCount`, `skippedEventCount`, and per-kind breakdowns) so hosts can diagnose ownership and ingest issues.
 
 Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 
@@ -209,6 +233,7 @@ Guardrail: lifecycle mutation methods are blocked while a turn is in flight.
 3. `sync.ingestSafe` with split payload:
    - `streamDeltas`
    - `lifecycleEvents`
+   - optionally pre-normalize mixed payloads with `normalizeInboundDeltas(...)` from `@zakstam/codex-local-component/host/convex`
 4. Read durable history using `messages.listByThread` / `messages.getByTurn`.
 5. For stream recovery/reconnect:
    - read with `sync.replay`
@@ -271,3 +296,13 @@ Recommended flow:
 2. collect user decision/answers
 3. call matching runtime response API
 4. runtime sends JSON-RPC response and marks request answered/expired
+
+## 9. Dispatch observability
+
+Use host wrapper `dispatchObservabilityForActor` (and `vHostDispatchObservability`) to project queue/claim/runtime/turn correlation in one query response:
+
+- dispatch row (`dispatchId`, `status`, `turnId`, runtime ids)
+- claim projection (`owner`, `token`, `leaseExpiresAt`, `active`)
+- runtime projection (`runtimeThreadId`, `runtimeTurnId`, `inFlight`)
+- turn projection (`turnId`, terminal/non-terminal status)
+- correlation ids (`dispatchId`, `claimToken`, local/runtime turn ids)

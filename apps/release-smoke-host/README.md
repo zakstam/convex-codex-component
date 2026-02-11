@@ -38,6 +38,7 @@ pnpm start
 - Shared host wrapper slice usage via `@zakstam/codex-local-component/host`
   (keeps smoke host endpoints aligned with example apps).
 - End-to-end thread/turn/event persistence through host wrappers.
+- Dispatch observability projection (`chat.getDispatchObservability`) with queue/claim/runtime/turn correlations.
 - Interrupt path and reconnect replay behavior in a real host context.
 
 ## Helpful commands

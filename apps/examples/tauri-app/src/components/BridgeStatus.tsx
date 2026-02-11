@@ -51,7 +51,10 @@ export function BridgeStatus({ bridge }: Props) {
         {bridge.lastError && (
           <div className="bridge-field error-field">
             <span className="bridge-field-label">Error</span>
-            <span className="code error-text">{bridge.lastError}</span>
+            <span className="code error-text">
+              {bridge.lastErrorCode ? `[${bridge.lastErrorCode}] ` : ""}
+              {bridge.lastError}
+            </span>
           </div>
         )}
       </div>

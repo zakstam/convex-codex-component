@@ -46,6 +46,7 @@ import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.j
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
+import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 
 type ActorContext = { tenantId: string; userId: string; deviceId: string };
 
@@ -123,6 +124,7 @@ type PendingRequest = {
   dispatchId?: string;
   claimToken?: string;
   turnId?: string;
+  dispatchSource?: "runtime_queue" | "external_claim";
   resolve?: (message: CodexResponse) => void;
   reject?: (error: Error) => void;
 };
@@ -135,6 +137,7 @@ type PendingAuthTokensRefreshRequest = {
 
 export type HostRuntimeState = {
   running: boolean;
+  dispatchManaged: boolean | null;
   threadId: string | null;
   externalThreadId: string | null;
   turnId: string | null;
@@ -146,12 +149,31 @@ export type HostRuntimeState = {
     enqueuedByKind: Array<{ kind: string; count: number }>;
     skippedByKind: Array<{ kind: string; count: number }>;
   };
+  lastErrorCode: HostRuntimeErrorCode | null;
   lastError: string | null;
 };
+
+export type HostRuntimeErrorCode =
+  | "E_RUNTIME_DISPATCH_MODE_REQUIRED"
+  | "E_RUNTIME_DISPATCH_MODE_CONFLICT"
+  | "E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE"
+  | "E_RUNTIME_DISPATCH_TURN_IN_FLIGHT"
+  | "E_RUNTIME_DISPATCH_CLAIM_INVALID";
+
+export class CodexHostRuntimeError extends Error {
+  readonly code: HostRuntimeErrorCode;
+
+  constructor(code: HostRuntimeErrorCode, message: string) {
+    super(`[${code}] ${message}`);
+    this.name = "CodexHostRuntimeError";
+    this.code = code;
+  }
+}
 
 export type HostRuntimeStartArgs = {
   actor: ActorContext;
   sessionId: string;
+  dispatchManaged: boolean;
   externalThreadId?: string;
   runtimeThreadId?: string;
   threadStrategy?: "start" | "resume" | "fork";
@@ -290,6 +312,13 @@ export type CodexHostRuntime = {
   start: (args: HostRuntimeStartArgs) => Promise<void>;
   stop: () => Promise<void>;
   sendTurn: (text: string) => void;
+  startClaimedTurn: (args: {
+    dispatchId: string;
+    claimToken: string;
+    turnId: string;
+    inputText: string;
+    idempotencyKey?: string;
+  }) => Promise<void>;
   interrupt: () => void;
   resumeThread: (
     runtimeThreadId: string,
@@ -518,16 +547,18 @@ export function createCodexHostRuntime(args: {
   let turnInFlight = false;
   let turnSettled = false;
   let interruptRequested = false;
+  let dispatchManaged: boolean | null = null;
   let nextRequestId = 1;
   let pendingDispatchTextQueue: string[] = [];
   let claimLoopRunning = false;
-  const dispatchByTurnId = new Map<string, { dispatchId: string; claimToken: string }>();
+  const dispatchByTurnId = new Map<string, { dispatchId: string; claimToken: string; source: "runtime_queue" | "external_claim" }>();
   let activeDispatch:
     | {
         dispatchId: string;
         claimToken: string;
         turnId: string;
         text: string;
+        source: "runtime_queue" | "external_claim";
       }
     | null = null;
   let startupModel: string | undefined;
@@ -543,6 +574,8 @@ export function createCodexHostRuntime(args: {
   const skippedByKind = new Map<string, number>();
   let enqueuedEventCount = 0;
   let skippedEventCount = 0;
+  let lastErrorCode: HostRuntimeErrorCode | null = null;
+  let lastErrorMessage: string | null = null;
 
   const pendingRequests = new Map<number, PendingRequest>();
 
@@ -562,9 +595,19 @@ export function createCodexHostRuntime(args: {
     skippedEventCount = 0;
   };
 
-  const emitState = (lastError: string | null = null) => {
+  const emitState = (error?: { code: HostRuntimeErrorCode; message: string } | null) => {
+    if (error === undefined) {
+      // keep previous error state as-is
+    } else if (error === null) {
+      lastErrorCode = null;
+      lastErrorMessage = null;
+    } else {
+      lastErrorCode = error.code;
+      lastErrorMessage = `[${error.code}] ${error.message}`;
+    }
     args.handlers?.onState?.({
       running: !!bridge,
+      dispatchManaged,
       threadId,
       externalThreadId,
       turnId,
@@ -576,8 +619,15 @@ export function createCodexHostRuntime(args: {
         enqueuedByKind: snapshotKindCounts(enqueuedByKind),
         skippedByKind: snapshotKindCounts(skippedByKind),
       },
-      lastError,
+      lastErrorCode,
+      lastError: lastErrorMessage,
     });
+  };
+
+  const runtimeError = (code: HostRuntimeErrorCode, message: string): CodexHostRuntimeError => {
+    const error = new CodexHostRuntimeError(code, message);
+    emitState({ code, message });
+    return error;
   };
 
   const clearFlushTimer = () => {
@@ -765,6 +815,7 @@ export function createCodexHostRuntime(args: {
     claimToken: string;
     leaseExpiresAt: number;
     attemptCount: number;
+    source: "runtime_queue" | "external_claim";
   }) => {
     if (!runtimeThreadId) {
       throw new Error("Cannot dispatch turn before runtime thread is ready.");
@@ -774,6 +825,7 @@ export function createCodexHostRuntime(args: {
       claimToken: claimed.claimToken,
       turnId: claimed.turnId,
       text: claimed.inputText,
+      source: claimed.source,
     };
     turnId = claimed.turnId;
     turnInFlight = true;
@@ -786,6 +838,7 @@ export function createCodexHostRuntime(args: {
       dispatchId: claimed.dispatchId,
       claimToken: claimed.claimToken,
       turnId: claimed.turnId,
+      dispatchSource: claimed.source,
     });
     assertRuntimeReady().send(
       buildTurnStartTextRequest(reqId, {
@@ -796,6 +849,9 @@ export function createCodexHostRuntime(args: {
   };
 
   const processDispatchQueue = async (): Promise<void> => {
+    if (dispatchManaged !== false) {
+      return;
+    }
     if (claimLoopRunning) {
       return;
     }
@@ -803,6 +859,9 @@ export function createCodexHostRuntime(args: {
     try {
       while (true) {
         if (!actor || !threadId) {
+          return;
+        }
+        if (activeDispatch?.source === "external_claim") {
           return;
         }
         if (turnInFlight && !turnSettled) {
@@ -837,7 +896,10 @@ export function createCodexHostRuntime(args: {
         }
         pendingDispatchTextQueue.shift();
         try {
-          await sendClaimedDispatch(claimed);
+          await sendClaimedDispatch({
+            ...claimed,
+            source: "runtime_queue",
+          });
         } catch (error) {
           if (actor && threadId) {
             await args.persistence.markTurnDispatchFailed({
@@ -875,11 +937,15 @@ export function createCodexHostRuntime(args: {
       clearFlushTimer();
       while (ingestQueue.length > 0) {
         const batch = ingestQueue.splice(0, MAX_BATCH_SIZE);
+        const normalizedBatch = normalizeInboundDeltas(batch).map((delta, index) => ({
+          ...delta,
+          threadId: batch[index]?.threadId ?? activeThreadId,
+        }));
         const result = await args.persistence.ingestSafe({
           actor: activeActor,
           sessionId: activeSessionId,
           threadId: activeThreadId,
-          deltas: batch,
+          deltas: normalizedBatch,
         });
         if (result.status === "rejected") {
           throw new Error(`ingestSafe rejected: ${result.errors.map((err) => err.code).join(",")}`);
@@ -937,14 +1003,22 @@ export function createCodexHostRuntime(args: {
       emitState();
       return;
     }
+    if (typeof startArgs.dispatchManaged !== "boolean") {
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_MODE_REQUIRED",
+        "start() requires dispatchManaged=true|false to make orchestration ownership explicit.",
+      );
+    }
 
     actor = startArgs.actor;
+    dispatchManaged = startArgs.dispatchManaged;
     sessionId = startArgs.sessionId ? `${startArgs.sessionId}-${randomSessionId()}` : randomSessionId();
     externalThreadId = startArgs.externalThreadId ?? null;
     startupModel = startArgs.model;
     startupCwd = startArgs.cwd;
     ingestFlushMs = startArgs.ingestFlushMs ?? 250;
     resetIngestMetrics();
+    emitState(null);
 
     const bridgeConfig: BridgeConfig = {};
     if (args.bridge?.codexBin !== undefined) {
@@ -978,6 +1052,7 @@ export function createCodexHostRuntime(args: {
               dispatchByTurnId.set(event.turnId, {
                 dispatchId: activeDispatch.dispatchId,
                 claimToken: activeDispatch.claimToken,
+                source: activeDispatch.source,
               });
               await args.persistence.markTurnDispatchStarted({
                 actor,
@@ -1046,7 +1121,9 @@ export function createCodexHostRuntime(args: {
               threadId: threadId ?? event.threadId,
               ...(event.turnId ? { turnId: event.turnId } : {}),
             });
-            await processDispatchQueue();
+            if (dispatchManaged === false) {
+              await processDispatchQueue();
+            }
           }
           if (event.kind === "error") {
             if (actor && threadId && event.turnId) {
@@ -1073,7 +1150,9 @@ export function createCodexHostRuntime(args: {
               threadId: threadId ?? event.threadId,
               ...(event.turnId ? { turnId: event.turnId } : {}),
             });
-            await processDispatchQueue();
+            if (dispatchManaged === false) {
+              await processDispatchQueue();
+            }
           }
 
           const pendingServerRequest = parseManagedServerRequestFromEvent(event);
@@ -1125,7 +1204,9 @@ export function createCodexHostRuntime(args: {
               setRuntimeThreadFromResponse(message, pending.method);
               if (pending.method === "thread/start" || pending.method === "thread/resume" || pending.method === "thread/fork") {
                 await ensureThreadBinding(runtimeThreadId ?? undefined);
-                await processDispatchQueue();
+                if (dispatchManaged === false) {
+                  await processDispatchQueue();
+                }
               }
             }
             if (message.error && pending?.method === "turn/start") {
@@ -1144,7 +1225,9 @@ export function createCodexHostRuntime(args: {
               turnSettled = true;
               turnId = null;
               emitState();
-              await processDispatchQueue();
+              if (dispatchManaged === false) {
+                await processDispatchQueue();
+              }
             } else if (!message.error && pending?.method === "turn/start" && actor && threadId && pending.dispatchId && pending.claimToken) {
               const resultObj = typeof message.result === "object" && message.result !== null
                 ? (message.result as Record<string, unknown>)
@@ -1165,6 +1248,7 @@ export function createCodexHostRuntime(args: {
                 dispatchByTurnId.set(runtimeTurnId, {
                   dispatchId: pending.dispatchId,
                   claimToken: pending.claimToken,
+                  source: pending.dispatchSource ?? "runtime_queue",
                 });
               }
               activeDispatch = null;
@@ -1182,11 +1266,15 @@ export function createCodexHostRuntime(args: {
         },
         onProtocolError: async ({ line, error }) => {
           const message = error instanceof Error ? error.message : String(error);
-          emitState(message);
+          lastErrorCode = null;
+          lastErrorMessage = message;
+          emitState();
           args.handlers?.onProtocolError?.({ message, line });
         },
         onProcessExit: (code) => {
-          emitState(`codex exited with code ${String(code)}`);
+          lastErrorCode = null;
+          lastErrorMessage = `codex exited with code ${String(code)}`;
+          emitState();
         },
       };
     bridge = args.bridgeFactory
@@ -1245,7 +1333,7 @@ export function createCodexHostRuntime(args: {
       );
     }
 
-    emitState();
+    emitState(null);
   };
 
   const stop = async () => {
@@ -1265,6 +1353,7 @@ export function createCodexHostRuntime(args: {
     turnInFlight = false;
     turnSettled = false;
     interruptRequested = false;
+    dispatchManaged = null;
     pendingDispatchTextQueue = [];
     claimLoopRunning = false;
     dispatchByTurnId.clear();
@@ -1275,18 +1364,79 @@ export function createCodexHostRuntime(args: {
     pendingServerRequests.clear();
     pendingAuthTokensRefreshRequests.clear();
     resetIngestMetrics();
-    emitState();
+    emitState(null);
   };
 
   const sendTurn = (text: string) => {
     if (!bridge) {
       throw new Error("Bridge/thread not ready. Start runtime first.");
     }
+    if (dispatchManaged !== false) {
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_MODE_CONFLICT",
+        "sendTurn is only available when dispatchManaged=false.",
+      );
+    }
+    if (activeDispatch?.source === "external_claim") {
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE",
+        "Cannot enqueue runtime-managed turn while an external claimed dispatch is active.",
+      );
+    }
     if (turnInFlight && !turnSettled) {
-      throw new Error("A turn is already in flight.");
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_TURN_IN_FLIGHT",
+        "A turn is already in flight.",
+      );
     }
     pendingDispatchTextQueue.push(text);
     void ensureThreadBinding(runtimeThreadId ?? undefined).then(() => processDispatchQueue());
+  };
+
+  const startClaimedTurn = async (argsForClaimedTurn: {
+    dispatchId: string;
+    claimToken: string;
+    turnId: string;
+    inputText: string;
+    idempotencyKey?: string;
+  }): Promise<void> => {
+    if (!bridge) {
+      throw new Error("Bridge/thread not ready. Start runtime first.");
+    }
+    if (dispatchManaged !== true) {
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_MODE_CONFLICT",
+        "startClaimedTurn is only available when dispatchManaged=true.",
+      );
+    }
+    if (turnInFlight && !turnSettled) {
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_TURN_IN_FLIGHT",
+        "A turn is already in flight.",
+      );
+    }
+    if (
+      !argsForClaimedTurn.dispatchId ||
+      !argsForClaimedTurn.claimToken ||
+      !argsForClaimedTurn.turnId ||
+      !argsForClaimedTurn.inputText
+    ) {
+      throw runtimeError(
+        "E_RUNTIME_DISPATCH_CLAIM_INVALID",
+        "dispatchId, claimToken, turnId, and inputText are required for startClaimedTurn.",
+      );
+    }
+    await ensureThreadBinding(runtimeThreadId ?? undefined);
+    await sendClaimedDispatch({
+      dispatchId: argsForClaimedTurn.dispatchId,
+      claimToken: argsForClaimedTurn.claimToken,
+      turnId: argsForClaimedTurn.turnId,
+      inputText: argsForClaimedTurn.inputText,
+      idempotencyKey: argsForClaimedTurn.idempotencyKey ?? randomSessionId(),
+      leaseExpiresAt: Date.now() + 15_000,
+      attemptCount: 1,
+      source: "external_claim",
+    });
   };
 
   const interrupt = () => {
@@ -1482,6 +1632,7 @@ export function createCodexHostRuntime(args: {
 
   const getState = (): HostRuntimeState => ({
     running: !!bridge,
+    dispatchManaged,
     threadId,
     externalThreadId,
     turnId,
@@ -1493,13 +1644,15 @@ export function createCodexHostRuntime(args: {
       enqueuedByKind: snapshotKindCounts(enqueuedByKind),
       skippedByKind: snapshotKindCounts(skippedByKind),
     },
-    lastError: null,
+    lastErrorCode,
+    lastError: lastErrorMessage,
   });
 
   return {
     start,
     stop,
     sendTurn,
+    startClaimedTurn,
     interrupt,
     resumeThread,
     forkThread,

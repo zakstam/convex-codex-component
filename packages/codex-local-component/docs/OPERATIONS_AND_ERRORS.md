@@ -4,6 +4,14 @@ This file is operational follow-up for the canonical integration baseline in `..
 
 ## Error catalog
 
+### Host runtime dispatch boundary
+
+- `E_RUNTIME_DISPATCH_MODE_REQUIRED`: `start()` called without explicit `dispatchManaged`.
+- `E_RUNTIME_DISPATCH_MODE_CONFLICT`: runtime API used in the wrong dispatch mode (`sendTurn` vs `startClaimedTurn`).
+- `E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE`: runtime-owned enqueue attempted while external claimed dispatch is active.
+- `E_RUNTIME_DISPATCH_TURN_IN_FLIGHT`: new dispatch execution requested while turn is active.
+- `E_RUNTIME_DISPATCH_CLAIM_INVALID`: claimed-turn payload missing required ownership fields.
+
 ### Authorization
 
 - `E_AUTH_THREAD_FORBIDDEN`: actor cannot access target thread.
@@ -60,6 +68,7 @@ Use `dispatch.getTurnDispatchState` (or host wrapper equivalent) as the canonica
 - `cancelled`: explicit cancellation
 
 If a message send is accepted, dispatch state should exist immediately at `queued` minimum.
+For single-endpoint diagnosis, prefer host `dispatchObservabilityForActor` projection over multiple ad-hoc queries.
 
 ### Dispatch failure modes
 

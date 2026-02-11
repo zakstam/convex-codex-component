@@ -5,6 +5,7 @@ import { components } from "./_generated/api";
 import {
   cancelTurnDispatchForActor,
   claimNextTurnDispatchForActor,
+  dispatchObservabilityForActor,
   durableHistoryStats as durableHistoryStatsHandler,
   enqueueTurnDispatchForActor,
   ensureSession as ensureSessionHandler,
@@ -30,6 +31,7 @@ import {
   vHostClaimedTurnDispatch,
   vHostEnqueueTurnDispatchResult,
   vHostDurableHistoryStats,
+  vHostDispatchObservability,
   vHostTurnDispatchState,
   vHostEnsureSessionResult,
   vHostIngestSafeResult,
@@ -151,6 +153,18 @@ export const getTurnDispatchState = query({
   returns: vHostTurnDispatchState,
   handler: async (ctx, args) =>
     getTurnDispatchStateForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const getDispatchObservability = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.optional(v.string()),
+    turnId: v.optional(v.string()),
+  },
+  returns: vHostDispatchObservability,
+  handler: async (ctx, args) =>
+    dispatchObservabilityForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ensureSession = mutation({

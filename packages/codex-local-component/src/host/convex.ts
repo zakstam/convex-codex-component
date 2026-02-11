@@ -1,5 +1,6 @@
 import type { FunctionArgs, FunctionReference, FunctionReturnType, PaginationOptions } from "convex/server";
 import type { CodexMutationRunner, CodexQueryRunner } from "../client/types.js";
+import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 
 type HostStreamListItem = { streamId: string; state: string };
 type HostStreamWindow = {
@@ -175,10 +176,11 @@ export async function ingestBatchSafe<
     runtime?: HostSyncRuntimeOptions;
   },
 ): Promise<FunctionReturnType<Component["sync"]["ingestSafe"]>> {
-  const streamDeltas = args.deltas.filter(
+  const normalized = normalizeInboundDeltas(args.deltas);
+  const streamDeltas = normalized.filter(
     (delta): delta is HostInboundStreamDelta => delta.type === "stream_delta",
   );
-  const lifecycleEvents = args.deltas.filter(
+  const lifecycleEvents = normalized.filter(
     (delta): delta is HostInboundLifecycleEvent => delta.type === "lifecycle_event",
   );
 

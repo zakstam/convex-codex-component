@@ -106,6 +106,7 @@ test("runtime start supports threadStrategy=resume", async () => {
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
     threadStrategy: "resume",
     runtimeThreadId: threadId,
   });
@@ -129,6 +130,7 @@ test("runtime start forwards dynamicTools in thread/start", async () => {
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
     dynamicTools: [
       {
         name: "search_docs",
@@ -143,6 +145,59 @@ test("runtime start forwards dynamicTools in thread/start", async () => {
   await runtime.stop();
 });
 
+test("dispatch-managed runtime rejects sendTurn and accepts startClaimedTurn", async () => {
+  const { runtime, sent, emitResponse } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6c";
+
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+    dispatchManaged: true,
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  assert.equal(runtime.getState().dispatchManaged, true);
+  assert.throws(
+    () => runtime.sendTurn("hello"),
+    /E_RUNTIME_DISPATCH_MODE_CONFLICT/,
+  );
+
+  await runtime.startClaimedTurn({
+    dispatchId: "dispatch-1",
+    claimToken: "claim-1",
+    turnId: "turn-claimed-1",
+    inputText: "claimed hello",
+  });
+
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
+  assert.equal(turnStartRequest.params.threadId, threadId);
+  assert.equal(turnStartRequest.params.input?.[0]?.text, "claimed hello");
+
+  await runtime.stop();
+});
+
+test("runtime-owned mode rejects startClaimedTurn", async () => {
+  const { runtime } = createHarness();
+  await runtime.start({
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    sessionId: "s",
+    dispatchManaged: false,
+  });
+
+  await assert.rejects(
+    runtime.startClaimedTurn({
+      dispatchId: "dispatch-1",
+      claimToken: "claim-1",
+      turnId: "turn-claimed-1",
+      inputText: "claimed hello",
+    }),
+    /E_RUNTIME_DISPATCH_MODE_CONFLICT/,
+  );
+
+  await runtime.stop();
+});
+
 test("runtime thread lifecycle mutations are blocked while turn is in flight", async () => {
   const { runtime, sent, emitResponse } = createHarness();
   const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
@@ -150,6 +205,7 @@ test("runtime thread lifecycle mutations are blocked while turn is in flight", a
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
@@ -172,6 +228,7 @@ test("resumeThread updates active runtime thread id after response", async () =>
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: initialThreadId } } });
@@ -196,6 +253,7 @@ test("respondCommandApproval sends JSON-RPC response for pending command approva
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
@@ -249,6 +307,7 @@ test("respondToolUserInput rejects unknown request id", async () => {
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
 
   await assert.rejects(
@@ -269,6 +328,7 @@ test("respondDynamicToolCall responds to pending item/tool/call request", async 
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
@@ -326,6 +386,7 @@ test("runtime ignores non-turn thread-scoped events for ingest", async () => {
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
@@ -358,6 +419,7 @@ test("runtime ingests turn-scoped events", async () => {
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
@@ -398,6 +460,7 @@ test("runtime account/auth helper methods send account requests and resolve resp
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
@@ -443,6 +506,7 @@ test("respondChatgptAuthTokensRefresh responds to pending auth token refresh req
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
 
   await emitGlobalMessage({
@@ -474,6 +538,7 @@ test("respondChatgptAuthTokensRefresh rejects unknown request id", async () => {
   await runtime.start({
     actor: { tenantId: "t", userId: "u", deviceId: "d" },
     sessionId: "s",
+    dispatchManaged: false,
   });
 
   await assert.rejects(

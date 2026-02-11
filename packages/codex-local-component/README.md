@@ -22,7 +22,10 @@ React hooks require `react` peer dependency (`^18` or `^19`).
 4. Treat `actor` (`tenantId`, `userId`, `deviceId`) as trusted server identity, not untrusted client input.
 5. Before ingesting events on startup/reconnect, call `sync.ensureSession`.
 6. For runtime ingest, prefer `sync.ingestSafe` (`ingestBatchMixed` uses this).
-7. Convex-deployed code should not import `@zakstam/codex-local-component/protocol/parser` (Ajv runtime validation). Use host wrappers and `protocol/events`-based helpers only.
+7. Runtime dispatch ownership must be explicit:
+   - `dispatchManaged: false` -> runtime orchestrates via `sendTurn`
+   - `dispatchManaged: true` -> external worker orchestrates and runtime executes via `startClaimedTurn`
+8. Convex-deployed code should not import `@zakstam/codex-local-component/protocol/parser` (Ajv runtime validation). Use host wrappers and `protocol/events`-based helpers only.
 
 ## Golden Path
 
@@ -228,6 +231,20 @@ Delta stream response shape includes:
 - `@zakstam/codex-local-component/app-server`
 - `@zakstam/codex-local-component/protocol`
 
+## Dispatch v0.5 Canonical Mode
+
+Use one orchestration owner per runtime instance:
+
+- Runtime-owned mode: `createCodexHostRuntime(...).start({ dispatchManaged: false, ... })` and call `sendTurn(text)`.
+- External dispatch mode: `start({ dispatchManaged: true, ... })`, enqueue/claim via dispatch wrappers, then call `startClaimedTurn({ dispatchId, claimToken, turnId, inputText })`.
+
+Guardrail: mixing both APIs in one mode throws explicit runtime error codes (`E_RUNTIME_DISPATCH_*`).
+
+Reference guides:
+
+- `docs/RUNTIME_OWNED_REFERENCE_HOST.md` for `dispatchManaged: false`.
+- `docs/DISPATCH_MANAGED_REFERENCE_HOST.md` for `dispatchManaged: true`.
+
 ## Implemented
 
 - Initialization handshake
@@ -254,6 +271,8 @@ Delta stream response shape includes:
 ## Docs
 
 - `docs/HOST_INTEGRATION.md`
+- `docs/RUNTIME_OWNED_REFERENCE_HOST.md`
+- `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`
 - `docs/CLIENT_AND_REACT_HOOKS.md`
 - `docs/OPERATIONS_AND_ERRORS.md`
 

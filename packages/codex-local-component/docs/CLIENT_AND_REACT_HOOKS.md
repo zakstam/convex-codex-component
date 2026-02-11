@@ -7,6 +7,14 @@ This package ships a consumer SDK layer:
 
 For Convex server wrapper files, the canonical integration path is `@zakstam/codex-local-component/host/convex`.
 
+Dispatch orchestration boundary is explicit:
+
+- Use either runtime-owned dispatch (`dispatchManaged: false` + `sendTurn`) or external-worker dispatch (`dispatchManaged: true` + `startClaimedTurn`).
+- Do not mix both orchestration paths for the same runtime instance.
+- Runtime-specific references:
+  - `RUNTIME_OWNED_REFERENCE_HOST.md`
+  - `DISPATCH_MANAGED_REFERENCE_HOST.md`
+
 ## Client helpers
 
 Import from `@zakstam/codex-local-component/client`:
@@ -103,6 +111,7 @@ When `stream: true`, stream deltas are overlaid while durable rows are `streamin
 - `input: Array<{ type, text?, url?, path? }>`
 
 Recommended: wire it to your host `enqueueTurnDispatch` mutation so accepted user sends are immediately observable in dispatch state (`queued` minimum).
+In `dispatchManaged: true` hosts, enqueue via mutation and execute through a sidecar claim loop + `runtime.startClaimedTurn(...)`.
 
 ### Reasoning APIs
 
@@ -180,6 +189,7 @@ export const listThreadMessagesForHooks = query({
 
 ```ts
 import { mutation } from "./_generated/server";
+import { normalizeInboundDeltas } from "@zakstam/codex-local-component/host/convex";
 
 export const ingestBatch = mutation({
   args: {
@@ -189,8 +199,9 @@ export const ingestBatch = mutation({
     deltas: v.array(v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent)),
   },
   handler: async (ctx, args) => {
-    const streamDeltas = args.deltas.filter((d) => d.type === "stream_delta");
-    const lifecycleEvents = args.deltas.filter((d) => d.type === "lifecycle_event");
+    const normalized = normalizeInboundDeltas(args.deltas);
+    const streamDeltas = normalized.filter((d) => d.type === "stream_delta");
+    const lifecycleEvents = normalized.filter((d) => d.type === "lifecycle_event");
     return ctx.runMutation(components.codexLocal.sync.ingestSafe, {
       actor: args.actor,
       sessionId: args.sessionId,
@@ -201,6 +212,8 @@ export const ingestBatch = mutation({
   },
 });
 ```
+
+`normalizeInboundDeltas` strips harmless extra fields and canonicalizes payload shape while keeping component validators strict.
 
 Before ingest, call `components.codexLocal.sync.ensureSession` on startup/reconnect.
 

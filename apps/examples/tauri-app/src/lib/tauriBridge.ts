@@ -10,6 +10,7 @@ export type BridgeState = {
   running: boolean;
   localThreadId: string | null;
   turnId: string | null;
+  lastErrorCode?: string | null;
   lastError: string | null;
   runtimeThreadId?: string | null;
   pendingServerRequestCount?: number | null;

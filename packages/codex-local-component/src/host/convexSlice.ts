@@ -29,6 +29,7 @@ import {
   type HostReasoningForHooksArgs,
   type HostSyncRuntimeOptions,
 } from "./convex.js";
+import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 
 type HostMutationRunner = {
   runMutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
@@ -182,6 +183,7 @@ export const vHostTurnDispatchState = v.union(
     status: vHostDispatchStatus,
     idempotencyKey: v.string(),
     inputText: v.string(),
+    claimToken: v.optional(v.string()),
     claimOwner: v.optional(v.string()),
     leaseExpiresAt: v.number(),
     attemptCount: v.number(),
@@ -196,6 +198,33 @@ export const vHostTurnDispatchState = v.union(
     cancelledAt: v.optional(v.number()),
   }),
 );
+
+export const vHostDispatchObservability = v.object({
+  threadId: v.string(),
+  dispatch: vHostTurnDispatchState,
+  claim: v.object({
+    owner: v.optional(v.string()),
+    token: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    active: v.boolean(),
+  }),
+  runtime: v.object({
+    runtimeThreadId: v.optional(v.string()),
+    runtimeTurnId: v.optional(v.string()),
+    inFlight: v.boolean(),
+  }),
+  turn: v.object({
+    turnId: v.optional(v.string()),
+    status: v.optional(v.string()),
+  }),
+  correlations: v.object({
+    dispatchId: v.optional(v.string()),
+    claimToken: v.optional(v.string()),
+    localTurnId: v.optional(v.string()),
+    runtimeTurnId: v.optional(v.string()),
+    runtimeThreadId: v.optional(v.string()),
+  }),
+});
 
 export const vHostStreamArgs = v.optional(
   v.union(
@@ -388,6 +417,13 @@ type GetTurnDispatchStateArgs = {
   turnId?: string;
 };
 
+type DispatchObservabilityArgs = {
+  actor: HostActorContext;
+  threadId: string;
+  dispatchId?: string;
+  turnId?: string;
+};
+
 type EnsureSessionArgs = {
   actor: HostActorContext;
   sessionId: string;
@@ -484,6 +520,20 @@ function getAllStreamsCandidate(state: unknown): Array<{ streamId: string }> | n
   }
   const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
   return Array.isArray(allStreams) ? allStreams : null;
+}
+
+type ThreadStateTurn = {
+  turnId: string;
+  status: string;
+  startedAt: number;
+};
+
+function getTurnsCandidate(state: unknown): ThreadStateTurn[] | null {
+  if (typeof state !== "object" || state === null || !("turns" in state)) {
+    return null;
+  }
+  const turns = (state as { turns?: ThreadStateTurn[] | null }).turns;
+  return Array.isArray(turns) ? turns : null;
 }
 
 export function computePersistenceStats(state: { streamStats?: unknown[] | null }): {
@@ -690,6 +740,114 @@ export async function getTurnDispatchStateForActor<
   });
 }
 
+export async function dispatchObservabilityForActor<
+  Component extends CodexDispatchComponent & CodexThreadsStateComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: DispatchObservabilityArgs,
+): Promise<{
+  threadId: string;
+  dispatch: FunctionReturnType<Component["dispatch"]["getTurnDispatchState"]>;
+  claim: {
+    owner?: string;
+    token?: string;
+    leaseExpiresAt?: number;
+    active: boolean;
+  };
+  runtime: {
+    runtimeThreadId?: string;
+    runtimeTurnId?: string;
+    inFlight: boolean;
+  };
+  turn: {
+    turnId?: string;
+    status?: string;
+  };
+  correlations: {
+    dispatchId?: string;
+    claimToken?: string;
+    localTurnId?: string;
+    runtimeTurnId?: string;
+    runtimeThreadId?: string;
+  };
+}> {
+  const dispatch = await getTurnDispatchStateForActor(ctx, component, args);
+  const state = await threadSnapshot(ctx, component, {
+    actor: args.actor,
+    threadId: args.threadId,
+  });
+  const turns = getTurnsCandidate(state) ?? [];
+  const dispatchTurnId =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "turnId" in dispatch
+      ? (dispatch.turnId as string | undefined)
+      : undefined;
+  const resolvedTurnId =
+    dispatchTurnId ??
+    args.turnId;
+  const matchedTurn = resolvedTurnId
+    ? turns.find((turn) => turn.turnId === resolvedTurnId)
+    : turns.sort((left, right) => right.startedAt - left.startedAt)[0];
+
+  const claimOwner =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "claimOwner" in dispatch
+      ? (dispatch.claimOwner as string | undefined)
+      : undefined;
+  const claimToken =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "claimToken" in dispatch
+      ? (dispatch.claimToken as string | undefined)
+      : undefined;
+  const leaseExpiresAt =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "leaseExpiresAt" in dispatch
+      ? (dispatch.leaseExpiresAt as number | undefined)
+      : undefined;
+  const runtimeThreadId =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "runtimeThreadId" in dispatch
+      ? (dispatch.runtimeThreadId as string | undefined)
+      : undefined;
+  const runtimeTurnId =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "runtimeTurnId" in dispatch
+      ? (dispatch.runtimeTurnId as string | undefined)
+      : undefined;
+  const dispatchId =
+    dispatch && typeof dispatch === "object" && dispatch !== null && "dispatchId" in dispatch
+      ? (dispatch.dispatchId as string | undefined)
+      : undefined;
+
+  const inFlight =
+    dispatch !== null &&
+    typeof dispatch === "object" &&
+    "status" in dispatch &&
+    (dispatch.status === "claimed" || dispatch.status === "started");
+
+  return {
+    threadId: args.threadId,
+    dispatch,
+    claim: {
+      ...(claimOwner !== undefined ? { owner: claimOwner } : {}),
+      ...(claimToken !== undefined ? { token: claimToken } : {}),
+      ...(leaseExpiresAt !== undefined ? { leaseExpiresAt } : {}),
+      active: inFlight,
+    },
+    runtime: {
+      ...(runtimeThreadId !== undefined ? { runtimeThreadId } : {}),
+      ...(runtimeTurnId !== undefined ? { runtimeTurnId } : {}),
+      inFlight,
+    },
+    turn: {
+      ...(resolvedTurnId !== undefined ? { turnId: resolvedTurnId } : {}),
+      ...(matchedTurn?.status !== undefined ? { status: matchedTurn.status } : {}),
+    },
+    correlations: {
+      ...(dispatchId !== undefined ? { dispatchId } : {}),
+      ...(claimToken !== undefined ? { claimToken } : {}),
+      ...(resolvedTurnId !== undefined ? { localTurnId: resolvedTurnId } : {}),
+      ...(runtimeTurnId !== undefined ? { runtimeTurnId } : {}),
+      ...(runtimeThreadId !== undefined ? { runtimeThreadId } : {}),
+    },
+  };
+}
+
 export async function ensureSession<
   Component extends CodexSyncComponent,
 >(
@@ -712,11 +870,19 @@ export async function ingestEventStreamOnly<
   component: Component,
   args: IngestEventStreamOnlyArgs,
 ): Promise<FunctionReturnType<Component["sync"]["ingestSafe"]>> {
+  const normalized = normalizeInboundDeltas([{ ...args.event, type: "stream_delta" }]);
+  const event = normalized[0];
+  if (!event) {
+    throw new Error("Expected normalized stream_delta event.");
+  }
+  if (event.type !== "stream_delta") {
+    throw new Error("Expected stream_delta event.");
+  }
   return ctx.runMutation(component.sync.ingestSafe, {
     actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
-    streamDeltas: [{ ...args.event, type: "stream_delta" as const }],
+    streamDeltas: [event],
     lifecycleEvents: [],
   });
 }
@@ -731,11 +897,15 @@ export async function ingestBatchStreamOnly<
   if (args.deltas.length === 0) {
     throw new Error("ingestBatch requires at least one delta");
   }
+  const normalized = normalizeInboundDeltas(
+    args.deltas.map((delta) => ({ ...delta, type: "stream_delta" })),
+  );
+  const streamDeltas = normalized.filter((delta): delta is HostInboundStreamDelta => delta.type === "stream_delta");
   return ctx.runMutation(component.sync.ingestSafe, {
     actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
-    streamDeltas: args.deltas.map((delta) => ({ ...delta, type: "stream_delta" as const })),
+    streamDeltas,
     lifecycleEvents: [],
     ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
   });
@@ -748,8 +918,12 @@ export async function ingestEventMixed<
   component: Component,
   args: IngestEventMixedArgs,
 ): Promise<FunctionReturnType<Component["sync"]["ingestSafe"]>> {
-  const streamDeltas = args.event.type === "stream_delta" ? [args.event] : [];
-  const lifecycleEvents = args.event.type === "lifecycle_event" ? [args.event] : [];
+  const normalized = normalizeInboundDeltas([args.event])[0];
+  if (!normalized) {
+    throw new Error("Expected normalized event.");
+  }
+  const streamDeltas = normalized.type === "stream_delta" ? [normalized] : [];
+  const lifecycleEvents = normalized.type === "lifecycle_event" ? [normalized] : [];
   return ctx.runMutation(component.sync.ingestSafe, {
     actor: args.actor,
     sessionId: args.sessionId,

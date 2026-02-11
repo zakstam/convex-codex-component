@@ -1,6 +1,8 @@
 export {
   createCodexHostRuntime,
+  CodexHostRuntimeError,
   type CodexHostRuntime,
+  type HostRuntimeErrorCode,
   type HostRuntimeHandlers,
   type HostRuntimePersistence,
   type HostRuntimePersistedServerRequest,
@@ -21,6 +23,13 @@ export {
 } from "./convex.js";
 
 export {
+  normalizeInboundDeltas,
+  type NormalizedInboundDelta,
+  type NormalizedInboundLifecycleEvent,
+  type NormalizedInboundStreamDelta,
+} from "./normalizeInboundDeltas.js";
+
+export {
   computeDataHygiene,
   computeDurableHistoryStats,
   computePersistenceStats,
@@ -31,6 +40,7 @@ export {
   markTurnDispatchFailedForActor,
   cancelTurnDispatchForActor,
   getTurnDispatchStateForActor,
+  dispatchObservabilityForActor,
   dataHygiene,
   durableHistoryStats,
   ensureSession,
@@ -56,6 +66,7 @@ export {
   vHostDataHygiene,
   vHostDurableHistoryStats,
   vHostDispatchStatus,
+  vHostDispatchObservability,
   vHostEnqueueTurnDispatchResult,
   vHostClaimedTurnDispatch,
   vHostTurnDispatchState,

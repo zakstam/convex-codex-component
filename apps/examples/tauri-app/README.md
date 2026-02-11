@@ -10,7 +10,8 @@ This example runs `codex app-server` locally inside a desktop shell and persists
   - Renders tool-call messages as tool identity only (no tool output/result text in chat bubbles).
 - **Rust host** spawns a Node helper process and forwards events/commands via IPC.
 - **Node helper** runs `CodexLocalBridge`, sends protocol calls, and ingests normalized events to Convex.
-  - Uses `createCodexHostRuntime` from `@zakstam/codex-local-component/host` for lifecycle-safe start/resume/fork orchestration.
+  - Uses `createCodexHostRuntime` from `@zakstam/codex-local-component/host` with `dispatchManaged: true`.
+  - Runs a first-class sidecar claim loop (`claimNextTurnDispatch` -> `runtime.startClaimedTurn`) so dispatch ownership stays external and explicit.
   - Keeps thread identity explicit: `runtimeThreadId` (app-server UUID) and `localThreadId` (Convex persisted thread id).
   - Persists pending server requests (command approvals, file change approvals, and tool user input prompts) through Convex host wrappers.
   - Registers a custom dynamic tool `tauri_get_runtime_snapshot` and auto-responds to `item/tool/call` with local runtime context.
@@ -56,6 +57,7 @@ This starts and watches:
 - Use **Use Snapshot Tool** in the composer, then send. This inserts a prompt that asks Codex to call `tauri_get_runtime_snapshot`.
 - Observe the **Thinking** banner above the composer; it updates with the latest reasoning and clears when the final assistant message completes.
 - Bridge status now surfaces ingest diagnostics (`Ingest Enqueued` / `Ingest Skipped`) from runtime `getState().ingestMetrics`.
+- `convex/chat.ts.getDispatchObservability` provides one-query queue/claim/runtime/turn correlation for dispatch debugging.
 
 ## Required env
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
 import {
   createCodexHostRuntime,
@@ -56,6 +57,7 @@ type HelperEvent =
         running: boolean;
         localThreadId: string | null;
         turnId: string | null;
+        lastErrorCode: string | null;
         lastError: string | null;
         runtimeThreadId: string | null;
         pendingServerRequestCount: number;
@@ -129,6 +131,7 @@ let bridgeState: {
   running: boolean;
   localThreadId: string | null;
   turnId: string | null;
+  lastErrorCode: string | null;
   lastError: string | null;
   pendingServerRequestCount: number;
   ingestEnqueuedEventCount: number;
@@ -139,6 +142,7 @@ let bridgeState: {
   running: false,
   localThreadId: null,
   turnId: null,
+  lastErrorCode: null,
   lastError: null,
   pendingServerRequestCount: 0,
   ingestEnqueuedEventCount: 0,
@@ -170,6 +174,7 @@ const DYNAMIC_TOOLS: DynamicToolSpec[] = [
 ];
 
 const inFlightDynamicToolCalls = new Set<string>();
+let claimLoopRunning = false;
 
 function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
@@ -183,6 +188,7 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       running: bridgeState.running,
       localThreadId: bridgeState.localThreadId,
       turnId: bridgeState.turnId,
+      lastErrorCode: bridgeState.lastErrorCode,
       lastError: bridgeState.lastError,
       runtimeThreadId,
       pendingServerRequestCount: bridgeState.pendingServerRequestCount,
@@ -196,6 +202,41 @@ function emitState(next?: Partial<typeof bridgeState>): void {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+async function drainClaimedDispatches(): Promise<void> {
+  if (claimLoopRunning || !runtime || !convex || !actor || !bridgeState.localThreadId) {
+    return;
+  }
+  claimLoopRunning = true;
+  try {
+    while (runtime && convex && actor && bridgeState.localThreadId) {
+      if (runtime.getState().turnInFlight) {
+        return;
+      }
+      const claimed = await convex.mutation(
+        requireDefined(chatApi.claimNextTurnDispatch, "api.chat.claimNextTurnDispatch"),
+        {
+          actor,
+          threadId: bridgeState.localThreadId,
+          claimOwner: actor.deviceId,
+        },
+      );
+      if (!claimed) {
+        return;
+      }
+      await runtime.startClaimedTurn({
+        dispatchId: claimed.dispatchId,
+        claimToken: claimed.claimToken,
+        turnId: claimed.turnId,
+        inputText: claimed.inputText,
+        idempotencyKey: claimed.idempotencyKey,
+      });
+      return;
+    }
+  } finally {
+    claimLoopRunning = false;
+  }
 }
 
 function dynamicToolCallKey(requestId: string | number): string {
@@ -717,6 +758,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           running: state.running,
           localThreadId: state.threadId,
           turnId: state.turnId,
+          lastErrorCode: state.lastErrorCode,
           lastError: state.lastError,
           pendingServerRequestCount: state.pendingServerRequestCount,
           ingestEnqueuedEventCount: state.ingestMetrics.enqueuedEventCount,
@@ -728,6 +770,9 @@ async function startBridge(payload: StartPayload): Promise<void> {
       onEvent: (event) => {
         runtimeThreadId = event.threadId;
         emitState();
+        if (event.kind === "turn/completed" || event.kind === "error") {
+          void drainClaimedDispatches();
+        }
         if (event.kind === "item/tool/call") {
           void handlePendingDynamicToolCalls(event.threadId);
         }
@@ -746,7 +791,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
         if (typeof asRecord === "object" && asRecord !== null) {
           const possibleError = (asRecord as { error?: { message?: unknown } }).error;
           if (possibleError && typeof possibleError.message === "string") {
-            emitState({ lastError: possibleError.message });
+            emitState({ lastErrorCode: null, lastError: possibleError.message });
             emit({
               type: "protocol_error",
               payload: {
@@ -770,7 +815,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           });
           return;
         }
-        emitState({ lastError: message });
+        emitState({ lastErrorCode: null, lastError: message });
         emit({ type: "protocol_error", payload: { message, line } });
       },
     },
@@ -780,6 +825,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
     await runtime.start({
       actor: payload.actor,
       sessionId: activeSessionId,
+      dispatchManaged: true,
       ...(payload.externalThreadId ? { externalThreadId: payload.externalThreadId } : {}),
       ...(payload.runtimeThreadId ? { runtimeThreadId: payload.runtimeThreadId } : {}),
       ...(payload.threadStrategy ? { threadStrategy: payload.threadStrategy } : {}),
@@ -790,21 +836,37 @@ async function startBridge(payload: StartPayload): Promise<void> {
       runtime: startRuntimeOptions,
     });
 
-    emitState({ running: true, lastError: null });
+    emitState({ running: true, lastErrorCode: null, lastError: null });
+    void drainClaimedDispatches();
     emit({ type: "ack", payload: { command: "start" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    emitState({ running: false, lastError: message });
+    emitState({ running: false, lastErrorCode: null, lastError: message });
     runtime = null;
     throw error;
   }
 }
 
-function sendTurn(text: string): void {
-  if (!runtime) {
+async function sendTurn(text: string): Promise<void> {
+  if (!runtime || !convex || !actor) {
     throw new Error("Bridge/runtime not ready. Start runtime first.");
   }
-  runtime.sendTurn(text);
+  const localThreadId = bridgeState.localThreadId;
+  if (!localThreadId) {
+    throw new Error("Local thread binding not ready yet.");
+  }
+  await convex.mutation(
+    requireDefined(chatApi.enqueueTurnDispatch, "api.chat.enqueueTurnDispatch"),
+    {
+      actor,
+      threadId: localThreadId,
+      dispatchId: randomUUID(),
+      turnId: randomUUID(),
+      idempotencyKey: randomUUID(),
+      input: [{ type: "text", text }],
+    },
+  );
+  await drainClaimedDispatches();
 }
 
 function interruptCurrentTurn(): void {
@@ -896,6 +958,7 @@ async function stopCurrentBridge(): Promise<void> {
       await runtime.stop();
     }
   } finally {
+    claimLoopRunning = false;
     runtime = null;
     convex = null;
     actor = null;
@@ -905,6 +968,7 @@ async function stopCurrentBridge(): Promise<void> {
       running: false,
       localThreadId: null,
       turnId: null,
+      lastErrorCode: null,
       lastError: null,
       pendingServerRequestCount: 0,
       ingestEnqueuedEventCount: 0,
@@ -921,7 +985,7 @@ async function handle(command: HelperCommand): Promise<void> {
       await startBridge(command.payload);
       return;
     case "send_turn":
-      sendTurn(command.payload.text);
+      await sendTurn(command.payload.text);
       emit({ type: "ack", payload: { command: "send_turn" } });
       return;
     case "respond_command_approval":

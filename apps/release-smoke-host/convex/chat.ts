@@ -2,6 +2,13 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
+  claimNextTurnDispatchForActor,
+  markTurnDispatchStartedForActor,
+  markTurnDispatchCompletedForActor,
+  markTurnDispatchFailedForActor,
+  cancelTurnDispatchForActor,
+  getTurnDispatchStateForActor,
+  dispatchObservabilityForActor,
   dataHygiene as dataHygieneHandler,
   enqueueTurnDispatchForActor,
   ensureSession as ensureSessionHandler,
@@ -12,11 +19,14 @@ import {
   threadSnapshot as threadSnapshotHandler,
   vHostActorContext,
   vHostDataHygiene,
+  vHostDispatchObservability,
+  vHostClaimedTurnDispatch,
   vHostEnqueueTurnDispatchResult,
   vHostEnsureSessionResult,
   vHostInboundEvent,
   vHostIngestSafeResult,
   vHostPersistenceStats,
+  vHostTurnDispatchState,
   vHostTurnInput,
   type HostActorContext,
 } from "@zakstam/codex-local-component/host/convex";
@@ -60,6 +70,71 @@ export const enqueueTurnDispatch = mutation({
     }>,
 });
 
+export const claimNextTurnDispatch = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    claimOwner: v.string(),
+    leaseMs: v.optional(v.number()),
+  },
+  returns: vHostClaimedTurnDispatch,
+  handler: async (ctx, args) =>
+    claimNextTurnDispatchForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const markTurnDispatchStarted = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.string(),
+    claimToken: v.string(),
+    runtimeThreadId: v.optional(v.string()),
+    runtimeTurnId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    markTurnDispatchStartedForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const markTurnDispatchCompleted = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.string(),
+    claimToken: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    markTurnDispatchCompletedForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const markTurnDispatchFailed = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.string(),
+    claimToken: v.string(),
+    code: v.optional(v.string()),
+    reason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    markTurnDispatchFailedForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const cancelTurnDispatch = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.string(),
+    claimToken: v.optional(v.string()),
+    reason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    cancelTurnDispatchForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
 export const ensureSession = mutation({
   args: {
     actor: vHostActorContext,
@@ -100,6 +175,30 @@ export const threadSnapshot = query({
     threadId: v.string(),
   },
   handler: async (ctx, args) => threadSnapshotHandler(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const getDispatchObservability = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.optional(v.string()),
+    turnId: v.optional(v.string()),
+  },
+  returns: vHostDispatchObservability,
+  handler: async (ctx, args) =>
+    dispatchObservabilityForActor(ctx, components.codexLocal, withServerActor(args)),
+});
+
+export const getTurnDispatchState = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    dispatchId: v.optional(v.string()),
+    turnId: v.optional(v.string()),
+  },
+  returns: vHostTurnDispatchState,
+  handler: async (ctx, args) =>
+    ctx.runQuery(components.codexLocal.dispatch.getTurnDispatchState, withServerActor(args)),
 });
 
 export const persistenceStats = query({

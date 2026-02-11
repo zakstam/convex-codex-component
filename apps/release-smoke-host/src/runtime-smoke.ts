@@ -17,6 +17,8 @@ async function main(): Promise<void> {
   };
   const threadId = `runtime-smoke-thread-${suffix}`;
   const turnId = `runtime-smoke-turn-${suffix}`;
+  const runtimeTurnId = `runtime-smoke-runtime-turn-${suffix}`;
+  const runtimeThreadId = `runtime-smoke-runtime-thread-${suffix}`;
   const streamId = `runtime-smoke-stream-${suffix}`;
   const sessionId = randomUUID();
   const now = Date.now();
@@ -32,6 +34,46 @@ async function main(): Promise<void> {
     sessionId,
     threadId,
   });
+
+  const queued = await convex.mutation(api.chat.enqueueTurnDispatch, {
+    actor,
+    threadId,
+    dispatchId: randomUUID(),
+    turnId,
+    idempotencyKey: randomUUID(),
+    input: [{ type: "text", text: "smoke turn" }],
+  });
+  assert.equal(queued.status, "queued");
+  const claimed = await convex.mutation(api.chat.claimNextTurnDispatch, {
+    actor,
+    threadId,
+    claimOwner: actor.deviceId,
+  });
+  assert.ok(claimed, "Expected queued dispatch to be claimed");
+  await convex.mutation(api.chat.markTurnDispatchStarted, {
+    actor,
+    threadId,
+    dispatchId: claimed.dispatchId,
+    claimToken: claimed.claimToken,
+    runtimeThreadId,
+    runtimeTurnId,
+  });
+  await convex.mutation(api.chat.markTurnDispatchCompleted, {
+    actor,
+    threadId,
+    dispatchId: claimed.dispatchId,
+    claimToken: claimed.claimToken,
+  });
+
+  const observability = await convex.query(api.chat.getDispatchObservability, {
+    actor,
+    threadId,
+    dispatchId: claimed.dispatchId,
+  });
+  assert.equal(observability.dispatch?.status, "completed");
+  assert.equal(observability.claim.owner, actor.deviceId);
+  assert.equal(observability.correlations.runtimeTurnId, runtimeTurnId);
+  assert.equal(observability.correlations.runtimeThreadId, runtimeThreadId);
 
   const pushed = await convex.mutation(api.chat.ingestBatch, {
     actor,

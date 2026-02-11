@@ -4,10 +4,12 @@ import {
   computeDataHygiene,
   computeDurableHistoryStats,
   computePersistenceStats,
+  dispatchObservabilityForActor,
   ensureThreadByCreate,
   ingestBatchMixed,
   listPendingServerRequestsForHooksForActor,
   listThreadMessagesForHooks,
+  normalizeInboundDeltas,
   resolvePendingServerRequestForHooksForActor,
   upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
@@ -92,6 +94,107 @@ test("ingestBatchMixed forwards stream and lifecycle events", async () => {
   assert.equal(calls[0].ref, ingestSafeRef);
   assert.equal(calls[0].args.streamDeltas.length, 1);
   assert.equal(calls[0].args.lifecycleEvents.length, 1);
+});
+
+test("normalizeInboundDeltas strips extra fields and preserves canonical shape", () => {
+  const normalized = normalizeInboundDeltas([
+    {
+      type: "stream_delta",
+      eventId: "e1",
+      turnId: "turn-1",
+      streamId: "stream-1",
+      kind: "item/agentMessage/delta",
+      payloadJson: "{}",
+      cursorStart: 0,
+      cursorEnd: 1,
+      createdAt: 1,
+      extraField: "ignored",
+    },
+    {
+      type: "lifecycle_event",
+      eventId: "e2",
+      turnId: "turn-1",
+      kind: "turn/completed",
+      payloadJson: "{}",
+      createdAt: 2,
+      extraField: "ignored",
+    },
+  ]);
+
+  assert.deepEqual(normalized, [
+    {
+      type: "stream_delta",
+      eventId: "e1",
+      turnId: "turn-1",
+      streamId: "stream-1",
+      kind: "item/agentMessage/delta",
+      payloadJson: "{}",
+      cursorStart: 0,
+      cursorEnd: 1,
+      createdAt: 1,
+    },
+    {
+      type: "lifecycle_event",
+      eventId: "e2",
+      turnId: "turn-1",
+      kind: "turn/completed",
+      payloadJson: "{}",
+      createdAt: 2,
+    },
+  ]);
+});
+
+test("dispatchObservabilityForActor returns correlated dispatch projection", async () => {
+  const getStateRef = {};
+  const getTurnDispatchStateRef = {};
+  const queryCalls = [];
+  const ctx = {
+    runQuery: async (ref, args) => {
+      queryCalls.push({ ref, args });
+      if (ref === getTurnDispatchStateRef) {
+        return {
+          dispatchId: "dispatch-1",
+          turnId: "turn-1",
+          status: "started",
+          idempotencyKey: "idem-1",
+          inputText: "hello",
+          claimOwner: "owner-1",
+          claimToken: "claim-1",
+          leaseExpiresAt: 100,
+          attemptCount: 1,
+          runtimeThreadId: "runtime-thread-1",
+          runtimeTurnId: "runtime-turn-1",
+          createdAt: 1,
+          updatedAt: 2,
+        };
+      }
+      return {
+        turns: [{ turnId: "turn-1", status: "inProgress", startedAt: 1 }],
+      };
+    },
+  };
+  const component = {
+    dispatch: {
+      getTurnDispatchState: getTurnDispatchStateRef,
+    },
+    threads: {
+      getState: getStateRef,
+    },
+  };
+
+  const result = await dispatchObservabilityForActor(ctx, component, {
+    actor: { tenantId: "t", userId: "u", deviceId: "d" },
+    threadId: "thread-1",
+    dispatchId: "dispatch-1",
+  });
+
+  assert.equal(queryCalls.length, 2);
+  assert.equal(result.threadId, "thread-1");
+  assert.equal(result.correlations.dispatchId, "dispatch-1");
+  assert.equal(result.correlations.claimToken, "claim-1");
+  assert.equal(result.runtime.runtimeThreadId, "runtime-thread-1");
+  assert.equal(result.turn.turnId, "turn-1");
+  assert.equal(result.runtime.inFlight, true);
 });
 
 test("computePersistenceStats filters invalid stream rows", () => {

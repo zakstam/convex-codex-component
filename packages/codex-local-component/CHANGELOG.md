@@ -1,5 +1,20 @@
 # @convex-dev/codex-local-component
 
+## 0.8.0
+
+### Minor Changes
+
+- cbdd290: Hardened runtime and protocol error handling to fail closed instead of silently defaulting, with explicit terminal/runtime error codes and stricter parsing for terminal events, managed server requests, keyset cursors, and stored server-request questions.
+
+  Added CI enforcement via `check:error-discipline` to block common silent-error patterns (empty catches, swallowed rejection chains, and legacy terminal fallback literals), plus expanded test coverage for malformed payload and strict-cursor scenarios.
+
+### Patch Changes
+
+- 35259d6: Align host-side ingest recoverability handling with the component contract by using the server-provided `errors[].recoverable` signal.
+  - add a shared host utility for recoverable ingest error detection
+  - remove Tauri example's hardcoded `OUT_OF_ORDER`/`REPLAY_GAP` session rollover fallback
+  - prevent false `sync/session_rolled_over` warnings for non-recoverable ingest failures
+
 ## 0.7.1
 
 ### Patch Changes

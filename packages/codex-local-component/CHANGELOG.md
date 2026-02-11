@@ -1,5 +1,23 @@
 # @convex-dev/codex-local-component
 
+## 0.9.0
+
+### Minor Changes
+
+- e5895a8: Add a high-level `useCodexConversationController` React hook that bundles messages, activity, ingest health, branch activity, composer, and interrupt state/actions.
+
+  Promote React hooks as the official integration recommendation, expose controller support in the React+Convex adapter, and document the Tauri app as the blessed reference wiring.
+
+  Harden host runtime ingest flushing by treating `ingestSafe` rejections with only `OUT_OF_ORDER` errors as non-fatal dropped batches, preventing repeated protocol flush failures.
+
+- a9d5a68: Expand React-first integration coverage with new first-class hooks:
+  - `useCodexDynamicTools` (plus dynamic tool payload/call derivation helpers)
+  - `useCodexRuntimeBridge`
+  - `useCodexAccountAuth`
+  - `useCodexThreads`
+
+  Also extend `useCodexConversationController` to bundle dynamic tool handling and update React integration/docs to reflect the hook-first canonical path.
+
 ## 0.8.0
 
 ### Minor Changes

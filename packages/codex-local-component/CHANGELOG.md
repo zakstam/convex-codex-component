@@ -1,5 +1,11 @@
 # @convex-dev/codex-local-component
 
+## 0.7.1
+
+### Patch Changes
+
+- 63614d4: Refactor scope contracts to support optional `userId` actor handling across component and host integrations.
+
 ## Unreleased
 
 ### Major Changes

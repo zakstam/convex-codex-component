@@ -1,56 +1,32 @@
 # Release Smoke Host App
 
-This app validates `@zakstam/codex-local-component` as a real consumer.
+This app validates package release behavior in a real consumer setup.
+It is a verification harness, not a canonical onboarding guide.
 
-It does three important things:
+Canonical consumer implementation path:
 
-1. Packs the component (`pnpm pack`) from `../../packages/codex-local-component`.
-2. Installs the generated `.tgz` into this host app.
-3. Runs a real Convex + local Codex bridge flow through host wrappers.
+- `packages/codex-local-component/LLMS.md`
+
+## What It Validates
+
+1. Package tarball install (`pnpm pack` -> install `.tgz`).
+2. Convex mount through `@zakstam/codex-local-component/convex.config`.
+3. Generated host wrappers and runtime flow in an end-to-end host app.
 
 ## Run
 
-1. Install workspace dependencies at repo root:
-
 ```bash
 pnpm install
-```
-
-2. Start Convex in terminal A:
-
-```bash
 cd apps/release-smoke-host
 pnpm run dev:convex
-```
-
-3. Run smoke CLI in terminal B:
-
-```bash
-cd apps/release-smoke-host
 pnpm start
 ```
 
-## What this validates
-
-- Consumer-style package install from tarball (not `src/...` deep import).
-- Host app mounting via:
-  - `import codexLocal from "@zakstam/codex-local-component/convex.config"`
-- Shared host wrapper slice usage via `@zakstam/codex-local-component/host`
-  (keeps smoke host endpoints aligned with example apps).
-- End-to-end thread/turn/event persistence through host wrappers.
-- Dispatch observability projection (`chat.getDispatchObservability`) with queue/claim/runtime/turn correlations.
-- Interrupt path and reconnect replay behavior in a real host context.
-
-## Helpful commands
-
-- One-shot codegen check:
-
-```bash
-pnpm run dev:convex:once
-```
-
-- Typecheck host:
+## Checks
 
 ```bash
 pnpm run typecheck
+pnpm run typecheck:convex
+pnpm run wiring:smoke
+pnpm run smoke:checks
 ```

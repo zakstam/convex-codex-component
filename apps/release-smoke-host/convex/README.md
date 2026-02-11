@@ -1,16 +1,17 @@
 # Release Smoke Host Convex Functions
 
-This folder defines host wrappers used by the release smoke app to validate
-`@zakstam/codex-local-component` in a real consumer setup.
+This directory defines generated host wrappers used by the release smoke app.
 
-## Files
+Canonical consumer implementation path lives in:
 
-- `convex.config.ts`: mounts `codexLocal` via
-  `@zakstam/codex-local-component/convex.config`.
-- `chat.ts`: host queries/mutations used by the smoke runner (`src/index.ts`) to:
-  - create threads and turns
-  - ingest stream deltas (`sync.ingest`)
-  - query thread state and persistence stats
+- `packages/codex-local-component/LLMS.md`
+
+## File Ownership
+
+- `convex.config.ts`: mounts `codexLocal`
+- `chat.generated.ts`: generated preset wrapper surface (do not edit)
+- `chat.extensions.ts`: app-specific extensions
+- `chat.ts`: stable entrypoint that re-exports generated + extensions
 
 ## Development
 
@@ -18,16 +19,12 @@ From `apps/release-smoke-host`:
 
 ```bash
 pnpm run dev:convex
-```
-
-For one-shot codegen and checks:
-
-```bash
 pnpm run dev:convex:once
 pnpm run typecheck:convex
 ```
 
-## Notes
+From repo root:
 
-- Use generated Convex types from `./_generated/*`.
-- This app is a smoke consumer, not a generic Convex template.
+```bash
+pnpm run host:check
+```

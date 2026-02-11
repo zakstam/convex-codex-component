@@ -1,90 +1,31 @@
-# Welcome to your Convex functions directory!
+# Tauri App Convex Functions
 
-Write your Convex functions here.
-See https://docs.convex.dev/functions for more.
+This folder contains Convex host wrappers for the Tauri example.
 
-A query function that takes two arguments looks like:
+Canonical consumer implementation guidance is in:
 
-```ts
-// convex/myFunctions.ts
-import { query } from "./_generated/server";
-import { v } from "convex/values";
+- `packages/codex-local-component/LLMS.md`
 
-export const myQueryFunction = query({
-  // Validators for arguments.
-  args: {
-    first: v.number(),
-    second: v.string(),
-  },
+## File Ownership
 
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Read the database as many times as you need here.
-    // See https://docs.convex.dev/database/reading-data.
-    const documents = await ctx.db.query("tablename").collect();
+- `convex.config.ts`: mounts `codexLocal`
+- `chat.generated.ts`: generated preset wrappers (do not edit)
+- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`)
+- `chat.ts`: stable entrypoint that re-exports generated + extensions
 
-    // Arguments passed from the client are properties of the args object.
-    console.log(args.first, args.second);
+## Development
 
-    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
-    // remove non-public properties, or create new objects.
-    return documents;
-  },
-});
+From `apps/examples/tauri-app`:
+
+```bash
+pnpm run dev:convex
+pnpm run dev:convex:once
+pnpm run check:wiring:convex
+pnpm run typecheck:convex
 ```
 
-Using this query function in a React component looks like:
+From repo root:
 
-```ts
-const data = useQuery(api.myFunctions.myQueryFunction, {
-  first: 10,
-  second: "hello",
-});
+```bash
+pnpm run host:check
 ```
-
-A mutation function looks like:
-
-```ts
-// convex/myFunctions.ts
-import { mutation } from "./_generated/server";
-import { v } from "convex/values";
-
-export const myMutationFunction = mutation({
-  // Validators for arguments.
-  args: {
-    first: v.string(),
-    second: v.string(),
-  },
-
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Insert or modify documents in the database here.
-    // Mutations can also read from the database like queries.
-    // See https://docs.convex.dev/database/writing-data.
-    const message = { body: args.first, author: args.second };
-    const id = await ctx.db.insert("messages", message);
-
-    // Optionally, return a value from your mutation.
-    return await ctx.db.get("messages", id);
-  },
-});
-```
-
-Using this mutation function in a React component looks like:
-
-```ts
-const mutation = useMutation(api.myFunctions.myMutationFunction);
-function handleButtonPress() {
-  // fire and forget, the most common way to use mutations
-  mutation({ first: "Hello!", second: "me" });
-  // OR
-  // use the result once the mutation has completed
-  mutation({ first: "Hello!", second: "me" }).then((result) =>
-    console.log(result),
-  );
-}
-```
-
-Use the Convex CLI to push your functions to a deployment. See everything
-the Convex CLI can do by running `npx convex -h` in your project root
-directory. To learn more, launch the docs with `npx convex docs`.

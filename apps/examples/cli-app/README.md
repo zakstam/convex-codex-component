@@ -1,40 +1,28 @@
-# CLI Test App (Real Local Runtime)
+# CLI Example App
 
-This is a real interactive CLI chat app backed by local `codex app-server` over stdio.
-It creates one thread, lets you send many messages, and streams assistant responses.
+This app is a lightweight local-runtime demo.
+It is an example, not the canonical integration guide.
 
-## Usage
+Canonical consumer implementation path:
 
-1. Install dependencies:
+- `packages/codex-local-component/LLMS.md`
+
+## Run
 
 ```bash
 pnpm install
-```
-
-2. Run interactive chat:
-
-```bash
 cd apps/examples/cli-app
 pnpm start
 ```
 
-The start script builds `@zakstam/codex-local-component` first so imports resolve from the local workspace package.
+## Commands in Chat
 
-3. In the chat:
-- Type any message and press Enter.
-- Use `/interrupt` to stop an in-flight turn.
-- Use `/exit` (or Ctrl+D) to quit.
+- send any message
+- `/interrupt` to stop in-flight turn
+- `/exit` to quit
 
-## Environment variables
+## Optional Env
 
-- `CODEX_BIN`: optional path to `codex` binary (default: `codex`)
-- `CODEX_MODEL`: optional model for `thread/start`
-- `CODEX_CWD`: optional cwd for `thread/start`
-
-## What it tests
-
-- strict JSON-RPC parsing + schema validation
-- local stdio bridge lifecycle
-- thread creation and multi-turn conversation loop
-- streamed assistant text output
-- interrupt handling and protocol error handling
+- `CODEX_BIN`
+- `CODEX_MODEL`
+- `CODEX_CWD`

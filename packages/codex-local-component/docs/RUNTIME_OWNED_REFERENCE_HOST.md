@@ -1,10 +1,11 @@
-# Runtime-Owned Reference Host (v0.5)
+# Runtime-Owned Reference Host
 
-This is the canonical host pattern when you want the runtime to own dispatch orchestration.
+Canonical default: runtime-owned host integration (`dispatchManaged: false`).
 
-## Runtime mode
+Use `../LLMS.md` for the normative implementation sequence.
+This file is a focused runtime-owned behavior reference.
 
-Start runtime with explicit runtime-owned orchestration:
+## Runtime Mode
 
 ```ts
 await runtime.start({
@@ -17,57 +18,37 @@ await runtime.start({
 
 In this mode:
 
-- `runtime.sendTurn(...)` is the only turn-start API.
+- `runtime.sendTurn(...)` starts turns.
 - `runtime.startClaimedTurn(...)` is invalid (`E_RUNTIME_DISPATCH_MODE_CONFLICT`).
 
-## Convex wrapper surface
+## Host Surface Expectations
 
-Your host `convex/chat.ts` should expose:
+Runtime-owned generated wrappers include dispatch lifecycle, ingest/session, and hook query endpoints.
+Keep these files split:
 
-- `enqueueTurnDispatch`
-- `claimNextTurnDispatch`
-- `markTurnDispatchStarted`
-- `markTurnDispatchCompleted`
-- `markTurnDispatchFailed`
-- `cancelTurnDispatch`
-- `getTurnDispatchState`
-- `getDispatchObservability`
-- ingest/session/thread helpers (`ensureSession`, `ingestBatch`, `ensureThread`)
+- `convex/chat.generated.ts` (generated preset surface)
+- `convex/chat.extensions.ts` (app-specific additions)
+- `convex/chat.ts` (stable re-export entrypoint)
 
-Use `@zakstam/codex-local-component/host/convex` wrapper helpers with generated Convex types.
+## Expected Progression
 
-## Runtime-owned flow
+Successful turn path:
 
-Queue and execute through runtime only:
+1. `sendTurn` accepted.
+2. Dispatch progresses through queue/claim/start.
+3. Runtime emits `turn/completed`.
+4. Dispatch terminal state is `completed`.
 
-```ts
-async function submitTurn(text: string) {
-  await runtime.sendTurn(text);
-}
-```
+Failure path:
 
-Runtime handles enqueue/claim/start/complete internally in this mode.
-The claim and mark mutations above are still required because runtime uses them through the host persistence layer.
+1. `sendTurn` accepted.
+2. Runtime emits failure event.
+3. Dispatch terminal state is `failed` with code/reason.
 
-## Expected logs/state progression
+Use `getDispatchObservability` for single-query diagnosis.
 
-For one successful turn:
+## Advanced Appendix (Non-Default)
 
-1. `sendTurn` accepted by runtime
-2. runtime enqueues dispatch -> `queued`
-3. runtime claims dispatch -> `claimed`
-4. runtime starts turn -> `started`
-5. runtime emits `turn/completed` -> `completed`
+If explicit external dispatch ownership is required, use:
 
-For failure:
-
-1. `sendTurn` accepted
-2. dispatch moves `queued` -> `claimed`
-3. runtime emits `error` or failed `turn/completed` -> `failed` with reason code
-
-Use `getDispatchObservability` for one-query diagnosis of queue + claim + runtime + turn correlations.
-
-## Guardrails
-
-- Do not run external claim loops (`claimNextTurnDispatch`) for the same runtime instance.
-- If you need external worker ownership, switch to `dispatchManaged: true` and follow `DISPATCH_MANAGED_REFERENCE_HOST.md`.
+- `DISPATCH_MANAGED_REFERENCE_HOST.md`

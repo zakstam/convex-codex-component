@@ -1,70 +1,23 @@
 # Tauri Example (Desktop + Convex Persistence)
 
-This example runs `codex app-server` locally inside a desktop shell and persists all thread events to Convex.
+This app is a desktop-oriented example.
+It is not the canonical consumer onboarding path.
 
-## Architecture
+Canonical consumer implementation path:
 
-- **React + Tauri frontend** renders chat history from Convex via `@zakstam/codex-local-component/react` hooks.
-  - Includes a thread picker that lists previously persisted threads and resumes selected runtime threads.
-  - Renders only the latest reasoning summary above the composer (replaced as new reasoning arrives, hidden on final assistant response).
-  - Renders tool-call messages as tool identity only (no tool output/result text in chat bubbles).
-- **Rust host** spawns a Node helper process and forwards events/commands via IPC.
-- **Node helper** runs `CodexLocalBridge`, sends protocol calls, and ingests normalized events to Convex.
-  - Uses `createCodexHostRuntime` from `@zakstam/codex-local-component/host` with `dispatchManaged: true`.
-  - Runs a first-class sidecar claim loop (`claimNextTurnDispatch` -> `runtime.startClaimedTurn`) so dispatch ownership stays external and explicit.
-  - Keeps thread identity explicit: `runtimeThreadId` (app-server UUID) and `localThreadId` (Convex persisted thread id).
-  - Persists pending server requests (command approvals, file change approvals, and tool user input prompts) through Convex host wrappers.
-  - Registers a custom dynamic tool `tauri_get_runtime_snapshot` and auto-responds to `item/tool/call` with local runtime context.
-- **Convex backend** mounts `codexLocal` and exposes generated-type-safe host wrappers in `convex/chat.ts`,
-  composed from shared `@zakstam/codex-local-component/host` helpers.
+- `packages/codex-local-component/LLMS.md`
+
+This example intentionally demonstrates an advanced dispatch-managed runtime shape for desktop orchestration.
 
 ## Run
 
-1. Install dependencies from repo root:
-
 ```bash
 pnpm install
-```
-
-2. Run everything with one command:
-
-```bash
 cd apps/examples/tauri-app
 pnpm run dev
 ```
 
-This starts and watches:
-- Convex dev server
-- `@zakstam/codex-local-component` build watch
-- Node helper (`bridge-helper.ts`) build watch
-- Tauri dev app (with Vite HMR)
-
-Stopping `pnpm run dev` now performs deterministic shutdown across the full process tree:
-- sends graceful stop first to Tauri + helper runtime
-- force-kills remaining descendants after a short timeout
-- prevents leftover `bridge-helper` / `codex app-server` processes after terminal stop or window-close exit
-
-3. In the app:
-
-- Pick a thread from **Resume Previous Thread** and click **Start Runtime** to resume it.
-- Leave the picker on **Start a new thread** to create a new runtime thread.
-- Use **Pending Server Requests** to triage/respond to runtime requests:
-  - command approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
-  - file change approval decisions (`accept`, `acceptForSession`, `decline`, `cancel`)
-  - tool user input answers submitted per question id
-- Use **Account/Auth** controls to exercise account endpoints:
-  - read account (`refreshToken` optional)
-  - login (`apiKey`, `chatgpt`, or `chatgptAuthTokens`)
-  - cancel login by `loginId`
-  - logout
-  - read rate limits
-  - respond to pending `account/chatgptAuthTokens/refresh` requests with new tokens
-- Use **Use Snapshot Tool** in the composer, then send. This inserts a prompt that asks Codex to call `tauri_get_runtime_snapshot`.
-- Observe the **Thinking** banner above the composer; it updates with the latest reasoning and clears when the final assistant message completes.
-- Bridge status now surfaces ingest diagnostics (`Ingest Enqueued` / `Ingest Skipped`) from runtime `getState().ingestMetrics`.
-- `convex/chat.ts.getDispatchObservability` provides one-query queue/claim/runtime/turn correlation for dispatch debugging.
-
-## Required env
+## Required Env
 
 Create `apps/examples/tauri-app/.env.local`:
 
@@ -77,19 +30,25 @@ Optional:
 - `VITE_CODEX_BIN`
 - `VITE_CODEX_MODEL`
 - `VITE_CODEX_CWD`
-- `CODEX_HELPER_BIN` (optional standalone helper binary path; bypasses Node runtime)
-- `CODEX_NODE_BIN` (override Node executable when using JS helper)
+- `CODEX_HELPER_BIN`
+- `CODEX_NODE_BIN`
 
-## Notes
+## Host Surface Ownership
 
-- Runtime launch strategy is binary-first, then Node+JS:
-  1. `CODEX_HELPER_BIN`
-  2. bundled `bridge-helper`/`bridge-helper.exe`
-  3. bundled/local `bridge-helper.js` with `CODEX_NODE_BIN` or `node`
-- Convex wrappers in `convex/chat.ts` use generated types from `convex/_generated/*`.
-- Generated type safety checks:
-  - `pnpm run check:generated:convex`
-  - `pnpm run typecheck:convex` (runs `convex dev --once` + generated check + TS typecheck)
-- Tauri bootstrap/check:
-  - `pnpm run prepare:tauri-assets`
-  - `pnpm run tauri:check`
+- `convex/chat.generated.ts`: generated preset wrappers
+- `convex/chat.extensions.ts`: app-owned endpoints (for example `listThreadsForPicker`)
+- `convex/chat.ts`: stable re-export entrypoint
+
+Regenerate wrappers from repo root:
+
+```bash
+pnpm run host:generate
+```
+
+## Useful Checks
+
+```bash
+pnpm run typecheck:convex
+pnpm run check:wiring:convex
+pnpm run tauri:check
+```

@@ -8,18 +8,18 @@ import {
   ensureThreadByResolve,
   ingestBatchMixed,
   ingestEventMixed,
-  interruptTurnForHooksWithTrustedActor,
-  listPendingApprovalsForHooksWithTrustedActor,
-  listPendingServerRequestsForHooksWithTrustedActor,
-  listThreadMessagesForHooksWithTrustedActor,
-  listThreadReasoningForHooksWithTrustedActor,
-  listTurnMessagesForHooksWithTrustedActor,
+  interruptTurnForHooksForActor,
+  listPendingApprovalsForHooksForActor,
+  listPendingServerRequestsForHooksForActor,
+  listThreadMessagesForHooksForActor,
+  listThreadReasoningForHooksForActor,
+  listTurnMessagesForHooksForActor,
   persistenceStats as persistenceStatsHandler,
   registerTurnStart as registerTurnStartHandler,
-  respondApprovalForHooksWithTrustedActor,
-  resolvePendingServerRequestForHooksWithTrustedActor,
+  respondApprovalForHooksForActor,
+  resolvePendingServerRequestForHooksForActor,
   threadSnapshot as threadSnapshotHandler,
-  upsertPendingServerRequestForHooksWithTrustedActor,
+  upsertPendingServerRequestForHooksForActor,
   vHostActorContext,
   vHostDurableHistoryStats,
   vHostEnsureSessionResult,
@@ -29,7 +29,18 @@ import {
   vHostStreamArgs,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
+  type HostActorContext,
 } from "@zakstam/codex-local-component/host/convex";
+
+const SERVER_ACTOR: HostActorContext = Object.freeze({
+  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
+  userId: process.env.ACTOR_USER_ID ?? "demo-user",
+  deviceId: process.env.ACTOR_DEVICE_ID ?? "tauri-server-device",
+});
+
+function withServerActor<T extends { actor: HostActorContext }>(args: T): T {
+  return { ...args, actor: SERVER_ACTOR };
+}
 
 export const ensureThread = mutation({
   args: {
@@ -38,7 +49,7 @@ export const ensureThread = mutation({
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
   },
-  handler: async (ctx, args) => ensureThreadByResolve(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => ensureThreadByResolve(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const registerTurnStart = mutation({
@@ -51,7 +62,8 @@ export const registerTurnStart = mutation({
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
   },
-  handler: async (ctx, args) => registerTurnStartHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    registerTurnStartHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ensureSession = mutation({
@@ -61,7 +73,7 @@ export const ensureSession = mutation({
     threadId: v.string(),
   },
   returns: vHostEnsureSessionResult,
-  handler: async (ctx, args) => ensureSessionHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => ensureSessionHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ingestEvent = mutation({
@@ -72,7 +84,7 @@ export const ingestEvent = mutation({
     event: v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent),
   },
   returns: vHostIngestSafeResult,
-  handler: async (ctx, args) => ingestEventMixed(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => ingestEventMixed(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ingestBatch = mutation({
@@ -84,7 +96,7 @@ export const ingestBatch = mutation({
     runtime: v.optional(vHostSyncRuntimeOptions),
   },
   returns: vHostIngestSafeResult,
-  handler: async (ctx, args) => ingestBatchMixed(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => ingestBatchMixed(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const threadSnapshot = query({
@@ -92,7 +104,7 @@ export const threadSnapshot = query({
     actor: vHostActorContext,
     threadId: v.string(),
   },
-  handler: async (ctx, args) => threadSnapshotHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => threadSnapshotHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const listThreadsForPicker = query({
@@ -102,7 +114,7 @@ export const listThreadsForPicker = query({
   },
   handler: async (ctx, args) => {
     const listed = await ctx.runQuery(components.codexLocal.threads.list, {
-      actor: args.actor,
+      actor: SERVER_ACTOR,
       paginationOpts: {
         numItems: Math.max(1, Math.floor(args.limit ?? 25)),
         cursor: null,
@@ -118,7 +130,7 @@ export const listThreadsForPicker = query({
     const rows = await Promise.all(
       page.map(async (thread) => {
         const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
-          actor: args.actor,
+          actor: SERVER_ACTOR,
           threadId: thread.threadId,
         });
         return {
@@ -144,7 +156,8 @@ export const persistenceStats = query({
     threadId: v.string(),
   },
   returns: vHostPersistenceStats,
-  handler: async (ctx, args) => persistenceStatsHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    persistenceStatsHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const durableHistoryStats = query({
@@ -153,7 +166,8 @@ export const durableHistoryStats = query({
     threadId: v.string(),
   },
   returns: vHostDurableHistoryStats,
-  handler: async (ctx, args) => durableHistoryStatsHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    durableHistoryStatsHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const listThreadMessagesForHooks = query({
@@ -165,8 +179,8 @@ export const listThreadMessagesForHooks = query({
     runtime: v.optional(vHostSyncRuntimeOptions),
   },
   handler: async (ctx, args) =>
-    listThreadMessagesForHooksWithTrustedActor(ctx, components.codexLocal, {
-      actor: args.actor,
+    listThreadMessagesForHooksForActor(ctx, components.codexLocal, {
+      actor: SERVER_ACTOR,
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
       ...(args.streamArgs !== undefined ? { streamArgs: args.streamArgs } : {}),
@@ -181,7 +195,7 @@ export const listTurnMessagesForHooks = query({
     turnId: v.string(),
   },
   handler: async (ctx, args) =>
-    listTurnMessagesForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    listTurnMessagesForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const listThreadReasoningForHooks = query({
@@ -192,7 +206,7 @@ export const listThreadReasoningForHooks = query({
     includeRaw: v.optional(v.boolean()),
   },
   handler: async (ctx, args) =>
-    listThreadReasoningForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    listThreadReasoningForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const listPendingApprovalsForHooks = query({
@@ -202,7 +216,7 @@ export const listPendingApprovalsForHooks = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) =>
-    listPendingApprovalsForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    listPendingApprovalsForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const respondApprovalForHooks = mutation({
@@ -215,7 +229,7 @@ export const respondApprovalForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) =>
-    respondApprovalForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    respondApprovalForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const listPendingServerRequestsForHooks = query({
@@ -225,7 +239,7 @@ export const listPendingServerRequestsForHooks = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) =>
-    listPendingServerRequestsForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    listPendingServerRequestsForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const upsertPendingServerRequestForHooks = mutation({
@@ -248,7 +262,7 @@ export const upsertPendingServerRequestForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) =>
-    upsertPendingServerRequestForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    upsertPendingServerRequestForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const resolvePendingServerRequestForHooks = mutation({
@@ -262,7 +276,7 @@ export const resolvePendingServerRequestForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) =>
-    resolvePendingServerRequestForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    resolvePendingServerRequestForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const interruptTurnForHooks = mutation({
@@ -274,5 +288,5 @@ export const interruptTurnForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) =>
-    interruptTurnForHooksWithTrustedActor(ctx, components.codexLocal, args),
+    interruptTurnForHooksForActor(ctx, components.codexLocal, withServerActor(args)),
 });

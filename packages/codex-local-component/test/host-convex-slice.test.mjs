@@ -6,10 +6,10 @@ import {
   computePersistenceStats,
   ensureThreadByCreate,
   ingestBatchMixed,
-  listPendingServerRequestsForHooksWithTrustedActor,
+  listPendingServerRequestsForHooksForActor,
   listThreadMessagesForHooks,
-  resolvePendingServerRequestForHooksWithTrustedActor,
-  upsertPendingServerRequestForHooksWithTrustedActor,
+  resolvePendingServerRequestForHooksForActor,
+  upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
 
 test("ensureThreadByCreate writes localThreadId and threadId", async () => {
@@ -209,12 +209,12 @@ test("server request host wrappers pass refs and args", async () => {
   };
   const actor = { tenantId: "actor-tenant", userId: "actor-user", deviceId: "actor-device" };
 
-  await listPendingServerRequestsForHooksWithTrustedActor(queryCtx, component, {
+  await listPendingServerRequestsForHooksForActor(queryCtx, component, {
     actor,
     threadId: "thread-1",
     limit: 20,
   });
-  await upsertPendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
+  await upsertPendingServerRequestForHooksForActor(mutationCtx, component, {
     actor,
     requestId: 1,
     threadId: "thread-1",
@@ -224,7 +224,7 @@ test("server request host wrappers pass refs and args", async () => {
     payloadJson: "{}",
     requestedAt: 1,
   });
-  await upsertPendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
+  await upsertPendingServerRequestForHooksForActor(mutationCtx, component, {
     actor,
     requestId: 2,
     threadId: "thread-1",
@@ -234,7 +234,7 @@ test("server request host wrappers pass refs and args", async () => {
     payloadJson: "{}",
     requestedAt: 2,
   });
-  await resolvePendingServerRequestForHooksWithTrustedActor(mutationCtx, component, {
+  await resolvePendingServerRequestForHooksForActor(mutationCtx, component, {
     actor,
     threadId: "thread-1",
     requestId: 1,

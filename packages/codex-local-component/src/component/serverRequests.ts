@@ -76,11 +76,12 @@ export const upsertPending = mutation({
 
     const existing = await ctx.db
       .query("codex_server_requests")
-      .withIndex("tenantId_threadId_requestIdText")
+      .withIndex("tenantId_threadId_requestIdType_requestIdText")
       .filter((q) =>
         q.and(
           q.eq(q.field("tenantId"), args.actor.tenantId),
           q.eq(q.field("threadId"), args.threadId),
+          q.eq(q.field("requestIdType"), requestId.requestIdType),
           q.eq(q.field("requestIdText"), requestId.requestIdText),
         ),
       )
@@ -145,11 +146,12 @@ export const resolve = mutation({
 
     const existing = await ctx.db
       .query("codex_server_requests")
-      .withIndex("tenantId_threadId_requestIdText")
+      .withIndex("tenantId_threadId_requestIdType_requestIdText")
       .filter((q) =>
         q.and(
           q.eq(q.field("tenantId"), args.actor.tenantId),
           q.eq(q.field("threadId"), args.threadId),
+          q.eq(q.field("requestIdType"), requestId.requestIdType),
           q.eq(q.field("requestIdText"), requestId.requestIdText),
         ),
       )

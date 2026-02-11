@@ -16,7 +16,18 @@ import {
   vHostInboundEvent,
   vHostIngestSafeResult,
   vHostPersistenceStats,
+  type HostActorContext,
 } from "@zakstam/codex-local-component/host/convex";
+
+const SERVER_ACTOR: HostActorContext = Object.freeze({
+  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
+  userId: process.env.ACTOR_USER_ID ?? "demo-user",
+  deviceId: process.env.ACTOR_DEVICE_ID ?? "release-smoke-server-device",
+});
+
+function withServerActor<T extends { actor: HostActorContext }>(args: T): T {
+  return { ...args, actor: SERVER_ACTOR };
+}
 
 export const ensureThread = mutation({
   args: {
@@ -25,7 +36,7 @@ export const ensureThread = mutation({
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
   },
-  handler: async (ctx, args) => ensureThreadByCreate(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => ensureThreadByCreate(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const registerTurnStart = mutation({
@@ -38,7 +49,8 @@ export const registerTurnStart = mutation({
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
   },
-  handler: async (ctx, args) => registerTurnStartHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    registerTurnStartHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ensureSession = mutation({
@@ -48,7 +60,7 @@ export const ensureSession = mutation({
     threadId: v.string(),
   },
   returns: vHostEnsureSessionResult,
-  handler: async (ctx, args) => ensureSessionHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => ensureSessionHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ingestEvent = mutation({
@@ -59,7 +71,8 @@ export const ingestEvent = mutation({
     event: vHostInboundEvent,
   },
   returns: vHostIngestSafeResult,
-  handler: async (ctx, args) => ingestEventStreamOnly(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    ingestEventStreamOnly(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const ingestBatch = mutation({
@@ -70,7 +83,8 @@ export const ingestBatch = mutation({
     deltas: v.array(vHostInboundEvent),
   },
   returns: vHostIngestSafeResult,
-  handler: async (ctx, args) => ingestBatchStreamOnly(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    ingestBatchStreamOnly(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const threadSnapshot = query({
@@ -78,7 +92,7 @@ export const threadSnapshot = query({
     actor: vHostActorContext,
     threadId: v.string(),
   },
-  handler: async (ctx, args) => threadSnapshotHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => threadSnapshotHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const persistenceStats = query({
@@ -87,7 +101,8 @@ export const persistenceStats = query({
     threadId: v.string(),
   },
   returns: vHostPersistenceStats,
-  handler: async (ctx, args) => persistenceStatsHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) =>
+    persistenceStatsHandler(ctx, components.codexLocal, withServerActor(args)),
 });
 
 export const dataHygiene = query({
@@ -96,5 +111,5 @@ export const dataHygiene = query({
     threadId: v.string(),
   },
   returns: vHostDataHygiene,
-  handler: async (ctx, args) => dataHygieneHandler(ctx, components.codexLocal, args),
+  handler: async (ctx, args) => dataHygieneHandler(ctx, components.codexLocal, withServerActor(args)),
 });

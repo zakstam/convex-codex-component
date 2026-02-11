@@ -284,7 +284,10 @@ export default defineSchema({
     updatedAt: v.number(),
     resolvedAt: v.optional(v.number()),
   })
-    .index("tenantId_threadId_requestIdText", ["tenantId", "threadId", "requestIdText"])
+    .index(
+      "tenantId_threadId_requestIdType_requestIdText",
+      ["tenantId", "threadId", "requestIdType", "requestIdText"],
+    )
     .index("tenantId_userId_status_updatedAt", ["tenantId", "userId", "status", "updatedAt"])
     .index(
       "tenantId_userId_threadId_status_updatedAt",

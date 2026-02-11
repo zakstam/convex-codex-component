@@ -165,16 +165,6 @@ export const vHostDataHygiene = v.object({
   orphanStreamIds: v.array(v.string()),
 });
 
-const TRUSTED_ACTOR = Object.freeze({
-  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
-  userId: process.env.ACTOR_USER_ID ?? "demo-user",
-  deviceId: process.env.ACTOR_DEVICE_ID ?? "host-device",
-});
-
-export function trustedActorFromEnv(_actor: HostActorContext): HostActorContext {
-  return TRUSTED_ACTOR;
-}
-
 type CodexThreadsCreateComponent = {
   threads: {
     create: FunctionReference<"mutation", "public" | "internal", Record<string, unknown>, unknown>;
@@ -318,7 +308,7 @@ type StreamStatSummary = {
 
 function toThreadStateQueryArgs(args: ThreadSnapshotArgs): ThreadSnapshotArgs {
   return {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     threadId: args.threadId,
   };
 }
@@ -403,7 +393,7 @@ export async function ensureThreadByCreate<
   args: EnsureThreadCreateArgs,
 ): Promise<FunctionReturnType<Component["threads"]["create"]>> {
   return ctx.runMutation(component.threads.create, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     threadId: args.threadId,
     localThreadId: args.threadId,
     ...(args.model !== undefined ? { model: args.model } : {}),
@@ -419,7 +409,7 @@ export async function ensureThreadByResolve<
   args: EnsureThreadResolveArgs,
 ): Promise<FunctionReturnType<Component["threads"]["resolve"]>> {
   return ctx.runMutation(component.threads.resolve, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     ...(args.externalThreadId !== undefined ? { externalThreadId: args.externalThreadId } : {}),
     ...(args.externalThreadId !== undefined ? { localThreadId: args.externalThreadId } : {}),
     ...(args.model !== undefined ? { model: args.model } : {}),
@@ -435,7 +425,7 @@ export async function registerTurnStart<
   args: RegisterTurnStartArgs,
 ): Promise<FunctionReturnType<Component["turns"]["start"]>> {
   return startTurn(ctx, component, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     threadId: args.threadId,
     turnId: args.turnId,
     idempotencyKey: args.idempotencyKey,
@@ -459,7 +449,7 @@ export async function ensureSession<
   args: EnsureSessionArgs,
 ): Promise<FunctionReturnType<Component["sync"]["ensureSession"]>> {
   return ctx.runMutation(component.sync.ensureSession, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
     lastEventCursor: 0,
@@ -474,7 +464,7 @@ export async function ingestEventStreamOnly<
   args: IngestEventStreamOnlyArgs,
 ): Promise<FunctionReturnType<Component["sync"]["ingestSafe"]>> {
   return ctx.runMutation(component.sync.ingestSafe, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
     streamDeltas: [{ ...args.event, type: "stream_delta" as const }],
@@ -493,7 +483,7 @@ export async function ingestBatchStreamOnly<
     throw new Error("ingestBatch requires at least one delta");
   }
   return ctx.runMutation(component.sync.ingestSafe, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
     streamDeltas: args.deltas.map((delta) => ({ ...delta, type: "stream_delta" as const })),
@@ -512,7 +502,7 @@ export async function ingestEventMixed<
   const streamDeltas = args.event.type === "stream_delta" ? [args.event] : [];
   const lifecycleEvents = args.event.type === "lifecycle_event" ? [args.event] : [];
   return ctx.runMutation(component.sync.ingestSafe, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
     streamDeltas,
@@ -531,7 +521,7 @@ export async function ingestBatchMixed<
     throw new Error("ingestBatch requires at least one delta");
   }
   return ingestBatchSafe(ctx, component, {
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
     deltas: args.deltas,
@@ -598,7 +588,7 @@ export async function dataHygiene<
   );
 }
 
-export async function listThreadMessagesForHooksWithTrustedActor<
+export async function listThreadMessagesForHooksForActor<
   Component extends CodexHooksComponent,
 >(
   ctx: HostQueryRunner,
@@ -624,11 +614,11 @@ export async function listThreadMessagesForHooksWithTrustedActor<
 > {
   return listThreadMessagesForHooks(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   });
 }
 
-export async function listThreadReasoningForHooksWithTrustedActor<
+export async function listThreadReasoningForHooksForActor<
   Component extends CodexReasoningComponent,
 >(
   ctx: HostQueryRunner,
@@ -637,11 +627,11 @@ export async function listThreadReasoningForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["reasoning"]["listByThread"]>> {
   return listThreadReasoningForHooks(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   });
 }
 
-export async function listTurnMessagesForHooksWithTrustedActor<
+export async function listTurnMessagesForHooksForActor<
   Component extends CodexMessagesComponent,
 >(
   ctx: HostQueryRunner,
@@ -654,11 +644,11 @@ export async function listTurnMessagesForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["messages"]["getByTurn"]>> {
   return listTurnMessages(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["messages"]["getByTurn"]>);
 }
 
-export async function listPendingApprovalsForHooksWithTrustedActor<
+export async function listPendingApprovalsForHooksForActor<
   Component extends CodexApprovalsComponent,
 >(
   ctx: HostQueryRunner,
@@ -671,11 +661,11 @@ export async function listPendingApprovalsForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["approvals"]["listPending"]>> {
   return listPendingApprovals(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["approvals"]["listPending"]>);
 }
 
-export async function respondApprovalForHooksWithTrustedActor<
+export async function respondApprovalForHooksForActor<
   Component extends CodexApprovalsComponent,
 >(
   ctx: HostMutationRunner,
@@ -690,11 +680,11 @@ export async function respondApprovalForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["approvals"]["respond"]>> {
   return respondToApproval(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["approvals"]["respond"]>);
 }
 
-export async function listPendingServerRequestsForHooksWithTrustedActor<
+export async function listPendingServerRequestsForHooksForActor<
   Component extends CodexServerRequestsComponent,
 >(
   ctx: HostQueryRunner,
@@ -707,11 +697,11 @@ export async function listPendingServerRequestsForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["serverRequests"]["listPending"]>> {
   return listPendingServerRequests(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["serverRequests"]["listPending"]>);
 }
 
-export async function upsertPendingServerRequestForHooksWithTrustedActor<
+export async function upsertPendingServerRequestForHooksForActor<
   Component extends CodexServerRequestsComponent,
 >(
   ctx: HostMutationRunner,
@@ -735,11 +725,11 @@ export async function upsertPendingServerRequestForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["serverRequests"]["upsertPending"]>> {
   return upsertPendingServerRequest(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["serverRequests"]["upsertPending"]>);
 }
 
-export async function resolvePendingServerRequestForHooksWithTrustedActor<
+export async function resolvePendingServerRequestForHooksForActor<
   Component extends CodexServerRequestsComponent,
 >(
   ctx: HostMutationRunner,
@@ -755,11 +745,11 @@ export async function resolvePendingServerRequestForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["serverRequests"]["resolve"]>> {
   return resolvePendingServerRequest(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["serverRequests"]["resolve"]>);
 }
 
-export async function interruptTurnForHooksWithTrustedActor<
+export async function interruptTurnForHooksForActor<
   Component extends CodexTurnsComponent,
 >(
   ctx: HostMutationRunner,
@@ -773,6 +763,6 @@ export async function interruptTurnForHooksWithTrustedActor<
 ): Promise<FunctionReturnType<Component["turns"]["interrupt"]>> {
   return interruptTurn(ctx, component, {
     ...args,
-    actor: trustedActorFromEnv(args.actor),
+    actor: args.actor,
   } as FunctionArgs<Component["turns"]["interrupt"]>);
 }

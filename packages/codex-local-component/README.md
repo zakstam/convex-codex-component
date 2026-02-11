@@ -4,32 +4,7 @@
 
 Convex component for Codex integrations where Codex runs locally on the user's machine (desktop/CLI), while thread state, messages, approvals, and stream recovery live in Convex.
 
-## Who This Is For
-
-Use this package if you are building:
-
-- a Convex-backed chat/app experience
-- with Codex running locally (`codex app-server`)
-- and you want durable history + real-time updates + approval flows
-
-This README is optimized for copy/paste into an LLM so it can generate a correct first-pass integration.
-
-## LLM Integration Contract (Read First)
-
-1. Always use generated Convex types from your app:
-   - `./_generated/api`
-   - `./_generated/server`
-2. Mount the component once with `app.use(codexLocal)` in `convex/convex.config.ts`.
-3. In Convex server files, prefer `@zakstam/codex-local-component/host/convex` helper exports.
-4. Treat `actor` (`tenantId`, `userId`, `deviceId`) as trusted server identity, not untrusted client input.
-5. Before ingesting events on startup/reconnect, call `sync.ensureSession`.
-6. For runtime ingest, prefer `sync.ingestSafe` (status-driven recovery behavior).
-
-If you skip these rules, the most common failures are missing generated references, session mismatch ingest rejections, and inconsistent hook query contracts.
-
-## Golden Path (15-Minute Integration)
-
-### 1) Install
+## Install
 
 ```bash
 pnpm add @zakstam/codex-local-component convex
@@ -37,7 +12,20 @@ pnpm add @zakstam/codex-local-component convex
 
 React hooks require `react` peer dependency (`^18` or `^19`).
 
-### 2) Mount the component
+## Integration Contract (Read First)
+
+1. Always use generated Convex types from your app:
+   - `./_generated/api`
+   - `./_generated/server`
+2. Mount the component once with `app.use(codexLocal)`.
+3. In Convex server files, use `@zakstam/codex-local-component/host/convex` helper exports.
+4. Treat `actor` (`tenantId`, `userId`, `deviceId`) as trusted server identity, not untrusted client input.
+5. Before ingesting events on startup/reconnect, call `sync.ensureSession`.
+6. For runtime ingest, prefer `sync.ingestSafe` (`ingestBatchMixed` uses this).
+
+## Golden Path
+
+### 1) Mount the component
 
 ```ts
 // convex/convex.config.ts
@@ -52,12 +40,9 @@ export default app;
 
 Run `npx convex dev` once so `components.codexLocal.*` is generated.
 
-### 3) Add a host wrapper slice (`convex/chat.ts`)
-
-Use helper exports so your wrapper contract stays consistent with the package:
+### 2) Add host wrappers (`convex/chat.ts`)
 
 ```ts
-// convex/chat.ts
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
@@ -136,7 +121,7 @@ export const listThreadMessagesForHooks = query({
 });
 ```
 
-### 4) Run a bridge runtime loop in desktop/CLI process
+### 3) Run bridge loop (desktop/CLI process)
 
 ```ts
 import { randomUUID } from "node:crypto";
@@ -178,7 +163,7 @@ const bridge = new CodexLocalBridge(
 bridge.start();
 ```
 
-### 5) Wire React hooks
+### 4) Wire React hooks
 
 ```tsx
 import { useCodexMessages } from "@zakstam/codex-local-component/react";
@@ -203,11 +188,11 @@ export function Chat({ threadId }: { threadId: string }) {
 }
 ```
 
-## Required Hook Query Contract
+## Required Query Contract for `useCodexMessages`
 
-Your `useCodexMessages` query must:
+Your host query must:
 
-- accept: `threadId`, `paginationOpts`, optional `streamArgs`
+- accept `threadId`, `paginationOpts`, optional `streamArgs`
 - return durable paginated messages plus optional `streams`
 
 `streamArgs`:
@@ -215,48 +200,48 @@ Your `useCodexMessages` query must:
 - `{ kind: "list", startOrder?: number }`
 - `{ kind: "deltas", cursors: Array<{ streamId: string; cursor: number }> }`
 
-`streams` response variant for deltas:
+Delta stream response shape includes:
 
 - `streams`
 - `deltas`
 - `streamWindows` (`ok | rebased | stale`)
 - `nextCheckpoints`
 
-Use the helper `listThreadMessagesForHooksForActor` to avoid contract drift.
+## Package Import Paths
 
-## Operational Guardrails
+- `@zakstam/codex-local-component/convex.config`
+- `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component/react`
+- `@zakstam/codex-local-component/client`
+- `@zakstam/codex-local-component/bridge`
+- `@zakstam/codex-local-component/app-server`
+- `@zakstam/codex-local-component/protocol`
 
-- Call `ensureSession` at startup/reconnect before ingest.
-- Use `ingestSafe` semantics (`ingestBatchMixed` uses this) and branch on `status`:
-  - `ok`
-  - `partial`
-  - `session_recovered`
-  - `rejected`
-- For replay recovery, follow `nextCheckpoints` and persist checkpoints.
-- Keep bridge runtime loop alive; creating turns without active ingest loop yields no streaming updates.
+## Implemented
 
-## Common Integration Mistakes
+- Initialization handshake
+- Thread lifecycle (create, resolve, resume, fork, archive, rollback)
+- Turn lifecycle (start, interrupt, idempotency)
+- Streamed event ingest and replay with cursor-based sync
+- Session lifecycle (`ensureSession`, heartbeat, recovery)
+- Account/Auth API surface (`account/read`, `account/login/start`, `account/login/cancel`, `account/logout`, `account/rateLimits/read`)
+- Command execution and file change approval flows
+- Tool user input flow
+- Dynamic tool call response flow
+- ChatGPT auth-token refresh response flow (`account/chatgptAuthTokens/refresh`)
+- Multi-device stream checkpoints with TTL cleanup
 
-1. Passing untrusted client actor payloads directly into Convex mutations.
-2. Mixing runtime thread id and persisted local `threadId`.
-3. Ingesting without `ensureSession` after reconnect.
-4. Returning the wrong query shape for `useCodexMessages`.
-5. Importing Node runtime helpers in Convex bundle paths instead of `host/convex`.
-6. Ignoring `streamWindows` (`rebased`/`stale`) during stream recovery.
+## Not Implemented Yet
 
-## Export Map
+- Config management API surface
+- MCP management API surface
+- Core runtime utility APIs (`command/exec`, `model/list`, `review/start`)
+- Skill/App discovery and configuration APIs
+- Feedback API
+- Collaboration mode listing
 
-- `@zakstam/codex-local-component/client`: typed component helper calls
-- `@zakstam/codex-local-component/react`: React hooks and optimistic helpers
-- `@zakstam/codex-local-component/bridge`: local `codex app-server` process bridge
-- `@zakstam/codex-local-component/protocol`: protocol parsing/classification utilities
-- `@zakstam/codex-local-component/app-server`: typed request/response builders
-- `@zakstam/codex-local-component/host`: runtime orchestration helpers
-- `@zakstam/codex-local-component/host/convex`: Convex-safe validators/handlers (canonical wrapper path)
-- `@zakstam/codex-local-component/convex.config`: mountable component definition
+## Docs
 
-## Deep-Dive Docs
-
-- `docs/HOST_INTEGRATION.md`: full host wrapper/runtime patterns
-- `docs/CLIENT_AND_REACT_HOOKS.md`: hook contracts and merge behavior
-- `docs/OPERATIONS_AND_ERRORS.md`: error catalog and recovery runbook
+- `docs/HOST_INTEGRATION.md`
+- `docs/CLIENT_AND_REACT_HOOKS.md`
+- `docs/OPERATIONS_AND_ERRORS.md`

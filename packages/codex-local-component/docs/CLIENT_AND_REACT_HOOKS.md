@@ -5,6 +5,8 @@ This package ships a consumer SDK layer:
 - `@zakstam/codex-local-component/client`
 - `@zakstam/codex-local-component/react`
 
+For Convex server wrapper files, the canonical integration path is `@zakstam/codex-local-component/host/convex`.
+
 ## Client helpers
 
 Import from `@zakstam/codex-local-component/client`:
@@ -165,7 +167,7 @@ export const ingestBatch = mutation({
     actor: vActor,
     sessionId: v.string(),
     threadId: v.string(),
-    deltas: v.array(v.union(vStreamInboundEvent, vLifecycleInboundEvent)),
+    deltas: v.array(v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent)),
   },
   handler: async (ctx, args) => {
     const streamDeltas = args.deltas.filter((d) => d.type === "stream_delta");

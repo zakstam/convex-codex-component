@@ -16,6 +16,8 @@
 
 ---
 
+> Consumer integration handoff: use the published package README at `packages/codex-local-component/README.md` as the canonical LLM-friendly integration guide.
+
 ## How It Works
 
 ```
@@ -73,6 +75,8 @@ pnpm start            # start bridge + CLI
 ---
 
 ## Integration Guide
+
+For package consumers, the canonical integration path is documented in `packages/codex-local-component/README.md` (helpers-first via `@zakstam/codex-local-component/host/convex`).
 
 ### Step 1 — Mount the component
 

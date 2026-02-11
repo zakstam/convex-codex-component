@@ -1,5 +1,7 @@
 # Operations and Error Catalog
 
+This file is operational follow-up for the canonical integration baseline in `../README.md` and `HOST_INTEGRATION.md`.
+
 ## Error catalog
 
 ### Authorization

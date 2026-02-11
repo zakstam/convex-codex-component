@@ -1,5 +1,7 @@
 # Host Integration Guide
 
+Canonical path: in Convex server files, use `@zakstam/codex-local-component/host/convex` helper exports as the default integration path.
+
 ## 1. Install and mount
 
 ```ts
@@ -30,12 +32,12 @@ Use:
 - handlers: `ensureThreadByCreate` or `ensureThreadByResolve`, `ensureSession`, `registerTurnStart`,
   `ingestEventStreamOnly` / `ingestEventMixed`, `ingestBatchStreamOnly` / `ingestBatchMixed`,
   `threadSnapshot`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`
-- hook helpers: `listThreadMessagesForHooksWithTrustedActor`, `listTurnMessagesForHooksWithTrustedActor`,
-  `listThreadReasoningForHooksWithTrustedActor`,
-  `listPendingApprovalsForHooksWithTrustedActor`, `respondApprovalForHooksWithTrustedActor`,
-  `listPendingServerRequestsForHooksWithTrustedActor`, `upsertPendingServerRequestForHooksWithTrustedActor`,
-  `resolvePendingServerRequestForHooksWithTrustedActor`,
-  `interruptTurnForHooksWithTrustedActor`
+- hook helpers: `listThreadMessagesForHooksForActor`, `listTurnMessagesForHooksForActor`,
+  `listThreadReasoningForHooksForActor`,
+  `listPendingApprovalsForHooksForActor`, `respondApprovalForHooksForActor`,
+  `listPendingServerRequestsForHooksForActor`, `upsertPendingServerRequestForHooksForActor`,
+  `resolvePendingServerRequestForHooksForActor`,
+  `interruptTurnForHooksForActor`
 
 ```ts
 import { paginationOptsValidator } from "convex/server";
@@ -46,7 +48,7 @@ import {
   ensureSession as ensureSessionHandler,
   ensureThreadByCreate,
   ingestBatchMixed,
-  listThreadMessagesForHooksWithTrustedActor,
+  listThreadMessagesForHooksForActor,
   registerTurnStart as registerTurnStartHandler,
   vHostActorContext,
   vHostEnsureSessionResult,
@@ -56,6 +58,12 @@ import {
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
 } from "@zakstam/codex-local-component/host/convex";
+
+const SERVER_ACTOR = {
+  tenantId: process.env.ACTOR_TENANT_ID ?? "demo-tenant",
+  userId: process.env.ACTOR_USER_ID ?? "demo-user",
+  deviceId: process.env.ACTOR_DEVICE_ID ?? "server-device",
+};
 
 export const registerTurnStart = mutation({
   args: {
@@ -91,7 +99,7 @@ export const ingestBatch = mutation({
     actor: vHostActorContext,
     sessionId: v.string(),
     threadId: v.string(),
-    deltas: v.array(v.union(vStreamInboundEvent, vLifecycleInboundEvent)),
+    deltas: v.array(v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent)),
     runtime: v.optional(vHostSyncRuntimeOptions),
   },
   returns: vHostIngestSafeResult,
@@ -107,8 +115,8 @@ export const listThreadMessagesForHooks = query({
     runtime: v.optional(vHostSyncRuntimeOptions),
   },
   handler: async (ctx, args) =>
-    listThreadMessagesForHooksWithTrustedActor(ctx, components.codexLocal, {
-      actor: args.actor,
+    listThreadMessagesForHooksForActor(ctx, components.codexLocal, {
+      actor: SERVER_ACTOR,
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
       streamArgs: args.streamArgs,

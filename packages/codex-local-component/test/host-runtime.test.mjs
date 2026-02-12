@@ -462,6 +462,81 @@ test("runtime ingests turn-scoped events", async () => {
   await runtime.stop();
 });
 
+test("runtime remaps runtime turnId 0 to claimed persisted turn id for ingest", async () => {
+  const { runtime, sent, emitResponse, emitEvent, ingestCalls } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+    dispatchManaged: false,
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  runtime.sendTurn("hello");
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
+  const claimedTurnId = runtime.getState().turnId;
+  assert.ok(claimedTurnId);
+  await emitResponse({
+    id: turnStartRequest.id,
+    result: {
+      thread: { id: threadId },
+      turn: { id: "0", status: "in_progress", items: [] },
+    },
+  });
+
+  await emitEvent({
+    eventId: "evt-turn-started-runtime-zero",
+    threadId,
+    turnId: "0",
+    streamId: `${threadId}:0:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/started",
+    payloadJson: JSON.stringify({
+      method: "turn/started",
+      params: {
+        threadId,
+        turn: { id: "0", items: [], status: "inProgress", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  await emitEvent({
+    eventId: "evt-turn-completed-runtime-zero",
+    threadId,
+    turnId: "0",
+    streamId: `${threadId}:0:0`,
+    cursorStart: 1,
+    cursorEnd: 2,
+    kind: "turn/completed",
+    payloadJson: JSON.stringify({
+      method: "turn/completed",
+      params: {
+        threadId,
+        turn: { id: "0", items: [], status: "completed", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  assert.equal(ingestCalls.length, 1);
+  assert.equal(ingestCalls[0].deltas.length, 2);
+  assert.equal(ingestCalls[0].deltas[0].turnId, claimedTurnId);
+  assert.equal(ingestCalls[0].deltas[1].turnId, claimedTurnId);
+  assert.equal(ingestCalls[0].deltas[0].streamId, `${threadId}:${claimedTurnId}:0`);
+  assert.equal(ingestCalls[0].deltas[1].streamId, `${threadId}:${claimedTurnId}:0`);
+
+  const startedPayload = JSON.parse(ingestCalls[0].deltas[0].payloadJson);
+  const completedPayload = JSON.parse(ingestCalls[0].deltas[1].payloadJson);
+  assert.equal(startedPayload.params.turn.id, claimedTurnId);
+  assert.equal(completedPayload.params.turn.id, claimedTurnId);
+
+  await runtime.stop();
+});
+
 test("runtime drops OUT_OF_ORDER rejected ingest batches without protocol error", async () => {
   const { runtime, sent, emitResponse, emitEvent, protocolErrors, ingestCalls } = createHarness({
     ingestSafe: async (args) => {
@@ -646,16 +721,18 @@ test("respondChatgptAuthTokensRefresh responds to pending auth token refresh req
 
   await runtime.respondChatgptAuthTokensRefresh({
     requestId: 501,
-    idToken: "id-token",
     accessToken: "access-token",
+    chatgptAccountId: "acct_123",
+    chatgptPlanType: "plus",
   });
 
   const responseMessage = sent.find((message) => message.id === 501 && "result" in message);
   assert.deepEqual(responseMessage, {
     id: 501,
     result: {
-      idToken: "id-token",
       accessToken: "access-token",
+      chatgptAccountId: "acct_123",
+      chatgptPlanType: "plus",
     },
   });
 
@@ -673,8 +750,8 @@ test("respondChatgptAuthTokensRefresh rejects unknown request id", async () => {
   await assert.rejects(
     runtime.respondChatgptAuthTokensRefresh({
       requestId: "missing",
-      idToken: "id-token",
       accessToken: "access-token",
+      chatgptAccountId: "acct_123",
     }),
     /No pending auth token refresh request found/,
   );

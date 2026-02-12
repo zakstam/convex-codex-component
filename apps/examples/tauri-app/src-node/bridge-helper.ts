@@ -34,6 +34,7 @@ type StartPayload = {
 type HelperCommand =
   | { type: "start"; payload: StartPayload }
   | { type: "send_turn"; payload: { text: string } }
+  // TODO(turn/steer): add `steer_turn` command once runtime exposes `steerTurn(...)`.
   | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
   | { type: "respond_file_change_approval"; payload: { requestId: string | number; decision: FileChangeApprovalDecision } }
   | { type: "respond_tool_user_input"; payload: { requestId: string | number; answers: Record<string, ToolRequestUserInputAnswer> } }
@@ -44,7 +45,12 @@ type HelperCommand =
   | { type: "account_rate_limits_read"; payload: Record<string, never> }
   | {
       type: "respond_chatgpt_auth_tokens_refresh";
-      payload: { requestId: string | number; idToken: string; accessToken: string };
+      payload: {
+        requestId: string | number;
+        accessToken: string;
+        chatgptAccountId: string;
+        chatgptPlanType?: string | null;
+      };
     }
   | { type: "interrupt" }
   | { type: "stop" }
@@ -74,8 +80,10 @@ type HelperEvent =
   | { type: "error"; payload: { message: string } };
 
 function isIgnorableProtocolNoise(message: string): boolean {
-  return message.includes(
-    "Message is valid JSON-RPC but not a supported codex server notification/request/response shape.",
+  return (
+    message.includes(
+      "Message is valid JSON-RPC but not a supported codex server notification/request/response shape.",
+    ) || message.startsWith("[codex-bridge:raw-in] ")
   );
 }
 
@@ -800,6 +808,17 @@ async function startBridge(payload: StartPayload): Promise<void> {
       },
       onProtocolError: ({ message, line }) => {
         if (isIgnorableProtocolNoise(message)) {
+          const rawPrefix = "[codex-bridge:raw-in] ";
+          if (message.startsWith(rawPrefix)) {
+            emit({
+              type: "global",
+              payload: {
+                kind: "protocol/raw_in",
+                line: message.slice(rawPrefix.length),
+              },
+            });
+            return;
+          }
           emit({
             type: "global",
             payload: {
@@ -918,16 +937,18 @@ async function readAccountRateLimits(): Promise<void> {
 
 async function respondChatgptAuthTokensRefresh(args: {
   requestId: string | number;
-  idToken: string;
   accessToken: string;
+  chatgptAccountId: string;
+  chatgptPlanType?: string | null;
 }): Promise<void> {
   if (!runtime) {
     throw new Error("Bridge/runtime not ready. Start runtime first.");
   }
   await runtime.respondChatgptAuthTokensRefresh({
     requestId: args.requestId,
-    idToken: args.idToken,
     accessToken: args.accessToken,
+    chatgptAccountId: args.chatgptAccountId,
+    ...(args.chatgptPlanType !== undefined ? { chatgptPlanType: args.chatgptPlanType } : {}),
   });
 }
 

@@ -2,7 +2,18 @@ mod bridge_process;
 
 use bridge_process::{AppBridgeState, BridgeRuntime};
 use serde::Deserialize;
-use tauri::{Manager, RunEvent, State, WindowEvent};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{Emitter, Manager, RunEvent, State, WindowEvent};
+
+static START_TRACE_SEQ: AtomicU64 = AtomicU64::new(1);
+
+fn now_unix_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0)
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +21,7 @@ struct StartBridgeConfig {
     convex_url: String,
     actor: bridge_process::ActorContext,
     session_id: String,
+    start_source: Option<String>,
     model: Option<String>,
     cwd: Option<String>,
     delta_throttle_ms: Option<u64>,
@@ -55,8 +67,9 @@ struct CancelAccountLoginConfig {
 #[serde(rename_all = "camelCase")]
 struct RespondChatgptAuthTokensRefreshConfig {
     request_id: serde_json::Value,
-    id_token: String,
     access_token: String,
+    chatgpt_account_id: String,
+    chatgpt_plan_type: Option<String>,
 }
 
 #[tauri::command]
@@ -65,10 +78,35 @@ async fn start_bridge(
     state: State<'_, AppBridgeState>,
     config: StartBridgeConfig,
 ) -> Result<(), String> {
-    state
+    let trace_id = START_TRACE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let source = config
+        .start_source
+        .clone()
+        .unwrap_or_else(|| "unspecified".to_string());
+    let snapshot_before = state.runtime.snapshot().await;
+
+    let _ = app.emit(
+        "codex:global_message",
+        serde_json::json!({
+            "kind": "bridge/start_trace",
+            "phase": "received",
+            "traceId": trace_id,
+            "tsMs": now_unix_ms(),
+            "source": source,
+            "runningBefore": snapshot_before.running,
+            "runtimeThreadIdBefore": snapshot_before.runtime_thread_id,
+            "localThreadIdBefore": snapshot_before.local_thread_id,
+            "turnIdBefore": snapshot_before.turn_id,
+            "threadStrategy": config.thread_strategy,
+            "runtimeThreadIdArg": config.runtime_thread_id,
+            "externalThreadIdArg": config.external_thread_id,
+        }),
+    );
+
+    let start_result = state
         .runtime
         .start(
-            app,
+            app.clone(),
             bridge_process::HelperStartPayload {
                 convex_url: config.convex_url,
                 actor: config.actor,
@@ -82,7 +120,39 @@ async fn start_bridge(
                 external_thread_id: config.external_thread_id,
             },
         )
-        .await
+        .await;
+
+    match &start_result {
+        Ok(()) => {
+            let _ = app.emit(
+                "codex:global_message",
+                serde_json::json!({
+                    "kind": "bridge/start_trace",
+                    "phase": "result",
+                    "traceId": trace_id,
+                    "tsMs": now_unix_ms(),
+                    "source": source,
+                    "status": "ok",
+                }),
+            );
+        }
+        Err(message) => {
+            let _ = app.emit(
+                "codex:global_message",
+                serde_json::json!({
+                    "kind": "bridge/start_trace",
+                    "phase": "result",
+                    "traceId": trace_id,
+                    "tsMs": now_unix_ms(),
+                    "source": source,
+                    "status": "error",
+                    "message": message,
+                }),
+            );
+        }
+    }
+
+    start_result
 }
 
 #[tauri::command]
@@ -192,8 +262,9 @@ async fn respond_chatgpt_auth_tokens_refresh(
         .respond_chatgpt_auth_tokens_refresh(
             app,
             config.request_id,
-            config.id_token,
             config.access_token,
+            config.chatgpt_account_id,
+            config.chatgpt_plan_type,
         )
         .await
 }

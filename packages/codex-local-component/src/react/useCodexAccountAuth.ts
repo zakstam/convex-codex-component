@@ -10,8 +10,9 @@ export type CodexAccountAuthControls<LoginParams = unknown> = {
   readAccountRateLimits: () => Promise<unknown>;
   respondChatgptAuthTokensRefresh?: (args: {
     requestId: string | number;
-    idToken: string;
     accessToken: string;
+    chatgptAccountId: string;
+    chatgptPlanType?: string | null;
   }) => Promise<unknown>;
 };
 
@@ -66,7 +67,12 @@ export function useCodexAccountAuth<LoginParams = unknown>(
     [controls, run],
   );
   const respondChatgptAuthTokensRefresh = useCallback(
-    (args: { requestId: string | number; idToken: string; accessToken: string }) => {
+    (args: {
+      requestId: string | number;
+      accessToken: string;
+      chatgptAccountId: string;
+      chatgptPlanType?: string | null;
+    }) => {
       const respond = controls.respondChatgptAuthTokensRefresh;
       if (!respond) {
         throw new Error("respondChatgptAuthTokensRefresh is not configured.");

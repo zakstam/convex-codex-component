@@ -109,12 +109,17 @@ test("app-server response builders create JSON-RPC response payloads for server 
   });
   assert.deepEqual(
     buildChatgptAuthTokensRefreshResponse(14, {
-      idToken: "id-token",
       accessToken: "access-token",
+      chatgptAccountId: "acct_123",
+      chatgptPlanType: "plus",
     }),
     {
       id: 14,
-      result: { idToken: "id-token", accessToken: "access-token" },
+      result: {
+        accessToken: "access-token",
+        chatgptAccountId: "acct_123",
+        chatgptPlanType: "plus",
+      },
     },
   );
 });

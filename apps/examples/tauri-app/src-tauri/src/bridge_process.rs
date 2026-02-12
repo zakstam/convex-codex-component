@@ -116,6 +116,13 @@ impl BridgeRuntime {
             tokio::spawn(async move {
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
+                    if let Some(raw_line) = line.strip_prefix("[codex-bridge:raw-in] ") {
+                        let _ = app_handle.emit(
+                            "codex:global_message",
+                            json!({ "kind": "protocol/raw_in", "line": raw_line }),
+                        );
+                        continue;
+                    }
                     {
                         let mut next = snapshot.lock().await;
                         next.last_error = Some(line.clone());
@@ -241,16 +248,18 @@ impl BridgeRuntime {
         &self,
         app: AppHandle,
         request_id: serde_json::Value,
-        id_token: String,
         access_token: String,
+        chatgpt_account_id: String,
+        chatgpt_plan_type: Option<String>,
     ) -> Result<(), String> {
         self.send_to_helper(
             &app,
             "respond_chatgpt_auth_tokens_refresh",
             json!({
                 "requestId": request_id,
-                "idToken": id_token,
-                "accessToken": access_token
+                "accessToken": access_token,
+                "chatgptAccountId": chatgpt_account_id,
+                "chatgptPlanType": chatgpt_plan_type
             }),
         )
         .await

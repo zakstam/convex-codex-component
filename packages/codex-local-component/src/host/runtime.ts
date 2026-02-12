@@ -339,6 +339,7 @@ export type CodexHostRuntime = {
   start: (args: HostRuntimeStartArgs) => Promise<void>;
   stop: () => Promise<void>;
   sendTurn: (text: string) => void;
+  // TODO(turn/steer): Expose a `steerTurn(...)` API for mid-turn guidance when turn/steer is wired.
   startClaimedTurn: (args: {
     dispatchId: string;
     claimToken: string;
@@ -389,8 +390,9 @@ export type CodexHostRuntime = {
   }) => Promise<void>;
   respondChatgptAuthTokensRefresh: (args: {
     requestId: RpcId;
-    idToken: string;
     accessToken: string;
+    chatgptAccountId: string;
+    chatgptPlanType?: string | null;
   }) => Promise<void>;
   getState: () => HostRuntimeState;
 };
@@ -580,7 +582,10 @@ export function createCodexHostRuntime(args: {
   let nextRequestId = 1;
   let pendingDispatchTextQueue: string[] = [];
   let claimLoopRunning = false;
-  const dispatchByTurnId = new Map<string, { dispatchId: string; claimToken: string; source: "runtime_queue" | "external_claim" }>();
+  const dispatchByTurnId = new Map<
+    string,
+    { dispatchId: string; claimToken: string; source: "runtime_queue" | "external_claim"; persistedTurnId: string }
+  >();
   let activeDispatch:
     | {
         dispatchId: string;
@@ -996,13 +1001,87 @@ export function createCodexHostRuntime(args: {
     await next;
   };
 
+  const resolvePersistedTurnId = (runtimeTurnId?: string): string | null => {
+    if (runtimeTurnId) {
+      const mapped = dispatchByTurnId.get(runtimeTurnId)?.persistedTurnId;
+      return mapped ?? runtimeTurnId;
+    }
+    return turnId;
+  };
+
+  const rewritePayloadTurnId = (args: {
+    kind: string;
+    payloadJson: string;
+    runtimeTurnId?: string;
+    persistedTurnId: string;
+  }): string => {
+    const { kind, payloadJson, runtimeTurnId, persistedTurnId } = args;
+    if (!runtimeTurnId || runtimeTurnId === persistedTurnId) {
+      return payloadJson;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payloadJson);
+    } catch {
+      return payloadJson;
+    }
+    const message = asObject(parsed);
+    if (!message) {
+      return payloadJson;
+    }
+    if (kind.startsWith("codex/event/")) {
+      const params = asObject(message.params);
+      const msg = params ? asObject(params.msg) : null;
+      if (!msg) {
+        return payloadJson;
+      }
+      if (typeof msg.turn_id === "string") {
+        msg.turn_id = persistedTurnId;
+      }
+      if (typeof msg.turnId === "string") {
+        msg.turnId = persistedTurnId;
+      }
+      return JSON.stringify(parsed);
+    }
+    const params = asObject(message.params);
+    if (!params) {
+      return payloadJson;
+    }
+    if (kind === "turn/started" || kind === "turn/completed") {
+      const turn = asObject(params.turn);
+      if (!turn || typeof turn.id !== "string") {
+        return payloadJson;
+      }
+      turn.id = persistedTurnId;
+      return JSON.stringify(parsed);
+    }
+    if (typeof params.turnId === "string") {
+      params.turnId = persistedTurnId;
+      return JSON.stringify(parsed);
+    }
+    if (typeof params.turn_id === "string") {
+      params.turn_id = persistedTurnId;
+      return JSON.stringify(parsed);
+    }
+    return payloadJson;
+  };
+
   const toIngestDelta = (event: NormalizedEvent, persistedThreadId: string): IngestDelta | null => {
-    const resolvedTurnId = event.turnId ?? turnId;
+    const resolvedTurnId = resolvePersistedTurnId(event.turnId);
     if (!resolvedTurnId || !isTurnScopedEvent(event.kind)) {
       return null;
     }
 
-    const resolvedStreamId = event.streamId;
+    const rewrittenPayload = rewritePayloadTurnId({
+      kind: event.kind,
+      payloadJson: event.payloadJson,
+      persistedTurnId: resolvedTurnId,
+      ...(event.turnId ? { runtimeTurnId: event.turnId } : {}),
+    });
+    const resolvedStreamId =
+      event.streamId && event.turnId && event.turnId !== resolvedTurnId
+        ? event.streamId.replace(`:${event.turnId}:`, `:${resolvedTurnId}:`)
+        : event.streamId;
     if (!resolvedStreamId) {
       throw new Error(`Protocol event missing streamId for turn-scoped kind: ${event.kind}`);
     }
@@ -1011,7 +1090,7 @@ export function createCodexHostRuntime(args: {
       type: "stream_delta",
       eventId: event.eventId,
       kind: event.kind,
-      payloadJson: event.payloadJson,
+      payloadJson: rewrittenPayload,
       cursorStart: event.cursorStart,
       cursorEnd: event.cursorEnd,
       createdAt: event.createdAt,
@@ -1092,7 +1171,8 @@ export function createCodexHostRuntime(args: {
           await ensureThreadBinding(event.threadId);
 
           if (event.kind === "turn/started" && event.turnId) {
-            turnId = event.turnId;
+            const persistedTurnId = resolvePersistedTurnId(event.turnId) ?? event.turnId;
+            turnId = persistedTurnId;
             turnInFlight = true;
             turnSettled = false;
             if (activeDispatch && actor && threadId) {
@@ -1100,6 +1180,7 @@ export function createCodexHostRuntime(args: {
                 dispatchId: activeDispatch.dispatchId,
                 claimToken: activeDispatch.claimToken,
                 source: activeDispatch.source,
+                persistedTurnId: activeDispatch.turnId,
               });
               await args.persistence.markTurnDispatchStarted({
                 actor,
@@ -1157,7 +1238,6 @@ export function createCodexHostRuntime(args: {
                     reason: "turn/completed reported failed status",
                   });
                 }
-                dispatchByTurnId.delete(event.turnId);
               }
             }
             turnId = null;
@@ -1184,7 +1264,6 @@ export function createCodexHostRuntime(args: {
                   code: "TURN_ERROR_EVENT",
                   reason: "Runtime emitted error event for turn",
                 });
-                dispatchByTurnId.delete(event.turnId);
               }
             }
             turnInFlight = false;
@@ -1280,6 +1359,9 @@ export function createCodexHostRuntime(args: {
             event.kind === "error";
 
           await enqueueIngestDelta(delta, forceFlush);
+          if (event.turnId && (event.kind === "turn/completed" || event.kind === "error")) {
+            dispatchByTurnId.delete(event.turnId);
+          }
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           const coded = runtimeError(
@@ -1353,6 +1435,7 @@ export function createCodexHostRuntime(args: {
                   dispatchId: pending.dispatchId,
                   claimToken: pending.claimToken,
                   source: pending.dispatchSource ?? "runtime_queue",
+                  persistedTurnId: pending.turnId ?? runtimeTurnId,
                 });
               }
               activeDispatch = null;
@@ -1496,6 +1579,8 @@ export function createCodexHostRuntime(args: {
     pendingDispatchTextQueue.push(text);
     void ensureThreadBinding(runtimeThreadId ?? undefined).then(() => processDispatchQueue());
   };
+
+  // TODO(turn/steer): Route steer payloads through app-server `turn/steer` instead of forcing new turns.
 
   const startClaimedTurn = async (argsForClaimedTurn: {
     dispatchId: string;
@@ -1722,13 +1807,15 @@ export function createCodexHostRuntime(args: {
 
   const respondChatgptAuthTokensRefresh = async (argsForTokens: {
     requestId: RpcId;
-    idToken: string;
     accessToken: string;
+    chatgptAccountId: string;
+    chatgptPlanType?: string | null;
   }): Promise<void> => {
     getPendingAuthTokensRefreshRequest(argsForTokens.requestId);
     const responseMessage = buildChatgptAuthTokensRefreshResponse(argsForTokens.requestId, {
-      idToken: argsForTokens.idToken,
       accessToken: argsForTokens.accessToken,
+      chatgptAccountId: argsForTokens.chatgptAccountId,
+      chatgptPlanType: argsForTokens.chatgptPlanType ?? null,
     });
     sendMessage(responseMessage);
     resolvePendingAuthTokensRefreshRequest(argsForTokens.requestId);

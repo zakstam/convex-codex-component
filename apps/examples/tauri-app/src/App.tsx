@@ -106,7 +106,8 @@ export default function App() {
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [apiKey, setApiKey] = useState("");
-  const [idToken, setIdToken] = useState("");
+  const [chatgptAccountId, setChatgptAccountId] = useState("");
+  const [chatgptPlanType, setChatgptPlanType] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [cancelLoginId, setCancelLoginId] = useState("");
   const [authSummary, setAuthSummary] = useState<string>("No account action yet.");
@@ -152,19 +153,23 @@ export default function App() {
     respondChatgptAuthTokensRefresh,
   });
 
-  const startBridgeWithSelection = useCallback(async () => {
+  const startBridgeWithSelection = useCallback(
+    async (startSource: "manual_start_button" | "composer_retry") => {
     const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
     await runtimeBridge.start({
       convexUrl: import.meta.env.VITE_CONVEX_URL,
       actor,
       sessionId,
+      startSource,
       model: import.meta.env.VITE_CODEX_MODEL,
       cwd: import.meta.env.VITE_CODEX_CWD,
       deltaThrottleMs: 250,
       saveStreamDeltas: true,
       ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
     });
-  }, [runtimeBridge, selectedRuntimeThreadId]);
+    },
+    [runtimeBridge, selectedRuntimeThreadId],
+  );
 
   const conversation = useCodexConversationController({
     messages: {
@@ -191,7 +196,7 @@ export default function App() {
 
           if (transientBridgeFailure) {
             try {
-              await startBridgeWithSelection();
+              await startBridgeWithSelection("composer_retry");
               await sendUserTurn(text);
               setBridge((prev) => ({ ...prev, lastError: null }));
               return;
@@ -287,7 +292,7 @@ export default function App() {
   });
 
   const onStartBridge = useCallback(async () => {
-    await startBridgeWithSelection();
+    await startBridgeWithSelection("manual_start_button");
   }, [startBridgeWithSelection]);
 
   const onInsertDynamicToolPrompt = () => {
@@ -434,17 +439,19 @@ export default function App() {
     });
 
   const onLoginChatgptTokens = () => {
-    const id = idToken.trim();
+    const accountId = chatgptAccountId.trim();
+    const planType = chatgptPlanType.trim();
     const access = accessToken.trim();
-    if (!id || !access) {
-      addToast("error", "ID token and access token are required.");
+    if (!accountId || !access) {
+      addToast("error", "ChatGPT account id and access token are required.");
       return;
     }
     void runAuthAction("ChatGPT token login started", async () => {
       const params: LoginAccountParams = {
         type: "chatgptAuthTokens",
-        idToken: id,
         accessToken: access,
+        chatgptAccountId: accountId,
+        ...(planType ? { chatgptPlanType: planType } : {}),
       };
       await accountAuth.loginAccount({ params });
     });
@@ -472,17 +479,19 @@ export default function App() {
     });
 
   const onRespondAuthRefresh = (requestId: string | number) => {
-    const id = idToken.trim();
+    const accountId = chatgptAccountId.trim();
+    const planType = chatgptPlanType.trim();
     const access = accessToken.trim();
-    if (!id || !access) {
-      addToast("error", "Provide ID token and access token before responding.");
+    if (!accountId || !access) {
+      addToast("error", "Provide ChatGPT account id and access token before responding.");
       return;
     }
     void runAuthAction("Auth refresh response sent", async () => {
       await accountAuth.respondChatgptAuthTokensRefresh({
         requestId,
-        idToken: id,
         accessToken: access,
+        chatgptAccountId: accountId,
+        ...(planType ? { chatgptPlanType: planType } : {}),
       });
       setPendingAuthRefresh((prev) =>
         prev.filter((item) => `${typeof item.requestId}:${String(item.requestId)}` !== `${typeof requestId}:${String(requestId)}`),
@@ -594,16 +603,23 @@ export default function App() {
               </button>
             </div>
 
-            <label className="auth-label" htmlFor="id-token-input">
+            <label className="auth-label" htmlFor="chatgpt-account-id-input">
               ChatGPT Token Login
             </label>
             <div className="auth-grid">
               <input
-                id="id-token-input"
-                type="password"
-                value={idToken}
-                onChange={(event) => setIdToken(event.target.value)}
-                placeholder="idToken"
+                id="chatgpt-account-id-input"
+                type="text"
+                value={chatgptAccountId}
+                onChange={(event) => setChatgptAccountId(event.target.value)}
+                placeholder="chatgptAccountId"
+                disabled={!bridge.running || accountAuth.isBusy}
+              />
+              <input
+                type="text"
+                value={chatgptPlanType}
+                onChange={(event) => setChatgptPlanType(event.target.value)}
+                placeholder="chatgptPlanType (optional)"
                 disabled={!bridge.running || accountAuth.isBusy}
               />
               <input

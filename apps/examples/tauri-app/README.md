@@ -43,6 +43,36 @@ Optional:
 - `VITE_CODEX_CWD`
 - `CODEX_HELPER_BIN`
 - `CODEX_NODE_BIN`
+- `CODEX_BRIDGE_RAW_LOG` (`all` for every app-server line, `turns` for turn-focused lines)
+
+## Raw Protocol Verification
+
+To verify exactly what Codex emits before host parsing, run the Tauri helper with:
+
+```bash
+CODEX_BRIDGE_RAW_LOG=turns pnpm run dev
+```
+
+The helper prints raw stdin lines from `codex app-server` to stderr with prefix:
+
+`[codex-bridge:raw-in] ...`
+
+## Start Command Tracing
+
+`start_bridge` emits structured diagnostics into `codex:global_message` so duplicate starts can be identified from one click:
+
+- `kind: "bridge/start_trace"`
+- `phase: "received"` and `phase: "result"`
+- `traceId`, `tsMs`, `source` (for example `manual_start_button`, `composer_retry`)
+- `runningBefore` and selected thread arguments
+
+## ChatGPT Token Contract
+
+When using ChatGPT auth token login/refresh flows, the payload now follows the latest app-server schema:
+
+- `accessToken` (required)
+- `chatgptAccountId` (required)
+- `chatgptPlanType` (optional, nullable)
 
 ## Host Surface Ownership
 

@@ -28,12 +28,18 @@ export type ToolUserInputAnswer = { answers: string[] };
 export type LoginAccountParams =
   | { type: "apiKey"; apiKey: string }
   | { type: "chatgpt" }
-  | { type: "chatgptAuthTokens"; idToken: string; accessToken: string };
+  | {
+      type: "chatgptAuthTokens";
+      accessToken: string;
+      chatgptAccountId: string;
+      chatgptPlanType?: string | null;
+    };
 
 export async function startBridge(config: {
   convexUrl: string;
   actor: ActorContext;
   sessionId: string;
+  startSource?: string;
   model?: string;
   cwd?: string;
   deltaThrottleMs?: number;
@@ -96,8 +102,9 @@ export async function readAccountRateLimits() {
 
 export async function respondChatgptAuthTokensRefresh(config: {
   requestId: string | number;
-  idToken: string;
   accessToken: string;
+  chatgptAccountId: string;
+  chatgptPlanType?: string | null;
 }) {
   return await invoke("respond_chatgpt_auth_tokens_refresh", { config });
 }

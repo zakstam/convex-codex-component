@@ -164,6 +164,8 @@ export function buildTurnStartRequest(
   return buildClientRequest("turn/start", id, params);
 }
 
+// TODO(turn/steer): Add `buildTurnSteerRequest` once host/runtime adopts mid-turn steering.
+
 export function buildTurnStartTextRequest(
   id: number,
   args: { threadId: string; text: string },

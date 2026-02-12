@@ -74,6 +74,36 @@ Follow `nextCheckpoints` and persist with `sync.upsertCheckpoint`.
 4. On protocol errors, restart bridge runtime and rebind session.
 5. On stale/missing/mismatched session errors, call `sync.ensureSession` then continue ingest.
 
+## Deletion Job Runbook
+
+Cascade delete APIs are async and job-driven:
+
+- `threads.deleteCascade` -> delete one thread subtree
+- `threads.scheduleDeleteCascade` -> schedule one thread subtree delete
+- `turns.deleteCascade` -> delete one turn subtree
+- `turns.scheduleDeleteCascade` -> schedule one turn subtree delete
+- `threads.purgeActorData` -> delete all Codex data in the actor scope
+- `threads.schedulePurgeActorData` -> schedule actor-scope purge
+- `threads.cancelScheduledDeletion` -> cancel scheduled deletion before execution
+- `threads.forceRunScheduledDeletion` -> execute a scheduled deletion immediately
+
+Each mutation returns `{ deletionJobId }`.
+Poll `threads.getDeletionJobStatus` until terminal status:
+
+- `queued`
+- `scheduled`
+- `running`
+- `completed`
+- `failed`
+- `cancelled`
+
+`failed` jobs surface:
+
+- `errorCode` (`E_DELETE_JOB_FAILED`)
+- `errorMessage`
+
+The delete worker is idempotent and paged; repeated calls create independent jobs.
+
 ## Pending Request Runbook
 
 When pending server requests accumulate:

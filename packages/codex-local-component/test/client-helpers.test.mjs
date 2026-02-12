@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  cancelScheduledDeletion,
   createThread,
+  deleteThreadCascade,
+  deleteTurnCascade,
+  forceRunScheduledDeletion,
+  getDeletionJobStatus,
   getExternalThreadMapping,
   getThreadState,
   interruptTurn,
   listThreads,
   listPendingApprovals,
+  purgeActorCodexData,
   listMessages,
   listReasoningByThread,
   listTurnMessages,
@@ -15,6 +21,9 @@ import {
   respondToApproval,
   resumeStreamReplay,
   resumeThread,
+  schedulePurgeActorCodexData,
+  scheduleThreadDeleteCascade,
+  scheduleTurnDeleteCascade,
   startTurn,
   replayStreams,
 } from "../dist/client/index.js";
@@ -206,6 +215,13 @@ test("thread helpers pass refs and args", async () => {
   const resolve = {};
   const resume = {};
   const list = {};
+  const deleteCascade = {};
+  const scheduleDeleteCascade = {};
+  const purgeActorData = {};
+  const schedulePurgeActorData = {};
+  const cancelScheduledDeletionRef = {};
+  const forceRunScheduledDeletionRef = {};
+  const getDeletionJobStatusRef = {};
   const resolveByExternalId = {};
   const getExternalMapping = {};
   const getState = {};
@@ -224,27 +240,86 @@ test("thread helpers pass refs and args", async () => {
     },
   };
   const component = {
-    threads: { create, resolve, resume, list, resolveByExternalId, getExternalMapping, getState },
+    threads: {
+      create,
+      resolve,
+      resume,
+      list,
+      deleteCascade,
+      scheduleDeleteCascade,
+      purgeActorData,
+      schedulePurgeActorData,
+      cancelScheduledDeletion: cancelScheduledDeletionRef,
+      forceRunScheduledDeletion: forceRunScheduledDeletionRef,
+      getDeletionJobStatus: getDeletionJobStatusRef,
+      resolveByExternalId,
+      getExternalMapping,
+      getState,
+    },
   };
   const actor = { userId: "u" };
 
   await createThread(mutationCtx, component, { actor, threadId: "thread-1" });
+  await deleteThreadCascade(mutationCtx, component, { actor, threadId: "thread-1" });
+  await scheduleThreadDeleteCascade(mutationCtx, component, { actor, threadId: "thread-1", delayMs: 1000 });
+  await purgeActorCodexData(mutationCtx, component, { actor });
+  await schedulePurgeActorCodexData(mutationCtx, component, { actor, delayMs: 1000 });
+  await cancelScheduledDeletion(mutationCtx, component, { actor, deletionJobId: "job-1" });
+  await forceRunScheduledDeletion(mutationCtx, component, { actor, deletionJobId: "job-2" });
   await resolveThread(mutationCtx, component, { actor, externalThreadId: "external-1" });
   await resumeThread(mutationCtx, component, { actor, threadId: "thread-1" });
+  await getDeletionJobStatus(queryCtx, component, { actor, deletionJobId: "job-1" });
   await listThreads(queryCtx, component, { actor, paginationOpts: { cursor: null, numItems: 10 } });
   await resolveThreadByExternalId(queryCtx, component, { actor, externalThreadId: "external-1" });
   await getExternalThreadMapping(queryCtx, component, { actor, threadId: "thread-1" });
   await getThreadState(queryCtx, component, { actor, threadId: "thread-1" });
 
-  assert.equal(mutationCalls.length, 3);
-  assert.equal(queryCalls.length, 4);
+  assert.equal(mutationCalls.length, 9);
+  assert.equal(queryCalls.length, 5);
   assert.equal(mutationCalls[0].ref, create);
-  assert.equal(mutationCalls[1].ref, resolve);
-  assert.equal(mutationCalls[2].ref, resume);
-  assert.equal(queryCalls[0].ref, list);
-  assert.equal(queryCalls[1].ref, resolveByExternalId);
-  assert.equal(queryCalls[2].ref, getExternalMapping);
-  assert.equal(queryCalls[3].ref, getState);
+  assert.equal(mutationCalls[1].ref, deleteCascade);
+  assert.equal(mutationCalls[2].ref, scheduleDeleteCascade);
+  assert.equal(mutationCalls[3].ref, purgeActorData);
+  assert.equal(mutationCalls[4].ref, schedulePurgeActorData);
+  assert.equal(mutationCalls[5].ref, cancelScheduledDeletionRef);
+  assert.equal(mutationCalls[6].ref, forceRunScheduledDeletionRef);
+  assert.equal(mutationCalls[7].ref, resolve);
+  assert.equal(mutationCalls[8].ref, resume);
+  assert.equal(queryCalls[0].ref, getDeletionJobStatusRef);
+  assert.equal(queryCalls[1].ref, list);
+  assert.equal(queryCalls[2].ref, resolveByExternalId);
+  assert.equal(queryCalls[3].ref, getExternalMapping);
+  assert.equal(queryCalls[4].ref, getState);
+});
+
+test("deleteTurnCascade passes mutation ref and args", async () => {
+  const deleteCascade = {};
+  const scheduleDeleteCascade = {};
+  const component = {
+    turns: { deleteCascade, scheduleDeleteCascade },
+  };
+  const args = {
+    actor: { userId: "u" },
+    threadId: "thread-1",
+    turnId: "turn-1",
+  };
+  const calls = [];
+  const ctx = {
+    runMutation: async (ref, mutationArgs) => {
+      calls.push({ ref, mutationArgs });
+      return { deletionJobId: "job-1" };
+    },
+  };
+
+  const result = await deleteTurnCascade(ctx, component, args);
+  const scheduled = await scheduleTurnDeleteCascade(ctx, component, { ...args, delayMs: 1000 });
+
+  assert.deepEqual(result, { deletionJobId: "job-1" });
+  assert.deepEqual(scheduled, { deletionJobId: "job-1" });
+  assert.deepEqual(calls, [
+    { ref: deleteCascade, mutationArgs: args },
+    { ref: scheduleDeleteCascade, mutationArgs: { ...args, delayMs: 1000 } },
+  ]);
 });
 
 test("approval helpers pass refs and args", async () => {

@@ -494,6 +494,12 @@ export declare const components: {
       >;
     };
     threads: {
+      cancelScheduledDeletion: FunctionReference<
+        "mutation",
+        "internal",
+        { actor: { userId?: string }; deletionJobId: string },
+        { cancelled: boolean; deletionJobId: string }
+      >;
       create: FunctionReference<
         "mutation",
         "internal",
@@ -506,6 +512,53 @@ export declare const components: {
           threadId: string;
         },
         any
+      >;
+      deleteCascade: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          batchSize?: number;
+          reason?: string;
+          threadId: string;
+        },
+        { deletionJobId: string }
+      >;
+      forceRunScheduledDeletion: FunctionReference<
+        "mutation",
+        "internal",
+        { actor: { userId?: string }; deletionJobId: string },
+        { deletionJobId: string; forced: boolean }
+      >;
+      getDeletionJobStatus: FunctionReference<
+        "query",
+        "internal",
+        { actor: { userId?: string }; deletionJobId: string },
+        null | {
+          batchSize?: number;
+          cancelledAt?: number;
+          completedAt?: number;
+          createdAt: number;
+          deletedCountsByTable: Array<{ deleted: number; tableName: string }>;
+          deletionJobId: string;
+          errorCode?: string;
+          errorMessage?: string;
+          phase?: string;
+          reason?: string;
+          scheduledFor?: number;
+          startedAt?: number;
+          status:
+            | "scheduled"
+            | "queued"
+            | "running"
+            | "completed"
+            | "failed"
+            | "cancelled";
+          targetKind: "thread" | "turn" | "actor";
+          threadId?: string;
+          turnId?: string;
+          updatedAt: number;
+        }
       >;
       getExternalMapping: FunctionReference<
         "query",
@@ -602,6 +655,12 @@ export declare const components: {
         },
         any
       >;
+      purgeActorData: FunctionReference<
+        "mutation",
+        "internal",
+        { actor: { userId?: string }; batchSize?: number; reason?: string },
+        { deletionJobId: string }
+      >;
       resolve: FunctionReference<
         "mutation",
         "internal",
@@ -626,6 +685,29 @@ export declare const components: {
         "internal",
         { actor: { userId?: string }; threadId: string },
         any
+      >;
+      scheduleDeleteCascade: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          batchSize?: number;
+          delayMs?: number;
+          reason?: string;
+          threadId: string;
+        },
+        { deletionJobId: string; scheduledFor: number }
+      >;
+      schedulePurgeActorData: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          batchSize?: number;
+          delayMs?: number;
+          reason?: string;
+        },
+        { deletionJobId: string; scheduledFor: number }
       >;
     };
     tokenUsage: {
@@ -658,6 +740,18 @@ export declare const components: {
       >;
     };
     turns: {
+      deleteCascade: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          batchSize?: number;
+          reason?: string;
+          threadId: string;
+          turnId: string;
+        },
+        { deletionJobId: string }
+      >;
       interrupt: FunctionReference<
         "mutation",
         "internal",
@@ -668,6 +762,19 @@ export declare const components: {
           turnId: string;
         },
         null
+      >;
+      scheduleDeleteCascade: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          batchSize?: number;
+          delayMs?: number;
+          reason?: string;
+          threadId: string;
+          turnId: string;
+        },
+        { deletionJobId: string; scheduledFor: number }
       >;
       start: FunctionReference<
         "mutation",

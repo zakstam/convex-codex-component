@@ -10,7 +10,7 @@ type Thread = {
 type Props = {
   threads: Thread[];
   selected: string;
-  onSelect: (runtimeThreadId: string) => void;
+  onSelect: (threadId: string) => void;
   disabled: boolean;
 };
 
@@ -41,9 +41,7 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
   }, []);
 
   const filteredThreads = threads.filter((t) => !!t.runtimeThreadId);
-  const selectedThread = filteredThreads.find(
-    (t) => t.runtimeThreadId === selected,
-  );
+  const selectedThread = filteredThreads.find((t) => t.threadId === selected);
   const displayLabel = selectedThread
     ? `${selectedThread.threadId.slice(0, 12)}... • ${selectedThread.status}`
     : "New thread";
@@ -85,13 +83,13 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
           {filteredThreads.map((thread) => (
             <button
               key={thread.threadId}
-              className={`thread-picker-option ${thread.runtimeThreadId === selected ? "active" : ""}`}
+              className={`thread-picker-option ${thread.threadId === selected ? "active" : ""}`}
               onClick={() => {
-                onSelect(thread.runtimeThreadId ?? "");
+                onSelect(thread.threadId);
                 setOpen(false);
               }}
               role="option"
-              aria-selected={thread.runtimeThreadId === selected}
+              aria-selected={thread.threadId === selected}
             >
               <span
                 className={`status-dot ${thread.status === "active" ? "running" : "stopped"}`}

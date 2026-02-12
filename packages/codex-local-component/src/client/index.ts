@@ -26,6 +26,8 @@ export {
 export {
   startTurn,
   interruptTurn,
+  deleteTurnCascade,
+  scheduleTurnDeleteCascade,
 } from "./turns.js";
 export {
   replayStreams,
@@ -33,8 +35,15 @@ export {
 } from "./sync.js";
 export {
   createThread,
+  deleteThreadCascade,
+  scheduleThreadDeleteCascade,
+  getDeletionJobStatus,
   resolveThread,
   resumeThread,
+  purgeActorCodexData,
+  schedulePurgeActorCodexData,
+  cancelScheduledDeletion,
+  forceRunScheduledDeletion,
   getThreadState,
   resolveThreadByExternalId,
   getExternalThreadMapping,

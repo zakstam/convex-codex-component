@@ -1,13 +1,17 @@
-import { paginationOptsValidator } from "convex/server";
+import { makeFunctionReference, paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server.js";
-import type { MutationCtx } from "./_generated/server.js";
+import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
 import { identifyStaleStreamingStatIds } from "./streamStats.js";
+
+const DEFAULT_DELETE_GRACE_MS = 10 * 60 * 1000;
+const MIN_DELETE_GRACE_MS = 1_000;
+const MAX_DELETE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const vThreadState = v.object({
   threadId: v.string(),
@@ -95,6 +99,58 @@ const vThreadState = v.object({
   ),
 });
 
+const vDeletionJobStatus = v.object({
+  deletionJobId: v.string(),
+  status: v.union(
+    v.literal("scheduled"),
+    v.literal("queued"),
+    v.literal("running"),
+    v.literal("completed"),
+    v.literal("failed"),
+    v.literal("cancelled"),
+  ),
+  targetKind: v.union(v.literal("thread"), v.literal("turn"), v.literal("actor")),
+  threadId: v.optional(v.string()),
+  turnId: v.optional(v.string()),
+  batchSize: v.optional(v.number()),
+  scheduledFor: v.optional(v.number()),
+  reason: v.optional(v.string()),
+  phase: v.optional(v.string()),
+  deletedCountsByTable: v.array(
+    v.object({
+      tableName: v.string(),
+      deleted: v.number(),
+    }),
+  ),
+  errorCode: v.optional(v.string()),
+  errorMessage: v.optional(v.string()),
+  createdAt: v.number(),
+  startedAt: v.optional(v.number()),
+  completedAt: v.optional(v.number()),
+  cancelledAt: v.optional(v.number()),
+  updatedAt: v.number(),
+});
+
+function parseDeletedCounts(
+  deletedCountsJson: string,
+): Array<{ tableName: string; deleted: number }> {
+  try {
+    const parsed = JSON.parse(deletedCountsJson) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return [];
+    }
+    return Object.entries(parsed)
+      .filter(([, deleted]) => typeof deleted === "number" && Number.isFinite(deleted))
+      .map(([tableName, deleted]) => ({
+        tableName,
+        deleted: Number(deleted),
+      }))
+      .sort((left, right) => left.tableName.localeCompare(right.tableName));
+  } catch {
+    return [];
+  }
+}
+
 function generateUuidV4(): string {
   if (
     "crypto" in globalThis &&
@@ -109,6 +165,13 @@ function generateUuidV4(): string {
     const value = char === "x" ? rand : (rand & 0x3) | 0x8;
     return value.toString(16);
   });
+}
+
+function clampDeleteDelayMs(delayMs: number | undefined): number {
+  return Math.max(
+    MIN_DELETE_GRACE_MS,
+    Math.min(delayMs ?? DEFAULT_DELETE_GRACE_MS, MAX_DELETE_GRACE_MS),
+  );
 }
 
 async function touchThread(
@@ -341,6 +404,319 @@ export const resume = mutation({
   handler: async (ctx, args) => {
     const thread = await requireThreadForActor(ctx, args.actor, args.threadId);
     return { threadId: String(thread.threadId), status: "active" };
+  },
+});
+
+async function getDeletionJobForActor(args: {
+  ctx: MutationCtx | QueryCtx;
+  actor: { userId?: string };
+  deletionJobId: string;
+}) {
+  const job = await args.ctx.db
+    .query("codex_deletion_jobs")
+    .withIndex("userScope_deletionJobId", (q) =>
+      q.eq("userScope", userScopeFromActor(args.actor)).eq("deletionJobId", args.deletionJobId),
+    )
+    .first();
+  if (!job) {
+    return null;
+  }
+  if (job.userId !== args.actor.userId) {
+    return null;
+  }
+  return job;
+}
+
+export const deleteCascade = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({ deletionJobId: v.string() }),
+  handler: async (ctx, args) => {
+    await requireThreadForActor(ctx, args.actor, args.threadId);
+
+    const deletionJobId = generateUuidV4();
+    const ts = now();
+    const userScope = userScopeFromActor(args.actor);
+    await ctx.db.insert("codex_deletion_jobs", {
+      userScope,
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      deletionJobId,
+      targetKind: "thread",
+      threadId: args.threadId,
+      status: "queued",
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      ...(args.reason !== undefined ? { reason: args.reason } : {}),
+      deletedCountsJson: JSON.stringify({}),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope,
+        deletionJobId,
+        ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      },
+    );
+
+    return { deletionJobId };
+  },
+});
+
+export const scheduleDeleteCascade = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    delayMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    scheduledFor: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireThreadForActor(ctx, args.actor, args.threadId);
+    const deletionJobId = generateUuidV4();
+    const ts = now();
+    const userScope = userScopeFromActor(args.actor);
+    const delayMs = clampDeleteDelayMs(args.delayMs);
+    const scheduledFor = ts + delayMs;
+    const scheduledFnId = await ctx.scheduler.runAfter(
+      delayMs,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope,
+        deletionJobId,
+        ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      },
+    );
+
+    await ctx.db.insert("codex_deletion_jobs", {
+      userScope,
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      deletionJobId,
+      targetKind: "thread",
+      threadId: args.threadId,
+      status: "scheduled",
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      scheduledFor,
+      scheduledFnId,
+      ...(args.reason !== undefined ? { reason: args.reason } : {}),
+      deletedCountsJson: JSON.stringify({}),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    return { deletionJobId, scheduledFor };
+  },
+});
+
+export const purgeActorData = mutation({
+  args: {
+    actor: vActorContext,
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({ deletionJobId: v.string() }),
+  handler: async (ctx, args) => {
+    const deletionJobId = generateUuidV4();
+    const ts = now();
+    const userScope = userScopeFromActor(args.actor);
+    await ctx.db.insert("codex_deletion_jobs", {
+      userScope,
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      deletionJobId,
+      targetKind: "actor",
+      status: "queued",
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      ...(args.reason !== undefined ? { reason: args.reason } : {}),
+      deletedCountsJson: JSON.stringify({}),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope,
+        deletionJobId,
+        ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      },
+    );
+
+    return { deletionJobId };
+  },
+});
+
+export const schedulePurgeActorData = mutation({
+  args: {
+    actor: vActorContext,
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    delayMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    scheduledFor: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const deletionJobId = generateUuidV4();
+    const ts = now();
+    const userScope = userScopeFromActor(args.actor);
+    const delayMs = clampDeleteDelayMs(args.delayMs);
+    const scheduledFor = ts + delayMs;
+    const scheduledFnId = await ctx.scheduler.runAfter(
+      delayMs,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope,
+        deletionJobId,
+        ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      },
+    );
+    await ctx.db.insert("codex_deletion_jobs", {
+      userScope,
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      deletionJobId,
+      targetKind: "actor",
+      status: "scheduled",
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      scheduledFor,
+      scheduledFnId,
+      ...(args.reason !== undefined ? { reason: args.reason } : {}),
+      deletedCountsJson: JSON.stringify({}),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    return { deletionJobId, scheduledFor };
+  },
+});
+
+export const cancelScheduledDeletion = mutation({
+  args: {
+    actor: vActorContext,
+    deletionJobId: v.string(),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    cancelled: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await getDeletionJobForActor({
+      ctx,
+      actor: args.actor,
+      deletionJobId: args.deletionJobId,
+    });
+    if (!job) {
+      return { deletionJobId: args.deletionJobId, cancelled: false };
+    }
+    if (job.status !== "scheduled") {
+      return { deletionJobId: args.deletionJobId, cancelled: false };
+    }
+    if (job.scheduledFnId !== undefined) {
+      await ctx.scheduler.cancel(job.scheduledFnId);
+    }
+    const ts = now();
+    await ctx.db.patch(job._id, {
+      status: "cancelled",
+      scheduledFnId: undefined,
+      scheduledFor: undefined,
+      cancelledAt: ts,
+      updatedAt: ts,
+      completedAt: ts,
+    });
+    return { deletionJobId: args.deletionJobId, cancelled: true };
+  },
+});
+
+export const forceRunScheduledDeletion = mutation({
+  args: {
+    actor: vActorContext,
+    deletionJobId: v.string(),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    forced: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await getDeletionJobForActor({
+      ctx,
+      actor: args.actor,
+      deletionJobId: args.deletionJobId,
+    });
+    if (!job) {
+      return { deletionJobId: args.deletionJobId, forced: false };
+    }
+    if (job.status !== "scheduled") {
+      return { deletionJobId: args.deletionJobId, forced: false };
+    }
+    if (job.scheduledFnId !== undefined) {
+      await ctx.scheduler.cancel(job.scheduledFnId);
+    }
+    const ts = now();
+    await ctx.db.patch(job._id, {
+      status: "queued",
+      scheduledFnId: undefined,
+      scheduledFor: undefined,
+      updatedAt: ts,
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope: String(job.userScope),
+        deletionJobId: String(job.deletionJobId),
+        ...(job.batchSize !== undefined ? { batchSize: Number(job.batchSize) } : {}),
+      },
+    );
+    return { deletionJobId: args.deletionJobId, forced: true };
+  },
+});
+
+export const getDeletionJobStatus = query({
+  args: {
+    actor: vActorContext,
+    deletionJobId: v.string(),
+  },
+  returns: v.union(v.null(), vDeletionJobStatus),
+  handler: async (ctx, args) => {
+    const job = await getDeletionJobForActor({
+      ctx,
+      actor: args.actor,
+      deletionJobId: args.deletionJobId,
+    });
+    if (!job) {
+      return null;
+    }
+
+    return {
+      deletionJobId: String(job.deletionJobId),
+      status: job.status,
+      targetKind: job.targetKind,
+      ...(job.threadId !== undefined ? { threadId: String(job.threadId) } : {}),
+      ...(job.turnId !== undefined ? { turnId: String(job.turnId) } : {}),
+      ...(job.batchSize !== undefined ? { batchSize: Number(job.batchSize) } : {}),
+      ...(job.scheduledFor !== undefined ? { scheduledFor: Number(job.scheduledFor) } : {}),
+      ...(job.reason !== undefined ? { reason: String(job.reason) } : {}),
+      ...(job.phase !== undefined ? { phase: String(job.phase) } : {}),
+      deletedCountsByTable: parseDeletedCounts(String(job.deletedCountsJson)),
+      ...(job.errorCode !== undefined ? { errorCode: String(job.errorCode) } : {}),
+      ...(job.errorMessage !== undefined ? { errorMessage: String(job.errorMessage) } : {}),
+      createdAt: Number(job.createdAt),
+      ...(job.startedAt !== undefined ? { startedAt: Number(job.startedAt) } : {}),
+      ...(job.completedAt !== undefined ? { completedAt: Number(job.completedAt) } : {}),
+      ...(job.cancelledAt !== undefined ? { cancelledAt: Number(job.cancelledAt) } : {}),
+      updatedAt: Number(job.updatedAt),
+    };
   },
 });
 

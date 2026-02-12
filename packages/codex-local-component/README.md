@@ -56,6 +56,20 @@ That file is the normative, single-path consumer strategy.
 - Advanced appendix (non-default): `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`
 - Runtime-owned reference details: `docs/RUNTIME_OWNED_REFERENCE_HOST.md`
 
+## Data Lifecycle APIs
+
+The component supports async cascade deletion with job polling:
+
+- `threads.deleteCascade`
+- `threads.scheduleDeleteCascade`
+- `turns.deleteCascade`
+- `turns.scheduleDeleteCascade`
+- `threads.purgeActorData`
+- `threads.schedulePurgeActorData`
+- `threads.cancelScheduledDeletion`
+- `threads.forceRunScheduledDeletion`
+- `threads.getDeletionJobStatus`
+
 ## Type Safety Checks
 
 - `pnpm --filter @zakstam/codex-local-component run typecheck`

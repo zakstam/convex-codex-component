@@ -1,6 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { defineDispatchManagedHostSlice } from "@zakstam/codex-local-component/host/convex";
+import { vHostActorContext } from "@zakstam/codex-local-component/host/convex";
+import { v } from "convex/values";
 import {
   SERVER_ACTOR,
   requireBoundServerActorForMutation,
@@ -133,6 +135,177 @@ export const interruptTurnForHooks = mutation({
   },
 });
 
+export const deleteThreadCascadeForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.threads.deleteCascade, {
+      actor: SERVER_ACTOR,
+      threadId: args.threadId,
+      ...(args.reason ? { reason: args.reason } : {}),
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+    });
+  },
+});
+
+export const scheduleThreadDeleteCascadeForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    delayMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    scheduledFor: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.threads.scheduleDeleteCascade, {
+      actor: SERVER_ACTOR,
+      threadId: args.threadId,
+      ...(args.reason ? { reason: args.reason } : {}),
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
+    });
+  },
+});
+
+export const deleteTurnCascadeForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.turns.deleteCascade, {
+      actor: SERVER_ACTOR,
+      threadId: args.threadId,
+      turnId: args.turnId,
+      ...(args.reason ? { reason: args.reason } : {}),
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+    });
+  },
+});
+
+export const scheduleTurnDeleteCascadeForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    delayMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    scheduledFor: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.turns.scheduleDeleteCascade, {
+      actor: SERVER_ACTOR,
+      threadId: args.threadId,
+      turnId: args.turnId,
+      ...(args.reason ? { reason: args.reason } : {}),
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
+    });
+  },
+});
+
+export const purgeActorDataForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.threads.purgeActorData, {
+      actor: SERVER_ACTOR,
+      ...(args.reason ? { reason: args.reason } : {}),
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+    });
+  },
+});
+
+export const schedulePurgeActorDataForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    delayMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    scheduledFor: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.threads.schedulePurgeActorData, {
+      actor: SERVER_ACTOR,
+      ...(args.reason ? { reason: args.reason } : {}),
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
+    });
+  },
+});
+
+export const cancelScheduledDeletionForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    deletionJobId: v.string(),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    cancelled: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.threads.cancelScheduledDeletion, {
+      actor: SERVER_ACTOR,
+      deletionJobId: args.deletionJobId,
+    });
+  },
+});
+
+export const forceRunScheduledDeletionForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    deletionJobId: v.string(),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    forced: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    return ctx.runMutation(components.codexLocal.threads.forceRunScheduledDeletion, {
+      actor: SERVER_ACTOR,
+      deletionJobId: args.deletionJobId,
+    });
+  },
+});
+
 export const validateHostWiring = query({
   ...defs.queries.validateHostWiring,
   handler: async (ctx, args) => {
@@ -234,5 +407,19 @@ export const listTokenUsageForHooks = query({
   handler: async (ctx, args) => {
     await requireBoundServerActorForQuery(ctx, args.actor);
     return defs.queries.listTokenUsageForHooks.handler(ctx, args);
+  },
+});
+
+export const getDeletionJobStatusForHooks = query({
+  args: {
+    actor: vHostActorContext,
+    deletionJobId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForQuery(ctx, args.actor);
+    return ctx.runQuery(components.codexLocal.threads.getDeletionJobStatus, {
+      actor: SERVER_ACTOR,
+      deletionJobId: args.deletionJobId,
+    });
   },
 });

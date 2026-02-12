@@ -13,6 +13,7 @@ Canonical consumer implementation guidance is in:
 - `actorLock.ts`: app-owned actor binding and server-side identity guard
 - `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`) using actor lock
 - `chat.ts`: stable guarded host surface (exports public `api.chat.*`)
+  - includes guarded deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
 
 ## Actor Lock
 

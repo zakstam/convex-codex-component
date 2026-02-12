@@ -5,6 +5,17 @@ import { vActorContext, vThreadInputItem, vTurnOptions } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { now, requireThreadForActor, requireTurnForActor, summarizeInput } from "./utils.js";
 
+const DEFAULT_DELETE_GRACE_MS = 10 * 60 * 1000;
+const MIN_DELETE_GRACE_MS = 1_000;
+const MAX_DELETE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function clampDeleteDelayMs(delayMs: number | undefined): number {
+  return Math.max(
+    MIN_DELETE_GRACE_MS,
+    Math.min(delayMs ?? DEFAULT_DELETE_GRACE_MS, MAX_DELETE_GRACE_MS),
+  );
+}
+
 export const start = mutation({
   args: {
     actor: vActorContext,
@@ -74,5 +85,111 @@ export const interrupt = mutation({
     );
 
     return null;
+  },
+});
+
+function generateDeletionJobId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export const deleteCascade = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({ deletionJobId: v.string() }),
+  handler: async (ctx, args) => {
+    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
+
+    const deletionJobId = generateDeletionJobId();
+    const ts = now();
+    const userScope = userScopeFromActor(args.actor);
+
+    await ctx.db.insert("codex_deletion_jobs", {
+      userScope,
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      deletionJobId,
+      targetKind: "turn",
+      threadId: args.threadId,
+      turnId: args.turnId,
+      status: "queued",
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      ...(args.reason !== undefined ? { reason: args.reason } : {}),
+      deletedCountsJson: JSON.stringify({}),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope,
+        deletionJobId,
+        ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      },
+    );
+
+    return { deletionJobId };
+  },
+});
+
+export const scheduleDeleteCascade = mutation({
+  args: {
+    actor: vActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    reason: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    delayMs: v.optional(v.number()),
+  },
+  returns: v.object({
+    deletionJobId: v.string(),
+    scheduledFor: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
+
+    const deletionJobId = generateDeletionJobId();
+    const ts = now();
+    const userScope = userScopeFromActor(args.actor);
+    const delayMs = clampDeleteDelayMs(args.delayMs);
+    const scheduledFor = ts + delayMs;
+    const scheduledFnId = await ctx.scheduler.runAfter(
+      delayMs,
+      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      {
+        userScope,
+        deletionJobId,
+        ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      },
+    );
+
+    await ctx.db.insert("codex_deletion_jobs", {
+      userScope,
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      deletionJobId,
+      targetKind: "turn",
+      threadId: args.threadId,
+      turnId: args.turnId,
+      status: "scheduled",
+      ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+      scheduledFor,
+      scheduledFnId,
+      ...(args.reason !== undefined ? { reason: args.reason } : {}),
+      deletedCountsJson: JSON.stringify({}),
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    return { deletionJobId, scheduledFor };
   },
 });

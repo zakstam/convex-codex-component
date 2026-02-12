@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
   useCodexAccountAuth,
   useCodexConversationController,
@@ -40,6 +40,7 @@ import { ToastContainer, type ToastItem } from "./components/Toast";
 import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./hooks/useCodexTauriEvents";
 
 const ACTOR_STORAGE_KEY = "codex-local-tauri-actor-user-id";
+const DEFAULT_DELETE_DELAY_MS = 10 * 60 * 1000;
 
 function resolveActorUserId(): string {
   if (typeof window === "undefined") {
@@ -179,7 +180,16 @@ export default function App() {
     },
     initialSelectedThreadId: "",
   });
-  const selectedRuntimeThreadId = threads.selectedThreadId ?? "";
+  const selectedThreadId = threads.selectedThreadId ?? "";
+  const pickerThreads = useMemo(
+    () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
+    [threads.threads],
+  );
+  const selectedRuntimeThreadId = useMemo(
+    () => pickerThreads.find((thread) => thread.threadId === selectedThreadId)?.runtimeThreadId ?? "",
+    [pickerThreads, selectedThreadId],
+  );
+  const cleanupThreadId = bridge.localThreadId ?? (selectedThreadId || null);
 
   const runtimeBridgeControls = useMemo(
     () => ({
@@ -334,6 +344,88 @@ export default function App() {
     threadId && actorReady ? { actor, threadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
+  const deleteThreadCascadeMutation = useMutation(
+    requireDefined(chatApi.scheduleThreadDeleteCascadeForHooks, "api.chat.scheduleThreadDeleteCascadeForHooks"),
+  );
+  const deleteTurnCascadeMutation = useMutation(
+    requireDefined(chatApi.scheduleTurnDeleteCascadeForHooks, "api.chat.scheduleTurnDeleteCascadeForHooks"),
+  );
+  const purgeActorDataMutation = useMutation(
+    requireDefined(chatApi.schedulePurgeActorDataForHooks, "api.chat.schedulePurgeActorDataForHooks"),
+  );
+  const cancelScheduledDeletionMutation = useMutation(
+    requireDefined(chatApi.cancelScheduledDeletionForHooks, "api.chat.cancelScheduledDeletionForHooks"),
+  );
+  const forceRunScheduledDeletionMutation = useMutation(
+    requireDefined(chatApi.forceRunScheduledDeletionForHooks, "api.chat.forceRunScheduledDeletionForHooks"),
+  );
+  const [activeDeletionJobId, setActiveDeletionJobId] = useState<string | null>(null);
+  const [activeDeletionLabel, setActiveDeletionLabel] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const deletionStatus = useQuery(
+    requireDefined(chatApi.getDeletionJobStatusForHooks, "api.chat.getDeletionJobStatusForHooks"),
+    activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
+  );
+  const cleanupThreadState = useCodexThreadState(
+    requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
+    cleanupThreadId && actorReady ? { actor, threadId: cleanupThreadId } : "skip",
+  );
+  const latestThreadTurnId = useMemo(() => {
+    if (!cleanupThreadState?.turns || cleanupThreadState.turns.length === 0) {
+      return null;
+    }
+    return cleanupThreadState.turns[0]?.turnId ?? null;
+  }, [cleanupThreadState?.turns]);
+
+  useEffect(() => {
+    if (!activeDeletionJobId || !deletionStatus) {
+      return;
+    }
+    if (deletionStatus.status === "completed") {
+      addToast(
+        "success",
+        `${activeDeletionLabel ?? "Deletion job"} completed (${activeDeletionJobId.slice(0, 8)}).`,
+      );
+      setActiveDeletionJobId(null);
+      setActiveDeletionLabel(null);
+      return;
+    }
+    if (deletionStatus.status === "failed") {
+      addToast(
+        "error",
+        `${activeDeletionLabel ?? "Deletion job"} failed: ${deletionStatus.errorMessage ?? "unknown error"}`,
+      );
+      setActiveDeletionJobId(null);
+      setActiveDeletionLabel(null);
+      return;
+    }
+    if (deletionStatus.status === "cancelled") {
+      addToast(
+        "info",
+        `${activeDeletionLabel ?? "Deletion job"} cancelled (${activeDeletionJobId.slice(0, 8)}).`,
+      );
+      setActiveDeletionJobId(null);
+      setActiveDeletionLabel(null);
+    }
+  }, [activeDeletionJobId, activeDeletionLabel, addToast, deletionStatus]);
+
+  useEffect(() => {
+    if (deletionStatus?.status !== "scheduled" || deletionStatus.scheduledFor === undefined) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [deletionStatus?.scheduledFor, deletionStatus?.status]);
+
+  const scheduledDeleteCountdown = useMemo(() => {
+    if (deletionStatus?.status !== "scheduled" || deletionStatus.scheduledFor === undefined) {
+      return null;
+    }
+    return Math.max(0, deletionStatus.scheduledFor - nowMs);
+  }, [deletionStatus?.scheduledFor, deletionStatus?.status, nowMs]);
+
   useCodexTauriEvents({
     setBridge,
     setRuntimeLog,
@@ -551,6 +643,128 @@ export default function App() {
     });
   };
 
+  const onDeleteCurrentThread = async () => {
+    if (!cleanupThreadId || !actorReady || bridge.running) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete persisted Codex data for thread ${cleanupThreadId.slice(0, 12)}...?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await deleteThreadCascadeMutation({
+        actor,
+        threadId: cleanupThreadId,
+        reason: "tauri-ui-delete-thread",
+        delayMs: DEFAULT_DELETE_DELAY_MS,
+      });
+      setActiveDeletionJobId(result.deletionJobId);
+      setActiveDeletionLabel("Thread delete");
+      addToast("info", `Scheduled thread delete job ${result.deletionJobId.slice(0, 8)}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast("error", message);
+    }
+  };
+
+  const onDeleteLatestTurn = async () => {
+    if (!cleanupThreadId || !latestThreadTurnId || !actorReady || bridge.running) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete persisted Codex data for turn ${latestThreadTurnId.slice(0, 12)}...?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await deleteTurnCascadeMutation({
+        actor,
+        threadId: cleanupThreadId,
+        turnId: latestThreadTurnId,
+        reason: "tauri-ui-delete-turn",
+        delayMs: DEFAULT_DELETE_DELAY_MS,
+      });
+      setActiveDeletionJobId(result.deletionJobId);
+      setActiveDeletionLabel("Turn delete");
+      addToast("info", `Scheduled turn delete job ${result.deletionJobId.slice(0, 8)}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast("error", message);
+    }
+  };
+
+  const onPurgeActorData = async () => {
+    if (!actorReady || bridge.running) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Purge all persisted Codex data for actor ${actor.userId}? This cannot be undone.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await purgeActorDataMutation({
+        actor,
+        reason: "tauri-ui-purge-actor",
+        delayMs: DEFAULT_DELETE_DELAY_MS,
+      });
+      setActiveDeletionJobId(result.deletionJobId);
+      setActiveDeletionLabel("Actor purge");
+      addToast("info", `Scheduled actor purge job ${result.deletionJobId.slice(0, 8)}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast("error", message);
+    }
+  };
+
+  const onUndoScheduledDeletion = async () => {
+    if (!activeDeletionJobId || !actorReady || bridge.running) {
+      return;
+    }
+    try {
+      const result = await cancelScheduledDeletionMutation({
+        actor,
+        deletionJobId: activeDeletionJobId,
+      });
+      if (result.cancelled) {
+        addToast("success", `Cancelled deletion job ${activeDeletionJobId.slice(0, 8)}.`);
+      } else {
+        addToast("info", `Deletion job ${activeDeletionJobId.slice(0, 8)} is no longer cancellable.`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast("error", message);
+    }
+  };
+
+  const onForceScheduledDeletion = async () => {
+    if (!activeDeletionJobId || !actorReady || bridge.running) {
+      return;
+    }
+    const confirmed = window.confirm("Force deletion now and bypass the grace period?");
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await forceRunScheduledDeletionMutation({
+        actor,
+        deletionJobId: activeDeletionJobId,
+      });
+      if (result.forced) {
+        addToast("info", `Forced deletion job ${activeDeletionJobId.slice(0, 8)} to run now.`);
+      } else {
+        addToast("info", `Deletion job ${activeDeletionJobId.slice(0, 8)} is no longer force-runnable.`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast("error", message);
+    }
+  };
+
   return (
     <div className="app" role="main">
       <section className="panel chat">
@@ -561,9 +775,9 @@ export default function App() {
           onInterrupt={() => void conversation.interrupt()}
         />
         <ThreadPicker
-          threads={((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? [])}
-          selected={selectedRuntimeThreadId}
-          onSelect={(runtimeThreadId) => threads.setSelectedThreadId(runtimeThreadId)}
+          threads={pickerThreads}
+          selected={selectedThreadId}
+          onSelect={(nextThreadId) => threads.setSelectedThreadId(nextThreadId)}
           disabled={bridge.running}
         />
         <MessageList messages={displayMessages} status={messages.status} tokenByTurnId={tokenByTurnId} />
@@ -597,6 +811,83 @@ export default function App() {
           setToolOther={setToolOther}
         />
         <TokenUsagePanel tokenUsage={tokenUsage} />
+        <section className="panel card" aria-label="Data cleanup controls">
+          <h2>Data cleanup</h2>
+          <div className="auth-controls">
+            <p className="meta">
+              Stop runtime before scheduling cleanup of persisted data.
+            </p>
+            <p className="meta">
+              Scheduled deletions run after 10 minutes unless you undo.
+            </p>
+            <div className="auth-row">
+              <button
+                className="danger"
+                onClick={() => void onDeleteCurrentThread()}
+                disabled={!cleanupThreadId || !actorReady || bridge.running}
+              >
+                Schedule Thread Delete
+              </button>
+              <button
+                className="danger"
+                onClick={() => void onDeleteLatestTurn()}
+                disabled={!cleanupThreadId || !latestThreadTurnId || !actorReady || bridge.running}
+              >
+                Schedule Turn Delete
+              </button>
+            </div>
+            <div className="auth-row">
+              <button
+                className="danger"
+                onClick={() => void onPurgeActorData()}
+                disabled={!actorReady || bridge.running}
+              >
+                Schedule Actor Purge
+              </button>
+            </div>
+            <div className="auth-row">
+              <button
+                className="secondary"
+                onClick={() => void onUndoScheduledDeletion()}
+                disabled={
+                  !activeDeletionJobId ||
+                  !actorReady ||
+                  bridge.running ||
+                  deletionStatus?.status !== "scheduled"
+                }
+              >
+                Undo Scheduled Delete
+              </button>
+              <button
+                className="danger"
+                onClick={() => void onForceScheduledDeletion()}
+                disabled={
+                  !activeDeletionJobId ||
+                  !actorReady ||
+                  bridge.running ||
+                  deletionStatus?.status !== "scheduled"
+                }
+              >
+                Delete Now (Force)
+              </button>
+            </div>
+            <pre className="auth-summary code">
+              {activeDeletionJobId
+                ? `${activeDeletionLabel ?? "job"} ${activeDeletionJobId}\nstatus: ${deletionStatus?.status ?? "queued"}${
+                    deletionStatus?.phase ? `\nphase: ${deletionStatus.phase}` : ""
+                  }${
+                    deletionStatus?.scheduledFor
+                      ? `\nscheduledFor: ${new Date(deletionStatus.scheduledFor).toLocaleTimeString()}`
+                      : ""
+                  }${
+                    scheduledDeleteCountdown !== null
+                      ? `\nstartsIn: ${Math.ceil(scheduledDeleteCountdown / 60000)} min`
+                      : ""
+                  }`
+                : "No active deletion job"}
+            </pre>
+          </div>
+        </section>
         <section className="panel card" aria-label="Account and auth controls">
           <h2>Account/Auth</h2>
           <div className="auth-controls">

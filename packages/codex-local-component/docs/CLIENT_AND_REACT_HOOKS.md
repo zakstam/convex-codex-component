@@ -35,10 +35,19 @@ Common helpers used by consumers:
 - `replayStreams`
 - `resumeStreamReplay`
 - `createThread`
+- `deleteThreadCascade`
+- `scheduleThreadDeleteCascade`
+- `purgeActorCodexData`
+- `schedulePurgeActorCodexData`
+- `cancelScheduledDeletion`
+- `forceRunScheduledDeletion`
+- `getDeletionJobStatus`
 - `resolveThread`
 - `resumeThread`
 - `getThreadState`
 - `listThreads`
+- `deleteTurnCascade`
+- `scheduleTurnDeleteCascade`
 
 ## React Hooks
 

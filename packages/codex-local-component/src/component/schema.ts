@@ -242,9 +242,42 @@ export default defineSchema({
     createdAt: v.number(),
     expiresAt: v.number(),
   })
+    .index("userScope", ["userScope"])
     .index("userScope_streamId_cursorStart", ["userScope", "streamId", "cursorStart"])
     .index("userScope_streamId_eventId", ["userScope", "streamId", "eventId"])
     .index("expiresAt", ["expiresAt"]),
+
+  codex_deletion_jobs: defineTable({
+    userScope: v.string(),
+    userId: v.optional(v.string()),
+    deletionJobId: v.string(),
+    targetKind: v.union(v.literal("thread"), v.literal("turn"), v.literal("actor")),
+    threadId: v.optional(v.string()),
+    turnId: v.optional(v.string()),
+    status: v.union(
+      v.literal("scheduled"),
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    batchSize: v.optional(v.number()),
+    scheduledFor: v.optional(v.number()),
+    scheduledFnId: v.optional(v.id("_scheduled_functions")),
+    reason: v.optional(v.string()),
+    phase: v.optional(v.string()),
+    deletedCountsJson: v.string(),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+  })
+    .index("userScope_deletionJobId", ["userScope", "deletionJobId"])
+    .index("userScope_userId_createdAt", ["userScope", "userId", "createdAt"]),
 
   codex_lifecycle_events: defineTable({
     userScope: v.string(),

@@ -188,22 +188,36 @@ export function deriveCodexThreadActivity(
     };
   }
 
+  // Compute the latest terminal message to detect stale dispatch/turn records.
+  // When a message reaches a terminal state (completed/failed/interrupted) but the
+  // corresponding dispatch or turn record hasn't been cleaned up yet, the dispatch/turn
+  // should not keep the phase as "streaming".
+  const latestTerminalMessage = pickLatest([
+    latestMessageByStatus(messages, "completed"),
+    latestMessageByStatus(messages, "failed"),
+    latestMessageByStatus(messages, "interrupted"),
+  ]);
+
   const inFlightDispatch = latestDispatchByStatus(dispatches, (status) =>
     IN_FLIGHT_DISPATCH_STATUSES.has(status),
   );
   if (inFlightDispatch) {
-    return {
-      phase: "streaming",
-      ...(inFlightDispatch.activeTurnId !== undefined ? { activeTurnId: inFlightDispatch.activeTurnId } : {}),
-    };
+    if (!latestTerminalMessage || inFlightDispatch.timestamp > latestTerminalMessage.timestamp) {
+      return {
+        phase: "streaming",
+        ...(inFlightDispatch.activeTurnId !== undefined ? { activeTurnId: inFlightDispatch.activeTurnId } : {}),
+      };
+    }
   }
 
   const inFlightTurn = latestTurnByStatus(turns, (status) => IN_FLIGHT_TURN_STATUSES.has(status));
   if (inFlightTurn) {
-    return {
-      phase: "streaming",
-      ...(inFlightTurn.activeTurnId !== undefined ? { activeTurnId: inFlightTurn.activeTurnId } : {}),
-    };
+    if (!latestTerminalMessage || inFlightTurn.timestamp > latestTerminalMessage.timestamp) {
+      return {
+        phase: "streaming",
+        ...(inFlightTurn.activeTurnId !== undefined ? { activeTurnId: inFlightTurn.activeTurnId } : {}),
+      };
+    }
   }
 
   const failed = pickLatest([

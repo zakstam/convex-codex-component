@@ -215,6 +215,7 @@
       "enum": [
         "spawnAgent",
         "sendInput",
+        "resumeAgent",
         "wait",
         "closeAgent"
       ]

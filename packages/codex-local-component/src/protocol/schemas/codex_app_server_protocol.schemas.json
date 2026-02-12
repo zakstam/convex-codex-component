@@ -358,6 +358,16 @@
           "description": "Opt into receiving experimental API methods and fields.",
           "default": false,
           "type": "boolean"
+        },
+        "optOutNotificationMethods": {
+          "description": "Exact notification method names that should be suppressed for this connection (for example `codex/event/session_configured`).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -1263,6 +1273,30 @@
             "method": {
               "type": "string",
               "enum": [
+                "turn/steer"
+              ],
+              "title": "Turn/steerRequestMethod"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/TurnSteerParams"
+            }
+          },
+          "title": "Turn/steerRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
                 "turn/interrupt"
               ],
               "title": "Turn/interruptRequestMethod"
@@ -1320,6 +1354,30 @@
             }
           },
           "title": "Model/listRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "experimentalFeature/list"
+              ],
+              "title": "ExperimentalFeature/listRequestMethod"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ExperimentalFeatureListParams"
+            }
+          },
+          "title": "ExperimentalFeature/listRequest"
         },
         {
           "type": "object",
@@ -2257,7 +2315,7 @@
       ],
       "properties": {
         "previousAccountId": {
-          "description": "Workspace/account identifier that Codex was previously using.\n\nClients that manage multiple accounts/workspaces can use this as a hint to refresh the token for the correct workspace.\n\nThis may be `null` when the prior ID token did not include a workspace identifier (`chatgpt_account_id`) or when the token could not be parsed.",
+          "description": "Workspace/account identifier that Codex was previously using.\n\nClients that manage multiple accounts/workspaces can use this as a hint to refresh the token for the correct workspace.\n\nThis may be `null` when the prior auth state did not include a workspace identifier (`chatgpt_account_id`).",
           "type": [
             "string",
             "null"
@@ -3492,6 +3550,25 @@
         }
       }
     },
+    "SessionNetworkProxyRuntime": {
+      "type": "object",
+      "required": [
+        "admin_addr",
+        "http_addr",
+        "socks_addr"
+      ],
+      "properties": {
+        "admin_addr": {
+          "type": "string"
+        },
+        "http_addr": {
+          "type": "string"
+        },
+        "socks_addr": {
+          "type": "string"
+        }
+      }
+    },
     "StepStatus": {
       "type": "string",
       "enum": [
@@ -3592,6 +3669,7 @@
           "title": "UserMessageTurnItem"
         },
         {
+          "description": "Assistant-authored message payload used in turn-item streams.\n\n`phase` is optional because not all providers/models emit it. Consumers should use it when present, but retain legacy completion semantics when it is `None`.",
           "type": "object",
           "required": [
             "content",
@@ -3607,6 +3685,17 @@
             },
             "id": {
               "type": "string"
+            },
+            "phase": {
+              "description": "Optional phase metadata carried through from `ResponseItem::Message`.\n\nThis is currently used by TUI rendering to distinguish mid-turn commentary from a final answer and avoid status-indicator jitter.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/MessagePhase"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",
@@ -4133,6 +4222,26 @@
             }
           },
           "title": "Account/rateLimits/updatedNotification"
+        },
+        {
+          "type": "object",
+          "required": [
+            "method",
+            "params"
+          ],
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "app/list/updated"
+              ],
+              "title": "App/list/updatedNotificationMethod"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/AppListUpdatedNotification"
+            }
+          },
+          "title": "App/list/updatedNotification"
         },
         {
           "type": "object",
@@ -4815,6 +4924,17 @@
             },
             "model_provider_id": {
               "type": "string"
+            },
+            "network_proxy": {
+              "description": "Runtime proxy bind addresses, when the managed proxy was started for this session.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/SessionNetworkProxyRuntime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "reasoning_effort": {
               "description": "The effort the model is putting into reasoning about the user's request.",
@@ -6692,6 +6812,95 @@
             }
           },
           "title": "CollabCloseEndEventMsg"
+        },
+        {
+          "description": "Collab interaction: resume begin.",
+          "type": "object",
+          "required": [
+            "call_id",
+            "receiver_thread_id",
+            "sender_thread_id",
+            "type"
+          ],
+          "properties": {
+            "call_id": {
+              "description": "Identifier for the collab tool call.",
+              "type": "string"
+            },
+            "receiver_thread_id": {
+              "description": "Thread ID of the receiver.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/v2/ThreadId"
+                }
+              ]
+            },
+            "sender_thread_id": {
+              "description": "Thread ID of the sender.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/v2/ThreadId"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "collab_resume_begin"
+              ],
+              "title": "CollabResumeBeginEventMsgType"
+            }
+          },
+          "title": "CollabResumeBeginEventMsg"
+        },
+        {
+          "description": "Collab interaction: resume end.",
+          "type": "object",
+          "required": [
+            "call_id",
+            "receiver_thread_id",
+            "sender_thread_id",
+            "status",
+            "type"
+          ],
+          "properties": {
+            "call_id": {
+              "description": "Identifier for the collab tool call.",
+              "type": "string"
+            },
+            "receiver_thread_id": {
+              "description": "Thread ID of the receiver.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/v2/ThreadId"
+                }
+              ]
+            },
+            "sender_thread_id": {
+              "description": "Thread ID of the sender.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/v2/ThreadId"
+                }
+              ]
+            },
+            "status": {
+              "description": "Last known status of the receiver agent reported to the sender agent after resume.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/AgentStatus"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "collab_resume_end"
+              ],
+              "title": "CollabResumeEndEventMsgType"
+            }
+          },
+          "title": "CollabResumeEndEventMsg"
         }
       ]
     },
@@ -6794,10 +7003,11 @@
               "null"
             ]
           },
-          "experimentalRawEvents": {
-            "description": "If true, opt into emitting raw response items on the event stream.\n\nThis is for internal use only (e.g. Codex Cloud). (TODO): Figure out a better way to categorize internal / experimental events & protocols.",
-            "default": false,
-            "type": "boolean"
+          "modelProvider": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sandbox": {
             "anyOf": [
@@ -6810,12 +7020,6 @@
             ]
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "modelProvider": {
             "type": [
               "string",
               "null"
@@ -7060,10 +7264,22 @@
         ]
       },
       "MessagePhase": {
-        "type": "string",
-        "enum": [
-          "commentary",
-          "final_answer"
+        "description": "Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as \"phase unknown\" and keep compatibility behavior for legacy models.",
+        "oneOf": [
+          {
+            "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.",
+            "type": "string",
+            "enum": [
+              "commentary"
+            ]
+          },
+          {
+            "description": "The assistant's terminal answer text for the current turn.",
+            "type": "string",
+            "enum": [
+              "final_answer"
+            ]
+          }
         ]
       },
       "ReasoningItemContent": {
@@ -7635,15 +7851,15 @@
               "null"
             ]
           },
-          "history": {
-            "description": "[UNSTABLE] FOR CODEX CLOUD - DO NOT USE. If specified, the thread will be resumed with the provided history instead of loaded from disk.",
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/definitions/v2/ResponseItem"
-            }
+          "sandbox": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/SandboxMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "model": {
             "description": "Configuration overrides for the resumed thread, if any.",
@@ -7658,12 +7874,8 @@
               "null"
             ]
           },
-          "path": {
-            "description": "[UNSTABLE] Specify the rollout path to resume from. If specified, the thread_id param will be ignored.",
-            "type": [
-              "string",
-              "null"
-            ]
+          "threadId": {
+            "type": "string"
           },
           "personality": {
             "anyOf": [
@@ -7674,19 +7886,6 @@
                 "type": "null"
               }
             ]
-          },
-          "sandbox": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/SandboxMode"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "threadId": {
-            "type": "string"
           }
         }
       },
@@ -7747,12 +7946,8 @@
               "null"
             ]
           },
-          "path": {
-            "description": "[UNSTABLE] Specify the rollout path to fork from. If specified, the thread_id param will be ignored.",
-            "type": [
-              "string",
-              "null"
-            ]
+          "threadId": {
+            "type": "string"
           },
           "sandbox": {
             "anyOf": [
@@ -7763,9 +7958,6 @@
                 "type": "null"
               }
             ]
-          },
-          "threadId": {
-            "type": "string"
           }
         }
       },
@@ -7822,6 +8014,31 @@
         "properties": {
           "threadId": {
             "type": "string"
+          }
+        }
+      },
+      "AccountLoginCompletedNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "AccountLoginCompletedNotification",
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "loginId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "success": {
+            "type": "boolean"
           }
         }
       },
@@ -7969,6 +8186,24 @@
           }
         }
       },
+      "SkillsListExtraRootsForCwd": {
+        "type": "object",
+        "required": [
+          "cwd",
+          "extraUserRoots"
+        ],
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "extraUserRoots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SkillsListParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "SkillsListParams",
@@ -7984,6 +8219,17 @@
           "forceReload": {
             "description": "When true, bypass the skills cache and re-scan skills from disk.",
             "type": "boolean"
+          },
+          "perCwdExtraUserRoots": {
+            "description": "Optional per-cwd extra roots to scan as user-scoped skills.",
+            "default": null,
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/definitions/v2/SkillsListExtraRootsForCwd"
+            }
           }
         }
       },
@@ -8012,6 +8258,7 @@
       "AppsListParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "AppsListParams",
+        "description": "EXPERIMENTAL - list available apps/connectors.",
         "type": "object",
         "properties": {
           "cursor": {
@@ -8021,6 +8268,10 @@
               "null"
             ]
           },
+          "forceRefetch": {
+            "description": "When true, bypass app caches and fetch the latest data from sources.",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Optional page size; defaults to a reasonable server-side value.",
             "type": [
@@ -8029,6 +8280,13 @@
             ],
             "format": "uint32",
             "minimum": 0.0
+          },
+          "threadId": {
+            "description": "Optional thread id used to evaluate app feature gating from that thread's config.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -8421,16 +8679,8 @@
               }
             ]
           },
-          "collaborationMode": {
-            "description": "EXPERIMENTAL - set a pre-set collaboration mode. Takes precedence over model, reasoning_effort, and developer instructions if set.",
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/CollaborationMode"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "threadId": {
+            "type": "string"
           },
           "cwd": {
             "description": "Override the working directory for this turn and subsequent turns.",
@@ -8498,6 +8748,28 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "TurnSteerParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "TurnSteerParams",
+        "type": "object",
+        "required": [
+          "expectedTurnId",
+          "input",
+          "threadId"
+        ],
+        "properties": {
+          "expectedTurnId": {
+            "description": "Required active turn id precondition. The request fails when it does not match the currently active turn.",
+            "type": "string"
+          },
+          "input": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/v2/UserInput"
+            }
           },
           "threadId": {
             "type": "string"
@@ -8671,28 +8943,26 @@
           }
         }
       },
-      "AccountLoginCompletedNotification": {
+      "ExperimentalFeatureListParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "AccountLoginCompletedNotification",
+        "title": "ExperimentalFeatureListParams",
         "type": "object",
-        "required": [
-          "success"
-        ],
         "properties": {
-          "error": {
+          "cursor": {
+            "description": "Opaque pagination cursor returned by a previous call.",
             "type": [
               "string",
               "null"
             ]
           },
-          "loginId": {
+          "limit": {
+            "description": "Optional page size; defaults to a reasonable server-side value.",
             "type": [
-              "string",
+              "integer",
               "null"
-            ]
-          },
-          "success": {
-            "type": "boolean"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
           }
         }
       },
@@ -8719,6 +8989,45 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ConfigWarningNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "ConfigWarningNotification",
+        "type": "object",
+        "required": [
+          "summary"
+        ],
+        "properties": {
+          "details": {
+            "description": "Optional extra guidance or error details.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "description": "Optional path to the config file that triggered the warning.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "range": {
+            "description": "Optional range for the error location inside the config file.",
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/TextRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "description": "Concise summary of the warning.",
+            "type": "string"
           }
         }
       },
@@ -8819,17 +9128,24 @@
             "type": "object",
             "required": [
               "accessToken",
-              "idToken",
+              "chatgptAccountId",
               "type"
             ],
             "properties": {
               "accessToken": {
-                "description": "Access token (JWT) supplied by the client. This token is used for backend API requests.",
+                "description": "Access token (JWT) supplied by the client. This token is used for backend API requests and email extraction.",
                 "type": "string"
               },
-              "idToken": {
-                "description": "ID token (JWT) supplied by the client.\n\nThis token is used for identity and account metadata (email, plan type, workspace id).",
+              "chatgptAccountId": {
+                "description": "Workspace/account identifier supplied by the client.",
                 "type": "string"
+              },
+              "chatgptPlanType": {
+                "description": "Optional plan type supplied by the client.\n\nWhen `null`, Codex attempts to derive the plan type from access-token claims. If unavailable, the plan defaults to `unknown`.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "type": {
                 "type": "string",
@@ -9214,6 +9530,7 @@
         "enum": [
           "spawnAgent",
           "sendInput",
+          "resumeAgent",
           "wait",
           "closeAgent"
         ]
@@ -10344,6 +10661,21 @@
         "title": "ThreadCompactStartResponse",
         "type": "object"
       },
+      "TextRange": {
+        "type": "object",
+        "required": [
+          "end",
+          "start"
+        ],
+        "properties": {
+          "end": {
+            "$ref": "#/definitions/v2/TextPosition"
+          },
+          "start": {
+            "$ref": "#/definitions/v2/TextPosition"
+          }
+        }
+      },
       "ThreadRollbackResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "ThreadRollbackResponse",
@@ -10692,6 +11024,7 @@
         }
       },
       "AppInfo": {
+        "description": "EXPERIMENTAL - app metadata returned by app-list APIs.",
         "type": "object",
         "required": [
           "id",
@@ -10743,6 +11076,7 @@
       "AppsListResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "AppsListResponse",
+        "description": "EXPERIMENTAL - app list response.",
         "type": "object",
         "required": [
           "data"
@@ -10786,6 +11120,19 @@
         "properties": {
           "turn": {
             "$ref": "#/definitions/v2/Turn"
+          }
+        }
+      },
+      "TurnSteerResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "TurnSteerResponse",
+        "type": "object",
+        "required": [
+          "turnId"
+        ],
+        "properties": {
+          "turnId": {
+            "type": "string"
           }
         }
       },
@@ -10927,6 +11274,120 @@
           }
         }
       },
+      "ExperimentalFeature": {
+        "type": "object",
+        "required": [
+          "defaultEnabled",
+          "enabled",
+          "name",
+          "stage"
+        ],
+        "properties": {
+          "announcement": {
+            "description": "Announcement copy shown to users when the feature is introduced. Null when this feature is not in beta.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "defaultEnabled": {
+            "description": "Whether this feature is enabled by default.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Short summary describing what the feature does. Null when this feature is not in beta.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "description": "User-facing display name shown in the experimental features UI. Null when this feature is not in beta.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "description": "Whether this feature is currently enabled in the loaded config.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Stable key used in config.toml and CLI flag toggles.",
+            "type": "string"
+          },
+          "stage": {
+            "description": "Lifecycle stage of this feature flag.",
+            "allOf": [
+              {
+                "$ref": "#/definitions/v2/ExperimentalFeatureStage"
+              }
+            ]
+          }
+        }
+      },
+      "ExperimentalFeatureStage": {
+        "oneOf": [
+          {
+            "description": "Feature is available for user testing and feedback.",
+            "type": "string",
+            "enum": [
+              "beta"
+            ]
+          },
+          {
+            "description": "Feature is still being built and not ready for broad use.",
+            "type": "string",
+            "enum": [
+              "underDevelopment"
+            ]
+          },
+          {
+            "description": "Feature is production-ready.",
+            "type": "string",
+            "enum": [
+              "stable"
+            ]
+          },
+          {
+            "description": "Feature is deprecated and should be avoided.",
+            "type": "string",
+            "enum": [
+              "deprecated"
+            ]
+          },
+          {
+            "description": "Feature flag is retained only for backwards compatibility.",
+            "type": "string",
+            "enum": [
+              "removed"
+            ]
+          }
+        ]
+      },
+      "ExperimentalFeatureListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "ExperimentalFeatureListResponse",
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/v2/ExperimentalFeature"
+            }
+          },
+          "nextCursor": {
+            "description": "Opaque cursor to pass to the next call to continue after the last item. If None, there are no more items to return.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CollaborationModeMask": {
         "description": "A mask for collaboration mode settings, allowing partial updates. All fields except `name` are optional, enabling selective updates.",
         "type": "object",
@@ -10978,57 +11439,45 @@
           }
         }
       },
-      "ConfigWarningNotification": {
+      "TextPosition": {
+        "type": "object",
+        "required": [
+          "column",
+          "line"
+        ],
+        "properties": {
+          "column": {
+            "description": "1-based column number (in Unicode scalar values).",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          },
+          "line": {
+            "description": "1-based line number.",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        }
+      },
+      "DeprecationNoticeNotification": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "ConfigWarningNotification",
+        "title": "DeprecationNoticeNotification",
         "type": "object",
         "required": [
           "summary"
         ],
         "properties": {
           "details": {
-            "description": "Optional extra guidance or error details.",
+            "description": "Optional extra guidance, such as migration steps or rationale.",
             "type": [
               "string",
               "null"
-            ]
-          },
-          "path": {
-            "description": "Optional path to the config file that triggered the warning.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "range": {
-            "description": "Optional range for the error location inside the config file.",
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/TextRange"
-              },
-              {
-                "type": "null"
-              }
             ]
           },
           "summary": {
-            "description": "Concise summary of the warning.",
+            "description": "Concise summary of what is deprecated.",
             "type": "string"
-          }
-        }
-      },
-      "TextRange": {
-        "type": "object",
-        "required": [
-          "end",
-          "start"
-        ],
-        "properties": {
-          "end": {
-            "$ref": "#/definitions/v2/TextPosition"
-          },
-          "start": {
-            "$ref": "#/definitions/v2/TextPosition"
           }
         }
       },
@@ -11493,6 +11942,35 @@
         },
         "additionalProperties": true
       },
+      "AppConfig": {
+        "type": "object",
+        "properties": {
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/AppDisabledReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          }
+        }
+      },
+      "AppDisabledReason": {
+        "type": "string",
+        "enum": [
+          "unknown",
+          "user"
+        ]
+      },
+      "AppsConfig": {
+        "type": "object"
+      },
       "Config": {
         "type": "object",
         "properties": {
@@ -11510,6 +11988,16 @@
             "anyOf": [
               {
                 "$ref": "#/definitions/v2/AskForApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "web_search": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/WebSearchMode"
               },
               {
                 "type": "null"
@@ -11649,16 +12137,6 @@
             "anyOf": [
               {
                 "$ref": "#/definitions/v2/ToolsV2"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "web_search": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/WebSearchMode"
               },
               {
                 "type": "null"
@@ -12111,6 +12589,15 @@
               "$ref": "#/definitions/v2/SandboxMode"
             }
           },
+          "allowedWebSearchModes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/definitions/v2/WebSearchMode"
+            }
+          },
           "enforceResidency": {
             "anyOf": [
               {
@@ -12120,6 +12607,84 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "NetworkRequirements": {
+        "type": "object",
+        "properties": {
+          "allowLocalBinding": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "allowUnixSockets": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowUpstreamProxy": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "allowedDomains": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "dangerouslyAllowNonLoopbackAdmin": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "dangerouslyAllowNonLoopbackProxy": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "deniedDomains": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "httpPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "socksPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint16",
+            "minimum": 0.0
           }
         }
       },
@@ -12752,6 +13317,23 @@
           }
         }
       },
+      "AppListUpdatedNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "AppListUpdatedNotification",
+        "description": "EXPERIMENTAL - notification emitted when the app list changes.",
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/v2/AppInfo"
+            }
+          }
+        }
+      },
       "ReasoningSummaryTextDeltaNotification": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "ReasoningSummaryTextDeltaNotification",
@@ -12853,48 +13435,6 @@
           },
           "turnId": {
             "type": "string"
-          }
-        }
-      },
-      "DeprecationNoticeNotification": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "DeprecationNoticeNotification",
-        "type": "object",
-        "required": [
-          "summary"
-        ],
-        "properties": {
-          "details": {
-            "description": "Optional extra guidance, such as migration steps or rationale.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "summary": {
-            "description": "Concise summary of what is deprecated.",
-            "type": "string"
-          }
-        }
-      },
-      "TextPosition": {
-        "type": "object",
-        "required": [
-          "column",
-          "line"
-        ],
-        "properties": {
-          "column": {
-            "description": "1-based column number (in Unicode scalar values).",
-            "type": "integer",
-            "format": "uint",
-            "minimum": 0.0
-          },
-          "line": {
-            "description": "1-based line number.",
-            "type": "integer",
-            "format": "uint",
-            "minimum": 0.0
           }
         }
       }
@@ -13180,10 +13720,22 @@
       ]
     },
     "MessagePhase": {
-      "type": "string",
-      "enum": [
-        "commentary",
-        "final_answer"
+      "description": "Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as \"phase unknown\" and keep compatibility behavior for legacy models.",
+      "oneOf": [
+        {
+          "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.",
+          "type": "string",
+          "enum": [
+            "commentary"
+          ]
+        },
+        {
+          "description": "The assistant's terminal answer text for the current turn.",
+          "type": "string",
+          "enum": [
+            "final_answer"
+          ]
+        }
       ]
     },
     "ReasoningItemContent": {
@@ -15747,14 +16299,20 @@
       "type": "object",
       "required": [
         "accessToken",
-        "idToken"
+        "chatgptAccountId"
       ],
       "properties": {
         "accessToken": {
           "type": "string"
         },
-        "idToken": {
+        "chatgptAccountId": {
           "type": "string"
+        },
+        "chatgptPlanType": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

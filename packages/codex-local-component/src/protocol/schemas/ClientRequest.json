@@ -450,6 +450,30 @@
         "method": {
           "type": "string",
           "enum": [
+            "turn/steer"
+          ],
+          "title": "Turn/steerRequestMethod"
+        },
+        "params": {
+          "$ref": "#/definitions/TurnSteerParams"
+        }
+      },
+      "title": "Turn/steerRequest"
+    },
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
             "turn/interrupt"
           ],
           "title": "Turn/interruptRequestMethod"
@@ -507,6 +531,30 @@
         }
       },
       "title": "Model/listRequest"
+    },
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "experimentalFeature/list"
+          ],
+          "title": "ExperimentalFeature/listRequestMethod"
+        },
+        "params": {
+          "$ref": "#/definitions/ExperimentalFeatureListParams"
+        }
+      },
+      "title": "ExperimentalFeature/listRequest"
     },
     {
       "type": "object",
@@ -1416,6 +1464,7 @@
       }
     },
     "AppsListParams": {
+      "description": "EXPERIMENTAL - list available apps/connectors.",
       "type": "object",
       "properties": {
         "cursor": {
@@ -1425,6 +1474,10 @@
             "null"
           ]
         },
+        "forceRefetch": {
+          "description": "When true, bypass app caches and fetch the latest data from sources.",
+          "type": "boolean"
+        },
         "limit": {
           "description": "Optional page size; defaults to a reasonable server-side value.",
           "type": [
@@ -1433,6 +1486,13 @@
           ],
           "format": "uint32",
           "minimum": 0.0
+        },
+        "threadId": {
+          "description": "Optional thread id used to evaluate app feature gating from that thread's config.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -1918,6 +1978,27 @@
         }
       }
     },
+    "ExperimentalFeatureListParams": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque pagination cursor returned by a previous call.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "description": "Optional page size; defaults to a reasonable server-side value.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
     "FeedbackUploadParams": {
       "type": "object",
       "required": [
@@ -2182,6 +2263,16 @@
           "description": "Opt into receiving experimental API methods and fields.",
           "default": false,
           "type": "boolean"
+        },
+        "optOutNotificationMethods": {
+          "description": "Exact notification method names that should be suppressed for this connection (for example `codex/event/session_configured`).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -2469,17 +2560,24 @@
           "type": "object",
           "required": [
             "accessToken",
-            "idToken",
+            "chatgptAccountId",
             "type"
           ],
           "properties": {
             "accessToken": {
-              "description": "Access token (JWT) supplied by the client. This token is used for backend API requests.",
+              "description": "Access token (JWT) supplied by the client. This token is used for backend API requests and email extraction.",
               "type": "string"
             },
-            "idToken": {
-              "description": "ID token (JWT) supplied by the client.\n\nThis token is used for identity and account metadata (email, plan type, workspace id).",
+            "chatgptAccountId": {
+              "description": "Workspace/account identifier supplied by the client.",
               "type": "string"
+            },
+            "chatgptPlanType": {
+              "description": "Optional plan type supplied by the client.\n\nWhen `null`, Codex attempts to derive the plan type from access-token claims. If unavailable, the plan defaults to `unknown`.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "type": {
               "type": "string",
@@ -2539,10 +2637,22 @@
       ]
     },
     "MessagePhase": {
-      "type": "string",
-      "enum": [
-        "commentary",
-        "final_answer"
+      "description": "Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as \"phase unknown\" and keep compatibility behavior for legacy models.",
+      "oneOf": [
+        {
+          "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.",
+          "type": "string",
+          "enum": [
+            "commentary"
+          ]
+        },
+        {
+          "description": "The assistant's terminal answer text for the current turn.",
+          "type": "string",
+          "enum": [
+            "final_answer"
+          ]
+        }
       ]
     },
     "V1TextElement": {
@@ -3691,6 +3801,24 @@
         }
       }
     },
+    "SkillsListExtraRootsForCwd": {
+      "type": "object",
+      "required": [
+        "cwd",
+        "extraUserRoots"
+      ],
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "extraUserRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "SkillsListParams": {
       "type": "object",
       "properties": {
@@ -3704,6 +3832,17 @@
         "forceReload": {
           "description": "When true, bypass the skills cache and re-scan skills from disk.",
           "type": "boolean"
+        },
+        "perCwdExtraUserRoots": {
+          "description": "Optional per-cwd extra roots to scan as user-scoped skills.",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/SkillsListExtraRootsForCwd"
+          }
         }
       }
     },
@@ -3756,6 +3895,27 @@
       "properties": {
         "threadId": {
           "type": "string"
+        }
+      }
+    },
+    "V1ByteRange": {
+      "type": "object",
+      "required": [
+        "end",
+        "start"
+      ],
+      "properties": {
+        "end": {
+          "description": "End byte offset (exclusive) within the UTF-8 text buffer.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "start": {
+          "description": "Start byte offset (inclusive) within the UTF-8 text buffer.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
         }
       }
     },
@@ -3825,12 +3985,8 @@
             "null"
           ]
         },
-        "path": {
-          "description": "[UNSTABLE] Specify the rollout path to fork from. If specified, the thread_id param will be ignored.",
-          "type": [
-            "string",
-            "null"
-          ]
+        "threadId": {
+          "type": "string"
         },
         "sandbox": {
           "anyOf": [
@@ -3841,9 +3997,6 @@
               "type": "null"
             }
           ]
-        },
-        "threadId": {
-          "type": "string"
         }
       }
     },
@@ -3988,15 +4141,15 @@
             "null"
           ]
         },
-        "history": {
-          "description": "[UNSTABLE] FOR CODEX CLOUD - DO NOT USE. If specified, the thread will be resumed with the provided history instead of loaded from disk.",
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "$ref": "#/definitions/ResponseItem"
-          }
+        "sandbox": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SandboxMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "model": {
           "description": "Configuration overrides for the resumed thread, if any.",
@@ -4011,12 +4164,8 @@
             "null"
           ]
         },
-        "path": {
-          "description": "[UNSTABLE] Specify the rollout path to resume from. If specified, the thread_id param will be ignored.",
-          "type": [
-            "string",
-            "null"
-          ]
+        "threadId": {
+          "type": "string"
         },
         "personality": {
           "anyOf": [
@@ -4027,19 +4176,6 @@
               "type": "null"
             }
           ]
-        },
-        "sandbox": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/SandboxMode"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "type": "string"
         }
       }
     },
@@ -4152,10 +4288,11 @@
             "null"
           ]
         },
-        "experimentalRawEvents": {
-          "description": "If true, opt into emitting raw response items on the event stream.\n\nThis is for internal use only (e.g. Codex Cloud). (TODO): Figure out a better way to categorize internal / experimental events & protocols.",
-          "default": false,
-          "type": "boolean"
+        "modelProvider": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "sandbox": {
           "anyOf": [
@@ -4168,12 +4305,6 @@
           ]
         },
         "model": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "modelProvider": {
           "type": [
             "string",
             "null"
@@ -4225,16 +4356,8 @@
             }
           ]
         },
-        "collaborationMode": {
-          "description": "EXPERIMENTAL - set a pre-set collaboration mode. Takes precedence over model, reasoning_effort, and developer instructions if set.",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/CollaborationMode"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "threadId": {
+          "type": "string"
         },
         "cwd": {
           "description": "Override the working directory for this turn and subsequent turns.",
@@ -4302,6 +4425,26 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "TurnSteerParams": {
+      "type": "object",
+      "required": [
+        "expectedTurnId",
+        "input",
+        "threadId"
+      ],
+      "properties": {
+        "expectedTurnId": {
+          "description": "Required active turn id precondition. The request fails when it does not match the currently active turn.",
+          "type": "string"
+        },
+        "input": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UserInput"
+          }
         },
         "threadId": {
           "type": "string"
@@ -4427,27 +4570,6 @@
           "title": "MentionUserInput"
         }
       ]
-    },
-    "V1ByteRange": {
-      "type": "object",
-      "required": [
-        "end",
-        "start"
-      ],
-      "properties": {
-        "end": {
-          "description": "End byte offset (exclusive) within the UTF-8 text buffer.",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0.0
-        },
-        "start": {
-          "description": "Start byte offset (inclusive) within the UTF-8 text buffer.",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0.0
-        }
-      }
     }
   }
 }

@@ -50,6 +50,16 @@
           "description": "Opt into receiving experimental API methods and fields.",
           "default": false,
           "type": "boolean"
+        },
+        "optOutNotificationMethods": {
+          "description": "Exact notification method names that should be suppressed for this connection (for example `codex/event/session_configured`).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         }
       }
     }

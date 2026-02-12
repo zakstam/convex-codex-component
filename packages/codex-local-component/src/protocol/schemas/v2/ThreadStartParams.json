@@ -54,10 +54,11 @@
         "null"
       ]
     },
-    "experimentalRawEvents": {
-      "description": "If true, opt into emitting raw response items on the event stream.\n\nThis is for internal use only (e.g. Codex Cloud). (TODO): Figure out a better way to categorize internal / experimental events & protocols.",
-      "default": false,
-      "type": "boolean"
+    "modelProvider": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "sandbox": {
       "anyOf": [
@@ -70,12 +71,6 @@
       ]
     },
     "model": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "modelProvider": {
       "type": [
         "string",
         "null"

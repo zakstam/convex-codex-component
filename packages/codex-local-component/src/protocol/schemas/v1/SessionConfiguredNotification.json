@@ -948,6 +948,17 @@
             "model_provider_id": {
               "type": "string"
             },
+            "network_proxy": {
+              "description": "Runtime proxy bind addresses, when the managed proxy was started for this session.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/SessionNetworkProxyRuntime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "reasoning_effort": {
               "description": "The effort the model is putting into reasoning about the user's request.",
               "anyOf": [
@@ -2824,6 +2835,95 @@
             }
           },
           "title": "CollabCloseEndEventMsg"
+        },
+        {
+          "description": "Collab interaction: resume begin.",
+          "type": "object",
+          "required": [
+            "call_id",
+            "receiver_thread_id",
+            "sender_thread_id",
+            "type"
+          ],
+          "properties": {
+            "call_id": {
+              "description": "Identifier for the collab tool call.",
+              "type": "string"
+            },
+            "receiver_thread_id": {
+              "description": "Thread ID of the receiver.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                }
+              ]
+            },
+            "sender_thread_id": {
+              "description": "Thread ID of the sender.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "collab_resume_begin"
+              ],
+              "title": "CollabResumeBeginEventMsgType"
+            }
+          },
+          "title": "CollabResumeBeginEventMsg"
+        },
+        {
+          "description": "Collab interaction: resume end.",
+          "type": "object",
+          "required": [
+            "call_id",
+            "receiver_thread_id",
+            "sender_thread_id",
+            "status",
+            "type"
+          ],
+          "properties": {
+            "call_id": {
+              "description": "Identifier for the collab tool call.",
+              "type": "string"
+            },
+            "receiver_thread_id": {
+              "description": "Thread ID of the receiver.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                }
+              ]
+            },
+            "sender_thread_id": {
+              "description": "Thread ID of the sender.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                }
+              ]
+            },
+            "status": {
+              "description": "Last known status of the receiver agent reported to the sender agent after resume.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/AgentStatus"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "collab_resume_end"
+              ],
+              "title": "CollabResumeEndEventMsgType"
+            }
+          },
+          "title": "CollabResumeEndEventMsg"
         }
       ]
     },
@@ -3218,10 +3318,22 @@
       ]
     },
     "MessagePhase": {
-      "type": "string",
-      "enum": [
-        "commentary",
-        "final_answer"
+      "description": "Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as \"phase unknown\" and keep compatibility behavior for legacy models.",
+      "oneOf": [
+        {
+          "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.",
+          "type": "string",
+          "enum": [
+            "commentary"
+          ]
+        },
+        {
+          "description": "The assistant's terminal answer text for the current turn.",
+          "type": "string",
+          "enum": [
+            "final_answer"
+          ]
+        }
       ]
     },
     "ModeKind": {
@@ -4375,6 +4487,25 @@
         }
       ]
     },
+    "SessionNetworkProxyRuntime": {
+      "type": "object",
+      "required": [
+        "admin_addr",
+        "http_addr",
+        "socks_addr"
+      ],
+      "properties": {
+        "admin_addr": {
+          "type": "string"
+        },
+        "http_addr": {
+          "type": "string"
+        },
+        "socks_addr": {
+          "type": "string"
+        }
+      }
+    },
     "SkillDependencies": {
       "type": "object",
       "required": [
@@ -4734,6 +4865,7 @@
           "title": "UserMessageTurnItem"
         },
         {
+          "description": "Assistant-authored message payload used in turn-item streams.\n\n`phase` is optional because not all providers/models emit it. Consumers should use it when present, but retain legacy completion semantics when it is `None`.",
           "type": "object",
           "required": [
             "content",
@@ -4749,6 +4881,17 @@
             },
             "id": {
               "type": "string"
+            },
+            "phase": {
+              "description": "Optional phase metadata carried through from `ResponseItem::Message`.\n\nThis is currently used by TUI rendering to distinguish mid-turn commentary from a final answer and avoid status-indicator jitter.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/MessagePhase"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",

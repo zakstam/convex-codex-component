@@ -18,16 +18,8 @@
         }
       ]
     },
-    "collaborationMode": {
-      "description": "EXPERIMENTAL - set a pre-set collaboration mode. Takes precedence over model, reasoning_effort, and developer instructions if set.",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/CollaborationMode"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "threadId": {
+      "type": "string"
     },
     "cwd": {
       "description": "Override the working directory for this turn and subsequent turns.",
@@ -95,9 +87,6 @@
           "type": "null"
         }
       ]
-    },
-    "threadId": {
-      "type": "string"
     }
   },
   "definitions": {

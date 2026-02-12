@@ -1,5 +1,45 @@
 # @convex-dev/codex-local-component
 
+## 0.11.0
+
+### Minor Changes
+
+- fef7ba2: Add async cascade deletion APIs for Codex persisted data with job-based status tracking.
+
+  New public component endpoints:
+  - `threads.deleteCascade`
+  - `threads.scheduleDeleteCascade`
+  - `turns.deleteCascade`
+  - `turns.scheduleDeleteCascade`
+  - `threads.purgeActorData`
+  - `threads.schedulePurgeActorData`
+  - `threads.cancelScheduledDeletion`
+  - `threads.forceRunScheduledDeletion`
+  - `threads.getDeletionJobStatus`
+
+  Add matching typed client helpers:
+  - `deleteThreadCascade`
+  - `scheduleThreadDeleteCascade`
+  - `deleteTurnCascade`
+  - `scheduleTurnDeleteCascade`
+  - `purgeActorCodexData`
+  - `schedulePurgeActorCodexData`
+  - `cancelScheduledDeletion`
+  - `forceRunScheduledDeletion`
+  - `getDeletionJobStatus`
+
+  Deletion runs in paged internal jobs and reports scheduled/queued/running/completed/failed/cancelled states.
+
+### Patch Changes
+
+- 6418730: Document that `@zakstam/codex-local-component` is now in alpha and ready for active testing (still not production ready), and update release safety allowlists so CI prechecks stay green after recent refactors.
+- 198fa00: Fix host surface generation for dispatch-managed Tauri consumers by preserving app-owned `convex/chat.ts` entry modules and requiring a deterministic `actor.userId` fallback in generated wiring smoke scripts.
+- c7836e6: Enforce Convex reference integrity across persisted Codex state tables by adding canonical `v.id(...)` relationships (thread/turn/stream refs), wiring write paths to populate and validate those refs, and keeping cascade delete behavior as the default cleanup model.
+
+  Also canonicalize runtime turn ids before side-channel persistence and add bounded retry behavior for pending server request writes that race ahead of turn persistence.
+
+- 198fa00: Fix two host-facing persistence failure paths: `sync.ensureSession` now rebinds an existing session to the requested thread for the same actor instead of throwing `E_SYNC_SESSION_THREAD_MISMATCH`, and `dispatch.markTurnStarted` now treats invalid/missing claim tokens as a no-op so dispatch state stays unchanged without an uncaught mutation error.
+
 ## 0.10.3
 
 ### Patch Changes

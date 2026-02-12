@@ -8,7 +8,7 @@ Canonical wiring in this app centers on:
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
 - generated host wrappers in `convex/chat.generated.ts`
-- runtime-owned host mode (`dispatchManaged: false`) with `runtime.sendTurn(...)`
+- dispatch-managed host mode (`dispatchManaged: true`) with `runtime.startClaimedTurn(...)`
 
 Canonical consumer implementation path:
 
@@ -45,6 +45,14 @@ Optional:
 - `CODEX_NODE_BIN`
 - `CODEX_BRIDGE_RAW_LOG` (`all` for every app-server line, `turns` for turn-focused lines)
 
+## Actor Security
+
+- On first launch, the app prompts for a username and persists it in local storage.
+- By default (developer mode), actor lock is disabled and any username can be used.
+- Set `TAURI_ACTOR_LOCK=1` in Convex server env to enable host binding and reject mismatched actor identities.
+- On startup, the app reconciles to existing server-side lock/pin state (`chat.getActorBindingForBootstrap`) before loading guarded thread data.
+- Optional hard pin: set `ACTOR_USER_ID` in Convex server env to pin the accepted actor from startup.
+
 ## Raw Protocol Verification
 
 To verify exactly what Codex emits before host parsing, run the Tauri helper with:
@@ -76,9 +84,9 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.generated.ts`: generated preset wrappers
-- `convex/chat.extensions.ts`: app-owned endpoints (for example `listThreadsForPicker`)
-- `convex/chat.ts`: stable re-export entrypoint
+- `convex/chat.generated.ts`: generated preset wrappers (reference only)
+- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
+- `convex/chat.ts`: app-owned guarded public surface (`api.chat.*`) that wraps generated definitions and enforces actor lock
 
 Regenerate wrappers from repo root:
 

@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useQuery } from "convex/react";
 import {
   useCodexAccountAuth,
@@ -39,9 +39,29 @@ import { TokenUsagePanel } from "./components/TokenUsagePanel";
 import { ToastContainer, type ToastItem } from "./components/Toast";
 import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./hooks/useCodexTauriEvents";
 
-const actor: ActorContext = {
-  userId: "demo-user",
-};
+const ACTOR_STORAGE_KEY = "codex-local-tauri-actor-user-id";
+
+function resolveActorUserId(): string {
+  if (typeof window === "undefined") {
+    return "demo-user";
+  }
+
+  const stored = window.localStorage.getItem(ACTOR_STORAGE_KEY)?.trim();
+  if (stored) {
+    return stored;
+  }
+
+  while (true) {
+    const entered = window.prompt("Enter a username for this Codex session:")?.trim();
+    if (entered) {
+      window.localStorage.setItem(ACTOR_STORAGE_KEY, entered);
+      return entered;
+    }
+    if (entered === undefined) {
+      throw new Error("Username is required to start the Tauri Codex host.");
+    }
+  }
+}
 
 const sessionId = crypto.randomUUID();
 
@@ -89,6 +109,7 @@ function requestKey(requestId: string | number): string {
 const chatApi = requireDefined(api.chat, "api.chat");
 
 export default function App() {
+  const [actorUserId, setActorUserId] = useState<string>(() => resolveActorUserId());
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
     localThreadId: null,
@@ -121,12 +142,40 @@ export default function App() {
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+  const actorBinding = useQuery(
+    requireDefined(chatApi.getActorBindingForBootstrap, "api.chat.getActorBindingForBootstrap"),
+  );
+  const preferredBoundUserId = actorBinding?.lockEnabled
+    ? actorBinding.pinnedUserId?.trim() || actorBinding.boundUserId?.trim() || null
+    : actorBinding?.pinnedUserId?.trim() || null;
+  const actorReady = actorBinding !== undefined && (!preferredBoundUserId || preferredBoundUserId === actorUserId);
+  const actor: ActorContext = useMemo(
+    () => ({
+      userId: actorUserId,
+    }),
+    [actorUserId],
+  );
+
+  useEffect(() => {
+    const preferredUserId = preferredBoundUserId;
+    if (!preferredUserId || preferredUserId === actorUserId) {
+      return;
+    }
+    setActorUserId(preferredUserId);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ACTOR_STORAGE_KEY, preferredUserId);
+    }
+    addToast(
+      "info",
+      `Using bound host username "${preferredUserId}" to match Convex actor lock.`,
+    );
+  }, [actorUserId, addToast, preferredBoundUserId]);
 
   const threadId = bridge.localThreadId;
   const threads = useCodexThreads({
     list: {
       query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
-      args: { actor, limit: 25 },
+      args: actorReady ? { actor, limit: 25 } : "skip",
     },
     initialSelectedThreadId: "",
   });
@@ -155,32 +204,35 @@ export default function App() {
 
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry") => {
-    const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
-    await runtimeBridge.start({
-      convexUrl: import.meta.env.VITE_CONVEX_URL,
-      actor,
-      sessionId,
-      startSource,
-      model: import.meta.env.VITE_CODEX_MODEL,
-      cwd: import.meta.env.VITE_CODEX_CWD,
-      deltaThrottleMs: 250,
-      saveStreamDeltas: true,
-      ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
-    });
+      const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
+      if (!actorReady) {
+        throw new Error("Actor identity is still synchronizing. Please retry in a moment.");
+      }
+      await runtimeBridge.start({
+        convexUrl: import.meta.env.VITE_CONVEX_URL,
+        actor,
+        sessionId,
+        startSource,
+        model: import.meta.env.VITE_CODEX_MODEL,
+        cwd: import.meta.env.VITE_CODEX_CWD,
+        deltaThrottleMs: 250,
+        saveStreamDeltas: true,
+        ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
+      });
     },
-    [runtimeBridge, selectedRuntimeThreadId],
+    [actor, actorReady, runtimeBridge, selectedRuntimeThreadId],
   );
 
   const conversation = useCodexConversationController({
     messages: {
       query: requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
-      args: threadId ? { actor, threadId } : "skip",
+      args: threadId && actorReady ? { actor, threadId } : "skip",
       initialNumItems: 30,
       stream: true,
     },
     threadState: {
       query: requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
-      args: threadId ? { actor, threadId } : "skip",
+      args: threadId && actorReady ? { actor, threadId } : "skip",
     },
     composer: {
       onSend: async (text: string) => {
@@ -254,14 +306,14 @@ export default function App() {
 
   const threadState = useCodexThreadState(
     requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
-    threadId ? { actor, threadId } : "skip",
+    threadId && actorReady ? { actor, threadId } : "skip",
   );
   const threadActivity = conversation.activity;
   const ingestHealth = conversation.ingestHealth;
 
   const tokenUsage = useCodexTokenUsage(
     requireDefined(chatApi.listTokenUsageForHooks, "api.chat.listTokenUsageForHooks"),
-    threadId ? { actor, threadId } : "skip",
+    threadId && actorReady ? { actor, threadId } : "skip",
   );
 
   const tokenByTurnId = useMemo(() => {
@@ -279,7 +331,7 @@ export default function App() {
 
   const pendingServerRequestsRaw = useQuery(
     requireDefined(chatApi.listPendingServerRequestsForHooks, "api.chat.listPendingServerRequestsForHooks"),
-    threadId ? { actor, threadId, limit: 50 } : "skip",
+    threadId && actorReady ? { actor, threadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
   useCodexTauriEvents({

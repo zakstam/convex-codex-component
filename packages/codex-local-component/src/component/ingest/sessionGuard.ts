@@ -121,21 +121,17 @@ export async function upsertSessionHeartbeat(
       `User ${args.actor.userId} is not allowed to access session ${args.sessionId}`,
     );
   }
-  if (session.threadId !== args.threadId) {
-    syncError(
-      "E_SYNC_SESSION_THREAD_MISMATCH",
-      `Session threadId=${session.threadId} does not match request threadId=${args.threadId}`,
-    );
-  }
+  const nextThreadId = session.threadId !== args.threadId ? args.threadId : session.threadId;
   await ctx.db.patch(session._id, {
     status: "active",
+    threadId: nextThreadId,
     lastHeartbeatAt: now(),
     lastEventCursor: Math.max(args.lastEventCursor, session.lastEventCursor),
   });
 
   return {
     sessionId: args.sessionId,
-    threadId: args.threadId,
+    threadId: nextThreadId,
     status: "active",
   };
 }

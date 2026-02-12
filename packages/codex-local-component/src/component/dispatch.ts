@@ -20,10 +20,11 @@ function ensureDispatchToken(args: {
   expectedToken: string | undefined;
   providedToken: string;
   dispatchId: string;
-}): void {
+}): boolean {
   if (!args.expectedToken || args.expectedToken !== args.providedToken) {
-    throw new Error(`Dispatch claim token mismatch for dispatchId=${args.dispatchId}`);
+    return false;
   }
+  return true;
 }
 
 async function requireDispatchForActor(args: {
@@ -255,11 +256,14 @@ export const markTurnStarted = mutation({
       throw new Error(`Dispatch ${args.dispatchId} is not claimable for started transition`);
     }
 
-    ensureDispatchToken({
+    const validClaimToken = ensureDispatchToken({
       expectedToken: dispatch.claimToken,
       providedToken: args.claimToken,
       dispatchId: args.dispatchId,
     });
+    if (!validClaimToken) {
+      return null;
+    }
 
     await ctx.db.patch(dispatch._id, {
       status: "started",
@@ -311,11 +315,15 @@ export const markTurnCompleted = mutation({
     if (dispatch.status === "failed" || dispatch.status === "cancelled") {
       throw new Error(`Dispatch ${args.dispatchId} already terminal with status=${dispatch.status}`);
     }
-    ensureDispatchToken({
-      expectedToken: dispatch.claimToken,
-      providedToken: args.claimToken,
-      dispatchId: args.dispatchId,
-    });
+    if (
+      !ensureDispatchToken({
+        expectedToken: dispatch.claimToken,
+        providedToken: args.claimToken,
+        dispatchId: args.dispatchId,
+      })
+    ) {
+      throw new Error(`Dispatch claim token mismatch for dispatchId=${args.dispatchId}`);
+    }
 
     await ctx.db.patch(dispatch._id, {
       status: "completed",
@@ -354,11 +362,15 @@ export const markTurnFailed = mutation({
     if (dispatch.status === "completed" || dispatch.status === "cancelled") {
       throw new Error(`Dispatch ${args.dispatchId} already terminal with status=${dispatch.status}`);
     }
-    ensureDispatchToken({
-      expectedToken: dispatch.claimToken,
-      providedToken: args.claimToken,
-      dispatchId: args.dispatchId,
-    });
+    if (
+      !ensureDispatchToken({
+        expectedToken: dispatch.claimToken,
+        providedToken: args.claimToken,
+        dispatchId: args.dispatchId,
+      })
+    ) {
+      throw new Error(`Dispatch claim token mismatch for dispatchId=${args.dispatchId}`);
+    }
 
     await ctx.db.patch(dispatch._id, {
       status: "failed",
@@ -403,11 +415,15 @@ export const cancelTurnDispatch = mutation({
       if (!args.claimToken) {
         throw new Error(`claimToken is required to cancel claimed/started dispatch ${args.dispatchId}`);
       }
-      ensureDispatchToken({
-        expectedToken: dispatch.claimToken,
-        providedToken: args.claimToken,
-        dispatchId: args.dispatchId,
-      });
+      if (
+        !ensureDispatchToken({
+          expectedToken: dispatch.claimToken,
+          providedToken: args.claimToken,
+          dispatchId: args.dispatchId,
+        })
+      ) {
+        throw new Error(`Dispatch claim token mismatch for dispatchId=${args.dispatchId}`);
+      }
     }
 
     await ctx.db.patch(dispatch._id, {

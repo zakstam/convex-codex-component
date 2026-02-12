@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as actorLock from "../actorLock.js";
 import type * as chat from "../chat.js";
 
 import type {
@@ -17,6 +18,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  actorLock: typeof actorLock;
   chat: typeof chat;
 }>;
 

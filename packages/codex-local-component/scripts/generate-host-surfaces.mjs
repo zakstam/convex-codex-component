@@ -61,7 +61,16 @@ const tauriExtensionsTemplate = `import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { vHostActorContext } from "@zakstam/codex-local-component/host/convex";
-import { SERVER_ACTOR } from "./chat.generated";
+import {
+  SERVER_ACTOR,
+  readActorBindingForBootstrap,
+  requireBoundServerActorForQuery,
+} from "./actorLock";
+
+export const getActorBindingForBootstrap = query({
+  args: {},
+  handler: async (ctx) => await readActorBindingForBootstrap(ctx),
+});
 
 export const listThreadsForPicker = query({
   args: {
@@ -69,6 +78,8 @@ export const listThreadsForPicker = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireBoundServerActorForQuery(ctx, args.actor);
+
     const listed = await ctx.runQuery(components.codexLocal.threads.list, {
       actor: SERVER_ACTOR,
       paginationOpts: {
@@ -135,6 +146,8 @@ const targets = [
       prioritizeVite: true,
     },
     extensionTemplate: tauriExtensionsTemplate,
+    entryTemplate: renderHostChatEntryModule(),
+    entryMode: "ensure",
   },
   {
     profile: "runtimeOwned",
@@ -159,7 +172,12 @@ for (const target of targets) {
       profile: target.profile,
     }),
   );
-  upsertFile(target.chatEntryPath, renderHostChatEntryModule());
+  const entryTemplate = target.entryTemplate ?? renderHostChatEntryModule();
+  if (target.entryMode === "ensure") {
+    ensureFile(target.chatEntryPath, entryTemplate);
+  } else {
+    upsertFile(target.chatEntryPath, entryTemplate);
+  }
   ensureFile(target.chatExtensionsPath, target.extensionTemplate);
   upsertFile(target.wiringPath, renderHostWiringSmokeScript(target.wiring));
 }

@@ -27,6 +27,7 @@ In this mode:
 
 - `runtime.sendTurn(...)` is invalid (`E_RUNTIME_DISPATCH_MODE_CONFLICT`).
 - Turns execute through `runtime.startClaimedTurn(...)`.
+- `markTurnDispatchStarted` is claim-token guarded; invalid/missing token is a no-op, so hosts should confirm transition with `getDispatchObservability` / `getTurnDispatchState`.
 
 ## Expected Host Surface
 

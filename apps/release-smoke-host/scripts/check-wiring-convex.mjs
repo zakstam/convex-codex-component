@@ -11,8 +11,9 @@ async function main() {
   assert.ok(convexUrl, "Missing Convex URL. Run `pnpm run dev:convex:once` first.");
 
   const convex = new ConvexHttpClient(convexUrl);
+  const fallbackUserId = "release-smoke-host-wiring-check-user";
   const actor = {
-    ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
+    userId: process.env.ACTOR_USER_ID?.trim() || fallbackUserId,
   };
   const validation = await convex.query(api.chat.validateHostWiring, { actor });
   assert.equal(validation.ok, true, `validateHostWiring failed: ${JSON.stringify(validation.checks)}`);

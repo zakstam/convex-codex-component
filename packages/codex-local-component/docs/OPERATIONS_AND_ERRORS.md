@@ -36,6 +36,8 @@ Set `CODEX_BRIDGE_RAW_LOG=all|turns` to print raw `codex app-server` stdout line
 - `E_SYNC_DUP_EVENT_IN_BATCH`
 
 Use `sync.ingestSafe` in host wrappers so recoverable conditions return structured status instead of hard-failing the loop.
+`sync.ensureSession` is forward-only and session-safe: when the session already exists for the same actor but a different thread, it rebinds the session to the requested thread and returns `status: "active"` instead of throwing.
+`dispatch.markTurnStarted` treats invalid/missing `claimToken` as a no-op and leaves dispatch state unchanged.
 
 Public classifier utilities are available for consistent host/app fallback handling:
 
@@ -70,7 +72,7 @@ Follow `nextCheckpoints` and persist with `sync.upsertCheckpoint`.
 2. Start runtime with `dispatchManaged: false`.
 3. Ensure one active turn at a time (`turnInFlight` guard).
 4. On protocol errors, restart bridge runtime and rebind session.
-5. On stale/missing session errors, call `sync.ensureSession` then continue ingest.
+5. On stale/missing/mismatched session errors, call `sync.ensureSession` then continue ingest.
 
 ## Pending Request Runbook
 

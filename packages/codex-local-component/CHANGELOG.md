@@ -1,5 +1,25 @@
 # @convex-dev/codex-local-component
 
+## 0.10.0
+
+### Minor Changes
+
+- f958db5: Add per-turn token usage tracking and inline display in the tauri example app
+  - New component-level `tokenUsage` module with `upsert` mutation and `listByThread` query
+  - New `useCodexTokenUsage` React hook and `CodexTokenUsage` / `CodexTokenUsageBreakdown` types exported from `react` entrypoint
+  - Host preset wires `upsertTokenUsageForHooks` mutation and `listTokenUsageForHooks` query
+  - Tauri app shows a compact per-turn token label (total / in / out) beneath the last assistant message of each turn
+
+### Patch Changes
+
+- c079fde: Make streaming activity authority deterministic across modes and stream cleanup timing
+  - Move thread/branch activity to a shared authority module with explicit precedence:
+    pending approvals > streaming message > active stream > in-flight newer than terminal > terminal > idle
+  - Treat `activeStreams` as authoritative for stream-state-driven streaming and prevent stale `streamStats` rows from forcing streaming when no active stream exists
+  - Emit a canonical `stream/drain_complete` lifecycle marker when stream cleanup fully drains and consume it in activity derivation to exit streaming promptly
+  - Harden stream stat hygiene with monotonic state transitions and stale streaming-stat finalization when no matching active stream exists
+  - Add parity tests covering identical activity transitions for dispatch-managed and runtime-owned scenarios, including delayed/stale stream stats
+
 ## 0.9.1
 
 ### Patch Changes

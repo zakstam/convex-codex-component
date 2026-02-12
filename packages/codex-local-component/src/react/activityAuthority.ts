@@ -268,7 +268,7 @@ export function deriveCodexActivityByAuthorityRules(
     };
   }
 
-  if (streamingMessage && streamingMessage.timestamp > (streamDrainCompleted?.timestamp ?? -1)) {
+  if (streamingMessage && streamingMessage.timestamp > latestTerminalBoundaryTs) {
     return {
       phase: "streaming",
       ...(streamingMessage.activeTurnId !== undefined ? { activeTurnId: streamingMessage.activeTurnId } : {}),

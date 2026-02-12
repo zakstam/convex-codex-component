@@ -195,6 +195,139 @@ test("deriveCodexThreadActivity uses updatedAt when completedAt is missing", () 
   assert.equal(result.phase, "idle");
 });
 
+test("deriveCodexThreadActivity ignores stale streaming message when completed boundary is newer", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-streaming-stale",
+        turnId: "turn-1",
+        status: "streaming",
+        createdAt: 50,
+      },
+      {
+        messageId: "msg-completed-newer",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 60,
+        updatedAt: 180,
+        completedAt: 180,
+      },
+    ],
+    dispatches: [],
+    streamStats: [{ state: "finished" }],
+    activeStreams: [],
+    turns: [{ turnId: "turn-1", status: "completed", startedAt: 40, completedAt: 180 }],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity keeps streaming when streaming message is newer than terminal boundary", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-streaming-new",
+        turnId: "turn-2",
+        status: "streaming",
+        createdAt: 220,
+      },
+      {
+        messageId: "msg-completed-old",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 100,
+        completedAt: 180,
+      },
+    ],
+    dispatches: [],
+    streamStats: [{ state: "finished" }],
+    activeStreams: [],
+    turns: [{ turnId: "turn-1", status: "completed", startedAt: 90, completedAt: 180 }],
+  });
+
+  assert.deepEqual(result, {
+    phase: "streaming",
+    activeTurnId: "turn-2",
+    activeMessageId: "msg-streaming-new",
+  });
+});
+
+test("deriveCodexThreadActivity treats equal streaming and terminal timestamps as terminal boundary", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-streaming-equal",
+        turnId: "turn-1",
+        status: "streaming",
+        createdAt: 180,
+      },
+      {
+        messageId: "msg-completed-equal",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 120,
+        completedAt: 180,
+      },
+    ],
+    dispatches: [],
+    streamStats: [{ state: "finished" }],
+    activeStreams: [],
+    turns: [{ turnId: "turn-1", status: "completed", startedAt: 100, completedAt: 180 }],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity treats turn-only completed boundary as terminal against stale streaming message", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-streaming-stale",
+        turnId: "turn-1",
+        status: "streaming",
+        createdAt: 90,
+      },
+    ],
+    dispatches: [],
+    streamStats: [{ state: "finished" }],
+    activeStreams: [],
+    turns: [{ turnId: "turn-1", status: "completed", startedAt: 70, completedAt: 140 }],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity keeps awaiting_approval precedence even with newer terminal boundary", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [{ itemId: "approval-1" }],
+    recentMessages: [
+      {
+        messageId: "msg-streaming",
+        turnId: "turn-1",
+        status: "streaming",
+        createdAt: 50,
+      },
+      {
+        messageId: "msg-completed",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 60,
+        completedAt: 180,
+      },
+    ],
+    dispatches: [],
+    streamStats: [{ state: "finished" }],
+    activeStreams: [],
+    turns: [{ turnId: "turn-1", status: "completed", startedAt: 40, completedAt: 180 }],
+  });
+
+  assert.equal(result.phase, "awaiting_approval");
+});
+
 test("deriveCodexThreadActivity returns idle when message completed but turn still in-flight (stale)", () => {
   const result = deriveCodexThreadActivity({
     pendingApprovals: [],

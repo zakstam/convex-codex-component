@@ -10,7 +10,6 @@ import { applyMessageEffectsForEvent } from "./applyMessages.js";
 import { collectApprovalEffects, finalizeApprovals } from "./applyApprovals.js";
 import {
   applyStreamEvent,
-  finalizeStreamStates,
   flushStreamStats,
   persistLifecycleEventIfMissing,
 } from "./applyStreams.js";
@@ -49,7 +48,6 @@ export async function ingestEvents(
       knownTurnIds: new Set<string>(),
       startedTurns: new Set<string>(),
       terminalTurns: new Map(),
-      terminalByStream: new Map(),
       pendingApprovals: new Map(),
       resolvedApprovals: new Map(),
     },
@@ -86,9 +84,8 @@ export async function ingestEvents(
   }
 
   await cache.flushMessagePatches();
-  await finalizeTurns(ingest, cache);
+  await finalizeTurns(ingest);
   await finalizeApprovals(ingest, cache);
-  await finalizeStreamStates(ingest, cache);
   await flushStreamStats(ingest);
   await applyStreamCheckpoints(ingest);
 

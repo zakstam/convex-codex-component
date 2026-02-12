@@ -17,6 +17,7 @@ const vThreadState = v.object({
       turnId: v.string(),
       status: v.string(),
       startedAt: v.number(),
+      completedAt: v.optional(v.number()),
     }),
   ),
   dispatches: v.array(
@@ -80,6 +81,8 @@ const vThreadState = v.object({
       status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
       text: v.string(),
       createdAt: v.number(),
+      updatedAt: v.number(),
+      completedAt: v.optional(v.number()),
     }),
   ),
   lifecycleMarkers: v.array(
@@ -560,6 +563,7 @@ export const getState = query({
         turnId: String(turn.turnId),
         status: String(turn.status),
         startedAt: Number(turn.startedAt),
+        ...(turn.completedAt !== undefined ? { completedAt: Number(turn.completedAt) } : {}),
       })),
       dispatches: [...dispatches, ...claimed, ...started, ...completed, ...failed, ...cancelled]
         .filter((dispatch) => dispatch.userId === args.actor.userId)
@@ -598,6 +602,8 @@ export const getState = query({
         status: message.status,
         text: String(message.text),
         createdAt: Number(message.createdAt),
+        updatedAt: Number(message.updatedAt),
+        ...(message.completedAt !== undefined ? { completedAt: Number(message.completedAt) } : {}),
       })),
       lifecycleMarkers,
     };

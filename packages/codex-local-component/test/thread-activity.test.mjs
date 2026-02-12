@@ -143,6 +143,58 @@ test("deriveCodexThreadActivity returns idle when message completed but dispatch
   assert.equal(result.phase, "idle");
 });
 
+test("deriveCodexThreadActivity uses completedAt over createdAt for terminal boundary decisions", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 20,
+        completedAt: 120,
+      },
+    ],
+    dispatches: [
+      {
+        turnId: "turn-1",
+        status: "started",
+        updatedAt: 100,
+      },
+    ],
+    streamStats: [],
+    turns: [],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity uses updatedAt when completedAt is missing", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 20,
+        updatedAt: 130,
+      },
+    ],
+    dispatches: [
+      {
+        turnId: "turn-1",
+        status: "started",
+        updatedAt: 100,
+      },
+    ],
+    streamStats: [],
+    turns: [],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
 test("deriveCodexThreadActivity returns idle when message completed but turn still in-flight (stale)", () => {
   const result = deriveCodexThreadActivity({
     pendingApprovals: [],

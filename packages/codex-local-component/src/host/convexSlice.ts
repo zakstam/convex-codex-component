@@ -501,6 +501,9 @@ type DurableHistoryMessage = {
   role: string;
   status: string;
   text: string;
+  createdAt?: number;
+  updatedAt?: number;
+  completedAt?: number;
 };
 
 type StreamStatSummary = {
@@ -556,6 +559,7 @@ type ThreadStateTurn = {
   turnId: string;
   status: string;
   startedAt: number;
+  completedAt?: number;
 };
 
 function getTurnsCandidate(state: unknown): ThreadStateTurn[] | null {

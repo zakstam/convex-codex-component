@@ -13,6 +13,8 @@ This is an operations/runbook companion to `../LLMS.md`.
 - `E_RUNTIME_PROTOCOL_EVENT_INVALID`: incoming event payload was malformed or inconsistent with required runtime shape.
 - `E_RUNTIME_INGEST_FLUSH_FAILED`: queued ingest flush failed and was surfaced explicitly.
 
+Terminal turn artifacts are reconciled through one internal mutation path; avoid app-side/manual split finalization of turns, messages, and streams.
+
 ## Authorization Errors
 
 - `E_AUTH_THREAD_FORBIDDEN`

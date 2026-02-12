@@ -22,6 +22,8 @@ export type CodexThreadActivityMessageLike = {
   turnId?: string;
   status?: "streaming" | "completed" | "failed" | "interrupted" | string;
   createdAt?: number;
+  updatedAt?: number;
+  completedAt?: number;
 };
 
 export type CodexThreadActivityDispatchLike = {
@@ -39,6 +41,7 @@ export type CodexThreadActivityTurnLike = {
   turnId?: string;
   status?: string;
   startedAt?: number;
+  completedAt?: number;
 };
 
 export type CodexThreadActivityActiveStreamLike = {
@@ -74,6 +77,7 @@ type Candidate = {
 
 const IN_FLIGHT_DISPATCH_STATUSES = new Set(["queued", "claimed", "started"]);
 const IN_FLIGHT_TURN_STATUSES = new Set(["queued", "inProgress", "started", "streaming"]);
+const COMPLETED_TURN_STATUSES = new Set(["completed"]);
 const FAILED_TURN_STATUSES = new Set(["failed"]);
 const INTERRUPTED_TURN_STATUSES = new Set(["interrupted", "cancelled"]);
 
@@ -97,6 +101,8 @@ function pickLatest(candidates: Array<Candidate | null>): Candidate | null {
 function latestMessageByStatus(
   messages: CodexThreadActivityMessageLike[],
   status: CodexThreadActivityMessageLike["status"],
+  resolveTimestamp: (message: CodexThreadActivityMessageLike) => number = (message) =>
+    candidateTimestamp(message.createdAt),
 ): Candidate | null {
   let latest: Candidate | null = null;
   for (const message of messages) {
@@ -104,7 +110,7 @@ function latestMessageByStatus(
       continue;
     }
     const candidate: Candidate = {
-      timestamp: candidateTimestamp(message.createdAt),
+      timestamp: resolveTimestamp(message),
       ...(message.turnId !== undefined ? { activeTurnId: message.turnId } : {}),
       ...(message.messageId !== undefined ? { activeMessageId: message.messageId } : {}),
     };
@@ -138,6 +144,8 @@ function latestDispatchByStatus(
 function latestTurnByStatus(
   turns: CodexThreadActivityTurnLike[],
   predicate: (status: string) => boolean,
+  resolveTimestamp: (turn: CodexThreadActivityTurnLike) => number = (turn) =>
+    candidateTimestamp(turn.startedAt),
 ): Candidate | null {
   let latest: Candidate | null = null;
   for (const turn of turns) {
@@ -145,7 +153,7 @@ function latestTurnByStatus(
       continue;
     }
     const candidate: Candidate = {
-      timestamp: candidateTimestamp(turn.startedAt),
+      timestamp: resolveTimestamp(turn),
       ...(turn.turnId !== undefined ? { activeTurnId: turn.turnId } : {}),
     };
     if (!latest || candidate.timestamp > latest.timestamp) {
@@ -217,14 +225,19 @@ export function deriveCodexActivityByAuthorityRules(
   const inFlightDispatchOrTurn = latestInFlightFromDispatchOrTurn({ dispatches, turns });
   const streamDrainCompleted = latestLifecycleMarker(lifecycleMarkers, STREAM_DRAIN_COMPLETE_KIND);
 
+  const terminalMessageTimestamp = (message: CodexThreadActivityMessageLike): number =>
+    candidateTimestamp(message.completedAt ?? message.updatedAt ?? message.createdAt);
+  const terminalTurnTimestamp = (turn: CodexThreadActivityTurnLike): number =>
+    candidateTimestamp(turn.completedAt ?? turn.startedAt);
+
   const failed = pickLatest([
-    latestMessageByStatus(messages, "failed"),
+    latestMessageByStatus(messages, "failed", terminalMessageTimestamp),
     latestDispatchByStatus(dispatches, (status) => status === "failed"),
-    latestTurnByStatus(turns, (status) => FAILED_TURN_STATUSES.has(status)),
+    latestTurnByStatus(turns, (status) => FAILED_TURN_STATUSES.has(status), terminalTurnTimestamp),
   ]);
   const interrupted = pickLatest([
-    latestMessageByStatus(messages, "interrupted"),
-    latestTurnByStatus(turns, (status) => INTERRUPTED_TURN_STATUSES.has(status)),
+    latestMessageByStatus(messages, "interrupted", terminalMessageTimestamp),
+    latestTurnByStatus(turns, (status) => INTERRUPTED_TURN_STATUSES.has(status), terminalTurnTimestamp),
   ]);
   const terminalPhase = pickLatest([
     failed ? { ...failed, phase: "failed" as const } : null,
@@ -232,11 +245,16 @@ export function deriveCodexActivityByAuthorityRules(
   ]);
 
   const latestTerminalBoundary = pickLatest([
-    latestMessageByStatus(messages, "completed"),
+    latestMessageByStatus(messages, "completed", terminalMessageTimestamp),
+    latestTurnByStatus(turns, (status) => COMPLETED_TURN_STATUSES.has(status), terminalTurnTimestamp),
     failed,
     interrupted,
     latestDispatchByStatus(dispatches, (status) => status === "failed" || status === "cancelled"),
-    latestTurnByStatus(turns, (status) => FAILED_TURN_STATUSES.has(status) || INTERRUPTED_TURN_STATUSES.has(status)),
+    latestTurnByStatus(
+      turns,
+      (status) => FAILED_TURN_STATUSES.has(status) || INTERRUPTED_TURN_STATUSES.has(status),
+      terminalTurnTimestamp,
+    ),
     streamDrainCompleted,
   ]);
   const latestTerminalBoundaryTs = latestTerminalBoundary?.timestamp ?? 0;

@@ -2,13 +2,12 @@ import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server.js";
 import type { MutationCtx } from "./_generated/server.js";
-import { deleteStreamStat, setStreamStatState } from "./streamStats.js";
+import { deleteStreamStat } from "./streamStats.js";
 import { now } from "./utils.js";
 import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
 
 const STREAM_CLEANUP_BATCH_SIZE_DEFAULT = 500;
 const STREAM_CLEANUP_BATCH_SIZE_MAX = 2000;
-const DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS = 300_000;
 
 async function emitStreamDrainCompleteMarker(
   ctx: MutationCtx,
@@ -68,35 +67,17 @@ export const timeoutStream = internalMutation({
       return null;
     }
 
-    const endedAt = now();
-    const cleanupFnId = await ctx.scheduler.runAfter(
-      DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS,
-      makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
+    await ctx.scheduler.runAfter(
+      0,
+      makeFunctionReference<"mutation">("turnsInternal:reconcileTerminalArtifacts"),
       {
         userScope: args.userScope,
-        streamId: args.streamId,
-        batchSize: STREAM_CLEANUP_BATCH_SIZE_DEFAULT,
+        threadId: String(stream.threadId),
+        turnId: String(stream.turnId),
+        status: "interrupted",
+        error: args.reason ?? "stream timeout",
       },
     );
-
-    await ctx.db.patch(stream._id, {
-      state: {
-        kind: "aborted",
-        reason: args.reason ?? "stream timeout",
-        endedAt,
-      },
-      endedAt,
-      cleanupScheduledAt: endedAt,
-      cleanupFnId,
-    });
-
-    await setStreamStatState(ctx, {
-      userScope: args.userScope,
-      threadId: stream.threadId,
-      turnId: stream.turnId,
-      streamId: args.streamId,
-      state: "aborted",
-    });
 
     return null;
   },

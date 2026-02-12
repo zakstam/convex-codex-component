@@ -144,6 +144,20 @@ It demonstrates generated host wrappers plus React-first hook composition (`useC
 | Enable cancel/interruption affordance | `activity.phase === "streaming"` with `activity.activeTurnId` | `threadStatus`, `dispatches` alone | Active turn identity should come from normalized activity. |
 | Show terminal failure/interruption banner | `activity.phase === "failed"` / `"interrupted"` | Any single terminal row without recency precedence | Multiple terminal signals can coexist across turns. Use canonical merge logic. |
 
+## Snapshot Activity Invariants (`threadSnapshotSafe`)
+
+`threadSnapshotSafe` is the canonical authority input for activity hooks. Integrations should preserve these invariants:
+
+- Terminal artifact reconciliation is single-path and turn-scoped.
+- Terminal boundary timestamps are terminal-aware:
+- message terminal boundary timestamp: `completedAt ?? updatedAt ?? createdAt`
+- turn terminal boundary timestamp: `completedAt ?? startedAt`
+- `createdAt` is not a completion signal by itself.
+- If a message or turn is terminal, `completedAt` should be present when available.
+- Streaming stats alone must not force streaming phase without active stream evidence.
+- Stream drain markers (`stream/drain_complete`) must terminate stale streaming authority.
+- Dispatch-managed and runtime-owned modes must produce equivalent activity phase transitions for equivalent snapshot state.
+
 ## Minimal Usage
 
 ```tsx

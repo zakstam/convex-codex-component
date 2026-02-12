@@ -1,7 +1,5 @@
-import { makeFunctionReference } from "convex/server";
 import {
   DELTA_TTL_MS,
-  DEFAULT_STREAM_DELETE_BATCH_SIZE,
   LIFECYCLE_EVENT_KINDS,
   REASONING_RAW_DELTA_EVENT_KINDS,
   REASONING_SUMMARY_DELTA_EVENT_KINDS,
@@ -11,7 +9,6 @@ import {
 import {
   addStreamDeltaStatsBatch,
   ensureStreamStat,
-  setStreamStatState,
 } from "../streamStats.js";
 import { now } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
@@ -177,71 +174,6 @@ export async function applyStreamEvent(
     Math.max(ingest.streamState.streamCheckpointCursorByStreamId.get(event.streamId) ?? 0, event.cursorEnd),
   );
   ingest.streamState.expectedCursorByStreamId.set(event.streamId, event.cursorEnd);
-}
-
-export async function finalizeStreamStates(
-  ingest: IngestContext,
-  cache: IngestStateCache,
-): Promise<void> {
-  for (const [streamId, terminal] of ingest.collected.terminalByStream) {
-    const stream = await cache.getStreamRecord(streamId);
-    if (!stream || stream.state.kind !== "streaming") {
-      continue;
-    }
-
-    const endedAt = now();
-    const cleanupFnId = await ingest.ctx.scheduler.runAfter(
-      ingest.runtime.finishedStreamDeleteDelayMs,
-      makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
-      {
-        userScope: userScopeFromActor(ingest.args.actor),
-        streamId,
-        batchSize: DEFAULT_STREAM_DELETE_BATCH_SIZE,
-      },
-    );
-
-    if (terminal.status === "completed") {
-      await ingest.ctx.db.patch(stream._id, {
-        state: { kind: "finished", endedAt },
-        endedAt,
-        cleanupScheduledAt: endedAt,
-        cleanupFnId,
-      });
-      await setStreamStatState(ingest.ctx, {
-        userScope: userScopeFromActor(ingest.args.actor),
-        threadId: ingest.args.threadId,
-        turnId: stream.turnId,
-        streamId,
-        state: "finished",
-      });
-      cache.setStreamRecord(streamId, {
-        ...stream,
-        state: { kind: "finished" },
-      });
-    } else {
-      await ingest.ctx.db.patch(stream._id, {
-        state: {
-          kind: "aborted",
-          reason: terminal.error ?? terminal.status,
-          endedAt,
-        },
-        endedAt,
-        cleanupScheduledAt: endedAt,
-        cleanupFnId,
-      });
-      await setStreamStatState(ingest.ctx, {
-        userScope: userScopeFromActor(ingest.args.actor),
-        threadId: ingest.args.threadId,
-        turnId: stream.turnId,
-        streamId,
-        state: "aborted",
-      });
-      cache.setStreamRecord(streamId, {
-        ...stream,
-        state: { kind: "aborted" },
-      });
-    }
-  }
 }
 
 export async function flushStreamStats(ingest: IngestContext): Promise<void> {

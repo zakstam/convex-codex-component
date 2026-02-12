@@ -116,6 +116,7 @@ await runtime.start({
 - `useCodexComposer` -> `chat.enqueueTurnDispatch`
 - Prefer `useCodexConversationController` for bundled wiring (messages + activity + approvals + composer + interrupt).
 - Use `useCodexRuntimeBridge`, `useCodexAccountAuth`, and `useCodexThreads` for bridge lifecycle, auth flows, and thread selection state in React apps.
+- Treat `threadSnapshotSafe` timestamps as terminal-aware authority (`completedAt/updatedAt` before `createdAt`) when deriving terminal boundary decisions.
 
 ## Required Consumer Commands
 

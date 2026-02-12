@@ -122,7 +122,6 @@ export type IngestCollectedState = {
   knownTurnIds: Set<string>;
   startedTurns: Set<string>;
   terminalTurns: Map<string, TerminalTurnStatus>;
-  terminalByStream: Map<string, TerminalTurnStatus>;
   pendingApprovals: Map<string, ApprovalRequest>;
   resolvedApprovals: Map<string, ApprovalResolution>;
 };

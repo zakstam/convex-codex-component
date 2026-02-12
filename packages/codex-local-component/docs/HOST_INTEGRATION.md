@@ -66,6 +66,15 @@ Turn start API for canonical flow:
 await runtime.sendTurn(inputText);
 ```
 
+## Thread Snapshot Contract
+
+`chat.threadSnapshotSafe` is the canonical source for activity/integrity hooks.
+
+- `createdAt` indicates when a row first appeared.
+- `updatedAt` indicates the latest row mutation.
+- `completedAt` is the terminal boundary signal when present.
+- Terminal authority decisions should use `completedAt/updatedAt` before `createdAt`.
+
 ## Startup Wiring Validation
 
 Call `chat.validateHostWiring` once when your host process starts.

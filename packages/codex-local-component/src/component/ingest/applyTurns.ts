@@ -3,7 +3,6 @@ import { pickHigherPriorityTerminalStatus } from "../syncHelpers.js";
 import { authzError, now, requireTurnForActor } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
-import type { IngestStateCache } from "./stateCache.js";
 
 export async function ensureTurnForEvent(
   ingest: IngestContext,
@@ -64,21 +63,10 @@ export function collectTurnSignals(ingest: IngestContext, event: NormalizedInbou
       event.turnId,
       pickHigherPriorityTerminalStatus(current, event.terminalTurnStatus),
     );
-
-    if (event.type === "stream_delta") {
-      const currentStream = ingest.collected.terminalByStream.get(event.streamId);
-      ingest.collected.terminalByStream.set(
-        event.streamId,
-        pickHigherPriorityTerminalStatus(currentStream, event.terminalTurnStatus),
-      );
-    }
   }
 }
 
-export async function finalizeTurns(
-  ingest: IngestContext,
-  cache: IngestStateCache,
-): Promise<void> {
+export async function finalizeTurns(ingest: IngestContext): Promise<void> {
   for (const turnId of ingest.collected.startedTurns) {
     const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, turnId);
     if (turn.status === "queued") {
@@ -89,7 +77,7 @@ export async function finalizeTurns(
   for (const [turnId, terminal] of ingest.collected.terminalTurns) {
     await ingest.ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("turnsInternal:finalizeTurnFromStream"),
+      makeFunctionReference<"mutation">("turnsInternal:reconcileTerminalArtifacts"),
       {
         userScope: userScopeFromActor(ingest.args.actor),
         threadId: ingest.args.threadId,
@@ -98,39 +86,5 @@ export async function finalizeTurns(
         ...(terminal.status !== "completed" ? { error: terminal.error } : {}),
       },
     );
-
-    if (terminal.status !== "failed" && terminal.status !== "interrupted") {
-      continue;
-    }
-
-    const pendingMessages = await ingest.ctx.db
-      .query("codex_messages")
-      .withIndex("userScope_threadId_turnId_status", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(ingest.args.actor))
-          .eq("threadId", ingest.args.threadId)
-          .eq("turnId", turnId)
-          .eq("status", "streaming"),
-      )
-      .take(500);
-
-    await Promise.all(
-      pendingMessages.map((message) =>
-        ingest.ctx.db.patch(message._id, {
-          status: terminal.status,
-          error: terminal.error,
-          updatedAt: now(),
-          completedAt: now(),
-        }),
-      ),
-    );
-
-    for (const message of pendingMessages) {
-      cache.setMessageRecord(turnId, message.messageId, {
-        _id: message._id,
-        status: terminal.status,
-        text: message.text,
-      });
-    }
   }
 }

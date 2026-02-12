@@ -74,7 +74,6 @@ test("collectTurnSignals tracks started turns and terminal priority by stream", 
     collected: {
       startedTurns: new Set(),
       terminalTurns: new Map(),
-      terminalByStream: new Map(),
     },
   };
 
@@ -134,11 +133,6 @@ test("collectTurnSignals tracks started turns and terminal priority by stream", 
 
   assert.deepEqual(Array.from(ingest.collected.startedTurns), ["turn-1"]);
   assert.deepEqual(ingest.collected.terminalTurns.get("turn-1"), {
-    status: "failed",
-    code: "E_TERMINAL_FAILED",
-    error: "boom",
-  });
-  assert.deepEqual(ingest.collected.terminalByStream.get("stream-1"), {
     status: "failed",
     code: "E_TERMINAL_FAILED",
     error: "boom",

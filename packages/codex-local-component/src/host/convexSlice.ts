@@ -341,6 +341,13 @@ type CodexThreadsStateComponent = {
   };
 };
 
+type CodexTokenUsageComponent = {
+  tokenUsage: {
+    upsert: FunctionReference<"mutation", "public" | "internal">;
+    listByThread: FunctionReference<"query", "public" | "internal">;
+  };
+};
+
 type CodexHooksComponent = CodexMessagesComponent & CodexSyncComponent;
 type CodexReasoningComponent = {
   reasoning: {
@@ -356,6 +363,7 @@ export type CodexHostComponentRefs =
   & CodexMessagesComponent
   & CodexApprovalsComponent
   & CodexServerRequestsComponent
+  & CodexTokenUsageComponent
   & CodexDispatchComponent
   & CodexThreadsStateComponent
   & CodexReasoningComponent;
@@ -1210,6 +1218,62 @@ export async function resolvePendingServerRequestForHooksForActor<
   return resolvePendingServerRequest(ctx, component, {
     ...args,
     actor: args.actor,
+  });
+}
+
+export async function upsertTokenUsageForActor<
+  Component extends CodexTokenUsageComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: {
+    actor: HostActorContext;
+    threadId: string;
+    turnId: string;
+    totalTokens: number;
+    inputTokens: number;
+    cachedInputTokens: number;
+    outputTokens: number;
+    reasoningOutputTokens: number;
+    lastTotalTokens: number;
+    lastInputTokens: number;
+    lastCachedInputTokens: number;
+    lastOutputTokens: number;
+    lastReasoningOutputTokens: number;
+    modelContextWindow?: number;
+  },
+): Promise<FunctionReturnType<Component["tokenUsage"]["upsert"]>> {
+  return ctx.runMutation(component.tokenUsage.upsert, {
+    actor: args.actor,
+    threadId: args.threadId,
+    turnId: args.turnId,
+    totalTokens: args.totalTokens,
+    inputTokens: args.inputTokens,
+    cachedInputTokens: args.cachedInputTokens,
+    outputTokens: args.outputTokens,
+    reasoningOutputTokens: args.reasoningOutputTokens,
+    lastTotalTokens: args.lastTotalTokens,
+    lastInputTokens: args.lastInputTokens,
+    lastCachedInputTokens: args.lastCachedInputTokens,
+    lastOutputTokens: args.lastOutputTokens,
+    lastReasoningOutputTokens: args.lastReasoningOutputTokens,
+    ...(args.modelContextWindow !== undefined ? { modelContextWindow: args.modelContextWindow } : {}),
+  });
+}
+
+export async function listTokenUsageForHooksForActor<
+  Component extends CodexTokenUsageComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: {
+    actor: HostActorContext;
+    threadId: string;
+  },
+): Promise<FunctionReturnType<Component["tokenUsage"]["listByThread"]>> {
+  return ctx.runQuery(component.tokenUsage.listByThread, {
+    actor: args.actor,
+    threadId: args.threadId,
   });
 }
 

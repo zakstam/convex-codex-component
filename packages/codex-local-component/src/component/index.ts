@@ -9,5 +9,6 @@ export * as messages from "./messages.js";
 export * as reasoning from "./reasoning.js";
 export * as approvals from "./approvals.js";
 export * as serverRequests from "./serverRequests.js";
+export * as tokenUsage from "./tokenUsage.js";
 export * as sessions from "./sessions.js";
 export * as streams from "./streams.js";

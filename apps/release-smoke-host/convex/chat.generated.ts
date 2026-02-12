@@ -33,6 +33,7 @@ export const ensureSession = mutation(defs.mutations.ensureSession);
 export const ingestEvent = mutation(defs.mutations.ingestEvent);
 export const ingestBatch = mutation(defs.mutations.ingestBatch);
 export const respondApprovalForHooks = mutation(defs.mutations.respondApprovalForHooks);
+export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsageForHooks);
 export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
 
 export const validateHostWiring = query(defs.queries.validateHostWiring);
@@ -46,3 +47,4 @@ export const dataHygiene = query(defs.queries.dataHygiene);
 export const listThreadMessagesForHooks = query(defs.queries.listThreadMessagesForHooks);
 export const listTurnMessagesForHooks = query(defs.queries.listTurnMessagesForHooks);
 export const listPendingApprovalsForHooks = query(defs.queries.listPendingApprovalsForHooks);
+export const listTokenUsageForHooks = query(defs.queries.listTokenUsageForHooks);

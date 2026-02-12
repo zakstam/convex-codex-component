@@ -25,6 +25,7 @@ All focused preset builders include:
 - `listThreadMessagesForHooks`
 - `listTurnMessagesForHooks`
 - `listPendingApprovalsForHooks`
+- `listTokenUsageForHooks`
 
 Additional query endpoints:
 
@@ -46,6 +47,7 @@ All focused preset builders include:
 - `ingestEvent`
 - `ingestBatch`
 - `respondApprovalForHooks`
+- `upsertTokenUsageForHooks`
 - `interruptTurnForHooks`
 
 Dispatch-managed additionally includes:

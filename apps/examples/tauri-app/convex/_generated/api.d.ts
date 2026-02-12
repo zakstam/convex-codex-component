@@ -601,6 +601,35 @@ export declare const components: {
         any
       >;
     };
+    tokenUsage: {
+      listByThread: FunctionReference<
+        "query",
+        "internal",
+        { actor: { userId?: string }; threadId: string },
+        any
+      >;
+      upsert: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          cachedInputTokens: number;
+          inputTokens: number;
+          lastCachedInputTokens: number;
+          lastInputTokens: number;
+          lastOutputTokens: number;
+          lastReasoningOutputTokens: number;
+          lastTotalTokens: number;
+          modelContextWindow?: number;
+          outputTokens: number;
+          reasoningOutputTokens: number;
+          threadId: string;
+          totalTokens: number;
+          turnId: string;
+        },
+        null
+      >;
+    };
     turns: {
       interrupt: FunctionReference<
         "mutation",

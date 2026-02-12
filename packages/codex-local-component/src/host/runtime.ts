@@ -310,6 +310,22 @@ export type HostRuntimePersistence = {
     claimToken?: string;
     reason: string;
   }) => Promise<void>;
+  upsertTokenUsage?: (args: {
+    actor: ActorContext;
+    threadId: string;
+    turnId: string;
+    totalTokens: number;
+    inputTokens: number;
+    cachedInputTokens: number;
+    outputTokens: number;
+    reasoningOutputTokens: number;
+    lastTotalTokens: number;
+    lastInputTokens: number;
+    lastCachedInputTokens: number;
+    lastOutputTokens: number;
+    lastReasoningOutputTokens: number;
+    modelContextWindow?: number;
+  }) => Promise<void>;
 };
 
 export type HostRuntimeHandlers = {
@@ -1193,6 +1209,52 @@ export function createCodexHostRuntime(args: {
               await registerPendingServerRequest({
                 ...pendingServerRequest,
                 threadId: persistedThreadId,
+              });
+            }
+          }
+
+          if (event.kind === "thread/tokenUsage/updated" && args.persistence.upsertTokenUsage) {
+            try {
+              const persistedThreadId = threadId;
+              if (persistedThreadId && actor) {
+                let parsed: unknown;
+                try {
+                  parsed = JSON.parse(event.payloadJson);
+                } catch (_parseError) {
+                  parsed = null;
+                }
+                const envelope = asObject(parsed);
+                const payload = envelope ? asObject(envelope.params) ?? envelope : null;
+                const tokenUsage = payload ? asObject(payload.tokenUsage) : null;
+                const resolvedTurnId = event.turnId ?? turnId;
+                if (tokenUsage && resolvedTurnId) {
+                  const total = asObject(tokenUsage.total);
+                  const last = asObject(tokenUsage.last);
+                  const modelContextWindow =
+                    typeof payload?.modelContextWindow === "number" ? payload.modelContextWindow : undefined;
+                  await args.persistence.upsertTokenUsage({
+                    actor,
+                    threadId: persistedThreadId,
+                    turnId: resolvedTurnId,
+                    totalTokens: typeof total?.totalTokens === "number" ? total.totalTokens : 0,
+                    inputTokens: typeof total?.inputTokens === "number" ? total.inputTokens : 0,
+                    cachedInputTokens: typeof total?.cachedInputTokens === "number" ? total.cachedInputTokens : 0,
+                    outputTokens: typeof total?.outputTokens === "number" ? total.outputTokens : 0,
+                    reasoningOutputTokens: typeof total?.reasoningOutputTokens === "number" ? total.reasoningOutputTokens : 0,
+                    lastTotalTokens: typeof last?.totalTokens === "number" ? last.totalTokens : 0,
+                    lastInputTokens: typeof last?.inputTokens === "number" ? last.inputTokens : 0,
+                    lastCachedInputTokens: typeof last?.cachedInputTokens === "number" ? last.cachedInputTokens : 0,
+                    lastOutputTokens: typeof last?.outputTokens === "number" ? last.outputTokens : 0,
+                    lastReasoningOutputTokens: typeof last?.reasoningOutputTokens === "number" ? last.reasoningOutputTokens : 0,
+                    ...(modelContextWindow !== undefined ? { modelContextWindow } : {}),
+                  });
+                }
+              }
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : String(error);
+              args.handlers?.onProtocolError?.({
+                message: `Failed to persist token usage: ${reason}`,
+                line: event.payloadJson,
               });
             }
           }

@@ -6,6 +6,7 @@ import {
   useCodexRuntimeBridge,
   useCodexThreadState,
   useCodexThreads,
+  useCodexTokenUsage,
 } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
@@ -34,6 +35,7 @@ import { MessageList } from "./components/MessageList";
 import { Composer } from "./components/Composer";
 import { ApprovalList } from "./components/ApprovalList";
 import { EventLog } from "./components/EventLog";
+import { TokenUsagePanel } from "./components/TokenUsagePanel";
 import { ToastContainer, type ToastItem } from "./components/Toast";
 import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./hooks/useCodexTauriEvents";
 
@@ -251,6 +253,24 @@ export default function App() {
   );
   const threadActivity = conversation.activity;
   const ingestHealth = conversation.ingestHealth;
+
+  const tokenUsage = useCodexTokenUsage(
+    requireDefined(chatApi.listTokenUsageForHooks, "api.chat.listTokenUsageForHooks"),
+    threadId ? { actor, threadId } : "skip",
+  );
+
+  const tokenByTurnId = useMemo(() => {
+    const map = new Map<string, { totalTokens: number; inputTokens: number; outputTokens: number }>();
+    if (tokenUsage.status !== "ready") return map;
+    for (const turn of tokenUsage.turns) {
+      map.set(turn.turnId, {
+        totalTokens: turn.last.totalTokens,
+        inputTokens: turn.last.inputTokens,
+        outputTokens: turn.last.outputTokens,
+      });
+    }
+    return map;
+  }, [tokenUsage]);
 
   const pendingServerRequestsRaw = useQuery(
     requireDefined(chatApi.listPendingServerRequestsForHooks, "api.chat.listPendingServerRequestsForHooks"),
@@ -485,7 +505,7 @@ export default function App() {
           onSelect={(runtimeThreadId) => threads.setSelectedThreadId(runtimeThreadId)}
           disabled={bridge.running}
         />
-        <MessageList messages={displayMessages} status={messages.status} />
+        <MessageList messages={displayMessages} status={messages.status} tokenByTurnId={tokenByTurnId} />
         {latestReasoning && (
           <div className="reasoning-banner" aria-live="polite" aria-label="Latest reasoning">
             <p className="reasoning-banner-label">Thinking</p>
@@ -515,6 +535,7 @@ export default function App() {
           setToolSelected={setToolSelected}
           setToolOther={setToolOther}
         />
+        <TokenUsagePanel tokenUsage={tokenUsage} />
         <section className="panel card" aria-label="Account and auth controls">
           <h2>Account/Auth</h2>
           <div className="auth-controls">

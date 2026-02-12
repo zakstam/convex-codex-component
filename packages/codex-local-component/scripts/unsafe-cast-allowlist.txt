@@ -17,6 +17,7 @@ src/protocol/parser.ts:33:  return validator.errors as AjvError[] | null | undef
 src/react/useCodexMessages.ts:15:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
 src/app-server/client.ts:56:  return { method, id, params } as RequestFor<M>;
 src/react/useCodexThreadState.ts:19:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
+src/react/useCodexTokenUsage.ts:27:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
 src/react/useCodexDynamicTools.ts:49:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
 src/react/useCodexThreads.ts:30:    : [config.list.args] as [FunctionArgs<Query>];
 src/react/useCodexThreads.ts:31:  const listArgs = listQueryArgs as unknown as OptionalRestArgsOrSkip<Query>;
@@ -115,3 +116,24 @@ src/host/convexSlice.ts:828:      ? (dispatch.runtimeThreadId as string | undefi
 src/host/convexSlice.ts:832:      ? (dispatch.runtimeTurnId as string | undefined)
 src/host/convexSlice.ts:836:      ? (dispatch.dispatchId as string | undefined)
 src/component/dispatch.ts:96:        status: existingByIdempotency.status as DispatchStatus,
+src/host/runtime.ts:412:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/host/runtime.ts:1336:                ? (message.result as Record<string, unknown>)
+src/host/runtime.ts:1339:                ? (resultObj.turn as Record<string, unknown>)
+src/host/convexPreset.ts:96:  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
+src/host/convexPreset.ts:100:  return components as ExtractCodexHostComponentRefs<Components>;
+src/host/convexPreset.ts:1169:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
+src/host/convexSlice.ts:523:  const record = value as Record<string, unknown>;
+src/host/convexSlice.ts:535:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+src/host/convexSlice.ts:543:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+src/host/convexSlice.ts:551:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+src/host/convexSlice.ts:565:  const turns = (state as { turns?: ThreadStateTurn[] | null }).turns;
+src/host/convexSlice.ts:813:      ? (dispatch.turnId as string | undefined)
+src/host/convexSlice.ts:824:      ? (dispatch.claimOwner as string | undefined)
+src/host/convexSlice.ts:828:      ? (dispatch.claimToken as string | undefined)
+src/host/convexSlice.ts:832:      ? (dispatch.leaseExpiresAt as number | undefined)
+src/host/convexSlice.ts:836:      ? (dispatch.runtimeThreadId as string | undefined)
+src/host/convexSlice.ts:840:      ? (dispatch.runtimeTurnId as string | undefined)
+src/host/convexSlice.ts:844:      ? (dispatch.dispatchId as string | undefined)
+src/react/threadActivity.ts:194:  // should not keep the phase as "streaming".
+src/protocol/events.ts:629:      ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:651:      ? (message.params as Record<string, unknown>)

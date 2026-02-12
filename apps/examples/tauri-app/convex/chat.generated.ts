@@ -35,6 +35,7 @@ export const ingestBatch = mutation(defs.mutations.ingestBatch);
 export const respondApprovalForHooks = mutation(defs.mutations.respondApprovalForHooks);
 export const upsertPendingServerRequestForHooks = mutation(defs.mutations.upsertPendingServerRequestForHooks);
 export const resolvePendingServerRequestForHooks = mutation(defs.mutations.resolvePendingServerRequestForHooks);
+export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsageForHooks);
 export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
 
 export const validateHostWiring = query(defs.queries.validateHostWiring);
@@ -49,3 +50,4 @@ export const listTurnMessagesForHooks = query(defs.queries.listTurnMessagesForHo
 export const listThreadReasoningForHooks = query(defs.queries.listThreadReasoningForHooks);
 export const listPendingApprovalsForHooks = query(defs.queries.listPendingApprovalsForHooks);
 export const listPendingServerRequestsForHooks = query(defs.queries.listPendingServerRequestsForHooks);
+export const listTokenUsageForHooks = query(defs.queries.listTokenUsageForHooks);

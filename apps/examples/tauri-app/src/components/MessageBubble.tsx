@@ -1,6 +1,7 @@
 type Props = {
   message: {
     messageId: string;
+    turnId: string;
     role: string;
     status: string;
     sourceItemType?: string;

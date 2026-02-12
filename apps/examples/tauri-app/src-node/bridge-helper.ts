@@ -763,6 +763,30 @@ async function startBridge(payload: StartPayload): Promise<void> {
           },
         );
       },
+      upsertTokenUsage: async (args) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(chatApi.upsertTokenUsageForHooks, "api.chat.upsertTokenUsageForHooks"),
+          {
+            actor: args.actor,
+            threadId: args.threadId,
+            turnId: args.turnId,
+            totalTokens: args.totalTokens,
+            inputTokens: args.inputTokens,
+            cachedInputTokens: args.cachedInputTokens,
+            outputTokens: args.outputTokens,
+            reasoningOutputTokens: args.reasoningOutputTokens,
+            lastTotalTokens: args.lastTotalTokens,
+            lastInputTokens: args.lastInputTokens,
+            lastCachedInputTokens: args.lastCachedInputTokens,
+            lastOutputTokens: args.lastOutputTokens,
+            lastReasoningOutputTokens: args.lastReasoningOutputTokens,
+            ...(args.modelContextWindow != null ? { modelContextWindow: args.modelContextWindow } : {}),
+          },
+        );
+      },
     },
     handlers: {
       onState: (state) => {

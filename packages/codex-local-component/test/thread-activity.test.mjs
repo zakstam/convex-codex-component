@@ -115,3 +115,139 @@ test("deriveCodexThreadActivity keeps streaming when a new in-flight turn exists
     activeTurnId: "turn-new",
   });
 });
+
+// --- Stale dispatch/turn regression tests ---
+
+test("deriveCodexThreadActivity returns idle when message completed but dispatch still in-flight (stale)", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 100,
+      },
+    ],
+    dispatches: [
+      {
+        turnId: "turn-1",
+        status: "started",
+        updatedAt: 50,
+      },
+    ],
+    streamStats: [],
+    turns: [],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity returns idle when message completed but turn still in-flight (stale)", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 100,
+      },
+    ],
+    dispatches: [],
+    streamStats: [],
+    turns: [
+      {
+        turnId: "turn-1",
+        status: "inProgress",
+        startedAt: 50,
+      },
+    ],
+  });
+
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity keeps streaming when dispatch is newer than completed message (new turn)", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 100,
+      },
+    ],
+    dispatches: [
+      {
+        turnId: "turn-2",
+        status: "queued",
+        createdAt: 200,
+      },
+    ],
+    streamStats: [],
+    turns: [],
+  });
+
+  assert.deepEqual(result, {
+    phase: "streaming",
+    activeTurnId: "turn-2",
+  });
+});
+
+test("deriveCodexThreadActivity returns idle when both dispatch and terminal message have timestamp 0", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+      },
+    ],
+    dispatches: [
+      {
+        turnId: "turn-1",
+        status: "started",
+      },
+    ],
+    streamStats: [],
+    turns: [],
+  });
+
+  // When timestamps are missing (both default to 0), a terminal message
+  // should win to avoid the stuck-streaming bug.
+  assert.equal(result.phase, "idle");
+});
+
+test("deriveCodexThreadActivity returns idle with stale dispatch and stale turn simultaneously", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [
+      {
+        messageId: "msg-1",
+        turnId: "turn-1",
+        status: "completed",
+        createdAt: 100,
+      },
+    ],
+    dispatches: [
+      {
+        turnId: "turn-1",
+        status: "started",
+        updatedAt: 40,
+      },
+    ],
+    streamStats: [],
+    turns: [
+      {
+        turnId: "turn-1",
+        status: "streaming",
+        startedAt: 30,
+      },
+    ],
+  });
+
+  assert.equal(result.phase, "idle");
+});

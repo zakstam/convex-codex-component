@@ -31,6 +31,7 @@ export const HOST_SURFACE_MANIFEST = {
       "respondApprovalForHooks",
       "upsertPendingServerRequestForHooks",
       "resolvePendingServerRequestForHooks",
+      "upsertTokenUsageForHooks",
       "interruptTurnForHooks",
     ],
     queries: [
@@ -46,6 +47,7 @@ export const HOST_SURFACE_MANIFEST = {
       "listThreadReasoningForHooks",
       "listPendingApprovalsForHooks",
       "listPendingServerRequestsForHooks",
+      "listTokenUsageForHooks",
     ],
   },
   runtimeOwned: {
@@ -61,6 +63,7 @@ export const HOST_SURFACE_MANIFEST = {
       "ingestEvent",
       "ingestBatch",
       "respondApprovalForHooks",
+      "upsertTokenUsageForHooks",
       "interruptTurnForHooks",
     ],
     queries: [
@@ -75,6 +78,7 @@ export const HOST_SURFACE_MANIFEST = {
       "listThreadMessagesForHooks",
       "listTurnMessagesForHooks",
       "listPendingApprovalsForHooks",
+      "listTokenUsageForHooks",
     ],
   },
 } as const;

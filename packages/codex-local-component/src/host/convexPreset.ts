@@ -18,6 +18,7 @@ import {
   interruptTurnForHooksForActor,
   listPendingApprovalsForHooksForActor,
   listPendingServerRequestsForHooksForActor,
+  listTokenUsageForHooksForActor,
   listThreadMessagesForHooksForActor,
   listThreadReasoningForHooksForActor,
   listTurnMessagesForHooksForActor,
@@ -30,6 +31,7 @@ import {
   threadSnapshot,
   threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
+  upsertTokenUsageForActor,
   vHostActorContext,
   vHostClaimedTurnDispatch,
   vHostDataHygiene,
@@ -65,6 +67,7 @@ export type CodexHostSliceFeatures = {
   reasoning?: boolean;
   observability?: boolean;
   hygiene?: boolean;
+  tokenUsage?: boolean;
 };
 
 type ExtractCodexHostComponentRefs<Components extends CodexHostComponentsInput> =
@@ -114,6 +117,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     reasoning: options.features?.reasoning ?? true,
     observability: options.features?.observability ?? true,
     hygiene: options.features?.hygiene ?? true,
+    tokenUsage: options.features?.tokenUsage ?? true,
   };
 
   const component = resolveCodexComponent(options.components);
@@ -773,6 +777,53 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           },
         }
       : {}),
+    ...(features.tokenUsage
+      ? {
+          upsertTokenUsageForHooks: {
+            args: {
+              actor: vHostActorContext,
+              threadId: v.string(),
+              turnId: v.string(),
+              totalTokens: v.number(),
+              inputTokens: v.number(),
+              cachedInputTokens: v.number(),
+              outputTokens: v.number(),
+              reasoningOutputTokens: v.number(),
+              lastTotalTokens: v.number(),
+              lastInputTokens: v.number(),
+              lastCachedInputTokens: v.number(),
+              lastOutputTokens: v.number(),
+              lastReasoningOutputTokens: v.number(),
+              modelContextWindow: v.optional(v.number()),
+            },
+            returns: v.null(),
+            handler: async (
+              ctx: HostMutationRunner & HostQueryRunner,
+              args: {
+                actor: HostActorContext;
+                threadId: string;
+                turnId: string;
+                totalTokens: number;
+                inputTokens: number;
+                cachedInputTokens: number;
+                outputTokens: number;
+                reasoningOutputTokens: number;
+                lastTotalTokens: number;
+                lastInputTokens: number;
+                lastCachedInputTokens: number;
+                lastOutputTokens: number;
+                lastReasoningOutputTokens: number;
+                modelContextWindow?: number;
+              },
+            ) =>
+              upsertTokenUsageForActor(
+                ctx,
+                component,
+                withServerActor(args, options.serverActor),
+              ),
+          },
+        }
+      : {}),
   };
 
   const queries = {
@@ -1061,6 +1112,28 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           },
         }
       : {}),
+    ...(features.tokenUsage
+      ? {
+          listTokenUsageForHooks: {
+            args: {
+              actor: vHostActorContext,
+              threadId: v.string(),
+            },
+            handler: async (
+              ctx: HostQueryRunner,
+              args: {
+                actor: HostActorContext;
+                threadId: string;
+              },
+            ) =>
+              listTokenUsageForHooksForActor(
+                ctx,
+                component,
+                withServerActor(args, options.serverActor),
+              ),
+          },
+        }
+      : {}),
   };
 
   return {
@@ -1131,6 +1204,7 @@ export function defineDispatchManagedHostSlice<Components extends CodexHostCompo
       reasoning: true,
       observability: true,
       hygiene: false,
+      tokenUsage: true,
     },
   });
 
@@ -1156,6 +1230,7 @@ export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponen
       reasoning: false,
       observability: true,
       hygiene: true,
+      tokenUsage: true,
     },
   });
 

@@ -293,6 +293,28 @@ export default defineSchema({
     )
     .index("userScope_threadId_turnId_itemId", ["userScope", "threadId", "turnId", "itemId"]),
 
+  codex_token_usage: defineTable({
+    userScope: v.string(),
+    userId: v.optional(v.string()),
+    threadId: v.string(),
+    turnId: v.string(),
+    totalTokens: v.number(),
+    inputTokens: v.number(),
+    cachedInputTokens: v.number(),
+    outputTokens: v.number(),
+    reasoningOutputTokens: v.number(),
+    lastTotalTokens: v.number(),
+    lastInputTokens: v.number(),
+    lastCachedInputTokens: v.number(),
+    lastOutputTokens: v.number(),
+    lastReasoningOutputTokens: v.number(),
+    modelContextWindow: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"])
+    .index("userScope_threadId_updatedAt", ["userScope", "threadId", "updatedAt"]),
+
   codex_server_requests: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),

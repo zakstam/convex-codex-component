@@ -29,6 +29,10 @@ export {
   type CodexBranchActivityQuery,
 } from "./useCodexBranchActivity.js";
 export {
+  useCodexTokenUsage,
+  type CodexTokenUsageQuery,
+} from "./useCodexTokenUsage.js";
+export {
   useCodexConversationController,
   type CodexConversationControllerConfig,
   type CodexConversationApprovalDecision,
@@ -130,3 +134,11 @@ export {
   deriveCodexDynamicToolCalls,
   parseCodexDynamicToolPayload,
 } from "./dynamicTools.js";
+export type {
+  CodexTokenUsage,
+  CodexTokenUsageBreakdown,
+  CodexTurnTokenUsage,
+} from "./tokenUsage.js";
+export {
+  deriveCodexTokenUsage,
+} from "./tokenUsage.js";

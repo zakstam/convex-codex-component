@@ -60,6 +60,7 @@ Common helpers used by consumers:
 - `useCodexInterruptTurn`
 - `useCodexAutoResume`
 - `useCodexComposer`
+- `useCodexTokenUsage`
 - `optimisticallySendCodexMessage`
 
 ## `useCodexMessages` Host Query Contract
@@ -93,6 +94,7 @@ Return shape:
 - `useCodexThreads` -> app thread-list query + thread lifecycle mutations
 - `useCodexInterruptTurn` -> `chat.interruptTurnForHooks`
 - `useCodexComposer` -> `chat.enqueueTurnDispatch`
+- `useCodexTokenUsage` -> `chat.listTokenUsageForHooks`
 
 ## Reference React Integration Adapter
 

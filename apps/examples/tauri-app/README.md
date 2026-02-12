@@ -8,6 +8,7 @@ Canonical wiring in this app centers on:
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
 - generated host wrappers in `convex/chat.generated.ts`
+- runtime-owned host mode (`dispatchManaged: false`) with `runtime.sendTurn(...)`
 
 Canonical consumer implementation path:
 

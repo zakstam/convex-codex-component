@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
 import {
   createCodexHostRuntime,
@@ -225,8 +224,6 @@ const DYNAMIC_TOOLS: DynamicToolSpec[] = [
 ];
 
 const inFlightDynamicToolCalls = new Set<string>();
-let claimLoopRunning = false;
-const helperClaimOwner = `tauri-helper-owner-${process.pid}`;
 
 function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
@@ -254,41 +251,6 @@ function emitState(next?: Partial<typeof bridgeState>): void {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-async function drainClaimedDispatches(): Promise<void> {
-  if (claimLoopRunning || !runtime || !convex || !actor || !bridgeState.localThreadId) {
-    return;
-  }
-  claimLoopRunning = true;
-  try {
-    while (runtime && convex && actor && bridgeState.localThreadId) {
-      if (runtime.getState().turnInFlight) {
-        return;
-      }
-      const claimed = await convex.mutation(
-        requireDefined(chatApi.claimNextTurnDispatch, "api.chat.claimNextTurnDispatch"),
-        {
-          actor,
-          threadId: bridgeState.localThreadId,
-          claimOwner: helperClaimOwner,
-        },
-      );
-      if (!claimed) {
-        return;
-      }
-      await runtime.startClaimedTurn({
-        dispatchId: claimed.dispatchId,
-        claimToken: claimed.claimToken,
-        turnId: claimed.turnId,
-        inputText: claimed.inputText,
-        idempotencyKey: claimed.idempotencyKey,
-      });
-      return;
-    }
-  } finally {
-    claimLoopRunning = false;
-  }
 }
 
 function dynamicToolCallKey(requestId: string | number): string {
@@ -806,9 +768,6 @@ async function startBridge(payload: StartPayload): Promise<void> {
       onEvent: (event) => {
         runtimeThreadId = event.threadId;
         emitState();
-        if (event.kind === "turn/completed" || event.kind === "error") {
-          void drainClaimedDispatches();
-        }
         if (event.kind === "item/tool/call") {
           void handlePendingDynamicToolCalls(event.threadId);
         }
@@ -861,7 +820,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
     await runtime.start({
       actor: payload.actor,
       sessionId: activeSessionId,
-      dispatchManaged: true,
+      dispatchManaged: false,
       ...(payload.externalThreadId ? { externalThreadId: payload.externalThreadId } : {}),
       ...(payload.runtimeThreadId ? { runtimeThreadId: payload.runtimeThreadId } : {}),
       ...(payload.threadStrategy ? { threadStrategy: payload.threadStrategy } : {}),
@@ -873,7 +832,6 @@ async function startBridge(payload: StartPayload): Promise<void> {
     });
 
     emitState({ running: true, lastErrorCode: null, lastError: null });
-    void drainClaimedDispatches();
     emit({ type: "ack", payload: { command: "start" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -884,25 +842,10 @@ async function startBridge(payload: StartPayload): Promise<void> {
 }
 
 async function sendTurn(text: string): Promise<void> {
-  if (!runtime || !convex || !actor) {
+  if (!runtime) {
     throw new Error("Bridge/runtime not ready. Start runtime first.");
   }
-  const localThreadId = bridgeState.localThreadId;
-  if (!localThreadId) {
-    throw new Error("Local thread binding not ready yet.");
-  }
-  await convex.mutation(
-    requireDefined(chatApi.enqueueTurnDispatch, "api.chat.enqueueTurnDispatch"),
-    {
-      actor,
-      threadId: localThreadId,
-      dispatchId: randomUUID(),
-      turnId: randomUUID(),
-      idempotencyKey: randomUUID(),
-      input: [{ type: "text", text }],
-    },
-  );
-  await drainClaimedDispatches();
+  await runtime.sendTurn(text);
 }
 
 function interruptCurrentTurn(): void {
@@ -994,7 +937,6 @@ async function stopCurrentBridge(): Promise<void> {
       await runtime.stop();
     }
   } finally {
-    claimLoopRunning = false;
     runtime = null;
     convex = null;
     actor = null;

@@ -147,7 +147,8 @@ function parseDeletedCounts(
         deleted: Number(deleted),
       }))
       .sort((left, right) => left.tableName.localeCompare(right.tableName));
-  } catch {
+  } catch (error) {
+    void error;
     return [];
   }
 }
@@ -926,7 +927,8 @@ export const getState = query({
           if (typeof parsed.streamId === "string") {
             streamId = parsed.streamId;
           }
-        } catch {
+        } catch (error) {
+          void error;
           streamId = undefined;
         }
         return {

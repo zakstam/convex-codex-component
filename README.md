@@ -1,5 +1,6 @@
 > [!WARNING]
-> This project is experimental and is **not** ready for production use.
+> `@zakstam/codex-local-component` is in **alpha** and ready for active testing.
+> It is still experimental and **not** ready for production use.
 
 <p align="center">
   <strong>@zakstam/codex-local-component</strong>

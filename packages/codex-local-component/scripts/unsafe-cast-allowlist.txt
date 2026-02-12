@@ -137,3 +137,35 @@ src/host/convexSlice.ts:844:      ? (dispatch.dispatchId as string | undefined)
 src/react/threadActivity.ts:194:  // should not keep the phase as "streaming".
 src/protocol/events.ts:629:      ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:651:      ? (message.params as Record<string, unknown>)
+src/host/runtime.ts:430:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/host/runtime.ts:1554:                ? (message.result as Record<string, unknown>)
+src/host/runtime.ts:1557:                ? (resultObj.turn as Record<string, unknown>)
+src/host/convexSlice.ts:517:  const record = value as Record<string, unknown>;
+src/host/convexSlice.ts:529:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+src/host/convexSlice.ts:537:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+src/host/convexSlice.ts:545:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+src/host/convexSlice.ts:560:  const turns = (state as { turns?: ThreadStateTurn[] | null }).turns;
+src/host/convexSlice.ts:808:      ? (dispatch.turnId as string | undefined)
+src/host/convexSlice.ts:819:      ? (dispatch.claimOwner as string | undefined)
+src/host/convexSlice.ts:823:      ? (dispatch.claimToken as string | undefined)
+src/host/convexSlice.ts:827:      ? (dispatch.leaseExpiresAt as number | undefined)
+src/host/convexSlice.ts:831:      ? (dispatch.runtimeThreadId as string | undefined)
+src/host/convexSlice.ts:835:      ? (dispatch.runtimeTurnId as string | undefined)
+src/host/convexSlice.ts:839:      ? (dispatch.dispatchId as string | undefined)
+src/host/convexPreset.ts:95:  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
+src/host/convexPreset.ts:99:  return components as ExtractCodexHostComponentRefs<Components>;
+src/host/convexPreset.ts:1102:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
+src/component/tokenUsage.ts:35:    // (for example runtime placeholder turn ids). Treat as best-effort.
+src/component/threads.ts:139:    const parsed = JSON.parse(deletedCountsJson) as unknown;
+src/component/threads.ts:925:          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };
+src/component/dispatch.ts:97:        status: existingByIdempotency.status as DispatchStatus,
+src/protocol/events.ts:323:    ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:495:    ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:626:      ? (message.params as Record<string, unknown>)
+src/protocol/events.ts:648:      ? (message.params as Record<string, unknown>)
+src/component/deletionInternal.ts:20:    const parsed = JSON.parse(deletedCountsJson) as unknown;
+src/component/deletionInternal.ts:81:  await Promise.all(docs.map((doc) => ctx.db.delete(doc._id as never)));
+src/host/runtime.ts:1555:                ? (message.result as Record<string, unknown>)
+src/host/runtime.ts:1558:                ? (resultObj.turn as Record<string, unknown>)
+src/component/threads.ts:926:          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };
+src/component/deletionInternal.ts:82:  await Promise.all(docs.map((doc) => ctx.db.delete(doc._id as never)));

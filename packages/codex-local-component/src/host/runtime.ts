@@ -1152,7 +1152,8 @@ export function createCodexHostRuntime(args: {
     let parsed: unknown;
     try {
       parsed = JSON.parse(payloadJson);
-    } catch {
+    } catch (error) {
+      void error;
       return payloadJson;
     }
     const message = asObject(parsed);

@@ -28,7 +28,8 @@ function parseDeletedCounts(deletedCountsJson: string): DeletedCounts {
       }
     }
     return result;
-  } catch {
+  } catch (error) {
+    void error;
     return {};
   }
 }

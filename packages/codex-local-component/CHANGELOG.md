@@ -1,5 +1,27 @@
 # @convex-dev/codex-local-component
 
+## 0.10.3
+
+### Patch Changes
+
+- f64ea1e: Align ChatGPT auth-token response/request handling with the latest Codex app-server schema by replacing `idToken` payload usage with `chatgptAccountId` and optional `chatgptPlanType`, while keeping `accessToken` as required.
+- bba191a: Fix risky fallback defaults across the component: use `??` instead of `||` for text overlay to preserve empty strings, fix operator precedence in batch limit calculation, explicitly set status on serialized messages, simplify dead-code `threadId ?? userId!` to `threadId`, and centralize `streamsInProgress` default to a single normalization point.
+- bba191a: Fix turn-id canonicalization for ingest and legacy envelopes:
+  - Ignore legacy `codex/event/*` envelope `params.id` when extracting turn ids (accept only explicit `msg.turn_id` / `msg.turnId`).
+  - During ingest normalization, prefer payload-derived turn ids and fail closed when lifecycle payloads do not carry a canonical turn id, so synthetic turn `"0"` cannot be materialized.
+  - Add a release-smoke package freshness check that fails if an installed package still contains legacy `params.id` turn-id fallback logic.
+- bba191a: Add bridge-level raw app-server ingress logging behind `CODEX_BRIDGE_RAW_LOG` (`all` or `turns`) so hosts can verify exact pre-parse protocol lines.
+
+  Also harden runtime turn-id mapping so runtime-emitted ids can be remapped to persisted claimed turn ids before ingest persistence.
+
+- bba191a: Harden host ingest turn-id authority and mixed-mode ingest contracts.
+  - Reject `codex/event/*` ingest entries that do not carry canonical payload turn id (`msg.turn_id` or `msg.turnId`).
+  - Reject `turn/started` and `turn/completed` stream deltas when canonical payload turn id is missing.
+  - Remove mixed-mode untyped ingest coercion and require explicit typed ingest envelopes (`stream_delta` or `lifecycle_event`).
+  - Add safe ingest error mapping/code for missing canonical legacy turn id.
+  - Add safe ingest error mapping/code for missing canonical turn lifecycle payload turn id.
+  - Update host docs and tests to reflect strict typed ingest and fail-closed legacy turn-id behavior.
+
 ## 0.10.2
 
 ### Patch Changes

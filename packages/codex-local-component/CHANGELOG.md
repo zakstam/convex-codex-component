@@ -1,5 +1,11 @@
 # @convex-dev/codex-local-component
 
+## 0.10.2
+
+### Patch Changes
+
+- de1fb4b: Fix `useCodexThreadActivity` stale-streaming precedence so stale `streaming` messages do not override newer terminal boundaries from completed/failed/interrupted signals.
+
 ## 0.10.1
 
 ### Patch Changes

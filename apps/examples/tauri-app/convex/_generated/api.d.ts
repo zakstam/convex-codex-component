@@ -557,12 +557,14 @@ export declare const components: {
             turnId: string;
           }>;
           recentMessages: Array<{
+            completedAt?: number;
             createdAt: number;
             messageId: string;
             role: "user" | "assistant" | "system" | "tool";
             status: "streaming" | "completed" | "failed" | "interrupted";
             text: string;
             turnId: string;
+            updatedAt: number;
           }>;
           streamStats: Array<{
             deltaCount: number;
@@ -572,7 +574,12 @@ export declare const components: {
           }>;
           threadId: string;
           threadStatus: string;
-          turns: Array<{ startedAt: number; status: string; turnId: string }>;
+          turns: Array<{
+            completedAt?: number;
+            startedAt: number;
+            status: string;
+            turnId: string;
+          }>;
         }
       >;
       list: FunctionReference<

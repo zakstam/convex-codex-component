@@ -31,6 +31,24 @@ export type BridgeHandlers = {
   onProcessExit?: (code: number | null) => void;
 };
 
+function shouldLogRawLine(line: string): boolean {
+  const mode = process.env.CODEX_BRIDGE_RAW_LOG?.toLowerCase();
+  if (!mode || mode === "0" || mode === "false" || mode === "off") {
+    return false;
+  }
+  if (mode === "1" || mode === "true" || mode === "all") {
+    return true;
+  }
+  if (mode === "turns") {
+    return (
+      line.includes("\"method\":\"turn/") ||
+      line.includes("\"turnId\":\"") ||
+      line.includes("\"turn\":{\"id\":")
+    );
+  }
+  return false;
+}
+
 export class CodexLocalBridge {
   private process: ChildProcessWithoutNullStreams | null = null;
   private cursor = 0;
@@ -77,6 +95,10 @@ export class CodexLocalBridge {
 
   private async handleLine(line: string): Promise<void> {
     try {
+      if (shouldLogRawLine(line)) {
+        // Log exact stdout line from codex app-server before parsing/classification.
+        console.error(`[codex-bridge:raw-in] ${line}`);
+      }
       const message = parseWireMessage(line);
       const classification = classifyMessage(message);
       if (classification.scope === "global") {

@@ -31,6 +31,10 @@ export function mapIngestSafeCode(rawCode: string | null): IngestSafeErrorCode {
       return "SESSION_NOT_FOUND";
     case "E_SYNC_SESSION_THREAD_MISMATCH":
       return "SESSION_THREAD_MISMATCH";
+    case "E_SYNC_TURN_ID_REQUIRED_FOR_TURN_EVENT":
+      return "TURN_ID_REQUIRED_FOR_TURN_EVENT";
+    case "E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT":
+      return "TURN_ID_REQUIRED_FOR_CODEX_EVENT";
     case "E_SYNC_OUT_OF_ORDER":
       return "OUT_OF_ORDER";
     case "E_SYNC_REPLAY_GAP":

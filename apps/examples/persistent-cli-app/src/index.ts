@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
+import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
 import type {
   ClientNotification,
   ClientRequest,
@@ -31,6 +32,7 @@ type IngestDelta = {
 const MAX_BATCH_SIZE = 32;
 const IDLE_FLUSH_INTERVAL_MS = 5000;
 const DEFAULT_ACTIVE_FLUSH_INTERVAL_MS = 250;
+const TURN_LIFECYCLE_KINDS = new Set<string>(["turn/started", "turn/completed"]);
 
 function parseEnvBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) {
@@ -511,6 +513,7 @@ async function flushQueue(): Promise<void> {
         threadId: first.threadId,
         runtime: syncRuntimeOptions,
         deltas: batch.map((delta) => ({
+          type: "stream_delta" as const,
           eventId: delta.eventId,
           turnId: delta.turnId,
           streamId: delta.streamId,
@@ -670,7 +673,13 @@ function requiresTurnContext(kind: string): boolean {
 }
 
 function toIngestDelta(event: NormalizedEvent): IngestDelta | null {
-  const resolvedTurnId = event.turnId ?? turnId;
+  const canonicalLifecycleTurnId = TURN_LIFECYCLE_KINDS.has(event.kind)
+    ? turnIdForPayload(event.kind, event.payloadJson)
+    : null;
+  const resolvedTurnId = canonicalLifecycleTurnId ?? event.turnId ?? turnId;
+  if (TURN_LIFECYCLE_KINDS.has(event.kind) && !canonicalLifecycleTurnId) {
+    throw new Error(`Protocol event missing canonical payload turn id for lifecycle kind: ${event.kind}`);
+  }
   if (!resolvedTurnId) {
     if (requiresTurnContext(event.kind)) {
       throw new Error(`Protocol event missing turnId for turn-scoped kind: ${event.kind}`);

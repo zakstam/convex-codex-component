@@ -1,4 +1,4 @@
-import { readdirSync, unlinkSync } from "node:fs";
+import { readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
@@ -32,5 +32,24 @@ execSync(`npm install --no-save "${tgzPath}"`, {
   stdio: "inherit",
 });
 unlinkSync(tgzPath);
+
+const installedEventsPath = join(
+  root,
+  "node_modules",
+  "@zakstam",
+  "codex-local-component",
+  "dist",
+  "protocol",
+  "events.js",
+);
+const installedEventsSource = readFileSync(installedEventsPath, "utf8");
+if (
+  installedEventsSource.includes('msg.type === "task_started" || msg.type === "task_complete') &&
+  installedEventsSource.includes("return params.id;")
+) {
+  throw new Error(
+    "Installed @zakstam/codex-local-component still contains legacy codex/event params.id turn-id fallback.",
+  );
+}
 
 console.log(`[prepare:component] installed ${latest}`);

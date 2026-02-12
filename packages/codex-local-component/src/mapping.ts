@@ -180,7 +180,7 @@ export function extractCodexOverlayMessages(
       }
       const key = overlayKey(turnId, message.messageId);
       const existing = byKey.get(key);
-      const nextText = message.text || (existing?.text ?? "");
+      const nextText = message.text ?? (existing?.text ?? "");
       byKey.set(key, {
         turnId,
         messageId: message.messageId,

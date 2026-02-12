@@ -210,6 +210,31 @@ test("parseWireMessage accepts legacy codex/event envelopes", () => {
   assert.equal(parsed.method, "codex/event/task_complete");
 });
 
+test("turnIdForPayload ignores legacy params.id fallback for codex/event envelopes", () => {
+  const payloadWithoutTurn = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "codex/event/task_complete",
+    params: {
+      conversationId: "thread-legacy",
+      id: "0",
+      msg: { type: "task_complete" },
+    },
+  });
+
+  const payloadWithTurn = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "codex/event/task_complete",
+    params: {
+      conversationId: "thread-legacy",
+      id: "0",
+      msg: { type: "task_complete", turn_id: "turn-legacy-1" },
+    },
+  });
+
+  assert.equal(turnIdForPayload("codex/event/task_complete", payloadWithoutTurn), null);
+  assert.equal(turnIdForPayload("codex/event/task_complete", payloadWithTurn), "turn-legacy-1");
+});
+
 test("parseWireMessage accepts unknown modern JSON-RPC server notifications", () => {
   const unknownModern = JSON.stringify({
     jsonrpc: "2.0",

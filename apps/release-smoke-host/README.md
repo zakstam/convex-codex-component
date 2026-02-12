@@ -12,6 +12,7 @@ Canonical consumer implementation path:
 1. Package tarball install (`pnpm pack` -> install `.tgz`).
 2. Convex mount through `@zakstam/codex-local-component/convex.config`.
 3. Generated host wrappers and runtime flow in an end-to-end host app.
+4. Installed package freshness guardrails for canonical turn-id extraction (prevents stale legacy fallback copies).
 
 ## Run
 

@@ -317,9 +317,6 @@ export function extractTurnId(message: ServerInboundMessage): string | undefined
     if (typeof msg.turnId === "string") {
       return msg.turnId;
     }
-    if ((msg.type === "task_started" || msg.type === "task_complete") && typeof params.id === "string") {
-      return params.id;
-    }
     return undefined;
   }
   const params = isMessageRecord(message.params)

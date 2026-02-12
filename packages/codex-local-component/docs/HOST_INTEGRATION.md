@@ -66,6 +66,15 @@ Turn start API for canonical flow:
 await runtime.sendTurn(inputText);
 ```
 
+## Ingest Contract
+
+When calling host ingest mutations directly:
+
+- Send typed deltas only (`type: "stream_delta"` or `type: "lifecycle_event"`).
+- Do not rely on untyped fallback envelope shapes.
+- Legacy `codex/event/*` entries must include canonical payload turn id (`msg.turn_id`/`msg.turnId`) or ingest is rejected.
+- Turn lifecycle stream events (`turn/started`, `turn/completed`) must include canonical payload turn id (`params.turn.id`) or ingest is rejected.
+
 ## Thread Snapshot Contract
 
 `chat.threadSnapshotSafe` is the canonical source for activity/integrity hooks.

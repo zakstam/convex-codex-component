@@ -57,6 +57,7 @@ async function main(): Promise<void> {
     sessionId,
     threadId,
     event: {
+      type: "stream_delta",
       eventId: `contract-smoke-event-${suffix}`,
       turnId,
       streamId,

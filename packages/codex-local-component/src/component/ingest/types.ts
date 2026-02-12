@@ -65,6 +65,8 @@ export type EnsureSessionResult = {
 export type IngestSafeErrorCode =
   | "SESSION_NOT_FOUND"
   | "SESSION_THREAD_MISMATCH"
+  | "TURN_ID_REQUIRED_FOR_TURN_EVENT"
+  | "TURN_ID_REQUIRED_FOR_CODEX_EVENT"
   | "OUT_OF_ORDER"
   | "REPLAY_GAP"
   | "UNKNOWN";

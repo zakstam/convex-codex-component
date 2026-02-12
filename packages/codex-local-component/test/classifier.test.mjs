@@ -80,6 +80,34 @@ test("extractTurnId reads modern turn and item shapes", () => {
   );
 });
 
+test("extractTurnId ignores legacy codex/event params.id fallback", () => {
+  assert.equal(
+    extractTurnId({
+      jsonrpc: "2.0",
+      method: "codex/event/task_complete",
+      params: {
+        conversationId: "thread-legacy",
+        id: "0",
+        msg: { type: "task_complete" },
+      },
+    }),
+    undefined,
+  );
+
+  assert.equal(
+    extractTurnId({
+      jsonrpc: "2.0",
+      method: "codex/event/task_complete",
+      params: {
+        conversationId: "thread-legacy",
+        id: "0",
+        msg: { type: "task_complete", turn_id: "turn-legacy-1" },
+      },
+    }),
+    "turn-legacy-1",
+  );
+});
+
 test("extractStreamId returns undefined for modern generated protocol", () => {
   const message = {
     jsonrpc: "2.0",

@@ -6,6 +6,7 @@ import {
   itemSnapshotForPayload,
   reasoningDeltaForPayload,
   terminalStatusForPayload,
+  turnIdForPayload,
   type CanonicalApprovalRequest,
   type CanonicalApprovalResolution,
   type CanonicalDurableMessage,
@@ -14,6 +15,7 @@ import {
   type CanonicalReasoningDelta,
   type CanonicalTerminalStatus,
 } from "../protocol/events.js";
+import { syncError } from "./syncRuntime.js";
 
 const TERMINAL_STATUS_PRIORITY = {
   completed: 1,
@@ -81,6 +83,12 @@ export function parseReasoningDeltaEvent(
 ): ReasoningDeltaFromEvent | null {
   return reasoningDeltaForPayload(kind, payloadJson);
 }
+
+export function parseTurnIdForEvent(kind: string, payloadJson: string): string | null {
+  return turnIdForPayload(kind, payloadJson);
+}
+
+export { syncError };
 
 export function assertContinuousStreamDeltas(
   _streamId: string,

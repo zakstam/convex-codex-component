@@ -189,3 +189,51 @@ test("manifest mutations/queries stay in parity with runtime-owned preset defini
     [...HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
   );
 });
+
+test("dispatch-managed ingestBatch rejects untyped deltas", async () => {
+  const ingestSafeRef = Symbol("sync.ingestSafe");
+  const defs = defineDispatchManagedHostSlice({
+    components: {
+      codexLocal: {
+        approvals: {},
+        dispatch: {},
+        messages: {},
+        reasoning: {},
+        serverRequests: {},
+        sync: { ingestSafe: ingestSafeRef },
+        threads: {},
+        turns: {},
+      },
+    },
+    serverActor: actor,
+  });
+
+  await assert.rejects(
+    () =>
+      defs.mutations.ingestBatch.handler(
+        {
+          runMutation: async () => {
+            throw new Error("runMutation should not be called for untyped ingest deltas");
+          },
+        },
+        {
+          actor,
+          sessionId: "session-1",
+          threadId: "thread-1",
+          deltas: [
+            {
+              eventId: "e1",
+              turnId: "turn-1",
+              streamId: "stream-1",
+              kind: "turn/completed",
+              payloadJson: "{}",
+              cursorStart: 0,
+              cursorEnd: 1,
+              createdAt: 1,
+            },
+          ],
+        },
+      ),
+    /unknown event type/,
+  );
+});

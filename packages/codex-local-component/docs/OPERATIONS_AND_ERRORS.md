@@ -14,6 +14,11 @@ This is an operations/runbook companion to `../LLMS.md`.
 - `E_RUNTIME_INGEST_FLUSH_FAILED`: queued ingest flush failed and was surfaced explicitly.
 
 Terminal turn artifacts are reconciled through one internal mutation path; avoid app-side/manual split finalization of turns, messages, and streams.
+Legacy `codex/event/*` turn binding accepts explicit `msg.turn_id`/`msg.turnId` only; never derive turn identity from envelope `params.id`.
+During ingest normalization, payload-derived turn id is authoritative over incoming envelope `turnId`.
+If a legacy event arrives without canonical payload turn id, ingest fails closed with `E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT` (safe code: `TURN_ID_REQUIRED_FOR_CODEX_EVENT`).
+If a `turn/started` or `turn/completed` stream delta arrives without canonical payload turn id, ingest fails closed with `E_SYNC_TURN_ID_REQUIRED_FOR_TURN_EVENT` (safe code: `TURN_ID_REQUIRED_FOR_TURN_EVENT`).
+Set `CODEX_BRIDGE_RAW_LOG=all|turns` to print raw `codex app-server` stdout lines before parser/classifier handling (`[codex-bridge:raw-in]`).
 
 ## Authorization Errors
 

@@ -60,17 +60,6 @@ export const vHostActorContext = v.object({
   userId: v.optional(v.string()),
 });
 
-export const vHostInboundEvent = v.object({
-  eventId: v.string(),
-  turnId: v.string(),
-  streamId: v.string(),
-  kind: v.string(),
-  payloadJson: v.string(),
-  cursorStart: v.number(),
-  cursorEnd: v.number(),
-  createdAt: v.number(),
-});
-
 export const vHostStreamInboundEvent = v.object({
   type: v.literal("stream_delta"),
   eventId: v.string(),
@@ -117,6 +106,8 @@ export const vHostIngestSafeResult = v.object({
       code: v.union(
         v.literal("SESSION_NOT_FOUND"),
         v.literal("SESSION_THREAD_MISMATCH"),
+        v.literal("TURN_ID_REQUIRED_FOR_TURN_EVENT"),
+        v.literal("TURN_ID_REQUIRED_FOR_CODEX_EVENT"),
         v.literal("OUT_OF_ORDER"),
         v.literal("REPLAY_GAP"),
         v.literal("UNKNOWN"),

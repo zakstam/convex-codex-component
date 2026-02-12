@@ -419,6 +419,8 @@ export declare const components: {
             code:
               | "SESSION_NOT_FOUND"
               | "SESSION_THREAD_MISMATCH"
+              | "TURN_ID_REQUIRED_FOR_TURN_EVENT"
+              | "TURN_ID_REQUIRED_FOR_CODEX_EVENT"
               | "OUT_OF_ORDER"
               | "REPLAY_GAP"
               | "UNKNOWN";
@@ -557,12 +559,14 @@ export declare const components: {
             turnId: string;
           }>;
           recentMessages: Array<{
+            completedAt?: number;
             createdAt: number;
             messageId: string;
             role: "user" | "assistant" | "system" | "tool";
             status: "streaming" | "completed" | "failed" | "interrupted";
             text: string;
             turnId: string;
+            updatedAt: number;
           }>;
           streamStats: Array<{
             deltaCount: number;
@@ -572,7 +576,12 @@ export declare const components: {
           }>;
           threadId: string;
           threadStatus: string;
-          turns: Array<{ startedAt: number; status: string; turnId: string }>;
+          turns: Array<{
+            completedAt?: number;
+            startedAt: number;
+            status: string;
+            turnId: string;
+          }>;
         }
       >;
       list: FunctionReference<

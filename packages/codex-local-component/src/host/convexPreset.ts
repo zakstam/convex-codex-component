@@ -39,7 +39,6 @@ import {
   vHostDurableHistoryStats,
   vHostEnqueueTurnDispatchResult,
   vHostEnsureSessionResult,
-  vHostInboundEvent,
   vHostIngestSafeResult,
   vHostLifecycleInboundEvent,
   vHostPersistenceStats,
@@ -269,7 +268,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       actor: vHostActorContext,
       sessionId: v.string(),
       threadId: v.string(),
-      event: v.union(vHostInboundEvent, vHostStreamInboundEvent, vHostLifecycleInboundEvent),
+      event: v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent),
     },
     returns: vHostIngestSafeResult,
     handler: async (
@@ -279,16 +278,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         sessionId: string;
         threadId: string;
         event:
-          | {
-              eventId: string;
-              turnId: string;
-              streamId: string;
-              kind: string;
-              payloadJson: string;
-              cursorStart: number;
-              cursorEnd: number;
-              createdAt: number;
-            }
           | {
               type: "stream_delta";
               eventId: string;
@@ -311,35 +300,20 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       },
     ) => {
       if (options.ingestMode === "mixed") {
-        const event = "type" in args.event
-          ? args.event
-          : { ...args.event, type: "stream_delta" as const };
         return ingestEventMixed(
           ctx,
           component,
-          withServerActor({ ...args, event }, options.serverActor),
+          withServerActor(args, options.serverActor),
         );
       }
 
-      if ("type" in args.event && args.event.type === "lifecycle_event") {
+      if (args.event.type === "lifecycle_event") {
         throw new Error("ingestEvent(streamOnly) does not accept lifecycle events");
       }
-      const event = "type" in args.event
-        ? {
-            eventId: args.event.eventId,
-            turnId: args.event.turnId,
-            streamId: args.event.streamId,
-            kind: args.event.kind,
-            payloadJson: args.event.payloadJson,
-            cursorStart: args.event.cursorStart,
-            cursorEnd: args.event.cursorEnd,
-            createdAt: args.event.createdAt,
-          }
-        : args.event;
       return ingestEventStreamOnly(
         ctx,
         component,
-        withServerActor({ ...args, event }, options.serverActor),
+        withServerActor({ ...args, event: args.event }, options.serverActor),
       );
     },
   };
@@ -349,7 +323,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       actor: vHostActorContext,
       sessionId: v.string(),
       threadId: v.string(),
-      deltas: v.array(v.union(vHostInboundEvent, vHostStreamInboundEvent, vHostLifecycleInboundEvent)),
+      deltas: v.array(v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent)),
       runtime: v.optional(vHostSyncRuntimeOptions),
     },
     returns: vHostIngestSafeResult,
@@ -360,16 +334,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         sessionId: string;
         threadId: string;
         deltas: Array<
-          | {
-              eventId: string;
-              turnId: string;
-              streamId: string;
-              kind: string;
-              payloadJson: string;
-              cursorStart: number;
-              cursorEnd: number;
-              createdAt: number;
-            }
           | {
               type: "stream_delta";
               eventId: string;
@@ -401,61 +365,30 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       },
     ) => {
       if (options.ingestMode === "mixed") {
-        const deltas = args.deltas.map((delta) =>
-          "type" in delta ? delta : { ...delta, type: "stream_delta" as const },
-        );
         return ingestBatchMixed(
           ctx,
           component,
-          withServerActor({ ...args, deltas }, options.serverActor),
+          withServerActor(args, options.serverActor),
         );
       }
 
-      const hasLifecycle = args.deltas.some((delta) => "type" in delta && delta.type === "lifecycle_event");
+      const hasLifecycle = args.deltas.some((delta) => delta.type === "lifecycle_event");
       if (hasLifecycle) {
         throw new Error("ingestBatch(streamOnly) does not accept lifecycle events");
       }
       const streamDeltas = args.deltas
-        .filter(
-          (
-            delta,
-          ): delta is
-            | {
-                eventId: string;
-                turnId: string;
-                streamId: string;
-                kind: string;
-                payloadJson: string;
-                cursorStart: number;
-                cursorEnd: number;
-                createdAt: number;
-              }
-            | {
-                type: "stream_delta";
-                eventId: string;
-                turnId: string;
-                streamId: string;
-                kind: string;
-                payloadJson: string;
-                cursorStart: number;
-                cursorEnd: number;
-                createdAt: number;
-              } => !("type" in delta) || delta.type === "stream_delta",
-        )
-        .map((delta) =>
-          "type" in delta
-            ? {
-                eventId: delta.eventId,
-                turnId: delta.turnId,
-                streamId: delta.streamId,
-                kind: delta.kind,
-                payloadJson: delta.payloadJson,
-                cursorStart: delta.cursorStart,
-                cursorEnd: delta.cursorEnd,
-                createdAt: delta.createdAt,
-              }
-            : delta,
-        );
+        .filter((delta): delta is Extract<(typeof args.deltas)[number], { type: "stream_delta" }> =>
+          delta.type === "stream_delta")
+        .map((delta) => ({
+          eventId: delta.eventId,
+          turnId: delta.turnId,
+          streamId: delta.streamId,
+          kind: delta.kind,
+          payloadJson: delta.payloadJson,
+          cursorStart: delta.cursorStart,
+          cursorEnd: delta.cursorEnd,
+          createdAt: delta.createdAt,
+        }));
       return ingestBatchStreamOnly(
         ctx,
         component,

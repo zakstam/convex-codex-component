@@ -80,6 +80,7 @@ async function main(): Promise<void> {
     threadId,
     deltas: [
       {
+        type: "stream_delta",
         eventId: `runtime-smoke-started-${suffix}`,
         turnId,
         streamId,
@@ -93,6 +94,7 @@ async function main(): Promise<void> {
         createdAt: now,
       },
       {
+        type: "stream_delta",
         eventId: `runtime-smoke-completed-${suffix}`,
         turnId,
         streamId,

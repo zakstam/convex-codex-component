@@ -91,7 +91,6 @@ export {
   vHostTurnDispatchState,
   vHostTurnInput,
   vHostEnsureSessionResult,
-  vHostInboundEvent,
   vHostIngestSafeResult,
   vHostLifecycleInboundEvent,
   vHostPersistenceStats,

@@ -1,4 +1,5 @@
 import { now } from "../utils.js";
+import { requireTurnForActor } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
@@ -34,12 +35,15 @@ export async function finalizeApprovals(
     if (existing) {
       continue;
     }
+    const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, turnId);
 
     const approvalId = await ingest.ctx.db.insert("codex_approvals", {
       userScope: userScopeFromActor(ingest.args.actor),
       ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
+      threadRef: ingest.thread._id,
       turnId,
+      turnRef: turn._id,
       itemId: approval.itemId,
       kind: approval.kind,
       status: "pending",

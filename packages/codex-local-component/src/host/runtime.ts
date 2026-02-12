@@ -99,6 +99,10 @@ type PendingServerRequest = {
 
 type RuntimeServerRequestStatus = "pending" | "answered" | "expired";
 
+const PENDING_SERVER_REQUEST_RETRY_DELAY_MS = 150;
+const PENDING_SERVER_REQUEST_RETRY_TTL_MS = 5_000;
+const PENDING_SERVER_REQUEST_MAX_RETRIES = 20;
+
 export type HostRuntimePersistedServerRequest = {
   requestId: RpcId;
   method: ManagedServerRequestMethod;
@@ -128,6 +132,11 @@ function shouldDropRejectedIngestBatch(errors: IngestSafeError[]): boolean {
   return errors.every((error) => error.code === "OUT_OF_ORDER");
 }
 
+function isTurnNotFoundPersistenceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Turn not found:");
+}
+
 type PendingRequest = {
   method: string;
   dispatchId?: string;
@@ -136,6 +145,13 @@ type PendingRequest = {
   dispatchSource?: "runtime_queue" | "external_claim";
   resolve?: (message: CodexResponse) => void;
   reject?: (error: Error) => void;
+};
+
+type PendingServerRequestRetryEntry = {
+  request: PendingServerRequest;
+  attempts: number;
+  firstQueuedAt: number;
+  lastError: string;
 };
 
 type PendingAuthTokensRefreshRequest = {
@@ -603,6 +619,8 @@ export function createCodexHostRuntime(args: {
   let flushTail: Promise<void> = Promise.resolve();
   let ingestFlushMs = 250;
   const pendingServerRequests = new Map<string, PendingServerRequest>();
+  const pendingServerRequestRetries = new Map<string, PendingServerRequestRetryEntry>();
+  let pendingServerRequestRetryTimer: ReturnType<typeof setTimeout> | null = null;
   const pendingAuthTokensRefreshRequests = new Map<string, PendingAuthTokensRefreshRequest>();
   const enqueuedByKind = new Map<string, number>();
   const skippedByKind = new Map<string, number>();
@@ -706,10 +724,100 @@ export function createCodexHostRuntime(args: {
     });
   };
 
+  const clearPendingServerRequestRetryTimer = () => {
+    if (pendingServerRequestRetryTimer) {
+      clearTimeout(pendingServerRequestRetryTimer);
+      pendingServerRequestRetryTimer = null;
+    }
+  };
+
+  const schedulePendingServerRequestRetry = () => {
+    if (pendingServerRequestRetries.size === 0 || pendingServerRequestRetryTimer) {
+      return;
+    }
+    pendingServerRequestRetryTimer = setTimeout(() => {
+      pendingServerRequestRetryTimer = null;
+      void flushPendingServerRequestRetries();
+    }, PENDING_SERVER_REQUEST_RETRY_DELAY_MS);
+  };
+
+  const enqueuePendingServerRequestRetry = (request: PendingServerRequest, error: unknown) => {
+    const key = toRequestKey(request.requestId);
+    const existing = pendingServerRequestRetries.get(key);
+    const reason = error instanceof Error ? error.message : String(error);
+    if (existing) {
+      pendingServerRequestRetries.set(key, {
+        request,
+        attempts: existing.attempts + 1,
+        firstQueuedAt: existing.firstQueuedAt,
+        lastError: reason,
+      });
+    } else {
+      pendingServerRequestRetries.set(key, {
+        request,
+        attempts: 1,
+        firstQueuedAt: Date.now(),
+        lastError: reason,
+      });
+    }
+    schedulePendingServerRequestRetry();
+  };
+
+  const flushPendingServerRequestRetries = async () => {
+    if (!actor || pendingServerRequestRetries.size === 0) {
+      return;
+    }
+    const nowMs = Date.now();
+    for (const [key, entry] of pendingServerRequestRetries.entries()) {
+      if (
+        entry.attempts >= PENDING_SERVER_REQUEST_MAX_RETRIES ||
+        nowMs - entry.firstQueuedAt >= PENDING_SERVER_REQUEST_RETRY_TTL_MS
+      ) {
+        pendingServerRequestRetries.delete(key);
+        args.handlers?.onProtocolError?.({
+          message:
+            `Dropped pending server request after retry budget exhausted: requestId=${String(entry.request.requestId)} ` +
+            `turnId=${entry.request.turnId} reason=${entry.lastError}`,
+          line: entry.request.payloadJson,
+        });
+        continue;
+      }
+      try {
+        await args.persistence.upsertPendingServerRequest({ actor, request: entry.request });
+        pendingServerRequestRetries.delete(key);
+      } catch (error) {
+        if (isTurnNotFoundPersistenceError(error)) {
+          pendingServerRequestRetries.set(key, {
+            ...entry,
+            attempts: entry.attempts + 1,
+            lastError: error instanceof Error ? error.message : String(error),
+          });
+          continue;
+        }
+        pendingServerRequestRetries.delete(key);
+        args.handlers?.onProtocolError?.({
+          message: `Failed to persist pending server request: ${error instanceof Error ? error.message : String(error)}`,
+          line: entry.request.payloadJson,
+        });
+      }
+    }
+    if (pendingServerRequestRetries.size > 0) {
+      schedulePendingServerRequestRetry();
+    }
+  };
+
   const registerPendingServerRequest = async (request: PendingServerRequest) => {
     pendingServerRequests.set(toRequestKey(request.requestId), request);
     if (actor) {
-      await args.persistence.upsertPendingServerRequest({ actor, request });
+      try {
+        await args.persistence.upsertPendingServerRequest({ actor, request });
+      } catch (error) {
+        if (isTurnNotFoundPersistenceError(error)) {
+          enqueuePendingServerRequestRetry(request, error);
+        } else {
+          throw error;
+        }
+      }
     }
     emitState();
   };
@@ -725,6 +833,7 @@ export function createCodexHostRuntime(args: {
       return;
     }
     pendingServerRequests.delete(key);
+    pendingServerRequestRetries.delete(key);
     if (actor) {
       await args.persistence.resolvePendingServerRequest({
         actor,
@@ -988,6 +1097,7 @@ export function createCodexHostRuntime(args: {
           throw new Error(`ingestSafe rejected: ${result.errors.map((err) => err.code).join(",")}`);
         }
       }
+      await flushPendingServerRequestRetries();
     });
 
     flushTail = next.catch((error) => {
@@ -1007,6 +1117,26 @@ export function createCodexHostRuntime(args: {
       return mapped ?? runtimeTurnId;
     }
     return turnId;
+  };
+
+  const toCanonicalPendingServerRequest = (args: {
+    request: PendingServerRequest;
+    event: NormalizedEvent;
+    persistedThreadId: string;
+  }): PendingServerRequest => {
+    const runtimeTurnId = args.event.turnId ?? args.request.turnId;
+    const persistedTurnId = resolvePersistedTurnId(runtimeTurnId) ?? args.request.turnId;
+    return {
+      ...args.request,
+      threadId: args.persistedThreadId,
+      turnId: persistedTurnId,
+      payloadJson: rewritePayloadTurnId({
+        kind: args.event.kind,
+        payloadJson: args.request.payloadJson,
+        persistedTurnId,
+        ...(runtimeTurnId ? { runtimeTurnId } : {}),
+      }),
+    };
   };
 
   const rewritePayloadTurnId = (args: {
@@ -1285,9 +1415,13 @@ export function createCodexHostRuntime(args: {
           if (pendingServerRequest) {
             const persistedThreadId = threadId;
             if (persistedThreadId) {
+              const canonicalPendingServerRequest = toCanonicalPendingServerRequest({
+                request: pendingServerRequest,
+                event,
+                persistedThreadId,
+              });
               await registerPendingServerRequest({
-                ...pendingServerRequest,
-                threadId: persistedThreadId,
+                ...canonicalPendingServerRequest,
               });
             }
           }
@@ -1305,7 +1439,7 @@ export function createCodexHostRuntime(args: {
                 const envelope = asObject(parsed);
                 const payload = envelope ? asObject(envelope.params) ?? envelope : null;
                 const tokenUsage = payload ? asObject(payload.tokenUsage) : null;
-                const resolvedTurnId = event.turnId ?? turnId;
+                const resolvedTurnId = resolvePersistedTurnId(event.turnId) ?? turnId;
                 if (tokenUsage && resolvedTurnId) {
                   const total = asObject(tokenUsage.total);
                   const last = asObject(tokenUsage.last);
@@ -1359,6 +1493,7 @@ export function createCodexHostRuntime(args: {
             event.kind === "error";
 
           await enqueueIngestDelta(delta, forceFlush);
+          await flushPendingServerRequestRetries();
           if (event.turnId && (event.kind === "turn/completed" || event.kind === "error")) {
             dispatchByTurnId.delete(event.turnId);
           }
@@ -1525,6 +1660,7 @@ export function createCodexHostRuntime(args: {
 
   const stop = async () => {
     clearFlushTimer();
+    clearPendingServerRequestRetryTimer();
     await flushQueue();
     for (const [, pending] of pendingRequests) {
       pending.reject?.(new Error("Bridge stopped before request completed."));
@@ -1549,6 +1685,7 @@ export function createCodexHostRuntime(args: {
     startupCwd = undefined;
     pendingRequests.clear();
     pendingServerRequests.clear();
+    pendingServerRequestRetries.clear();
     pendingAuthTokensRefreshRequests.clear();
     resetIngestMetrics();
     emitState(null);

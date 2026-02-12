@@ -3,7 +3,14 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server.js";
 import { vActorContext, vThreadInputItem, vTurnOptions } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
-import { now, requireThreadForActor, requireTurnForActor, summarizeInput } from "./utils.js";
+import {
+  now,
+  requireThreadForActor,
+  requireThreadRefForActor,
+  requireTurnForActor,
+  requireTurnRefForActor,
+  summarizeInput,
+} from "./utils.js";
 
 const DEFAULT_DELETE_GRACE_MS = 10 * 60 * 1000;
 const MIN_DELETE_GRACE_MS = 1_000;
@@ -26,7 +33,7 @@ export const start = mutation({
     idempotencyKey: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
     const existing = await ctx.db
       .query("codex_turns")
@@ -49,6 +56,7 @@ export const start = mutation({
       userScope: userScopeFromActor(args.actor),
       ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
+      threadRef,
       turnId: args.turnId,
       status: "queued",
       idempotencyKey: args.idempotencyKey,
@@ -105,8 +113,8 @@ export const deleteCascade = mutation({
   },
   returns: v.object({ deletionJobId: v.string() }),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
-    await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
+    const { turnRef } = await requireTurnRefForActor(ctx, args.actor, args.threadId, args.turnId);
 
     const deletionJobId = generateDeletionJobId();
     const ts = now();
@@ -118,7 +126,9 @@ export const deleteCascade = mutation({
       deletionJobId,
       targetKind: "turn",
       threadId: args.threadId,
+      threadRef,
       turnId: args.turnId,
+      turnRef,
       status: "queued",
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
       ...(args.reason !== undefined ? { reason: args.reason } : {}),
@@ -155,8 +165,8 @@ export const scheduleDeleteCascade = mutation({
     scheduledFor: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
-    await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
+    const { turnRef } = await requireTurnRefForActor(ctx, args.actor, args.threadId, args.turnId);
 
     const deletionJobId = generateDeletionJobId();
     const ts = now();
@@ -179,7 +189,9 @@ export const scheduleDeleteCascade = mutation({
       deletionJobId,
       targetKind: "turn",
       threadId: args.threadId,
+      threadRef,
       turnId: args.turnId,
+      turnRef,
       status: "scheduled",
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
       scheduledFor,

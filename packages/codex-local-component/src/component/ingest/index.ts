@@ -15,6 +15,7 @@ import {
 } from "./applyStreams.js";
 import { applyStreamCheckpoints } from "./checkpoints.js";
 import { patchSessionAfterIngest, schedulePostIngestMaintenance } from "./postIngest.js";
+import { requireThreadForActor } from "../utils.js";
 
 export async function ingestEvents(
   ctx: MutationCtx,
@@ -29,6 +30,7 @@ export async function ingestEvents(
     syncError("E_SYNC_EMPTY_BATCH", "ingest received an empty delta batch");
   }
 
+  const thread = await requireThreadForActor(ctx, args.actor, args.threadId);
   const session = await requireBoundSession(ctx, args);
 
   const streamStats = await ctx.db
@@ -42,6 +44,7 @@ export async function ingestEvents(
     ctx,
     args,
     runtime,
+    thread,
     session,
     collected: {
       inBatchEventIds: new Set<string>(),

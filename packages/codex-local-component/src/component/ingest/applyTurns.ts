@@ -28,6 +28,7 @@ export async function ensureTurnForEvent(
       userScope: userScopeFromActor(ingest.args.actor),
       ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
+      threadRef: ingest.thread._id,
       turnId,
       status: event.syntheticTurnStatus,
       idempotencyKey: `sync:${ingest.args.threadId}:${turnId}`,

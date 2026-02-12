@@ -1,5 +1,5 @@
 import type { MutationCtx } from "../_generated/server.js";
-import { authzError, now, requireThreadForActor } from "../utils.js";
+import { authzError, now, requireThreadRefForActor } from "../utils.js";
 import { syncError } from "../syncRuntime.js";
 import type {
   EnsureSessionResult,
@@ -56,7 +56,7 @@ export async function requireBoundSession(
   ctx: MutationCtx,
   args: Pick<PushEventsArgs, "actor" | "sessionId" | "threadId">,
 ): Promise<IngestSession> {
-  await requireThreadForActor(ctx, args.actor, args.threadId);
+  await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
   const session = await ctx.db
     .query("codex_sessions")
@@ -88,7 +88,7 @@ export async function upsertSessionHeartbeat(
   ctx: MutationCtx,
   args: HeartbeatArgs,
 ): Promise<EnsureSessionResult> {
-  await requireThreadForActor(ctx, args.actor, args.threadId);
+  const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
   const session = await ctx.db
     .query("codex_sessions")
@@ -102,6 +102,7 @@ export async function upsertSessionHeartbeat(
       userScope: userScopeFromActor(args.actor),
       ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
+      threadRef,
       sessionId: args.sessionId,
       status: "active",
       lastHeartbeatAt: now(),
@@ -125,6 +126,7 @@ export async function upsertSessionHeartbeat(
   await ctx.db.patch(session._id, {
     status: "active",
     threadId: nextThreadId,
+    threadRef,
     lastHeartbeatAt: now(),
     lastEventCursor: Math.max(args.lastEventCursor, session.lastEventCursor),
   });

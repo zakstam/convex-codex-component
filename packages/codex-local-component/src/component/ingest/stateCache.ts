@@ -119,6 +119,7 @@ export function createIngestStateCache(args: {
       ? {
           _id: stream._id,
           turnId: stream.turnId,
+          turnRef: stream.turnRef,
           state: { kind: stream.state.kind },
         }
       : null;

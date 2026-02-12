@@ -5,6 +5,7 @@ import { userScopeFromActor } from "./scope.js";
 
 type ThreadRecord = Doc<"codex_threads">;
 type TurnRecord = Doc<"codex_turns">;
+type StreamRecord = Doc<"codex_streams">;
 
 export function authzError(code: "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_TURN_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN", message: string): never {
   void message;
@@ -34,6 +35,15 @@ export async function requireThreadForActor(
   return thread;
 }
 
+export async function requireThreadRefForActor(
+  ctx: QueryCtx | MutationCtx,
+  actor: ActorContext,
+  threadId: string,
+): Promise<{ thread: ThreadRecord; threadRef: ThreadRecord["_id"] }> {
+  const thread = await requireThreadForActor(ctx, actor, threadId);
+  return { thread, threadRef: thread._id };
+}
+
 export async function requireTurnForActor(
   ctx: QueryCtx | MutationCtx,
   actor: ActorContext,
@@ -57,6 +67,39 @@ export async function requireTurnForActor(
     throw new Error(`Turn not found: ${turnId}`);
   }
   return turn;
+}
+
+export async function requireTurnRefForActor(
+  ctx: QueryCtx | MutationCtx,
+  actor: ActorContext,
+  threadId: string,
+  turnId: string,
+): Promise<{ turn: TurnRecord; turnRef: TurnRecord["_id"] }> {
+  const turn = await requireTurnForActor(ctx, actor, threadId, turnId);
+  return { turn, turnRef: turn._id };
+}
+
+export async function requireStreamForActor(
+  ctx: QueryCtx | MutationCtx,
+  actor: ActorContext,
+  streamId: string,
+): Promise<StreamRecord> {
+  const userScope = userScopeFromActor(actor);
+  const stream = await ctx.db
+    .query("codex_streams")
+    .withIndex("userScope_streamId")
+    .filter((q) =>
+      q.and(
+        q.eq(q.field("userScope"), userScope),
+        q.eq(q.field("streamId"), streamId),
+      ),
+    )
+    .first();
+
+  if (!stream) {
+    throw new Error(`Stream not found: ${streamId}`);
+  }
+  return stream;
 }
 
 export function now(): number {

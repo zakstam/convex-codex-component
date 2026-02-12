@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
-import { requireThreadForActor, now } from "./utils.js";
+import { now, requireThreadForActor, requireThreadRefForActor } from "./utils.js";
 
 export const upsert = mutation({
   args: {
@@ -23,9 +23,21 @@ export const upsert = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
-
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const userScope = userScopeFromActor(args.actor);
+    const turn = await ctx.db
+      .query("codex_turns")
+      .withIndex("userScope_threadId_turnId", (q) =>
+        q.eq("userScope", userScope).eq("threadId", args.threadId).eq("turnId", args.turnId),
+      )
+      .first();
+    // Token usage can arrive before the persisted turn record is available
+    // (for example runtime placeholder turn ids). Treat as best-effort.
+    if (!turn) {
+      return null;
+    }
+    const turnRef = turn._id;
+
 
     const existing = await ctx.db
       .query("codex_token_usage")
@@ -43,6 +55,8 @@ export const upsert = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
+        threadRef,
+        turnRef,
         totalTokens: args.totalTokens,
         inputTokens: args.inputTokens,
         cachedInputTokens: args.cachedInputTokens,
@@ -63,7 +77,9 @@ export const upsert = mutation({
       userScope,
       ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
+      threadRef,
       turnId: args.turnId,
+      turnRef,
       totalTokens: args.totalTokens,
       inputTokens: args.inputTokens,
       cachedInputTokens: args.cachedInputTokens,

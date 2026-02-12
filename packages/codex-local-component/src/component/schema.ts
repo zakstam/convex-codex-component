@@ -24,11 +24,13 @@ export default defineSchema({
     userId: v.optional(v.string()),
     externalThreadId: v.string(),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("userScope_userId_externalThreadId", ["userScope", "userId", "externalThreadId"])
-    .index("userScope_userId_threadId", ["userScope", "userId", "threadId"]),
+    .index("userScope_userId_threadId", ["userScope", "userId", "threadId"])
+    .index("userScope_threadRef", ["userScope", "threadRef"]),
 
   codex_threads: defineTable({
     userScope: v.string(),
@@ -50,6 +52,7 @@ export default defineSchema({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
     status: v.union(
       v.literal("queued"),
@@ -66,14 +69,18 @@ export default defineSchema({
   })
     .index("userScope_threadId_startedAt", ["userScope", "threadId", "startedAt"])
     .index("userScope_idempotencyKey", ["userScope", "idempotencyKey"])
-    .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"]),
+    .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"])
+    .index("userScope_threadRef_startedAt", ["userScope", "threadRef", "startedAt"])
+    .index("userScope_threadRef_turnId", ["userScope", "threadRef", "turnId"]),
 
   codex_turn_dispatches: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     dispatchId: v.string(),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     idempotencyKey: v.string(),
     inputText: v.string(),
     status: v.union(
@@ -100,6 +107,7 @@ export default defineSchema({
   })
     .index("userScope_threadId_dispatchId", ["userScope", "threadId", "dispatchId"])
     .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"])
+    .index("userScope_turnRef", ["userScope", "turnRef"])
     .index("userScope_threadId_idempotencyKey", ["userScope", "threadId", "idempotencyKey"])
     .index("userScope_threadId_status_createdAt", ["userScope", "threadId", "status", "createdAt"])
     .index("userScope_threadId_status_leaseExpiresAt", ["userScope", "threadId", "status", "leaseExpiresAt"]),
@@ -108,7 +116,9 @@ export default defineSchema({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     itemId: v.string(),
     itemType: v.string(),
     status: v.union(v.literal("inProgress"), v.literal("completed"), v.literal("failed"), v.literal("declined")),
@@ -117,23 +127,30 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("userScope_threadId_turnId_itemId", ["userScope", "threadId", "turnId", "itemId"])
-    .index("userScope_threadId_createdAt", ["userScope", "threadId", "createdAt"]),
+    .index("userScope_threadId_createdAt", ["userScope", "threadId", "createdAt"])
+    .index("userScope_turnRef_itemId", ["userScope", "turnRef", "itemId"]),
 
   codex_event_summaries: defineTable({
     userScope: v.string(),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.optional(v.string()),
+    turnRef: v.optional(v.id("codex_turns")),
     eventId: v.string(),
     kind: v.string(),
     summary: v.string(),
     createdAt: v.number(),
-  }).index("userScope_threadId_createdAt", ["userScope", "threadId", "createdAt"]),
+  })
+    .index("userScope_threadId_createdAt", ["userScope", "threadId", "createdAt"])
+    .index("userScope_threadRef_createdAt", ["userScope", "threadRef", "createdAt"]),
 
   codex_messages: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     messageId: v.string(),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("tool")),
     status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
@@ -151,13 +168,16 @@ export default defineSchema({
     .index("userScope_threadId_turnId_createdAt", ["userScope", "threadId", "turnId", "createdAt"])
     .index("userScope_threadId_turnId_messageId", ["userScope", "threadId", "turnId", "messageId"])
     .index("userScope_threadId_turnId_orderInTurn", ["userScope", "threadId", "turnId", "orderInTurn"])
-    .index("userScope_threadId_turnId_status", ["userScope", "threadId", "turnId", "status"]),
+    .index("userScope_threadId_turnId_status", ["userScope", "threadId", "turnId", "status"])
+    .index("userScope_turnRef_orderInTurn", ["userScope", "turnRef", "orderInTurn"]),
 
   codex_reasoning_segments: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     itemId: v.string(),
     segmentId: v.string(),
     eventId: v.string(),
@@ -178,12 +198,14 @@ export default defineSchema({
       "itemId",
       "createdAt",
     ])
-    .index("userScope_threadId_eventId", ["userScope", "threadId", "eventId"]),
+    .index("userScope_threadId_eventId", ["userScope", "threadId", "eventId"])
+    .index("userScope_turnRef_createdAt", ["userScope", "turnRef", "createdAt"]),
 
   codex_sessions: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     sessionId: v.string(),
     status: v.union(
       v.literal("starting"),
@@ -199,13 +221,16 @@ export default defineSchema({
     error: v.optional(v.string()),
   })
     .index("userScope_threadId", ["userScope", "threadId"])
+    .index("userScope_threadRef", ["userScope", "threadRef"])
     .index("userScope_lastHeartbeatAt", ["userScope", "lastHeartbeatAt"])
     .index("userScope_sessionId", ["userScope", "sessionId"]),
 
   codex_streams: defineTable({
     userScope: v.string(),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     streamId: v.string(),
     state: vStreamState,
     startedAt: v.number(),
@@ -215,25 +240,30 @@ export default defineSchema({
   })
     .index("userScope_threadId_state", ["userScope", "threadId", "state.kind"])
     .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"])
-    .index("userScope_streamId", ["userScope", "streamId"]),
+    .index("userScope_streamId", ["userScope", "streamId"])
+    .index("userScope_turnRef_streamId", ["userScope", "turnRef", "streamId"]),
 
   codex_stream_stats: defineTable({
     userScope: v.string(),
     threadId: v.string(),
     turnId: v.string(),
     streamId: v.string(),
+    streamRef: v.id("codex_streams"),
     state: v.union(v.literal("streaming"), v.literal("finished"), v.literal("aborted")),
     deltaCount: v.number(),
     latestCursor: v.number(),
     updatedAt: v.number(),
   })
     .index("userScope_threadId", ["userScope", "threadId"])
-    .index("userScope_streamId", ["userScope", "streamId"]),
+    .index("userScope_streamId", ["userScope", "streamId"])
+    .index("userScope_streamRef", ["userScope", "streamRef"]),
 
   codex_stream_deltas_ttl: defineTable({
     userScope: v.string(),
     streamId: v.string(),
+    streamRef: v.id("codex_streams"),
     turnId: v.string(),
+    turnRef: v.optional(v.id("codex_turns")),
     eventId: v.string(),
     cursorStart: v.number(),
     cursorEnd: v.number(),
@@ -253,7 +283,9 @@ export default defineSchema({
     deletionJobId: v.string(),
     targetKind: v.union(v.literal("thread"), v.literal("turn"), v.literal("actor")),
     threadId: v.optional(v.string()),
+    threadRef: v.optional(v.id("codex_threads")),
     turnId: v.optional(v.string()),
+    turnRef: v.optional(v.id("codex_turns")),
     status: v.union(
       v.literal("scheduled"),
       v.literal("queued"),
@@ -282,7 +314,10 @@ export default defineSchema({
   codex_lifecycle_events: defineTable({
     userScope: v.string(),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.optional(v.string()),
+    turnRef: v.optional(v.id("codex_turns")),
+    streamRef: v.optional(v.id("codex_streams")),
     eventId: v.string(),
     kind: v.string(),
     payloadJson: v.string(),
@@ -290,23 +325,29 @@ export default defineSchema({
   })
     .index("userScope_threadId_createdAt", ["userScope", "threadId", "createdAt"])
     .index("userScope_threadId_turnId_createdAt", ["userScope", "threadId", "turnId", "createdAt"])
-    .index("userScope_threadId_eventId", ["userScope", "threadId", "eventId"]),
+    .index("userScope_threadId_eventId", ["userScope", "threadId", "eventId"])
+    .index("userScope_threadRef_createdAt", ["userScope", "threadRef", "createdAt"]),
 
   codex_stream_checkpoints: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     streamId: v.string(),
+    streamRef: v.id("codex_streams"),
     ackedCursor: v.number(),
     updatedAt: v.number(),
   })
-    .index("userScope_threadId_streamId", ["userScope", "threadId", "streamId"]),
+    .index("userScope_threadId_streamId", ["userScope", "threadId", "streamId"])
+    .index("userScope_streamRef", ["userScope", "streamRef"]),
 
   codex_approvals: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     itemId: v.string(),
     kind: v.string(),
     status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined")),
@@ -324,13 +365,16 @@ export default defineSchema({
       "userScope_userId_threadId_status_createdAt_itemId",
       ["userScope", "userId", "threadId", "status", "createdAt", "itemId"],
     )
-    .index("userScope_threadId_turnId_itemId", ["userScope", "threadId", "turnId", "itemId"]),
+    .index("userScope_threadId_turnId_itemId", ["userScope", "threadId", "turnId", "itemId"])
+    .index("userScope_turnRef_itemId", ["userScope", "turnRef", "itemId"]),
 
   codex_token_usage: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     totalTokens: v.number(),
     inputTokens: v.number(),
     cachedInputTokens: v.number(),
@@ -346,13 +390,16 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"])
-    .index("userScope_threadId_updatedAt", ["userScope", "threadId", "updatedAt"]),
+    .index("userScope_threadId_updatedAt", ["userScope", "threadId", "updatedAt"])
+    .index("userScope_turnRef_updatedAt", ["userScope", "turnRef", "updatedAt"]),
 
   codex_server_requests: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadId: v.string(),
+    threadRef: v.id("codex_threads"),
     turnId: v.string(),
+    turnRef: v.id("codex_turns"),
     itemId: v.string(),
     method: v.union(
       v.literal("item/commandExecution/requestApproval"),
@@ -375,6 +422,7 @@ export default defineSchema({
       "userScope_threadId_requestIdType_requestIdText",
       ["userScope", "threadId", "requestIdType", "requestIdText"],
     )
+    .index("userScope_turnRef_requestIdType_requestIdText", ["userScope", "turnRef", "requestIdType", "requestIdText"])
     .index("userScope_userId_status_updatedAt", ["userScope", "userId", "status", "updatedAt"])
     .index(
       "userScope_userId_threadId_status_updatedAt",

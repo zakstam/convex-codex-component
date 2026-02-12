@@ -14,6 +14,10 @@ This is an operations/runbook companion to `../LLMS.md`.
 - `E_RUNTIME_INGEST_FLUSH_FAILED`: queued ingest flush failed and was surfaced explicitly.
 
 Terminal turn artifacts are reconciled through one internal mutation path; avoid app-side/manual split finalization of turns, messages, and streams.
+Relationship integrity is reference-first: parent/child tables store Convex `v.id(...)` references (`threadRef`, `turnRef`, `streamRef`) alongside external ids.
+Treat these refs as canonical for integrity checks and internal joins; string ids remain protocol-facing identifiers.
+Runtime side-channel persistence (`pending server requests`, `token usage`) canonicalizes runtime turn ids to persisted turn ids before writes.
+If a side-channel write races ahead of turn persistence, runtime retries briefly with a bounded retry budget instead of surfacing a fatal protocol error.
 Legacy `codex/event/*` turn binding accepts explicit `msg.turn_id`/`msg.turnId` only; never derive turn identity from envelope `params.id`.
 During ingest normalization, payload-derived turn id is authoritative over incoming envelope `turnId`.
 If a legacy event arrives without canonical payload turn id, ingest fails closed with `E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT` (safe code: `TURN_ID_REQUIRED_FOR_CODEX_EVENT`).
@@ -103,6 +107,7 @@ Poll `threads.getDeletionJobStatus` until terminal status:
 - `errorMessage`
 
 The delete worker is idempotent and paged; repeated calls create independent jobs.
+Cascade is the default delete behavior for parent scopes (thread and turn targets).
 
 ## Pending Request Runbook
 

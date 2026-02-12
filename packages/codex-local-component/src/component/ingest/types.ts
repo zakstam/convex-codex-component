@@ -105,6 +105,7 @@ export type CachedApproval = {
 export type CachedStream = {
   _id: GenericId<"codex_streams">;
   turnId: string;
+  turnRef: GenericId<"codex_turns">;
   state: { kind: "streaming" | "finished" | "aborted" };
 };
 
@@ -142,6 +143,7 @@ export type IngestContext = {
   ctx: MutationCtx;
   args: PushEventsArgs;
   runtime: RuntimeOptions;
+  thread: Doc<"codex_threads">;
   session: IngestSession;
   collected: IngestCollectedState;
   streamState: IngestStreamStatsState;

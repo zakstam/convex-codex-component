@@ -1,4 +1,4 @@
-import { now, requireThreadForActor } from "../utils.js";
+import { now, requireStreamForActor, requireThreadRefForActor } from "../utils.js";
 import type { MutationCtx } from "../_generated/server.js";
 import type { ActorContext, IngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
@@ -18,10 +18,16 @@ export async function applyStreamCheckpoints(ingest: IngestContext): Promise<voi
   );
 
   for (const [streamId, cursor] of ingest.streamState.streamCheckpointCursorByStreamId) {
+    const stream = await requireStreamForActor(ingest.ctx, ingest.args.actor, streamId);
+    if (String(stream.threadId) !== ingest.args.threadId) {
+      throw new Error(`Stream ${streamId} is not bound to thread ${ingest.args.threadId}`);
+    }
     const existing = existingCheckpointByStreamId.get(streamId);
     if (existing) {
       if (cursor > Number(existing.ackedCursor)) {
         await ingest.ctx.db.patch(existing._id, {
+          threadRef: ingest.thread._id,
+          streamRef: stream._id,
           ackedCursor: cursor,
           updatedAt: now(),
         });
@@ -33,7 +39,9 @@ export async function applyStreamCheckpoints(ingest: IngestContext): Promise<voi
       userScope: userScopeFromActor(ingest.args.actor),
       ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
+      threadRef: ingest.thread._id,
       streamId,
+      streamRef: stream._id,
       ackedCursor: cursor,
       updatedAt: now(),
     });
@@ -49,7 +57,11 @@ export async function upsertCheckpoint(
     cursor: number;
   },
 ): Promise<{ ok: true }> {
-  await requireThreadForActor(ctx, args.actor, args.threadId);
+  const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
+  const stream = await requireStreamForActor(ctx, args.actor, args.streamId);
+  if (String(stream.threadId) !== args.threadId) {
+    throw new Error(`Stream ${args.streamId} is not bound to thread ${args.threadId}`);
+  }
 
   const existing = await ctx.db
     .query("codex_stream_checkpoints")
@@ -64,6 +76,8 @@ export async function upsertCheckpoint(
   if (existing) {
     if (args.cursor > Number(existing.ackedCursor)) {
       await ctx.db.patch(existing._id, {
+        threadRef,
+        streamRef: stream._id,
         ackedCursor: args.cursor,
         updatedAt: now(),
       });
@@ -75,7 +89,9 @@ export async function upsertCheckpoint(
     userScope: userScopeFromActor(args.actor),
     ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
     threadId: args.threadId,
+    threadRef,
     streamId: args.streamId,
+    streamRef: stream._id,
     ackedCursor: Math.max(0, Math.floor(args.cursor)),
     updatedAt: now(),
   });

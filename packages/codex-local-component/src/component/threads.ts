@@ -1,11 +1,12 @@
 import { makeFunctionReference, paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel.js";
 import { mutation, query } from "./_generated/server.js";
 import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
-import { authzError, now, requireThreadForActor } from "./utils.js";
+import { authzError, now, requireThreadForActor, requireThreadRefForActor } from "./utils.js";
 import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
 import { identifyStaleStreamingStatIds } from "./streamStats.js";
 
@@ -184,7 +185,7 @@ async function touchThread(
     personality?: string;
     localThreadId?: string;
   },
-): Promise<{ threadId: string; created: boolean }> {
+): Promise<{ threadId: string; created: boolean; threadRef: Id<"codex_threads"> }> {
   const existing = await ctx.db
     .query("codex_threads")
     .withIndex("userScope_threadId")
@@ -212,10 +213,10 @@ async function touchThread(
       personality: args.personality ?? existing.personality,
       localThreadId: args.localThreadId ?? existing.localThreadId,
     });
-    return { threadId: String(existing.threadId), created: false };
+    return { threadId: String(existing.threadId), created: false, threadRef: existing._id };
   }
 
-  await ctx.db.insert("codex_threads", {
+  const threadRef = await ctx.db.insert("codex_threads", {
     userScope: userScopeFromActor(args.actor),
     ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
     threadId: args.threadId,
@@ -228,7 +229,7 @@ async function touchThread(
     updatedAt: ts,
   });
 
-  return { threadId: args.threadId, created: true };
+  return { threadId: args.threadId, created: true, threadRef };
 }
 
 export const create = mutation({
@@ -286,6 +287,7 @@ export const resolve = mutation({
         });
 
         await ctx.db.patch(binding._id, {
+          threadRef: touched.threadRef,
           updatedAt: ts,
         });
 
@@ -313,6 +315,7 @@ export const resolve = mutation({
         ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
         externalThreadId,
         threadId: touched.threadId,
+        threadRef: touched.threadRef,
         createdAt: ts,
         updatedAt: ts,
       });
@@ -436,7 +439,7 @@ export const deleteCascade = mutation({
   },
   returns: v.object({ deletionJobId: v.string() }),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
     const deletionJobId = generateUuidV4();
     const ts = now();
@@ -447,6 +450,7 @@ export const deleteCascade = mutation({
       deletionJobId,
       targetKind: "thread",
       threadId: args.threadId,
+      threadRef,
       status: "queued",
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
       ...(args.reason !== undefined ? { reason: args.reason } : {}),
@@ -482,7 +486,7 @@ export const scheduleDeleteCascade = mutation({
     scheduledFor: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const deletionJobId = generateUuidV4();
     const ts = now();
     const userScope = userScopeFromActor(args.actor);
@@ -504,6 +508,7 @@ export const scheduleDeleteCascade = mutation({
       deletionJobId,
       targetKind: "thread",
       threadId: args.threadId,
+      threadRef,
       status: "scheduled",
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
       scheduledFor,

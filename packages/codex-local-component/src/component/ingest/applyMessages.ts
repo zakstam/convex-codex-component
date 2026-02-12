@@ -1,4 +1,5 @@
 import { now } from "../utils.js";
+import { requireTurnForActor } from "../utils.js";
 import type { IngestContext, NormalizedInboundEvent } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
@@ -12,6 +13,7 @@ export async function applyMessageEffectsForEvent(
   if (!turnId) {
     return;
   }
+  const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, turnId);
 
   if (event.durableMessage) {
     const existing = await cache.getMessageRecord(turnId, event.durableMessage.messageId);
@@ -23,7 +25,9 @@ export async function applyMessageEffectsForEvent(
         userScope: userScopeFromActor(ingest.args.actor),
         ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
         threadId: ingest.args.threadId,
+        threadRef: ingest.thread._id,
         turnId,
+        turnRef: turn._id,
         messageId: event.durableMessage.messageId,
         role: event.durableMessage.role,
         status: event.durableMessage.status,
@@ -97,7 +101,9 @@ export async function applyMessageEffectsForEvent(
       userScope: userScopeFromActor(ingest.args.actor),
       ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
+      threadRef: ingest.thread._id,
       turnId: event.turnId,
+      turnRef: turn._id,
       itemId: event.reasoningDelta.itemId,
       segmentId,
       eventId: event.eventId,
@@ -125,7 +131,9 @@ export async function applyMessageEffectsForEvent(
       userScope: userScopeFromActor(ingest.args.actor),
       ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
+      threadRef: ingest.thread._id,
       turnId,
+      turnRef: turn._id,
       messageId: event.durableDelta.messageId,
       role: "assistant",
       status: "streaming",

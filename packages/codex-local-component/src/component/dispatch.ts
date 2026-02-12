@@ -3,7 +3,7 @@ import type { MutationCtx } from "./_generated/server.js";
 import { mutation, query } from "./_generated/server.js";
 import { vActorContext, vThreadInputItem } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
-import { authzError, now, requireThreadForActor, summarizeInput } from "./utils.js";
+import { authzError, now, requireThreadRefForActor, summarizeInput } from "./utils.js";
 
 const DEFAULT_LEASE_MS = 15_000;
 const MAX_CLAIM_SCAN = 200;
@@ -78,7 +78,7 @@ export const enqueueTurnDispatch = mutation({
     accepted: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
     const existingByIdempotency = await ctx.db
       .query("codex_turn_dispatches")
@@ -100,22 +100,6 @@ export const enqueueTurnDispatch = mutation({
     }
 
     const ts = now();
-    const dispatchId = args.dispatchId ?? randomId();
-    await ctx.db.insert("codex_turn_dispatches", {
-      userScope: userScopeFromActor(args.actor),
-      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
-      threadId: args.threadId,
-      dispatchId,
-      turnId: args.turnId,
-      idempotencyKey: args.idempotencyKey,
-      inputText: summarizeInput(args.input),
-      status: "queued",
-      leaseExpiresAt: 0,
-      attemptCount: 0,
-      createdAt: ts,
-      updatedAt: ts,
-    });
-
     const existingTurn = await ctx.db
       .query("codex_turns")
       .withIndex("userScope_threadId_turnId", (q) =>
@@ -126,11 +110,13 @@ export const enqueueTurnDispatch = mutation({
       )
       .first();
 
+    let turnRef = existingTurn?._id;
     if (!existingTurn) {
-      await ctx.db.insert("codex_turns", {
+      turnRef = await ctx.db.insert("codex_turns", {
         userScope: userScopeFromActor(args.actor),
         ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
         threadId: args.threadId,
+        threadRef,
         turnId: args.turnId,
         status: "queued",
         idempotencyKey: args.idempotencyKey,
@@ -138,6 +124,27 @@ export const enqueueTurnDispatch = mutation({
         startedAt: ts,
       });
     }
+    if (!turnRef) {
+      throw new Error(`Turn not found: ${args.turnId}`);
+    }
+
+    const dispatchId = args.dispatchId ?? randomId();
+    await ctx.db.insert("codex_turn_dispatches", {
+      userScope: userScopeFromActor(args.actor),
+      ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      threadId: args.threadId,
+      threadRef,
+      dispatchId,
+      turnId: args.turnId,
+      turnRef,
+      idempotencyKey: args.idempotencyKey,
+      inputText: summarizeInput(args.input),
+      status: "queued",
+      leaseExpiresAt: 0,
+      attemptCount: 0,
+      createdAt: ts,
+      updatedAt: ts,
+    });
 
     return {
       dispatchId,
@@ -168,7 +175,7 @@ export const claimNextTurnDispatch = mutation({
     }),
   ),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const ts = now();
     const leaseMs = Math.max(1_000, Math.floor(args.leaseMs ?? DEFAULT_LEASE_MS));
 
@@ -240,7 +247,7 @@ export const markTurnStarted = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const ts = now();
     const dispatch = await requireDispatchForActor({
       ctx,
@@ -300,7 +307,7 @@ export const markTurnCompleted = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const ts = now();
     const dispatch = await requireDispatchForActor({
       ctx,
@@ -347,7 +354,7 @@ export const markTurnFailed = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const ts = now();
     const dispatch = await requireDispatchForActor({
       ctx,
@@ -395,7 +402,7 @@ export const cancelTurnDispatch = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const ts = now();
     const dispatch = await requireDispatchForActor({
       ctx,
@@ -477,7 +484,7 @@ export const getTurnDispatchState = query({
     }),
   ),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
     if (typeof args.dispatchId === "string") {
       const dispatchId = args.dispatchId;

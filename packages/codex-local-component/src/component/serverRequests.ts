@@ -3,7 +3,13 @@ import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRe
 import { mutation, query } from "./_generated/server.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
-import { authzError, now, requireThreadForActor } from "./utils.js";
+import {
+  authzError,
+  now,
+  requireThreadForActor,
+  requireThreadRefForActor,
+  requireTurnRefForActor,
+} from "./utils.js";
 
 const vManagedServerRequestMethod = v.union(
   v.literal("item/commandExecution/requestApproval"),
@@ -91,7 +97,8 @@ export const upsertPending = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
+    const { turnRef } = await requireTurnRefForActor(ctx, args.actor, args.threadId, args.turnId);
 
     const requestId = toRequestStorageId(args.requestId);
 
@@ -116,7 +123,9 @@ export const upsertPending = mutation({
         );
       }
       await ctx.db.patch(existing._id, {
+        threadRef,
         turnId: args.turnId,
+        turnRef,
         itemId: args.itemId,
         method: args.method,
         payloadJson: args.payloadJson,
@@ -134,7 +143,9 @@ export const upsertPending = mutation({
       userScope: userScopeFromActor(args.actor),
       ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
       threadId: args.threadId,
+      threadRef,
       turnId: args.turnId,
+      turnRef,
       itemId: args.itemId,
       method: args.method,
       requestIdType: requestId.requestIdType,

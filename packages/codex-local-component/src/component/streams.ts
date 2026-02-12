@@ -1,5 +1,6 @@
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel.js";
 import { internalMutation, internalQuery } from "./_generated/server.js";
 import type { MutationCtx } from "./_generated/server.js";
 import { deleteStreamStat } from "./streamStats.js";
@@ -14,8 +15,11 @@ async function emitStreamDrainCompleteMarker(
   args: {
     userScope: string;
     threadId: string;
+    threadRef: Id<"codex_threads">;
     turnId: string;
+    turnRef: Id<"codex_turns">;
     streamId: string;
+    streamRef: Id<"codex_streams">;
     createdAt: number;
   },
 ): Promise<void> {
@@ -36,7 +40,10 @@ async function emitStreamDrainCompleteMarker(
   await ctx.db.insert("codex_lifecycle_events", {
     userScope: args.userScope,
     threadId: args.threadId,
+    threadRef: args.threadRef,
     turnId: args.turnId,
+    turnRef: args.turnRef,
+    streamRef: args.streamRef,
     eventId,
     kind: STREAM_DRAIN_COMPLETE_KIND,
     payloadJson: JSON.stringify({ streamId: args.streamId }),
@@ -171,8 +178,11 @@ export const cleanupFinishedStream = internalMutation({
     await emitStreamDrainCompleteMarker(ctx, {
       userScope: args.userScope,
       threadId: String(currentStream.threadId),
+      threadRef: currentStream.threadRef,
       turnId: String(currentStream.turnId),
+      turnRef: currentStream.turnRef,
       streamId: String(currentStream.streamId),
+      streamRef: currentStream._id,
       createdAt: markerCreatedAt,
     });
 
@@ -235,12 +245,7 @@ export const auditDataHygiene = internalQuery({
     const orphanStreamIds: string[] = [];
 
     for (const stat of stats) {
-      const stream = await ctx.db
-        .query("codex_streams")
-        .withIndex("userScope_streamId", (q) =>
-          q.eq("userScope", args.userScope).eq("streamId", stat.streamId),
-        )
-        .first();
+      const stream = await ctx.db.get(stat.streamRef);
 
       if (!stream) {
         streamStatOrphans += 1;

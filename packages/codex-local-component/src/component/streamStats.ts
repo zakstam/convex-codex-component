@@ -43,6 +43,23 @@ async function getByStreamId(
     .first();
 }
 
+async function requireStreamRecord(args: {
+  ctx: MutationCtx;
+  userScope: string;
+  streamId: string;
+}) {
+  const stream = await args.ctx.db
+    .query("codex_streams")
+    .withIndex("userScope_streamId", (q) =>
+      q.eq("userScope", args.userScope).eq("streamId", args.streamId),
+    )
+    .first();
+  if (!stream) {
+    throw new Error(`Stream not found: ${args.streamId}`);
+  }
+  return stream;
+}
+
 export async function deleteStreamStat(
   ctx: MutationCtx,
   userScope: string,
@@ -62,11 +79,17 @@ export async function ensureStreamStat(
   const existing = await getByStreamId(ctx, args.userScope, args.streamId);
   const ts = now();
   if (!existing) {
+    const stream = await requireStreamRecord({
+      ctx,
+      userScope: args.userScope,
+      streamId: args.streamId,
+    });
     await ctx.db.insert("codex_stream_stats", {
       userScope: args.userScope,
       threadId: args.threadId,
       turnId: args.turnId,
       streamId: args.streamId,
+      streamRef: stream._id,
       state: args.state,
       deltaCount: 0,
       latestCursor: 0,
@@ -97,11 +120,17 @@ export async function addStreamDeltaStats(
   const existing = await getByStreamId(ctx, args.userScope, args.streamId);
   const ts = now();
   if (!existing) {
+    const stream = await requireStreamRecord({
+      ctx,
+      userScope: args.userScope,
+      streamId: args.streamId,
+    });
     await ctx.db.insert("codex_stream_stats", {
       userScope: args.userScope,
       threadId: args.threadId,
       turnId: args.turnId,
       streamId: args.streamId,
+      streamRef: stream._id,
       state: "streaming",
       deltaCount: args.deltaCount,
       latestCursor: args.latestCursor,
@@ -145,11 +174,17 @@ export async function addStreamDeltaStatsBatch(
     args.updates.map(async (update) => {
       const existing = existingByStreamId.get(update.streamId);
       if (!existing) {
+        const stream = await requireStreamRecord({
+          ctx,
+          userScope: args.userScope,
+          streamId: update.streamId,
+        });
         await ctx.db.insert("codex_stream_stats", {
           userScope: args.userScope,
           threadId: args.threadId,
           turnId: update.turnId,
           streamId: update.streamId,
+          streamRef: stream._id,
           state: "streaming",
           deltaCount: update.deltaCount,
           latestCursor: update.latestCursor,

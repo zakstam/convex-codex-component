@@ -6,6 +6,7 @@ import {
   STREAM_TEXT_DELTA_EVENT_KINDS,
   syncError,
 } from "../syncRuntime.js";
+import { requireTurnForActor } from "../utils.js";
 import {
   addStreamDeltaStatsBatch,
   ensureStreamStat,
@@ -40,11 +41,15 @@ export async function persistLifecycleEventIfMissing(
   await ingest.ctx.db.insert("codex_lifecycle_events", {
     userScope: userScopeFromActor(ingest.args.actor),
     threadId: ingest.args.threadId,
+    threadRef: ingest.thread._id,
     eventId: event.eventId,
     kind: event.kind,
     payloadJson: event.payloadJson,
     createdAt: event.createdAt,
     ...(event.turnId ? { turnId: event.turnId } : {}),
+    ...(event.turnId
+      ? { turnRef: (await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, event.turnId))._id }
+      : {}),
   });
 }
 
@@ -59,10 +64,13 @@ export async function applyStreamEvent(
 
   let stream = await cache.getStreamRecord(event.streamId);
   if (!stream) {
+    const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, event.turnId);
     const streamId = await ingest.ctx.db.insert("codex_streams", {
       userScope: userScopeFromActor(ingest.args.actor),
       threadId: ingest.args.threadId,
+      threadRef: ingest.thread._id,
       turnId: event.turnId,
+      turnRef: turn._id,
       streamId: event.streamId,
       state: { kind: "streaming", lastHeartbeatAt: now() },
       startedAt: now(),
@@ -71,6 +79,7 @@ export async function applyStreamEvent(
       _id: streamId,
       state: { kind: "streaming" },
       turnId: event.turnId,
+      turnRef: turn._id,
     };
     cache.setStreamRecord(event.streamId, stream);
     await ensureStreamStat(ingest.ctx, {
@@ -142,7 +151,9 @@ export async function applyStreamEvent(
     await ingest.ctx.db.insert("codex_stream_deltas_ttl", {
       userScope: userScopeFromActor(ingest.args.actor),
       streamId: event.streamId,
+      streamRef: stream._id,
       turnId: event.turnId,
+      turnRef: stream.turnRef,
       eventId: event.eventId,
       cursorStart: event.cursorStart,
       cursorEnd: event.cursorEnd,

@@ -23,6 +23,7 @@ function createHarness(options = {}) {
   const dispatchQueue = [];
   const protocolErrors = [];
   const failedDispatches = [];
+  const upsertErrors = [];
 
   const runtime = createCodexHostRuntime({
     bridgeFactory: (_config, nextHandlers) => {
@@ -44,6 +45,14 @@ function createHarness(options = {}) {
       }),
       upsertPendingServerRequest: async ({ request }) => {
         upserted.push(request);
+        if (options.upsertPendingServerRequest) {
+          try {
+            await options.upsertPendingServerRequest({ request, upsertedCount: upserted.length });
+          } catch (error) {
+            upsertErrors.push(error);
+            throw error;
+          }
+        }
       },
       resolvePendingServerRequest: async (args) => {
         resolved.push(args);
@@ -105,7 +114,19 @@ function createHarness(options = {}) {
     await handlers.onEvent(event);
   };
 
-  return { runtime, sent, emitResponse, emitGlobalMessage, emitEvent, upserted, resolved, ingestCalls, protocolErrors, failedDispatches };
+  return {
+    runtime,
+    sent,
+    emitResponse,
+    emitGlobalMessage,
+    emitEvent,
+    upserted,
+    resolved,
+    ingestCalls,
+    protocolErrors,
+    failedDispatches,
+    upsertErrors,
+  };
 }
 
 test("runtime start supports threadStrategy=resume", async () => {
@@ -533,6 +554,69 @@ test("runtime remaps runtime turnId 0 to claimed persisted turn id for ingest", 
   const completedPayload = JSON.parse(ingestCalls[0].deltas[1].payloadJson);
   assert.equal(startedPayload.params.turn.id, claimedTurnId);
   assert.equal(completedPayload.params.turn.id, claimedTurnId);
+
+  await runtime.stop();
+});
+
+test("runtime retries pending server request persistence and rewrites runtime turn id to persisted turn id", async () => {
+  const { runtime, sent, emitResponse, emitEvent, upserted, protocolErrors, upsertErrors } = createHarness({
+    upsertPendingServerRequest: async ({ upsertedCount }) => {
+      if (upsertedCount === 1) {
+        throw new Error("Turn not found: 1");
+      }
+    },
+  });
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6e";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+    dispatchManaged: false,
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  runtime.sendTurn("hello");
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
+  const claimedTurnId = runtime.getState().turnId;
+  assert.ok(claimedTurnId);
+  await emitResponse({
+    id: turnStartRequest.id,
+    result: {
+      thread: { id: threadId },
+      turn: { id: "1", status: "in_progress", items: [] },
+    },
+  });
+
+  await emitEvent({
+    eventId: "evt-managed-server-request-runtime-one",
+    threadId,
+    turnId: "1",
+    streamId: `${threadId}:1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "item/commandExecution/requestApproval",
+    payloadJson: JSON.stringify({
+      id: 301,
+      method: "item/commandExecution/requestApproval",
+      params: {
+        threadId,
+        turnId: "1",
+        itemId: "cmd-1",
+        reason: "network required",
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.ok(upserted.length >= 2);
+  const persistedAttempt = upserted[upserted.length - 1];
+  assert.equal(persistedAttempt.turnId, claimedTurnId);
+  const payload = JSON.parse(persistedAttempt.payloadJson);
+  assert.equal(payload.params.turnId, claimedTurnId);
+  assert.equal(upsertErrors.length, 1);
+  assert.equal(protocolErrors.length, 0);
 
   await runtime.stop();
 });

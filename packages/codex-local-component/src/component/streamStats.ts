@@ -20,6 +20,16 @@ type AddDeltaStatsArgs = {
   latestCursor: number;
 };
 
+const STREAM_STATE_RANK: Record<StreamStateKind, number> = {
+  streaming: 0,
+  finished: 1,
+  aborted: 1,
+};
+
+function resolveMonotonicState(current: StreamStateKind, next: StreamStateKind): StreamStateKind {
+  return STREAM_STATE_RANK[next] >= STREAM_STATE_RANK[current] ? next : current;
+}
+
 async function getByStreamId(
   ctx: MutationCtx,
   userScope: string,
@@ -65,15 +75,16 @@ export async function ensureStreamStat(
     return;
   }
 
+  const nextState = resolveMonotonicState(existing.state, args.state);
   if (
-    existing.state !== args.state ||
+    existing.state !== nextState ||
     existing.threadId !== args.threadId ||
     existing.turnId !== args.turnId
   ) {
     await ctx.db.patch(existing._id, {
       threadId: args.threadId,
       turnId: args.turnId,
-      state: args.state,
+      state: nextState,
       updatedAt: ts,
     });
   }
@@ -102,6 +113,7 @@ export async function addStreamDeltaStats(
   await ctx.db.patch(existing._id, {
     threadId: args.threadId,
     turnId: args.turnId,
+    state: resolveMonotonicState(existing.state, "streaming"),
     deltaCount: existing.deltaCount + args.deltaCount,
     latestCursor: Math.max(existing.latestCursor, args.latestCursor),
     updatedAt: ts,
@@ -149,12 +161,31 @@ export async function addStreamDeltaStatsBatch(
       await ctx.db.patch(existing._id, {
         threadId: args.threadId,
         turnId: update.turnId,
+        state: resolveMonotonicState(existing.state, "streaming"),
         deltaCount: existing.deltaCount + update.deltaCount,
         latestCursor: Math.max(existing.latestCursor, update.latestCursor),
         updatedAt: ts,
       });
     }),
   );
+}
+
+export function identifyStaleStreamingStatIds(
+  args: {
+    activeStreamIds: Set<string>;
+    stats: Array<{
+      streamId: string;
+      state: StreamStateKind;
+    }>;
+  },
+): Set<string> {
+  const staleStreaming = args.stats.filter(
+    (stat) => stat.state === "streaming" && !args.activeStreamIds.has(stat.streamId),
+  );
+  if (staleStreaming.length === 0) {
+    return new Set();
+  }
+  return new Set(staleStreaming.map((stat) => stat.streamId));
 }
 
 export async function setStreamStatState(

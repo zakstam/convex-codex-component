@@ -98,6 +98,12 @@ export function deriveCodexBranchActivity(
       (dispatch) => typeof dispatch.turnId === "string" && selectedTurnIds.has(dispatch.turnId),
     ),
     streamStats: state?.streamStats ?? [],
+    activeStreams: (state?.activeStreams ?? []).filter(
+      (stream) => typeof stream.turnId === "string" && selectedTurnIds.has(stream.turnId),
+    ),
+    lifecycleMarkers: (state?.lifecycleMarkers ?? []).filter(
+      (marker) => typeof marker.turnId === "string" && selectedTurnIds.has(marker.turnId),
+    ),
     turns: (state?.turns ?? []).filter(
       (turn) => typeof turn.turnId === "string" && selectedTurnIds.has(turn.turnId),
     ),
@@ -107,6 +113,8 @@ export function deriveCodexBranchActivity(
     (filteredState.pendingApprovals?.length ?? 0) > 0 ||
     (filteredState.recentMessages?.length ?? 0) > 0 ||
     (filteredState.dispatches?.length ?? 0) > 0 ||
+    (filteredState.activeStreams?.length ?? 0) > 0 ||
+    (filteredState.lifecycleMarkers?.length ?? 0) > 0 ||
     (filteredState.turns?.length ?? 0) > 0;
 
   if (!hasBranchSignals && nextOptions.fallbackToThread) {

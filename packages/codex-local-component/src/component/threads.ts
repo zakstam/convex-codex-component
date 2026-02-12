@@ -6,6 +6,8 @@ import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
+import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
+import { identifyStaleStreamingStatIds } from "./streamStats.js";
 
 const vThreadState = v.object({
   threadId: v.string(),
@@ -41,13 +43,17 @@ const vThreadState = v.object({
   activeStreams: v.array(
     v.object({
       streamId: v.string(),
+      turnId: v.string(),
       state: v.string(),
+      startedAt: v.number(),
     }),
   ),
   allStreams: v.array(
     v.object({
       streamId: v.string(),
+      turnId: v.string(),
       state: v.string(),
+      startedAt: v.number(),
     }),
   ),
   streamStats: v.array(
@@ -73,6 +79,14 @@ const vThreadState = v.object({
       role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("tool")),
       status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
       text: v.string(),
+      createdAt: v.number(),
+    }),
+  ),
+  lifecycleMarkers: v.array(
+    v.object({
+      kind: v.string(),
+      turnId: v.optional(v.string()),
+      streamId: v.optional(v.string()),
       createdAt: v.number(),
     }),
   ),
@@ -496,8 +510,48 @@ export const getState = query({
 
     const allStreams = streams.map((stream) => ({
       streamId: String(stream.streamId),
+      turnId: String(stream.turnId),
       state: String(stream.state.kind),
+      startedAt: Number(stream.startedAt),
     }));
+    const activeStreamIds = new Set(
+      allStreams.filter((stream) => stream.state === "streaming").map((stream) => stream.streamId),
+    );
+    const finalizedStaleStreamIds = identifyStaleStreamingStatIds({
+      activeStreamIds,
+      stats: stats.map((stat) => ({
+        streamId: String(stat.streamId),
+        state: stat.state,
+      })),
+    });
+
+    const lifecycle = await ctx.db
+      .query("codex_lifecycle_events")
+      .withIndex("userScope_threadId_createdAt", (q) =>
+        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
+      )
+      .order("desc")
+      .take(50);
+
+    const lifecycleMarkers = lifecycle
+      .filter((event) => event.kind === STREAM_DRAIN_COMPLETE_KIND)
+      .map((event) => {
+        let streamId: string | undefined;
+        try {
+          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };
+          if (typeof parsed.streamId === "string") {
+            streamId = parsed.streamId;
+          }
+        } catch {
+          streamId = undefined;
+        }
+        return {
+          kind: String(event.kind),
+          ...(event.turnId !== undefined ? { turnId: String(event.turnId) } : {}),
+          ...(streamId !== undefined ? { streamId } : {}),
+          createdAt: Number(event.createdAt),
+        };
+      });
 
     return {
       threadId: String(thread.threadId),
@@ -527,7 +581,7 @@ export const getState = query({
       allStreams,
       streamStats: stats.map((stat) => ({
         streamId: String(stat.streamId),
-        state: stat.state,
+        state: finalizedStaleStreamIds.has(String(stat.streamId)) ? "finished" : stat.state,
         deltaCount: Number(stat.deltaCount),
         latestCursor: Number(stat.latestCursor),
       })),
@@ -545,6 +599,7 @@ export const getState = query({
         text: String(message.text),
         createdAt: Number(message.createdAt),
       })),
+      lifecycleMarkers,
     };
   },
 });

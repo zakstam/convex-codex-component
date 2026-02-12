@@ -251,3 +251,100 @@ test("deriveCodexThreadActivity returns idle with stale dispatch and stale turn 
 
   assert.equal(result.phase, "idle");
 });
+
+test("deriveCodexThreadActivity does not force streaming from streamStats without activeStreams", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [],
+    dispatches: [],
+    streamStats: [{ state: "streaming" }],
+    activeStreams: [],
+    turns: [],
+  });
+
+  assert.deepEqual(result, { phase: "idle" });
+});
+
+test("deriveCodexThreadActivity exits streaming when stream drain marker is newer than stale in-flight rows", () => {
+  const result = deriveCodexThreadActivity({
+    pendingApprovals: [],
+    recentMessages: [],
+    dispatches: [{ turnId: "turn-1", status: "started", updatedAt: 10 }],
+    streamStats: [{ state: "streaming" }],
+    activeStreams: [{ streamId: "stream-1", turnId: "turn-1", startedAt: 8 }],
+    lifecycleMarkers: [{ kind: "stream/drain_complete", turnId: "turn-1", createdAt: 20 }],
+    turns: [{ turnId: "turn-1", status: "inProgress", startedAt: 9 }],
+  });
+
+  assert.deepEqual(result, { phase: "idle" });
+});
+
+test("dispatchManaged and runtimeOwned produce identical activity transitions with stale streamStats", () => {
+  const snapshotsByMode = {
+    dispatchManaged: [
+      {
+        pendingApprovals: [],
+        recentMessages: [{ messageId: "m-1", turnId: "turn-1", status: "streaming", createdAt: 10 }],
+        dispatches: [{ turnId: "turn-1", status: "started", updatedAt: 10 }],
+        turns: [{ turnId: "turn-1", status: "inProgress", startedAt: 9 }],
+        streamStats: [{ state: "streaming" }],
+        activeStreams: [{ streamId: "stream-1", turnId: "turn-1", startedAt: 10 }],
+      },
+      {
+        pendingApprovals: [],
+        recentMessages: [{ messageId: "m-1", turnId: "turn-1", status: "completed", createdAt: 30 }],
+        dispatches: [{ turnId: "turn-1", status: "started", updatedAt: 15 }],
+        turns: [{ turnId: "turn-1", status: "inProgress", startedAt: 14 }],
+        streamStats: [{ state: "streaming" }],
+        activeStreams: [],
+        lifecycleMarkers: [{ kind: "stream/drain_complete", turnId: "turn-1", createdAt: 31 }],
+      },
+      {
+        pendingApprovals: [],
+        recentMessages: [{ messageId: "m-1", turnId: "turn-1", status: "completed", createdAt: 30 }],
+        dispatches: [{ turnId: "turn-2", status: "claimed", updatedAt: 40 }],
+        turns: [{ turnId: "turn-2", status: "inProgress", startedAt: 39 }],
+        streamStats: [{ state: "streaming" }],
+        activeStreams: [{ streamId: "stream-2", turnId: "turn-2", startedAt: 40 }],
+      },
+    ],
+    runtimeOwned: [
+      {
+        pendingApprovals: [],
+        recentMessages: [{ messageId: "m-1", turnId: "turn-1", status: "streaming", createdAt: 10 }],
+        dispatches: [],
+        turns: [{ turnId: "turn-1", status: "inProgress", startedAt: 9 }],
+        streamStats: [{ state: "streaming" }],
+        activeStreams: [{ streamId: "stream-1", turnId: "turn-1", startedAt: 10 }],
+      },
+      {
+        pendingApprovals: [],
+        recentMessages: [{ messageId: "m-1", turnId: "turn-1", status: "completed", createdAt: 30 }],
+        dispatches: [],
+        turns: [{ turnId: "turn-1", status: "inProgress", startedAt: 14 }],
+        streamStats: [{ state: "streaming" }],
+        activeStreams: [],
+        lifecycleMarkers: [{ kind: "stream/drain_complete", turnId: "turn-1", createdAt: 31 }],
+      },
+      {
+        pendingApprovals: [],
+        recentMessages: [{ messageId: "m-1", turnId: "turn-1", status: "completed", createdAt: 30 }],
+        dispatches: [],
+        turns: [{ turnId: "turn-2", status: "inProgress", startedAt: 40 }],
+        streamStats: [{ state: "streaming" }],
+        activeStreams: [{ streamId: "stream-2", turnId: "turn-2", startedAt: 40 }],
+      },
+    ],
+  };
+
+  const dispatchManagedPhases = snapshotsByMode.dispatchManaged.map(
+    (snapshot) => deriveCodexThreadActivity(snapshot).phase,
+  );
+  const runtimeOwnedPhases = snapshotsByMode.runtimeOwned.map(
+    (snapshot) => deriveCodexThreadActivity(snapshot).phase,
+  );
+
+  assert.deepEqual(dispatchManagedPhases, ["streaming", "idle", "streaming"]);
+  assert.deepEqual(runtimeOwnedPhases, ["streaming", "idle", "streaming"]);
+  assert.deepEqual(dispatchManagedPhases, runtimeOwnedPhases);
+});

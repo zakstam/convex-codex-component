@@ -138,7 +138,7 @@ It demonstrates generated host wrappers plus React-first hook composition (`useC
 
 | UI Signal | Source of truth | Ignore for this signal | Why |
 | --- | --- | --- | --- |
-| Thread activity badge (`idle/streaming/awaiting_approval/failed/interrupted`) | `useCodexThreadActivity(chat.threadSnapshotSafe, ...)` | Raw `messages`, `dispatches`, `turns`, `streamStats` stitching in app code | Prevents precedence bugs and "stuck streaming" regressions. |
+| Thread activity badge (`idle/streaming/awaiting_approval/failed/interrupted`) | `useCodexThreadActivity(chat.threadSnapshotSafe, ...)` | Raw `messages`, `dispatches`, `turns`, `streamStats`, `activeStreams` stitching in app code | Uses canonical precedence: `pending approvals > streaming message > active stream > in-flight newer than terminal > terminal > idle`, including stream-drain lifecycle markers to prevent stuck streaming. |
 | Show "needs approval" UI | `activity.phase === "awaiting_approval"` (or `pendingApprovals` count if not using activity hook) | Dispatch status alone | Dispatch lifecycle does not encode approval waits. |
 | Render assistant text deltas | `useCodexMessages(..., { stream: true })` | `dispatches` and `turns` | Dispatch/turn state tracks orchestration, not message text continuity. |
 | Enable cancel/interruption affordance | `activity.phase === "streaming"` with `activity.activeTurnId` | `threadStatus`, `dispatches` alone | Active turn identity should come from normalized activity. |

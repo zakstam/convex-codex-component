@@ -514,8 +514,18 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         { actor: { userId?: string }; threadId: string },
         {
-          activeStreams: Array<{ state: string; streamId: string }>;
-          allStreams: Array<{ state: string; streamId: string }>;
+          activeStreams: Array<{
+            startedAt: number;
+            state: string;
+            streamId: string;
+            turnId: string;
+          }>;
+          allStreams: Array<{
+            startedAt: number;
+            state: string;
+            streamId: string;
+            turnId: string;
+          }>;
           dispatches: Array<{
             attemptCount: number;
             claimOwner?: string;
@@ -533,6 +543,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               | "cancelled";
             turnId: string;
             updatedAt: number;
+          }>;
+          lifecycleMarkers: Array<{
+            createdAt: number;
+            kind: string;
+            streamId?: string;
+            turnId?: string;
           }>;
           pendingApprovals: Array<{
             itemId: string;

@@ -1,12 +1,49 @@
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server.js";
+import type { MutationCtx } from "./_generated/server.js";
 import { deleteStreamStat, setStreamStatState } from "./streamStats.js";
 import { now } from "./utils.js";
+import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
 
 const STREAM_CLEANUP_BATCH_SIZE_DEFAULT = 500;
 const STREAM_CLEANUP_BATCH_SIZE_MAX = 2000;
 const DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS = 300_000;
+
+async function emitStreamDrainCompleteMarker(
+  ctx: MutationCtx,
+  args: {
+    userScope: string;
+    threadId: string;
+    turnId: string;
+    streamId: string;
+    createdAt: number;
+  },
+): Promise<void> {
+  const eventId = `${STREAM_DRAIN_COMPLETE_KIND}:${args.streamId}`;
+  const existing = await ctx.db
+    .query("codex_lifecycle_events")
+    .withIndex("userScope_threadId_eventId", (q) =>
+      q
+        .eq("userScope", args.userScope)
+        .eq("threadId", args.threadId)
+        .eq("eventId", eventId),
+    )
+    .first();
+  if (existing) {
+    return;
+  }
+
+  await ctx.db.insert("codex_lifecycle_events", {
+    userScope: args.userScope,
+    threadId: args.threadId,
+    turnId: args.turnId,
+    eventId,
+    kind: STREAM_DRAIN_COMPLETE_KIND,
+    payloadJson: JSON.stringify({ streamId: args.streamId }),
+    createdAt: args.createdAt,
+  });
+}
 
 export const timeoutStream = internalMutation({
   args: {
@@ -148,6 +185,15 @@ export const cleanupFinishedStream = internalMutation({
     if (currentStream.state.kind === "streaming") {
       return { deletedDeltas: batch.length, streamDeleted: false, hasMore: false };
     }
+
+    const markerCreatedAt = now();
+    await emitStreamDrainCompleteMarker(ctx, {
+      userScope: args.userScope,
+      threadId: String(currentStream.threadId),
+      turnId: String(currentStream.turnId),
+      streamId: String(currentStream.streamId),
+      createdAt: markerCreatedAt,
+    });
 
     await ctx.db.delete(currentStream._id);
     await deleteStreamStat(ctx, args.userScope, args.streamId);

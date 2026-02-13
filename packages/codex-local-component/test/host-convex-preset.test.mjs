@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  defineDispatchManagedHostEndpoints,
   defineDispatchManagedHostSlice,
+  defineRuntimeOwnedHostEndpoints,
   defineRuntimeOwnedHostSlice,
   HOST_SURFACE_MANIFEST,
   wrapHostDefinitions,
@@ -55,6 +57,34 @@ test("defineRuntimeOwnedHostSlice returns deterministic runtime-owned surface", 
   assert.ok(defs.queries.getDispatchObservability);
   assert.ok(defs.queries.dataHygiene);
   assert.ok(defs.queries.listThreadMessagesForHooks);
+});
+
+test("defineDispatchManagedHostEndpoints matches defineDispatchManagedHostSlice output shape", () => {
+  const fromSlice = defineDispatchManagedHostSlice({
+    components: createComponentRefs(),
+    serverActor: actor,
+  });
+  const fromEndpoints = defineDispatchManagedHostEndpoints({
+    components: createComponentRefs(),
+    serverActor: actor,
+  });
+
+  assert.deepEqual(Object.keys(fromEndpoints.mutations).sort(), Object.keys(fromSlice.mutations).sort());
+  assert.deepEqual(Object.keys(fromEndpoints.queries).sort(), Object.keys(fromSlice.queries).sort());
+});
+
+test("defineRuntimeOwnedHostEndpoints matches defineRuntimeOwnedHostSlice output shape", () => {
+  const fromSlice = defineRuntimeOwnedHostSlice({
+    components: createComponentRefs(),
+    serverActor: actor,
+  });
+  const fromEndpoints = defineRuntimeOwnedHostEndpoints({
+    components: createComponentRefs(),
+    serverActor: actor,
+  });
+
+  assert.deepEqual(Object.keys(fromEndpoints.mutations).sort(), Object.keys(fromSlice.mutations).sort());
+  assert.deepEqual(Object.keys(fromEndpoints.queries).sort(), Object.keys(fromSlice.queries).sort());
 });
 
 test("validateHostWiring reports missing component children as check failures", async () => {

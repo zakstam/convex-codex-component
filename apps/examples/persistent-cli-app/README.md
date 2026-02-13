@@ -18,15 +18,8 @@ pnpm start
 
 ## Host Surface Ownership
 
-- `convex/chat.generated.ts`: generated preset wrappers (do not edit)
-- `convex/chat.extensions.ts`: app-specific additions
-- `convex/chat.ts`: stable Convex entrypoint (`export *`)
-
-Regenerate host wrappers from repo root:
-
-```bash
-pnpm run host:generate
-```
+- `convex/chat.ts`: helper-defined preset wrappers via `defineRuntimeOwnedHostEndpoints(...)`
+- `convex/chat.extensions.ts`: optional app-specific additions
 
 ## Wiring and Type Checks
 

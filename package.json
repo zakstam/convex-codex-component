@@ -10,8 +10,6 @@
     "component:typecheck": "pnpm --filter @zakstam/codex-local-component run typecheck",
     "component:test": "pnpm --filter @zakstam/codex-local-component run test",
     "component:ci": "pnpm --filter @zakstam/codex-local-component run ci",
-    "host:generate": "pnpm --filter @zakstam/codex-local-component run build && node ./packages/codex-local-component/scripts/generate-host-surfaces.mjs",
-    "host:check": "pnpm --filter @zakstam/codex-local-component run build && node ./packages/codex-local-component/scripts/generate-host-surfaces.mjs --check",
     "example:cli:start": "pnpm --filter codex-local-cli-example run start",
     "example:cli:typecheck": "pnpm --filter codex-local-cli-example run typecheck",
     "example:persistent:start": "pnpm --filter codex-local-persistent-cli-example run start",
@@ -32,12 +30,12 @@
     "smoke:dev:convex:once": "pnpm --filter codex-local-release-smoke-host run dev:convex:once",
     "smoke:checks": "pnpm --filter codex-local-release-smoke-host run smoke:checks",
     "lint:host": "eslint apps/release-smoke-host/src apps/release-smoke-host/convex apps/examples/persistent-cli-app/src apps/examples/cli-app/src --ext .ts",
-    "release:precheck:ci": "pnpm run host:check && pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint:host && pnpm --filter codex-local-release-smoke-host run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck:convex && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",
-    "release:precheck": "pnpm run host:check && pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint:host && pnpm --filter codex-local-release-smoke-host run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck:convex && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-release-smoke-host run smoke:checks",
+    "release:precheck:ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint:host && pnpm --filter codex-local-release-smoke-host run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck:convex && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",
+    "release:precheck": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint:host && pnpm --filter codex-local-release-smoke-host run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck:convex && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-release-smoke-host run smoke:checks",
     "build": "pnpm -r --if-present run build",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
-    "ci": "pnpm run host:check && pnpm --filter @zakstam/codex-local-component run ci && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck"
+    "ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",

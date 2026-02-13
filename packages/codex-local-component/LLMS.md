@@ -15,7 +15,7 @@ Official recommendation: use React hooks as the primary consumer integration sur
 
 - Follow this file as the only default implementation strategy.
 - Do not implement dispatch-managed orchestration unless explicitly requested.
-- Do not handwrite host wrapper surfaces; generate them.
+- Define host wrappers with `defineRuntimeOwnedHostEndpoints(...)`.
 - Always use app-generated Convex types from `./_generated/api` and `./_generated/server`.
 
 ## Required Implementation Steps
@@ -46,21 +46,56 @@ npx convex dev --once
 
 - Required so app-generated `./_generated/api` and `./_generated/server` exist and stay authoritative.
 
-4. Generate host surfaces from the canonical manifest.
+4. Define host wrappers from the canonical runtime-owned helper.
 
-```bash
-pnpm run host:generate
+```ts
+import { mutation, query } from "./_generated/server";
+import { components } from "./_generated/api";
+import {
+  defineRuntimeOwnedHostEndpoints,
+  type HostActorContext,
+} from "@zakstam/codex-local-component/host/convex";
+
+export const SERVER_ACTOR: HostActorContext = Object.freeze({
+  ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
+});
+
+const defs = defineRuntimeOwnedHostEndpoints({
+  components,
+  serverActor: SERVER_ACTOR,
+});
+
+export const ensureThread = mutation(defs.mutations.ensureThread);
+export const enqueueTurnDispatch = mutation(defs.mutations.enqueueTurnDispatch);
+export const claimNextTurnDispatch = mutation(defs.mutations.claimNextTurnDispatch);
+export const markTurnDispatchStarted = mutation(defs.mutations.markTurnDispatchStarted);
+export const markTurnDispatchCompleted = mutation(defs.mutations.markTurnDispatchCompleted);
+export const markTurnDispatchFailed = mutation(defs.mutations.markTurnDispatchFailed);
+export const cancelTurnDispatch = mutation(defs.mutations.cancelTurnDispatch);
+export const ensureSession = mutation(defs.mutations.ensureSession);
+export const ingestEvent = mutation(defs.mutations.ingestEvent);
+export const ingestBatch = mutation(defs.mutations.ingestBatch);
+export const respondApprovalForHooks = mutation(defs.mutations.respondApprovalForHooks);
+export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsageForHooks);
+export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
+
+export const validateHostWiring = query(defs.queries.validateHostWiring);
+export const getTurnDispatchState = query(defs.queries.getTurnDispatchState);
+export const getDispatchObservability = query(defs.queries.getDispatchObservability);
+export const threadSnapshot = query(defs.queries.threadSnapshot);
+export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
+export const persistenceStats = query(defs.queries.persistenceStats);
+export const durableHistoryStats = query(defs.queries.durableHistoryStats);
+export const dataHygiene = query(defs.queries.dataHygiene);
+export const listThreadMessagesForHooks = query(defs.queries.listThreadMessagesForHooks);
+export const listTurnMessagesForHooks = query(defs.queries.listTurnMessagesForHooks);
+export const listPendingApprovalsForHooks = query(defs.queries.listPendingApprovalsForHooks);
+export const listTokenUsageForHooks = query(defs.queries.listTokenUsageForHooks);
 ```
 
-5. Keep host files in this split:
+5. Use runtime-owned host preset behavior only.
 
-- `convex/chat.generated.ts`: generated preset wrappers (do not edit)
-- `convex/chat.extensions.ts`: app-owned custom endpoints
-- `convex/chat.ts`: stable entrypoint (`export *` from generated + extensions)
-
-6. Use runtime-owned host preset behavior only.
-
-- Generated wrappers are based on `defineRuntimeOwnedHostSlice(...)`.
+- Host wrappers are based on `defineRuntimeOwnedHostEndpoints(...)`.
 - Construct runtime with explicit persistence wiring:
 
 ```ts
@@ -95,16 +130,16 @@ await runtime.start({
 });
 ```
 
-7. Start turns through `runtime.sendTurn(text)`.
+6. Start turns through `runtime.sendTurn(text)`.
 
 - Do not call `startClaimedTurn` in the canonical path.
 
-8. Validate host wiring during startup.
+7. Validate host wiring during startup.
 
 - Query `chat.validateHostWiring` once at process boot.
 - Fail fast if `ok` is `false`.
 
-9. Use React hooks as the canonical UI integration path.
+8. Use React hooks as the canonical UI integration path.
 
 - `useCodexMessages` -> `chat.listThreadMessagesForHooks`
 - `useCodexTurn` -> `chat.listTurnMessagesForHooks`
@@ -120,20 +155,6 @@ await runtime.start({
 
 ## Required Consumer Commands
 
-From repo root (or equivalent monorepo command wrappers):
-
-```bash
-pnpm run host:generate
-pnpm run host:check
-```
-
-If your app does not define monorepo wrappers, run local equivalents:
-
-```bash
-pnpm run generate:host-surfaces
-pnpm run check:host-surfaces
-```
-
 From each host app:
 
 ```bash
@@ -146,11 +167,11 @@ If your app does not define `wiring:smoke`, run the check inline with `ConvexHtt
 
 ## Required Host Surface Ownership
 
-- Generated surface owns preset endpoint exports.
-- Extensions file owns only app-specific endpoints.
-- Entrypoint file owns only re-exports.
+- `convex/chat.ts` owns preset endpoint exports via `defineRuntimeOwnedHostEndpoints(...)`.
+- `convex/chat.extensions.ts` is optional and owns app-specific endpoints only.
+- If you use `chat.extensions.ts`, export those endpoints from `convex/chat.ts`.
 
-If an endpoint belongs to preset behavior, add it in the package preset/manifest and regenerate. Do not manually patch generated host files.
+If an endpoint belongs to preset behavior, add it in the package preset/manifest and consume it through the helper API.
 
 ## Advanced Appendix (Non-Default)
 

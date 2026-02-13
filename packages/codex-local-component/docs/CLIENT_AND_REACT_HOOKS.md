@@ -18,7 +18,7 @@ All hook/query/mutation args use `actor: { userId?: string }`.
 - `@zakstam/codex-local-component/react`
 - `@zakstam/codex-local-component/react-integration`
 
-Host Convex wrappers should come from generated runtime-owned host surfaces (`convex/chat.generated.ts`) plus app-owned extensions (`convex/chat.extensions.ts`).
+Host Convex wrappers should be defined in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`, with optional app-owned additions in `convex/chat.extensions.ts`.
 
 ## Client Helpers
 
@@ -141,7 +141,7 @@ The blessed production wiring reference is:
 
 - `apps/examples/tauri-app`
 
-It demonstrates generated host wrappers plus React-first hook composition (`useCodexConversationController` and thread snapshot hooks).
+It demonstrates helper-defined host wrappers plus React-first hook composition (`useCodexConversationController` and thread snapshot hooks).
 
 ## Strict State Authority Table
 

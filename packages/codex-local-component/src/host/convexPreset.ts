@@ -1122,6 +1122,14 @@ export type DefineRuntimeOwnedHostSliceOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
 > = Pick<DefineCodexHostSliceOptions<Components>, "components" | "serverActor">;
 
+export type DefineDispatchManagedHostEndpointsOptions<
+  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
+> = DefineDispatchManagedHostSliceOptions<Components>;
+
+export type DefineRuntimeOwnedHostEndpointsOptions<
+  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
+> = DefineRuntimeOwnedHostSliceOptions<Components>;
+
 export function defineDispatchManagedHostSlice<Components extends CodexHostComponentsInput>(
   options: DefineDispatchManagedHostSliceOptions<Components>,
 ): DispatchManagedHostDefinitions {
@@ -1172,4 +1180,16 @@ export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponen
     mutations: pickRequiredKeys(defs.mutations, HOST_SURFACE_MANIFEST.runtimeOwned.mutations),
     queries: pickRequiredKeys(defs.queries, HOST_SURFACE_MANIFEST.runtimeOwned.queries),
   };
+}
+
+export function defineDispatchManagedHostEndpoints<Components extends CodexHostComponentsInput>(
+  options: DefineDispatchManagedHostEndpointsOptions<Components>,
+): DispatchManagedHostDefinitions {
+  return defineDispatchManagedHostSlice(options);
+}
+
+export function defineRuntimeOwnedHostEndpoints<Components extends CodexHostComponentsInput>(
+  options: DefineRuntimeOwnedHostEndpointsOptions<Components>,
+): RuntimeOwnedHostDefinitions {
+  return defineRuntimeOwnedHostSlice(options);
 }

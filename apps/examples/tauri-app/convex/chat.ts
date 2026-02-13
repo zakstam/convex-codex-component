@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { defineDispatchManagedHostSlice } from "@zakstam/codex-local-component/host/convex";
+import { defineDispatchManagedHostEndpoints } from "@zakstam/codex-local-component/host/convex";
 import { vHostActorContext } from "@zakstam/codex-local-component/host/convex";
 import { v } from "convex/values";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./actorLock";
 export { getActorBindingForBootstrap, listThreadsForPicker } from "./chat.extensions";
 
-const defs = defineDispatchManagedHostSlice({
+const defs = defineDispatchManagedHostEndpoints({
   components,
   serverActor: SERVER_ACTOR,
 });

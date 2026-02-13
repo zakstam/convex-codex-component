@@ -1,13 +1,13 @@
 export const HOST_PRESET_DEFINITIONS = [
   {
-    builder: "defineDispatchManagedHostSlice",
+    builder: "defineDispatchManagedHostEndpoints",
     profile: "dispatchManaged",
     ingestMode: "mixed",
     threadMode: "resolve",
     intendedHost: "Tauri / externally claimed dispatch",
   },
   {
-    builder: "defineRuntimeOwnedHostSlice",
+    builder: "defineRuntimeOwnedHostEndpoints",
     profile: "runtimeOwned",
     ingestMode: "streamOnly",
     threadMode: "create",

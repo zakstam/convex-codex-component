@@ -28,12 +28,9 @@ In this mode:
 
 ## Host Surface Expectations
 
-Runtime-owned generated wrappers include dispatch lifecycle, ingest/session, and hook query endpoints.
-Keep these files split:
-
-- `convex/chat.generated.ts` (generated preset surface)
-- `convex/chat.extensions.ts` (app-specific additions)
-- `convex/chat.ts` (stable re-export entrypoint)
+Runtime-owned wrappers include dispatch lifecycle, ingest/session, and hook query endpoints.
+Define these in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`.
+Optional app-specific additions can live in `convex/chat.extensions.ts` and be re-exported from `convex/chat.ts`.
 
 ## Expected Progression
 

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm -C ../../.. run host:generate",
+    "prepare:component": "pnpm -C ../../.. run component:build",
     "dev:convex": "pnpm run prepare:component && convex dev",
     "dev:convex:once": "pnpm run prepare:component && convex dev --once",
     "wiring:smoke": "pnpm run dev:convex:once && node ./scripts/check-wiring-convex.mjs",

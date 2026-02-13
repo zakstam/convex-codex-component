@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm -C ../../.. run host:generate",
+    "prepare:component": "pnpm -C ../../.. run component:build",
     "prepare:component:watch": "pnpm --filter @zakstam/codex-local-component run build:watch",
     "prepare:tauri-assets": "node ./scripts/prepare-tauri-assets.mjs",
     "check:generated:convex": "node ./scripts/check-generated-convex.mjs",

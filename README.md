@@ -43,8 +43,7 @@ pnpm install
 ## Common Commands
 
 ```bash
-pnpm run host:generate
-pnpm run host:check
+pnpm run component:build
 pnpm run component:ci
 ```
 

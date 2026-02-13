@@ -29,11 +29,8 @@ That file is the normative, single-path consumer strategy.
 ## Quickstart Summary
 
 1. Mount component in `convex/convex.config.ts` with `app.use(codexLocal)`.
-2. Generate host surfaces with `pnpm run host:generate`.
-3. Keep host split:
-- `convex/chat.generated.ts` (generated)
-- `convex/chat.extensions.ts` (app-owned)
-- `convex/chat.ts` (re-exports)
+2. Define host endpoints directly in `convex/chat.ts` with `defineRuntimeOwnedHostEndpoints(...)`.
+3. Optionally keep app-specific additions in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
 4. Start runtime in runtime-owned mode (`dispatchManaged: false`).
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.

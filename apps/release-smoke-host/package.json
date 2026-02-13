@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm -C ../.. run host:generate && node ./scripts/prepare-component.mjs",
+    "prepare:component": "pnpm -C ../.. run component:build && node ./scripts/prepare-component.mjs",
     "dev:convex": "pnpm run prepare:component && convex dev",
     "dev:convex:once": "pnpm run prepare:component && convex dev --once",
     "start": "pnpm run prepare:component && tsx src/index.ts",

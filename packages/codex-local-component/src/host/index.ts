@@ -11,12 +11,16 @@ export {
 } from "./runtime.js";
 
 export {
+  defineDispatchManagedHostEndpoints,
+  defineRuntimeOwnedHostEndpoints,
   defineDispatchManagedHostSlice,
   defineRuntimeOwnedHostSlice,
   type CodexHostSliceFeatures,
   type CodexHostSliceIngestMode,
   type CodexHostSliceProfile,
   type CodexHostSliceThreadMode,
+  type DefineDispatchManagedHostEndpointsOptions,
+  type DefineRuntimeOwnedHostEndpointsOptions,
   type DefineDispatchManagedHostSliceOptions,
   type DefineRuntimeOwnedHostSliceOptions,
   type DispatchManagedHostDefinitions,

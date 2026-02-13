@@ -15,11 +15,8 @@ Use `actor: { userId?: string }` at all host/component boundaries.
 ## Required Flow
 
 1. Mount component in `convex/convex.config.ts`.
-2. Generate host wrappers from manifest (`pnpm run host:generate`).
-3. Keep host files split:
-- `convex/chat.generated.ts` (generated)
-- `convex/chat.extensions.ts` (app-owned)
-- `convex/chat.ts` (stable re-export entrypoint)
+2. Define host wrappers in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`.
+3. Optionally define app-specific endpoints in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
 4. Start runtime with `dispatchManaged: false`.
 5. Submit turns through `runtime.sendTurn(text)`.
 6. Run `chat.validateHostWiring` at startup.
@@ -38,14 +35,54 @@ export default app;
 
 Run `npx convex dev` once so `components.codexLocal.*` types are generated.
 
-## Generate and Check Host Surfaces
+## Define Host Endpoints
 
-```bash
-pnpm run host:generate
-pnpm run host:check
+```ts
+import { mutation, query } from "./_generated/server";
+import { components } from "./_generated/api";
+import {
+  defineRuntimeOwnedHostEndpoints,
+  type HostActorContext,
+} from "@zakstam/codex-local-component/host/convex";
+
+export const SERVER_ACTOR: HostActorContext = Object.freeze({
+  ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
+});
+
+const defs = defineRuntimeOwnedHostEndpoints({
+  components,
+  serverActor: SERVER_ACTOR,
+});
+
+export const ensureThread = mutation(defs.mutations.ensureThread);
+export const enqueueTurnDispatch = mutation(defs.mutations.enqueueTurnDispatch);
+export const claimNextTurnDispatch = mutation(defs.mutations.claimNextTurnDispatch);
+export const markTurnDispatchStarted = mutation(defs.mutations.markTurnDispatchStarted);
+export const markTurnDispatchCompleted = mutation(defs.mutations.markTurnDispatchCompleted);
+export const markTurnDispatchFailed = mutation(defs.mutations.markTurnDispatchFailed);
+export const cancelTurnDispatch = mutation(defs.mutations.cancelTurnDispatch);
+export const ensureSession = mutation(defs.mutations.ensureSession);
+export const ingestEvent = mutation(defs.mutations.ingestEvent);
+export const ingestBatch = mutation(defs.mutations.ingestBatch);
+export const respondApprovalForHooks = mutation(defs.mutations.respondApprovalForHooks);
+export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsageForHooks);
+export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
+
+export const validateHostWiring = query(defs.queries.validateHostWiring);
+export const getTurnDispatchState = query(defs.queries.getTurnDispatchState);
+export const getDispatchObservability = query(defs.queries.getDispatchObservability);
+export const threadSnapshot = query(defs.queries.threadSnapshot);
+export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
+export const persistenceStats = query(defs.queries.persistenceStats);
+export const durableHistoryStats = query(defs.queries.durableHistoryStats);
+export const dataHygiene = query(defs.queries.dataHygiene);
+export const listThreadMessagesForHooks = query(defs.queries.listThreadMessagesForHooks);
+export const listTurnMessagesForHooks = query(defs.queries.listTurnMessagesForHooks);
+export const listPendingApprovalsForHooks = query(defs.queries.listPendingApprovalsForHooks);
+export const listTokenUsageForHooks = query(defs.queries.listTokenUsageForHooks);
 ```
 
-Generated wrappers use app `mutation(...)` and `query(...)` exports directly so Convex codegen and app-generated types stay authoritative.
+This keeps Convex codegen and app-generated types authoritative while avoiding consumer-side file generation.
 
 ## Runtime Contract
 

@@ -7,7 +7,7 @@ Canonical wiring in this app centers on:
 - `useCodexConversationController`
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
-- generated host wrappers in `convex/chat.generated.ts`
+- helper-defined host wrappers in `convex/chat.ts`
 - dispatch-managed host mode (`dispatchManaged: true`) with `runtime.startClaimedTurn(...)`
 
 Canonical consumer implementation path:
@@ -84,9 +84,8 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.generated.ts`: generated preset wrappers (reference only)
+- `convex/chat.ts`: app-owned guarded public surface (`api.chat.*`) that wraps helper-defined preset endpoints and enforces actor lock
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
-- `convex/chat.ts`: app-owned guarded public surface (`api.chat.*`) that wraps generated definitions and enforces actor lock
 
 Additional app-owned guarded cleanup endpoints:
 
@@ -101,12 +100,6 @@ Additional app-owned guarded cleanup endpoints:
 - `chat.getDeletionJobStatusForHooks`
 
 The Data cleanup panel schedules deletions with a grace window (10 minutes by default), allows undo/cancel before execution, and includes a force-run action to execute immediately.
-
-Regenerate wrappers from repo root:
-
-```bash
-pnpm run host:generate
-```
 
 ## Useful Checks
 

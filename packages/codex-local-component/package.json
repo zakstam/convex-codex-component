@@ -68,8 +68,6 @@
     "clean": "rm -rf dist",
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
-    "generate:host-surfaces": "pnpm run build && node ./scripts/generate-host-surfaces.mjs",
-    "check:host-surfaces": "pnpm run build && node ./scripts/generate-host-surfaces.mjs --check",
     "prepack": "pnpm run clean && pnpm run build",
     "typecheck": "tsc --noEmit",
     "test": "pnpm run build && node --test test/*.test.mjs",
@@ -77,7 +75,7 @@
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:host-surfaces && pnpm run check:docs:single-path"
+    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path"
   },
   "dependencies": {
     "ajv": "^8.17.1",

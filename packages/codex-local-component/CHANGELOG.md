@@ -1,5 +1,13 @@
 # @convex-dev/codex-local-component
 
+## 0.12.0
+
+### Minor Changes
+
+- 8769211: Adopt helper-first host wiring for consumers so host endpoints are defined directly in `convex/chat.ts` using `defineRuntimeOwnedHostEndpoints` / `defineDispatchManagedHostEndpoints`.
+
+  This removes consumer dependency on generated `chat.generated.ts` surfaces and updates examples, smoke host wiring, docs, and scripts to use the direct helper workflow.
+
 ## 0.11.0
 
 ### Minor Changes

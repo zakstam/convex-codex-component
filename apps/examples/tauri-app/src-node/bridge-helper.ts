@@ -24,6 +24,7 @@ type StartPayload = {
   sessionId: string;
   model?: string;
   cwd?: string;
+  disabledTools?: string[];
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
   threadStrategy?: "start" | "resume" | "fork";
@@ -52,6 +53,7 @@ type HelperCommand =
         chatgptPlanType?: string | null;
       };
     }
+  | { type: "set_disabled_tools"; payload: { tools: string[] } }
   | { type: "interrupt" }
   | { type: "stop" }
   | { type: "status" };
@@ -71,6 +73,7 @@ type HelperEvent =
         ingestSkippedEventCount: number;
         ingestEnqueuedByKind: Array<{ kind: string; count: number }>;
         ingestSkippedByKind: Array<{ kind: string; count: number }>;
+        disabledTools: string[];
       };
     }
   | { type: "event"; payload: { kind: string; threadId: string; turnId?: string; streamId?: string } }
@@ -196,6 +199,7 @@ let bridgeState: {
   ingestSkippedEventCount: number;
   ingestEnqueuedByKind: Array<{ kind: string; count: number }>;
   ingestSkippedByKind: Array<{ kind: string; count: number }>;
+  disabledTools: string[];
 } = {
   running: false,
   localThreadId: null,
@@ -207,7 +211,10 @@ let bridgeState: {
   ingestSkippedEventCount: 0,
   ingestEnqueuedByKind: [],
   ingestSkippedByKind: [],
+  disabledTools: [],
 };
+
+let latestStartPayload: StartPayload | null = null;
 
 const DYNAMIC_TOOLS: DynamicToolSpec[] = [
   {
@@ -231,7 +238,18 @@ const DYNAMIC_TOOLS: DynamicToolSpec[] = [
   },
 ];
 
+const DYNAMIC_TOOL_NAMES = new Set<string>(DYNAMIC_TOOLS.map((tool) => tool.name));
+
 const inFlightDynamicToolCalls = new Set<string>();
+
+function normalizeDisabledTools(tools: string[]): string[] {
+  return [...new Set(tools.map((tool) => tool.trim()).filter((tool) => tool.length > 0))].sort();
+}
+
+function resolveEnabledDynamicTools(disabledTools: string[]): DynamicToolSpec[] {
+  const disabled = new Set(disabledTools);
+  return DYNAMIC_TOOLS.filter((tool) => !disabled.has(tool.name));
+}
 
 function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
@@ -253,6 +271,7 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       ingestSkippedEventCount: bridgeState.ingestSkippedEventCount,
       ingestEnqueuedByKind: bridgeState.ingestEnqueuedByKind,
       ingestSkippedByKind: bridgeState.ingestSkippedByKind,
+      disabledTools: bridgeState.disabledTools,
     },
   });
 }
@@ -313,6 +332,18 @@ async function executeDynamicToolCall(
     ? Exclude<T, null>
     : never,
 ): Promise<{ success: boolean; contentItems: DynamicToolCallOutputContentItem[] }> {
+  if (bridgeState.disabledTools.includes(toolCall.tool)) {
+    return {
+      success: false,
+      contentItems: [
+        {
+          type: "inputText",
+          text: `Dynamic tool disabled by policy: ${toolCall.tool}`,
+        },
+      ],
+    };
+  }
+
   if (toolCall.tool !== "tauri_get_runtime_snapshot") {
     return {
       success: false,
@@ -362,6 +393,36 @@ async function executeDynamicToolCall(
       },
     ],
   };
+}
+
+async function setDisabledTools(tools: string[]): Promise<string[]> {
+  const normalized = normalizeDisabledTools(tools).filter((tool) => DYNAMIC_TOOL_NAMES.has(tool));
+  const unknown = tools
+    .map((tool) => tool.trim())
+    .filter((tool) => tool.length > 0)
+    .filter((tool) => !DYNAMIC_TOOL_NAMES.has(tool));
+  if (unknown.length > 0) {
+    const unknownToolNames = [...new Set(unknown)].sort();
+    throw new Error(`Unknown dynamic tool name(s): ${unknownToolNames.join(", ")}`);
+  }
+
+  bridgeState = {
+    ...bridgeState,
+    disabledTools: normalized,
+  };
+  emitState();
+  if (runtime && latestStartPayload) {
+    const strategy = runtimeThreadId ? "resume" : latestStartPayload.threadStrategy ?? "start";
+    const restartPayload: StartPayload = {
+      ...latestStartPayload,
+      disabledTools: normalized,
+      threadStrategy: strategy,
+      ...(runtimeThreadId ? { runtimeThreadId } : {}),
+    };
+    await stopCurrentBridge();
+    await startBridge(restartPayload);
+  }
+  return normalized;
 }
 
 async function handlePendingDynamicToolCalls(threadId: string): Promise<void> {
@@ -438,7 +499,16 @@ async function handlePendingDynamicToolCalls(threadId: string): Promise<void> {
 }
 
 async function startBridge(payload: StartPayload): Promise<void> {
+  const normalizedPayload = {
+    ...payload,
+    disabledTools: normalizeDisabledTools(payload.disabledTools ?? []),
+  };
+  latestStartPayload = normalizedPayload;
   if (runtime) {
+    bridgeState = {
+      ...bridgeState,
+      disabledTools: normalizedPayload.disabledTools,
+    };
     emitState();
     emit({ type: "ack", payload: { command: "start" } });
     return;
@@ -642,97 +712,6 @@ async function startBridge(payload: StartPayload): Promise<void> {
           },
         );
       },
-      enqueueTurnDispatch: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        return convex.mutation(
-          requireDefined(chatApi.enqueueTurnDispatch, "api.chat.enqueueTurnDispatch"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            ...(args.dispatchId ? { dispatchId: args.dispatchId } : {}),
-            turnId: args.turnId,
-            idempotencyKey: args.idempotencyKey,
-            input: args.input,
-          },
-        );
-      },
-      claimNextTurnDispatch: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        return convex.mutation(
-          requireDefined(chatApi.claimNextTurnDispatch, "api.chat.claimNextTurnDispatch"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            claimOwner: args.claimOwner,
-            ...(args.leaseMs ? { leaseMs: args.leaseMs } : {}),
-          },
-        );
-      },
-      markTurnDispatchStarted: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.markTurnDispatchStarted, "api.chat.markTurnDispatchStarted"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            dispatchId: args.dispatchId,
-            claimToken: args.claimToken,
-            ...(args.runtimeThreadId ? { runtimeThreadId: args.runtimeThreadId } : {}),
-            ...(args.runtimeTurnId ? { runtimeTurnId: args.runtimeTurnId } : {}),
-          },
-        );
-      },
-      markTurnDispatchCompleted: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.markTurnDispatchCompleted, "api.chat.markTurnDispatchCompleted"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            dispatchId: args.dispatchId,
-            claimToken: args.claimToken,
-          },
-        );
-      },
-      markTurnDispatchFailed: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.markTurnDispatchFailed, "api.chat.markTurnDispatchFailed"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            dispatchId: args.dispatchId,
-            claimToken: args.claimToken,
-            ...(args.code ? { code: args.code } : {}),
-            reason: args.reason,
-          },
-        );
-      },
-      cancelTurnDispatch: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.cancelTurnDispatch, "api.chat.cancelTurnDispatch"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            dispatchId: args.dispatchId,
-            ...(args.claimToken ? { claimToken: args.claimToken } : {}),
-            reason: args.reason,
-          },
-        );
-      },
       upsertTokenUsage: async (args) => {
         if (!convex) {
           throw new Error("Convex client not initialized.");
@@ -836,17 +815,17 @@ async function startBridge(payload: StartPayload): Promise<void> {
   });
 
   try {
+    const enabledDynamicTools = resolveEnabledDynamicTools(normalizedPayload.disabledTools);
     await runtime.start({
       actor: payload.actor,
       sessionId: activeSessionId,
-      dispatchManaged: false,
+      dynamicTools: enabledDynamicTools,
       ...(payload.externalThreadId ? { externalThreadId: payload.externalThreadId } : {}),
       ...(payload.runtimeThreadId ? { runtimeThreadId: payload.runtimeThreadId } : {}),
       ...(payload.threadStrategy ? { threadStrategy: payload.threadStrategy } : {}),
       ...(payload.model ? { model: payload.model } : {}),
       ...(payload.cwd ? { cwd: payload.cwd } : {}),
       ...(payload.deltaThrottleMs ? { ingestFlushMs: payload.deltaThrottleMs } : {}),
-      dynamicTools: DYNAMIC_TOOLS,
       runtime: startRuntimeOptions,
     });
 
@@ -1050,6 +1029,10 @@ async function handle(command: HelperCommand): Promise<void> {
     case "respond_chatgpt_auth_tokens_refresh":
       await respondChatgptAuthTokensRefresh(command.payload);
       emit({ type: "ack", payload: { command: "respond_chatgpt_auth_tokens_refresh" } });
+      return;
+    case "set_disabled_tools":
+      await setDisabledTools(command.payload.tools);
+      emit({ type: "ack", payload: { command: "set_disabled_tools" } });
       return;
     case "interrupt":
       interruptCurrentTurn();

@@ -1,12 +1,5 @@
 export const HOST_PRESET_DEFINITIONS = [
   {
-    builder: "defineDispatchManagedHostEndpoints",
-    profile: "dispatchManaged",
-    ingestMode: "mixed",
-    threadMode: "resolve",
-    intendedHost: "Tauri / externally claimed dispatch",
-  },
-  {
     builder: "defineRuntimeOwnedHostEndpoints",
     profile: "runtimeOwned",
     ingestMode: "streamOnly",
@@ -16,49 +9,9 @@ export const HOST_PRESET_DEFINITIONS = [
 ] as const;
 
 export const HOST_SURFACE_MANIFEST = {
-  dispatchManaged: {
-    mutations: [
-      "ensureThread",
-      "enqueueTurnDispatch",
-      "claimNextTurnDispatch",
-      "markTurnDispatchStarted",
-      "markTurnDispatchCompleted",
-      "markTurnDispatchFailed",
-      "cancelTurnDispatch",
-      "ensureSession",
-      "ingestEvent",
-      "ingestBatch",
-      "respondApprovalForHooks",
-      "upsertPendingServerRequestForHooks",
-      "resolvePendingServerRequestForHooks",
-      "upsertTokenUsageForHooks",
-      "interruptTurnForHooks",
-    ],
-    queries: [
-      "validateHostWiring",
-      "getTurnDispatchState",
-      "getDispatchObservability",
-      "threadSnapshot",
-      "threadSnapshotSafe",
-      "persistenceStats",
-      "durableHistoryStats",
-      "listThreadMessagesForHooks",
-      "listTurnMessagesForHooks",
-      "listThreadReasoningForHooks",
-      "listPendingApprovalsForHooks",
-      "listPendingServerRequestsForHooks",
-      "listTokenUsageForHooks",
-    ],
-  },
   runtimeOwned: {
     mutations: [
       "ensureThread",
-      "enqueueTurnDispatch",
-      "claimNextTurnDispatch",
-      "markTurnDispatchStarted",
-      "markTurnDispatchCompleted",
-      "markTurnDispatchFailed",
-      "cancelTurnDispatch",
       "ensureSession",
       "ingestEvent",
       "ingestBatch",
@@ -68,8 +21,6 @@ export const HOST_SURFACE_MANIFEST = {
     ],
     queries: [
       "validateHostWiring",
-      "getTurnDispatchState",
-      "getDispatchObservability",
       "threadSnapshot",
       "threadSnapshotSafe",
       "persistenceStats",

@@ -5,7 +5,7 @@ const packageRoot = process.cwd();
 const repoRoot = resolve(packageRoot, "../..");
 
 const CANONICAL_MARKER =
-  "Canonical default: runtime-owned host integration (`dispatchManaged: false`).";
+  "Canonical default: runtime-owned host integration.";
 const LLMS_PATH = "packages/codex-local-component/LLMS.md";
 
 const failures = [];
@@ -43,11 +43,6 @@ function assertNotRegex(source, pattern, label) {
 const llms = readPackageFile("LLMS.md");
 assertIncludes(llms, CANONICAL_MARKER, "LLMS.md");
 assertIncludes(llms, "## Hard Rule", "LLMS.md");
-assertIncludes(
-  llms,
-  "Do not implement dispatch-managed orchestration unless explicitly requested.",
-  "LLMS.md",
-);
 
 const canonicalDocs = [
   "README.md",
@@ -59,29 +54,7 @@ const canonicalDocs = [
 for (const relPath of canonicalDocs) {
   const source = readPackageFile(relPath);
   assertIncludes(source, CANONICAL_MARKER, relPath);
-  assertNotRegex(source, /dispatchManaged:\s*true/g, relPath);
-  assertNotRegex(source, /defineDispatchManagedHostSlice/g, relPath);
-  assertNotRegex(source, /startClaimedTurn\s*\(/g, relPath);
 }
-
-const dispatchManagedDoc = readPackageFile(
-  "docs/DISPATCH_MANAGED_REFERENCE_HOST.md",
-);
-assertIncludes(
-  dispatchManagedDoc,
-  "Advanced Appendix, Non-Default",
-  "docs/DISPATCH_MANAGED_REFERENCE_HOST.md",
-);
-assertIncludes(
-  dispatchManagedDoc,
-  "This guide is not the canonical consumer path.",
-  "docs/DISPATCH_MANAGED_REFERENCE_HOST.md",
-);
-assertIncludes(
-  dispatchManagedDoc,
-  "dispatchManaged: true",
-  "docs/DISPATCH_MANAGED_REFERENCE_HOST.md",
-);
 
 const runtimeOwnedDoc = readPackageFile("docs/RUNTIME_OWNED_REFERENCE_HOST.md");
 assertIncludes(runtimeOwnedDoc, CANONICAL_MARKER, "docs/RUNTIME_OWNED_REFERENCE_HOST.md");

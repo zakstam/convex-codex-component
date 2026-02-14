@@ -1,16 +1,11 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import {
-  cancelTurnDispatchForActor,
-  claimNextTurnDispatchForActor,
   dataHygiene,
-  dispatchObservabilityForActor,
   durableHistoryStats,
-  enqueueTurnDispatchForActor,
   ensureSession as ensureSessionHandler,
   ensureThreadByCreate,
   ensureThreadByResolve,
-  getTurnDispatchStateForActor,
   ingestBatchMixed,
   ingestBatchStreamOnly,
   ingestEventMixed,
@@ -22,9 +17,6 @@ import {
   listThreadMessagesForHooksForActor,
   listThreadReasoningForHooksForActor,
   listTurnMessagesForHooksForActor,
-  markTurnDispatchCompletedForActor,
-  markTurnDispatchFailedForActor,
-  markTurnDispatchStartedForActor,
   persistenceStats,
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
@@ -33,11 +25,8 @@ import {
   upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
   vHostActorContext,
-  vHostClaimedTurnDispatch,
   vHostDataHygiene,
-  vHostDispatchObservability,
   vHostDurableHistoryStats,
-  vHostEnqueueTurnDispatchResult,
   vHostEnsureSessionResult,
   vHostIngestSafeResult,
   vHostLifecycleInboundEvent,
@@ -45,8 +34,6 @@ import {
   vHostStreamArgs,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
-  vHostTurnDispatchState,
-  vHostTurnInput,
   type CodexHostComponentRefs,
   type CodexHostComponentsInput,
   type HostActorContext,
@@ -55,7 +42,7 @@ import {
 } from "./convexSlice.js";
 import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
 
-export type CodexHostSliceProfile = "runtimeOwned" | "dispatchManaged";
+export type CodexHostSliceProfile = "runtimeOwned";
 export type CodexHostSliceIngestMode = "streamOnly" | "mixed";
 export type CodexHostSliceThreadMode = "create" | "resolve";
 
@@ -64,7 +51,6 @@ export type CodexHostSliceFeatures = {
   approvals?: boolean;
   serverRequests?: boolean;
   reasoning?: boolean;
-  observability?: boolean;
   hygiene?: boolean;
   tokenUsage?: boolean;
 };
@@ -114,7 +100,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     approvals: options.features?.approvals ?? true,
     serverRequests: options.features?.serverRequests ?? true,
     reasoning: options.features?.reasoning ?? true,
-    observability: options.features?.observability ?? true,
     hygiene: options.features?.hygiene ?? true,
     tokenUsage: options.features?.tokenUsage ?? true,
   };
@@ -178,13 +163,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           turnId: checkTurnId,
         }),
       );
-      await runCheck("dispatch.getTurnDispatchState", () =>
-        ctx.runQuery(component.dispatch.getTurnDispatchState, {
-          actor: options.serverActor,
-          threadId: checkThreadId,
-        }),
-      );
-
       if (features.approvals) {
         await runCheck("approvals.listPending", () =>
           ctx.runQuery(component.approvals.listPending, {
@@ -399,163 +377,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
 
   const mutations = {
     ensureThread,
-    enqueueTurnDispatch: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        dispatchId: v.optional(v.string()),
-        turnId: v.string(),
-        idempotencyKey: v.string(),
-        input: vHostTurnInput,
-      },
-      returns: vHostEnqueueTurnDispatchResult,
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          dispatchId?: string;
-          turnId: string;
-          idempotencyKey: string;
-          input: Array<{
-            type: string;
-            text?: string;
-            url?: string;
-            path?: string;
-          }>;
-        },
-      ) =>
-        enqueueTurnDispatchForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
-    claimNextTurnDispatch: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        claimOwner: v.string(),
-        leaseMs: v.optional(v.number()),
-      },
-      returns: vHostClaimedTurnDispatch,
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          claimOwner: string;
-          leaseMs?: number;
-        },
-      ) =>
-        claimNextTurnDispatchForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
-    markTurnDispatchStarted: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        dispatchId: v.string(),
-        claimToken: v.string(),
-        runtimeThreadId: v.optional(v.string()),
-        runtimeTurnId: v.optional(v.string()),
-      },
-      returns: v.null(),
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          dispatchId: string;
-          claimToken: string;
-          runtimeThreadId?: string;
-          runtimeTurnId?: string;
-        },
-      ) =>
-        markTurnDispatchStartedForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
-    markTurnDispatchCompleted: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        dispatchId: v.string(),
-        claimToken: v.string(),
-      },
-      returns: v.null(),
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          dispatchId: string;
-          claimToken: string;
-        },
-      ) =>
-        markTurnDispatchCompletedForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
-    markTurnDispatchFailed: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        dispatchId: v.string(),
-        claimToken: v.string(),
-        code: v.optional(v.string()),
-        reason: v.string(),
-      },
-      returns: v.null(),
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          dispatchId: string;
-          claimToken: string;
-          code?: string;
-          reason: string;
-        },
-      ) =>
-        markTurnDispatchFailedForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
-    cancelTurnDispatch: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        dispatchId: v.string(),
-        claimToken: v.optional(v.string()),
-        reason: v.string(),
-      },
-      returns: v.null(),
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          dispatchId: string;
-          claimToken?: string;
-          reason: string;
-        },
-      ) =>
-        cancelTurnDispatchForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
     ensureSession: {
       args: {
         actor: vHostActorContext,
@@ -761,29 +582,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
 
   const queries = {
     validateHostWiring,
-    getTurnDispatchState: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-        dispatchId: v.optional(v.string()),
-        turnId: v.optional(v.string()),
-      },
-      returns: vHostTurnDispatchState,
-      handler: async (
-        ctx: HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-          dispatchId?: string;
-          turnId?: string;
-        },
-      ) =>
-        getTurnDispatchStateForActor(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
     threadSnapshot: {
       args: {
         actor: vHostActorContext,
@@ -858,33 +656,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           withServerActor(args, options.serverActor),
         ),
     },
-    ...(features.observability
-      ? {
-          getDispatchObservability: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              dispatchId: v.optional(v.string()),
-              turnId: v.optional(v.string()),
-            },
-            returns: vHostDispatchObservability,
-            handler: async (
-              ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                dispatchId?: string;
-                turnId?: string;
-              },
-            ) =>
-              dispatchObservabilityForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
-          },
-        }
-      : {}),
     ...(features.hygiene
       ? {
           dataHygiene: {
@@ -1082,8 +853,6 @@ type PickRequiredKeys<T, Keys extends keyof T> = {
   [K in Keys]-?: T[K];
 };
 
-type DispatchManagedMutationKeys = (typeof HOST_SURFACE_MANIFEST.dispatchManaged.mutations)[number];
-type DispatchManagedQueryKeys = (typeof HOST_SURFACE_MANIFEST.dispatchManaged.queries)[number];
 type RuntimeOwnedMutationKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.mutations)[number];
 type RuntimeOwnedQueryKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.queries)[number];
 
@@ -1102,59 +871,19 @@ function pickRequiredKeys<T extends Record<string, unknown>, Keys extends readon
   ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
 }
 
-export type DispatchManagedHostDefinitions = {
-  profile: "dispatchManaged";
-  mutations: PickRequiredKeys<CodexHostSliceDefinitions["mutations"], DispatchManagedMutationKeys>;
-  queries: PickRequiredKeys<CodexHostSliceDefinitions["queries"], DispatchManagedQueryKeys>;
-};
-
 export type RuntimeOwnedHostDefinitions = {
   profile: "runtimeOwned";
   mutations: PickRequiredKeys<CodexHostSliceDefinitions["mutations"], RuntimeOwnedMutationKeys>;
   queries: PickRequiredKeys<CodexHostSliceDefinitions["queries"], RuntimeOwnedQueryKeys>;
 };
 
-export type DefineDispatchManagedHostSliceOptions<
-  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-> = Pick<DefineCodexHostSliceOptions<Components>, "components" | "serverActor">;
-
 export type DefineRuntimeOwnedHostSliceOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
 > = Pick<DefineCodexHostSliceOptions<Components>, "components" | "serverActor">;
 
-export type DefineDispatchManagedHostEndpointsOptions<
-  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-> = DefineDispatchManagedHostSliceOptions<Components>;
-
 export type DefineRuntimeOwnedHostEndpointsOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
 > = DefineRuntimeOwnedHostSliceOptions<Components>;
-
-export function defineDispatchManagedHostSlice<Components extends CodexHostComponentsInput>(
-  options: DefineDispatchManagedHostSliceOptions<Components>,
-): DispatchManagedHostDefinitions {
-  const defs = defineCodexHostSlice({
-    ...options,
-    profile: "dispatchManaged",
-    ingestMode: "mixed",
-    threadMode: "resolve",
-    features: {
-      hooks: true,
-      approvals: true,
-      serverRequests: true,
-      reasoning: true,
-      observability: true,
-      hygiene: false,
-      tokenUsage: true,
-    },
-  });
-
-  return {
-    profile: "dispatchManaged",
-    mutations: pickRequiredKeys(defs.mutations, HOST_SURFACE_MANIFEST.dispatchManaged.mutations),
-    queries: pickRequiredKeys(defs.queries, HOST_SURFACE_MANIFEST.dispatchManaged.queries),
-  };
-}
 
 export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponentsInput>(
   options: DefineRuntimeOwnedHostSliceOptions<Components>,
@@ -1169,7 +898,6 @@ export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponen
       approvals: true,
       serverRequests: false,
       reasoning: false,
-      observability: true,
       hygiene: true,
       tokenUsage: true,
     },
@@ -1180,12 +908,6 @@ export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponen
     mutations: pickRequiredKeys(defs.mutations, HOST_SURFACE_MANIFEST.runtimeOwned.mutations),
     queries: pickRequiredKeys(defs.queries, HOST_SURFACE_MANIFEST.runtimeOwned.queries),
   };
-}
-
-export function defineDispatchManagedHostEndpoints<Components extends CodexHostComponentsInput>(
-  options: DefineDispatchManagedHostEndpointsOptions<Components>,
-): DispatchManagedHostDefinitions {
-  return defineDispatchManagedHostSlice(options);
 }
 
 export function defineRuntimeOwnedHostEndpoints<Components extends CodexHostComponentsInput>(

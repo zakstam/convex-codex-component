@@ -6,52 +6,34 @@ Canonical source for host preset surfaces.
 
 | Preset helper | Profile | Ingest mode | Thread mode | Intended host |
 | --- | --- | --- | --- | --- |
-| `defineDispatchManagedHostEndpoints` | `dispatchManaged` | `mixed` | `resolve` | Tauri / externally claimed dispatch |
 | `defineRuntimeOwnedHostEndpoints` | `runtimeOwned` | `streamOnly` | `create` | Runtime-owned orchestration |
 
 ## Deterministic query surface
 
-All focused preset builders include:
+The runtime-owned preset builder includes:
 
 - `validateHostWiring`
-- `getTurnDispatchState`
-- `getDispatchObservability`
 - `threadSnapshot`
 - `threadSnapshotSafe`
 - `persistenceStats`
 - `durableHistoryStats`
+- `dataHygiene`
 - `listThreadMessagesForHooks`
 - `listTurnMessagesForHooks`
 - `listPendingApprovalsForHooks`
 - `listTokenUsageForHooks`
 
-Additional query endpoints:
-
-- Dispatch-managed only: `listThreadReasoningForHooks`, `listPendingServerRequestsForHooks`
-- Runtime-owned only: `dataHygiene`
-
 ## Deterministic mutation surface
 
-All focused preset builders include:
+The runtime-owned preset builder includes:
 
 - `ensureThread`
-- `enqueueTurnDispatch`
-- `claimNextTurnDispatch`
-- `markTurnDispatchStarted`
-- `markTurnDispatchCompleted`
-- `markTurnDispatchFailed`
-- `cancelTurnDispatch`
 - `ensureSession`
 - `ingestEvent`
 - `ingestBatch`
 - `respondApprovalForHooks`
 - `upsertTokenUsageForHooks`
 - `interruptTurnForHooks`
-
-Dispatch-managed additionally includes:
-
-- `upsertPendingServerRequestForHooks`
-- `resolvePendingServerRequestForHooks`
 
 ## Wiring preflight
 

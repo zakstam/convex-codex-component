@@ -1,6 +1,6 @@
 # LLMS: Canonical Consumer Integration (Single Path)
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 Official recommendation: use React hooks as the primary consumer integration surface.
 Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 
@@ -15,7 +15,6 @@ Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 ## Hard Rule
 
 - Follow this file as the only default implementation strategy.
-- Do not implement dispatch-managed orchestration unless explicitly requested.
 - Define host wrappers with `defineRuntimeOwnedHostEndpoints(...)`.
 - Always use app-generated Convex types from `./_generated/api` and `./_generated/server`.
 
@@ -120,20 +119,17 @@ const runtime = createCodexHostRuntime({
 });
 ```
 
-- Runtime startup must be explicit runtime-owned:
+- Runtime startup:
 
 ```ts
 await runtime.start({
   actor,
   sessionId,
-  dispatchManaged: false,
   threadStrategy: "start",
 });
 ```
 
 6. Start turns through `runtime.sendTurn(text)`.
-
-- Do not call `startClaimedTurn` in the canonical path.
 
 7. Validate host wiring during startup.
 
@@ -150,7 +146,7 @@ await runtime.start({
 - `useCodexApprovals` -> `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks`
 - `useCodexDynamicTools` -> `chat.listPendingServerRequestsForHooks` + runtime `respondDynamicToolCall(...)`
 - `useCodexComposer` -> `chat.enqueueTurnDispatch`
-- Prefer `useCodexConversationController` for bundled wiring (messages + activity + approvals + composer + interrupt).
+- Prefer `useCodexChat` for bundled wiring (messages + activity + approvals + composer + interrupt + explicit tool controls), or `useCodexConversationController` when you need the lower-level contract.
 - Use `useCodexRuntimeBridge`, `useCodexAccountAuth`, and `useCodexThreads` for bridge lifecycle, auth flows, and thread selection state in React apps.
 - Treat `threadSnapshotSafe` timestamps as terminal-aware authority (`completedAt/updatedAt` before `createdAt`) when deriving terminal boundary decisions.
 

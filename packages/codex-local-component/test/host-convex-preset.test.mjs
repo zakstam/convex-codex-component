@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  defineDispatchManagedHostEndpoints,
-  defineDispatchManagedHostSlice,
   defineRuntimeOwnedHostEndpoints,
   defineRuntimeOwnedHostSlice,
   HOST_SURFACE_MANIFEST,
@@ -15,7 +13,6 @@ function createComponentRefs() {
   return {
     codexLocal: {
       approvals: {},
-      dispatch: {},
       messages: {},
       reasoning: {},
       serverRequests: {},
@@ -26,23 +23,6 @@ function createComponentRefs() {
   };
 }
 
-test("defineDispatchManagedHostSlice returns deterministic full dispatch surface", () => {
-  const defs = defineDispatchManagedHostSlice({
-    components: createComponentRefs(),
-    serverActor: actor,
-  });
-
-  assert.ok(defs.mutations.ensureThread);
-  assert.ok(defs.mutations.ingestBatch);
-  assert.ok(defs.mutations.respondApprovalForHooks);
-  assert.ok(defs.mutations.upsertPendingServerRequestForHooks);
-  assert.ok(defs.queries.listThreadMessagesForHooks);
-  assert.ok(defs.queries.validateHostWiring);
-  assert.ok(defs.queries.listThreadReasoningForHooks);
-  assert.ok(defs.queries.getDispatchObservability);
-  assert.ok(defs.queries.listPendingServerRequestsForHooks);
-});
-
 test("defineRuntimeOwnedHostSlice returns deterministic runtime-owned surface", () => {
   const defs = defineRuntimeOwnedHostSlice({
     components: createComponentRefs(),
@@ -50,27 +30,11 @@ test("defineRuntimeOwnedHostSlice returns deterministic runtime-owned surface", 
   });
 
   assert.ok(defs.mutations.ensureThread);
-  assert.ok(defs.mutations.claimNextTurnDispatch);
   assert.ok(defs.mutations.ingestEvent);
   assert.ok(defs.mutations.respondApprovalForHooks);
   assert.ok(defs.queries.validateHostWiring);
-  assert.ok(defs.queries.getDispatchObservability);
   assert.ok(defs.queries.dataHygiene);
   assert.ok(defs.queries.listThreadMessagesForHooks);
-});
-
-test("defineDispatchManagedHostEndpoints matches defineDispatchManagedHostSlice output shape", () => {
-  const fromSlice = defineDispatchManagedHostSlice({
-    components: createComponentRefs(),
-    serverActor: actor,
-  });
-  const fromEndpoints = defineDispatchManagedHostEndpoints({
-    components: createComponentRefs(),
-    serverActor: actor,
-  });
-
-  assert.deepEqual(Object.keys(fromEndpoints.mutations).sort(), Object.keys(fromSlice.mutations).sort());
-  assert.deepEqual(Object.keys(fromEndpoints.queries).sort(), Object.keys(fromSlice.queries).sort());
 });
 
 test("defineRuntimeOwnedHostEndpoints matches defineRuntimeOwnedHostSlice output shape", () => {
@@ -150,7 +114,6 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
   const expectedCreateRef = Symbol("threads.create");
   const componentRefs = {
     approvals: {},
-    dispatch: {},
     messages: {},
     reasoning: {},
     serverRequests: {},
@@ -188,22 +151,6 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
   );
 });
 
-test("manifest mutations/queries stay in parity with dispatch-managed preset definitions", () => {
-  const defs = defineDispatchManagedHostSlice({
-    components: createComponentRefs(),
-    serverActor: actor,
-  });
-
-  assert.deepEqual(
-    Object.keys(defs.mutations).sort(),
-    [...HOST_SURFACE_MANIFEST.dispatchManaged.mutations].sort(),
-  );
-  assert.deepEqual(
-    Object.keys(defs.queries).sort(),
-    [...HOST_SURFACE_MANIFEST.dispatchManaged.queries].sort(),
-  );
-});
-
 test("manifest mutations/queries stay in parity with runtime-owned preset definitions", () => {
   const defs = defineRuntimeOwnedHostSlice({
     components: createComponentRefs(),
@@ -220,50 +167,3 @@ test("manifest mutations/queries stay in parity with runtime-owned preset defini
   );
 });
 
-test("dispatch-managed ingestBatch rejects untyped deltas", async () => {
-  const ingestSafeRef = Symbol("sync.ingestSafe");
-  const defs = defineDispatchManagedHostSlice({
-    components: {
-      codexLocal: {
-        approvals: {},
-        dispatch: {},
-        messages: {},
-        reasoning: {},
-        serverRequests: {},
-        sync: { ingestSafe: ingestSafeRef },
-        threads: {},
-        turns: {},
-      },
-    },
-    serverActor: actor,
-  });
-
-  await assert.rejects(
-    () =>
-      defs.mutations.ingestBatch.handler(
-        {
-          runMutation: async () => {
-            throw new Error("runMutation should not be called for untyped ingest deltas");
-          },
-        },
-        {
-          actor,
-          sessionId: "session-1",
-          threadId: "thread-1",
-          deltas: [
-            {
-              eventId: "e1",
-              turnId: "turn-1",
-              streamId: "stream-1",
-              kind: "turn/completed",
-              payloadJson: "{}",
-              cursorStart: 0,
-              cursorEnd: 1,
-              createdAt: 1,
-            },
-          ],
-        },
-      ),
-    /unknown event type/,
-  );
-});

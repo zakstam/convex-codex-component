@@ -39,6 +39,14 @@ export {
   type CodexConversationApprovalItem,
 } from "./useCodexConversationController.js";
 export {
+  useCodexChat,
+  type CodexChatConfig,
+  type CodexChatDynamicToolsConfig,
+  type CodexChatOptions,
+  type CodexChatResult,
+  type CodexChatTools,
+} from "./useCodexChat.js";
+export {
   useCodexDynamicTools,
   type CodexDynamicToolsQuery,
   type CodexDynamicToolsRespond,

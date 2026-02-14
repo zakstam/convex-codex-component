@@ -1,15 +1,12 @@
 # Operations and Error Catalog
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 
 This is an operations/runbook companion to `../LLMS.md`.
 
 ## Runtime Boundary Errors
 
-- `E_RUNTIME_DISPATCH_MODE_REQUIRED`: runtime started without explicit dispatch mode.
-- `E_RUNTIME_DISPATCH_MODE_CONFLICT`: runtime API used in the wrong mode for current startup config.
 - `E_RUNTIME_DISPATCH_TURN_IN_FLIGHT`: attempted to start another turn while one is active.
-- `E_RUNTIME_DISPATCH_CLAIM_INVALID`: claimed-turn payload was invalid.
 - `E_RUNTIME_PROTOCOL_EVENT_INVALID`: incoming event payload was malformed or inconsistent with required runtime shape.
 - `E_RUNTIME_INGEST_FLUSH_FAILED`: queued ingest flush failed and was surfaced explicitly.
 
@@ -41,8 +38,6 @@ Set `CODEX_BRIDGE_RAW_LOG=all|turns` to print raw `codex app-server` stdout line
 
 Use `sync.ingestSafe` in host wrappers so recoverable conditions return structured status instead of hard-failing the loop.
 `sync.ensureSession` is forward-only and session-safe: when the session already exists for the same actor but a different thread, it rebinds the session to the requested thread and returns `status: "active"` instead of throwing.
-`dispatch.markTurnStarted` treats invalid/missing `claimToken` as a no-op and leaves dispatch state unchanged.
-
 Public classifier utilities are available for consistent host/app fallback handling:
 
 - `parseErrorCode(error)`
@@ -73,8 +68,7 @@ Follow `nextCheckpoints` and persist with `sync.upsertCheckpoint`.
 ## Startup and Health Runbook
 
 1. Run `chat.validateHostWiring` at startup.
-2. Start runtime with `dispatchManaged: false`.
-3. Ensure one active turn at a time (`turnInFlight` guard).
+2. Ensure one active turn at a time (`turnInFlight` guard).
 4. On protocol errors, restart bridge runtime and rebind session.
 5. On stale/missing/mismatched session errors, call `sync.ensureSession` then continue ingest.
 
@@ -118,8 +112,3 @@ When pending server requests accumulate:
 3. Respond through the matching runtime response API.
 4. If turn already ended, treat request as expired.
 
-## Advanced Appendix (Non-Default)
-
-Dispatch-managed orchestration operations are documented separately:
-
-- `DISPATCH_MANAGED_REFERENCE_HOST.md`

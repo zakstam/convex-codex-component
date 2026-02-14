@@ -25,27 +25,6 @@ const vThreadState = v.object({
       completedAt: v.optional(v.number()),
     }),
   ),
-  dispatches: v.array(
-    v.object({
-      dispatchId: v.string(),
-      turnId: v.string(),
-      status: v.union(
-        v.literal("queued"),
-        v.literal("claimed"),
-        v.literal("started"),
-        v.literal("completed"),
-        v.literal("failed"),
-        v.literal("cancelled"),
-      ),
-      attemptCount: v.number(),
-      claimOwner: v.optional(v.string()),
-      leaseExpiresAt: v.number(),
-      failureCode: v.optional(v.string()),
-      failureReason: v.optional(v.string()),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-    }),
-  ),
   activeStreams: v.array(
     v.object({
       streamId: v.string(),
@@ -804,67 +783,6 @@ export const getState = query({
       )
       .take(200);
 
-    const dispatches = await ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_status_createdAt", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(args.actor))
-          .eq("threadId", args.threadId)
-          .eq("status", "queued"),
-      )
-      .order("desc")
-      .take(50);
-    const claimed = await ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_status_createdAt", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(args.actor))
-          .eq("threadId", args.threadId)
-          .eq("status", "claimed"),
-      )
-      .order("desc")
-      .take(50);
-    const started = await ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_status_createdAt", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(args.actor))
-          .eq("threadId", args.threadId)
-          .eq("status", "started"),
-      )
-      .order("desc")
-      .take(50);
-    const completed = await ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_status_createdAt", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(args.actor))
-          .eq("threadId", args.threadId)
-          .eq("status", "completed"),
-      )
-      .order("desc")
-      .take(50);
-    const failed = await ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_status_createdAt", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(args.actor))
-          .eq("threadId", args.threadId)
-          .eq("status", "failed"),
-      )
-      .order("desc")
-      .take(50);
-    const cancelled = await ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_status_createdAt", (q) =>
-        q
-          .eq("userScope", userScopeFromActor(args.actor))
-          .eq("threadId", args.threadId)
-          .eq("status", "cancelled"),
-      )
-      .order("desc")
-      .take(50);
-
     const stats = await ctx.db
       .query("codex_stream_stats")
       .withIndex("userScope_threadId", (q) =>
@@ -948,22 +866,6 @@ export const getState = query({
         startedAt: Number(turn.startedAt),
         ...(turn.completedAt !== undefined ? { completedAt: Number(turn.completedAt) } : {}),
       })),
-      dispatches: [...dispatches, ...claimed, ...started, ...completed, ...failed, ...cancelled]
-        .filter((dispatch) => dispatch.userId === args.actor.userId)
-        .sort((left, right) => Number(right.updatedAt) - Number(left.updatedAt))
-        .slice(0, 50)
-        .map((dispatch) => ({
-          dispatchId: String(dispatch.dispatchId),
-          turnId: String(dispatch.turnId),
-          status: dispatch.status,
-          attemptCount: Number(dispatch.attemptCount),
-          leaseExpiresAt: Number(dispatch.leaseExpiresAt),
-          createdAt: Number(dispatch.createdAt),
-          updatedAt: Number(dispatch.updatedAt),
-          ...(dispatch.claimOwner !== undefined ? { claimOwner: dispatch.claimOwner } : {}),
-          ...(dispatch.failureCode !== undefined ? { failureCode: dispatch.failureCode } : {}),
-          ...(dispatch.failureReason !== undefined ? { failureReason: dispatch.failureReason } : {}),
-        })),
       activeStreams: allStreams.filter((stream) => stream.state === "streaming"),
       allStreams,
       streamStats: stats.map((stat) => ({

@@ -1,7 +1,9 @@
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { defineDispatchManagedHostEndpoints } from "@zakstam/codex-local-component/host/convex";
-import { vHostActorContext } from "@zakstam/codex-local-component/host/convex";
+import {
+  defineRuntimeOwnedHostEndpoints,
+  vHostActorContext,
+} from "@zakstam/codex-local-component/host/convex";
 import { v } from "convex/values";
 import {
   SERVER_ACTOR,
@@ -10,7 +12,7 @@ import {
 } from "./actorLock";
 export { getActorBindingForBootstrap, listThreadsForPicker } from "./chat.extensions";
 
-const defs = defineDispatchManagedHostEndpoints({
+const defs = defineRuntimeOwnedHostEndpoints({
   components,
   serverActor: SERVER_ACTOR,
 });
@@ -20,54 +22,6 @@ export const ensureThread = mutation({
   handler: async (ctx, args) => {
     await requireBoundServerActorForMutation(ctx, args.actor);
     return defs.mutations.ensureThread.handler(ctx, args);
-  },
-});
-
-export const enqueueTurnDispatch = mutation({
-  ...defs.mutations.enqueueTurnDispatch,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.enqueueTurnDispatch.handler(ctx, args);
-  },
-});
-
-export const claimNextTurnDispatch = mutation({
-  ...defs.mutations.claimNextTurnDispatch,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.claimNextTurnDispatch.handler(ctx, args);
-  },
-});
-
-export const markTurnDispatchStarted = mutation({
-  ...defs.mutations.markTurnDispatchStarted,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.markTurnDispatchStarted.handler(ctx, args);
-  },
-});
-
-export const markTurnDispatchCompleted = mutation({
-  ...defs.mutations.markTurnDispatchCompleted,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.markTurnDispatchCompleted.handler(ctx, args);
-  },
-});
-
-export const markTurnDispatchFailed = mutation({
-  ...defs.mutations.markTurnDispatchFailed,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.markTurnDispatchFailed.handler(ctx, args);
-  },
-});
-
-export const cancelTurnDispatch = mutation({
-  ...defs.mutations.cancelTurnDispatch,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.cancelTurnDispatch.handler(ctx, args);
   },
 });
 
@@ -100,22 +54,6 @@ export const respondApprovalForHooks = mutation({
   handler: async (ctx, args) => {
     await requireBoundServerActorForMutation(ctx, args.actor);
     return defs.mutations.respondApprovalForHooks.handler(ctx, args);
-  },
-});
-
-export const upsertPendingServerRequestForHooks = mutation({
-  ...defs.mutations.upsertPendingServerRequestForHooks,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.upsertPendingServerRequestForHooks.handler(ctx, args);
-  },
-});
-
-export const resolvePendingServerRequestForHooks = mutation({
-  ...defs.mutations.resolvePendingServerRequestForHooks,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.resolvePendingServerRequestForHooks.handler(ctx, args);
   },
 });
 
@@ -314,22 +252,6 @@ export const validateHostWiring = query({
   },
 });
 
-export const getTurnDispatchState = query({
-  ...defs.queries.getTurnDispatchState,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.getTurnDispatchState.handler(ctx, args);
-  },
-});
-
-export const getDispatchObservability = query({
-  ...defs.queries.getDispatchObservability,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.getDispatchObservability.handler(ctx, args);
-  },
-});
-
 export const threadSnapshot = query({
   ...defs.queries.threadSnapshot,
   handler: async (ctx, args) => {
@@ -378,27 +300,11 @@ export const listTurnMessagesForHooks = query({
   },
 });
 
-export const listThreadReasoningForHooks = query({
-  ...defs.queries.listThreadReasoningForHooks,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.listThreadReasoningForHooks.handler(ctx, args);
-  },
-});
-
 export const listPendingApprovalsForHooks = query({
   ...defs.queries.listPendingApprovalsForHooks,
   handler: async (ctx, args) => {
     await requireBoundServerActorForQuery(ctx, args.actor);
     return defs.queries.listPendingApprovalsForHooks.handler(ctx, args);
-  },
-});
-
-export const listPendingServerRequestsForHooks = query({
-  ...defs.queries.listPendingServerRequestsForHooks,
-  handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.listPendingServerRequestsForHooks.handler(ctx, args);
   },
 });
 

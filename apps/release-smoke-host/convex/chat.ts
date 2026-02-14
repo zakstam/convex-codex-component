@@ -15,12 +15,6 @@ const defs = defineRuntimeOwnedHostEndpoints({
 });
 
 export const ensureThread = mutation(defs.mutations.ensureThread);
-export const enqueueTurnDispatch = mutation(defs.mutations.enqueueTurnDispatch);
-export const claimNextTurnDispatch = mutation(defs.mutations.claimNextTurnDispatch);
-export const markTurnDispatchStarted = mutation(defs.mutations.markTurnDispatchStarted);
-export const markTurnDispatchCompleted = mutation(defs.mutations.markTurnDispatchCompleted);
-export const markTurnDispatchFailed = mutation(defs.mutations.markTurnDispatchFailed);
-export const cancelTurnDispatch = mutation(defs.mutations.cancelTurnDispatch);
 export const ensureSession = mutation(defs.mutations.ensureSession);
 export const ingestEvent = mutation(defs.mutations.ingestEvent);
 export const ingestBatch = mutation(defs.mutations.ingestBatch);
@@ -29,8 +23,6 @@ export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsage
 export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
 
 export const validateHostWiring = query(defs.queries.validateHostWiring);
-export const getTurnDispatchState = query(defs.queries.getTurnDispatchState);
-export const getDispatchObservability = query(defs.queries.getDispatchObservability);
 export const threadSnapshot = query(defs.queries.threadSnapshot);
 export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
 export const persistenceStats = query(defs.queries.persistenceStats);

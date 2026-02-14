@@ -203,15 +203,6 @@ async function runThreadBatch(args: {
       limit,
     }),
   );
-  await runStep("codex_turn_dispatches", async (limit) => {
-    const docs = await args.ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_dispatchId", (q) =>
-        q.eq("userScope", args.job.userScope).eq("threadId", threadId),
-      )
-      .take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
   await runStep("codex_server_requests", async (limit) => {
     const docs = await args.ctx.db
       .query("codex_server_requests")
@@ -390,15 +381,6 @@ async function runTurnBatch(args: {
       limit,
     }),
   );
-  await runStep("codex_turn_dispatches", async (limit) => {
-    const docs = await args.ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_turnId", (q) =>
-        q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId),
-      )
-      .take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
   await runStep("codex_server_requests", async (limit) => {
     const docs = await args.ctx.db
       .query("codex_server_requests")
@@ -530,13 +512,6 @@ async function runActorBatch(args: {
     const docs = await args.ctx.db
       .query("codex_stream_deltas_ttl")
       .withIndex("userScope", (q) => q.eq("userScope", args.job.userScope))
-      .take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_turn_dispatches", async (limit) => {
-    const docs = await args.ctx.db
-      .query("codex_turn_dispatches")
-      .withIndex("userScope_threadId_dispatchId", (q) => q.eq("userScope", args.job.userScope))
       .take(limit);
     return deleteDocs(args.ctx, docs);
   });

@@ -44,15 +44,8 @@ Runtime-safe Convex helpers (queries/mutations) and core domain types.
 | `listThreads` | Render thread lists in UI and admin surfaces. |
 | `resolveThread` | Load the latest thread state before rendering a context. |
 | `getThreadState` | Read thread lifecycle state in one call. |
-| `startTurn` | Start a new turn with runtime-owned dispatch. |
+| `startTurn` | Start a new turn. |
 | `interruptTurn` | Cancel an in-flight turn. |
-| `enqueueTurnDispatch` | Seed the host dispatch queue. |
-| `claimNextTurnDispatch` | Pick the next dispatch for worker processing. |
-| `markTurnStarted` | Transition dispatch state to running. |
-| `markTurnCompleted` | Mark dispatch as done after turn completion. |
-| `markTurnFailed` | Persist failure outcomes for retry/recovery logic. |
-| `cancelTurnDispatch` | Cancel pending or running dispatches safely. |
-| `getTurnDispatchState` | Inspect dispatch status for diagnostics/UI status chips. |
 | `listMessages` | Read persisted thread messages. |
 | `listReasoningByThread` | Read reasoning records for a thread. |
 | `listPendingApprovals` | Show pending approvals in UI. |
@@ -71,6 +64,9 @@ Primary consumer surface for UI apps.
 | API | What you use it for |
 | --- | --- |
 | `useCodexConversationController` | Most complete UI integration: messages, state, composer, approvals, and interrupt flow. |
+| `useCodexChat` | High-level conversation facade with message/activity/composer orchestration plus explicit tool policy controls (`disableTools`, `overrideToolHandler`, etc.). |
+| `CodexChatOptions` | Configuration object for `useCodexChat` with built-in message, state, and tool policy inputs. |
+| `CodexChatTools` | Tool policy control surface returned by `useCodexChat` (`disableTools`, `overrideToolHandler`, etc.). |
 | `useCodexMessages` | Fetch paginated message history for chat views. |
 | `useCodexStreamingMessages` | Stream overlay messages while preserving stream ordering. |
 | `useCodexThreadState` | Show loading/spinner/error from thread lifecycle. |
@@ -111,9 +107,7 @@ Runtime ownership and host wiring for Convex surface generation.
 | --- | --- |
 | `createCodexHostRuntime` | Create the runtime process adapter used by app-server bridge consumers. |
 | `defineRuntimeOwnedHostEndpoints` | Generate canonical runtime-owned Convex wrappers. |
-| `defineDispatchManagedHostEndpoints` | Generate dispatch-managed wrappers for advanced orchestration. |
 | `defineRuntimeOwnedHostSlice` | Build a runtime-owned host slice definition. |
-| `defineDispatchManagedHostSlice` | Build a dispatch-managed host slice definition. |
 | `wrapHostDefinitions` | Re-wrap generated endpoint definitions for export. |
 | `HOST_PRESET_DEFINITIONS` | Canonical built-in surface definitions for host setup. |
 | `HOST_SURFACE_MANIFEST` | Shared manifest of host mutation/query capabilities. |
@@ -137,9 +131,7 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | API | What it gives you |
 | --- | --- |
 | `defineRuntimeOwnedHostEndpoints` | Build runtime-owned preset endpoints for host files. |
-| `defineDispatchManagedHostEndpoints` | Build dispatch-managed preset endpoints in Convex files. |
 | `defineRuntimeOwnedHostSlice` | Define a runtime-owned host slice from Convex runtime context. |
-| `defineDispatchManagedHostSlice` | Define a dispatch-managed host slice from Convex runtime context. |
 | `wrapHostDefinitions` | Export-ready wrapper for generated endpoint sets. |
 | `HOST_PRESET_DEFINITIONS` | Built-in preset endpoints and role map. |
 | `HOST_SURFACE_MANIFEST` | Canonical mutation/query manifest for boundary wiring. |
@@ -147,12 +139,6 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | `computeDataHygiene` | Convex-safe hygiene metrics query builder. |
 | `computeDurableHistoryStats` | Convex-safe durable history metrics query builder. |
 | `computePersistenceStats` | Convex-safe persistence metrics query builder. |
-| `enqueueTurnDispatchForActor` | Actor-scoped dispatch queue mutation. |
-| `claimNextTurnDispatchForActor` | Actor-scoped dispatch claim helper. |
-| `markTurnDispatchStartedForActor` | Mark actor dispatch as started. |
-| `markTurnDispatchCompletedForActor` | Mark actor dispatch as completed. |
-| `markTurnDispatchFailedForActor` | Mark actor dispatch as failed with persistence state. |
-| `getTurnDispatchStateForActor` | Actor-scoped dispatch-state readback for debugging/UI. |
 | `listThreadMessagesForHooksForActor` | Convex query for actor-scoped thread messages. |
 | `listThreadReasoningForHooksForActor` | Convex query for actor-scoped reasoning messages. |
 | `listPendingApprovalsForHooksForActor` | Convex query for actor-scoped approvals. |

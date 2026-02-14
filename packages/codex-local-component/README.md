@@ -8,7 +8,7 @@ Convex component for Codex integrations where Codex runs locally while thread st
 > `@zakstam/codex-local-component` is in **alpha** and ready for active testing.
 > It is still experimental and **not** ready for production use.
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 
 ## Install
 

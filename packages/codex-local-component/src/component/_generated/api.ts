@@ -9,7 +9,6 @@
  */
 
 import type * as approvals from "../approvals.js";
-import type * as dispatch from "../dispatch.js";
 import type * as index from "../index.js";
 import type * as ingest_applyApprovals from "../ingest/applyApprovals.js";
 import type * as ingest_applyMessages from "../ingest/applyMessages.js";
@@ -50,7 +49,6 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   approvals: typeof approvals;
-  dispatch: typeof dispatch;
   index: typeof index;
   "ingest/applyApprovals": typeof ingest_applyApprovals;
   "ingest/applyMessages": typeof ingest_applyMessages;

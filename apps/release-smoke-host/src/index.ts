@@ -394,15 +394,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
 
   if (event.kind === "turn/started" && event.turnId) {
     turnId = event.turnId;
-    if (pendingTurn && threadId) {
-      await convex.mutation(api.chat.enqueueTurnDispatch, {
-        actor,
-        threadId,
-        dispatchId: randomUUID(),
-        turnId: event.turnId,
-        idempotencyKey: pendingTurn.idempotencyKey,
-        input: [{ type: "text", text: pendingTurn.inputText }],
-      });
+    if (pendingTurn) {
       pendingTurn = null;
     }
   }

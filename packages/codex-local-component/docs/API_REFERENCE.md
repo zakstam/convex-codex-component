@@ -12,7 +12,7 @@ Pick one path first, then expand only where needed:
 
 - **UI-first apps:** `@zakstam/codex-local-component/react` + `@zakstam/codex-local-component/react-integration`
 - **Host + Convex wiring:** `@zakstam/codex-local-component/host/convex` + `@zakstam/codex-local-component/host`
-- **Protocol/debug tooling:** `@zakstam/codex-local-component/protocol` + `@zakstam/codex-local-component/app-server` + `@zakstam/codex-local-component/bridge`
+- **Protocol/debug tooling:** `@zakstam/codex-local-component/protocol` + `@zakstam/codex-local-component/host`
 
 If you are unsure, start with one path and stay there until it works, then layer in the next path.
 
@@ -109,6 +109,31 @@ Runtime ownership and host wiring for Convex surface generation.
 | `threadSnapshotSafe` | Read terminal-aware thread snapshot for orchestration. |
 | `listPendingApprovalsForHooksForActor` | Actor-scoped approval query helper used by UI hooks. |
 | `respondApprovalForHooksForActor` | Persist approval decisions from UI/runtime adapters. |
+| `CodexLocalBridge` | Spawn, monitor, and stop a local codex app-server process. |
+| `BridgeConfig` | Configure bridge process path and working directory. |
+| `BridgeHandlers` | Implement event/protocol/error callbacks. |
+| `BridgeError` | Standard error envelope for protocol callback failures. |
+| `buildClientRequest` | Create a base typed client request wrapper. |
+| `buildInitializeRequestWithCapabilities` | Initialize app-server sessions with explicit capabilities. |
+| `buildInitializedNotification` | Report the completed initialize state. |
+| `buildThreadStartRequest` | Start a thread with a typed request. |
+| `buildThreadResumeRequest` | Resume a thread with typed request shape. |
+| `buildThreadForkRequest` | Fork a thread in app-server protocol terms. |
+| `buildThreadReadRequest` | Read a thread by request context. |
+| `buildThreadListRequest` | List threads with canonical list request payload. |
+| `buildThreadLoadedListRequest` | Load history-style thread listing payload. |
+| `buildThreadArchiveRequest` | Archive thread request payload. |
+| `buildThreadUnarchiveRequest` | Unarchive thread request payload. |
+| `buildTurnStartRequest` | Start a turn with typed payload. |
+| `buildTurnInterruptRequest` | Interrupt a running turn via app-server protocol. |
+| `buildCommandExecutionApprovalResponse` | Build response payload for command approval tool calls. |
+| `buildDynamicToolCallResponse` | Build response for dynamic tool invocation completion. |
+| `RECOVERABLE_INGEST_ERROR_CODES` | Shared set of recoverable ingest codes. |
+| `parseErrorCode` | Extract canonical uppercase error code from unknown values. |
+| `isThreadMissing` | Check if an error means thread/session context is missing. |
+| `isThreadForbidden` | Check if an error is thread-level access denied. |
+| `isSessionForbidden` | Check if an error is session-level access denied. |
+| `isRecoverableIngestError` | Check whether an error is safe to retry for ingest pipelines. |
 
 ## `@zakstam/codex-local-component/host/convex`
 
@@ -130,28 +155,6 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | `listPendingApprovalsForHooksForActor` | Convex query for actor-scoped approvals. |
 | `listPendingServerRequestsForHooksForActor` | Convex query for actor-scoped server requests. |
 
-## `@zakstam/codex-local-component/app-server`
-
-High-signal request builders for Codex app-server wire calls.
-
-| API | What you use it for |
-| --- | --- |
-| `buildClientRequest` | Create a base typed client request wrapper. |
-| `buildInitializeRequestWithCapabilities` | Initialize app-server sessions with explicit capabilities. |
-| `buildInitializedNotification` | Report the completed initialize state. |
-| `buildThreadStartRequest` | Start a thread with a typed request. |
-| `buildThreadResumeRequest` | Resume a thread with typed request shape. |
-| `buildThreadForkRequest` | Fork a thread in app-server protocol terms. |
-| `buildThreadReadRequest` | Read a thread by request context. |
-| `buildThreadListRequest` | List threads with canonical list request payload. |
-| `buildThreadLoadedListRequest` | Load history-style thread listing payload. |
-| `buildThreadArchiveRequest` | Archive thread request payload. |
-| `buildThreadUnarchiveRequest` | Unarchive thread request payload. |
-| `buildTurnStartRequest` | Start a turn with typed payload. |
-| `buildTurnInterruptRequest` | Interrupt a running turn via app-server protocol. |
-| `buildCommandExecutionApprovalResponse` | Build response payload for command approval tool calls. |
-| `buildDynamicToolCallResponse` | Build response for dynamic tool invocation completion. |
-
 ## `@zakstam/codex-local-component/protocol`
 
 Message protocol parsing and classification primitives.
@@ -167,35 +170,11 @@ Message protocol parsing and classification primitives.
 | `extractTurnId` | Read turn id when present in inbound messages. |
 | `v2` | Access the generated v2 protocol schema namespace. |
 
-## `@zakstam/codex-local-component/bridge`
-
-Local runtime bridge for spawning/feeding the codex app-server process.
-
-| API | What it gives you |
-| --- | --- |
-| `CodexLocalBridge` | Spawn, monitor, and stop a local codex app-server process. |
-| `BridgeConfig` | Configure bridge process path and working directory. |
-| `BridgeHandlers` | Implement event/protocol/error callbacks. |
-| `BridgeError` | Standard error envelope for protocol callback failures. |
-
 ## `@zakstam/codex-local-component/convex.config`
 
 | API | What it gives you |
 | --- | --- |
 | `default` | Convex component registration for `defineComponent("codexLocal")`. |
-
-## `@zakstam/codex-local-component/errors`
-
-Shared error helpers used across host and Convex boundary surfaces.
-
-| API | What it is for |
-| --- | --- |
-| `RECOVERABLE_INGEST_ERROR_CODES` | Shared set of recoverable ingest codes. |
-| `parseErrorCode` | Extract canonical uppercase error code from unknown values. |
-| `isThreadMissing` | Check if an error means thread/session context is missing. |
-| `isThreadForbidden` | Check if an error is thread-level access denied. |
-| `isSessionForbidden` | Check if an error is session-level access denied. |
-| `isRecoverableIngestError` | Check whether an error is safe to retry for ingest pipelines. |
 
 ## Complete API Discovery
 
@@ -207,7 +186,4 @@ For complete export surfaces, use your editor's TypeScript completion on:
 - `@zakstam/codex-local-component/react-integration`
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/host/convex`
-- `@zakstam/codex-local-component/app-server`
 - `@zakstam/codex-local-component/protocol`
-- `@zakstam/codex-local-component/bridge`
-- `@zakstam/codex-local-component/errors`

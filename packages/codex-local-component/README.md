@@ -37,14 +37,13 @@ That file is the normative, single-path consumer strategy.
 
 ## Package Import Paths
 
-- `@zakstam/codex-local-component/convex.config`
-- `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component`
 - `@zakstam/codex-local-component/react`
 - `@zakstam/codex-local-component/react-integration`
-- `@zakstam/codex-local-component/errors`
-- `@zakstam/codex-local-component/bridge`
-- `@zakstam/codex-local-component/app-server`
 - `@zakstam/codex-local-component/protocol`
+- `@zakstam/codex-local-component/host`
+- `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component/convex.config`
 
 ## Docs Map
 

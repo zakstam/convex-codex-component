@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
+import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import type { CodexResponse, ServerInboundMessage } from "@zakstam/codex-local-component/protocol";
 import type {
   ClientNotification,

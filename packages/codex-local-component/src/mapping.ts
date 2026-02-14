@@ -1,4 +1,4 @@
-import type { CodexUIMessage } from "./client/types.js";
+import type { CodexUIMessage } from "./shared/types.js";
 import {
   durableMessageDeltaForPayload,
   durableMessageForPayload,

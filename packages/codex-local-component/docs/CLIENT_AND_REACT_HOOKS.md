@@ -14,39 +14,11 @@ All hook/query/mutation args use `actor: { userId?: string }`.
 
 ## SDK Surfaces
 
-- `@zakstam/codex-local-component/client`
+- `@zakstam/codex-local-component` (types and host utilities)
 - `@zakstam/codex-local-component/react`
 - `@zakstam/codex-local-component/react-integration`
 
 Host Convex wrappers should be defined in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`, with optional app-owned additions in `convex/chat.extensions.ts`.
-
-## Client Helpers
-
-Common helpers used by consumers:
-
-- `listMessages`
-- `listReasoningByThread`
-- `listTurnMessages`
-- `listPendingApprovals`
-- `respondToApproval`
-- `startTurn`
-- `interruptTurn`
-- `replayStreams`
-- `resumeStreamReplay`
-- `createThread`
-- `deleteThreadCascade`
-- `scheduleThreadDeleteCascade`
-- `purgeActorCodexData`
-- `schedulePurgeActorCodexData`
-- `cancelScheduledDeletion`
-- `forceRunScheduledDeletion`
-- `getDeletionJobStatus`
-- `resolveThread`
-- `resumeThread`
-- `getThreadState`
-- `listThreads`
-- `deleteTurnCascade`
-- `scheduleTurnDeleteCascade`
 
 ## React Hooks
 

@@ -4,10 +4,10 @@ src/host/convexPreset.ts:85:  return components as ExtractCodexHostComponentRefs
 src/host/convexPreset.ts:871:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
 src/component/threads.ts:118:    const parsed = JSON.parse(deletedCountsJson) as unknown;
 src/component/threads.ts:844:          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };
-src/host/convexSlice.ts:349:  const record = value as Record<string, unknown>;
-src/host/convexSlice.ts:361:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
-src/host/convexSlice.ts:369:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
-src/host/convexSlice.ts:377:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+src/host/convexSlice.ts:338:  const record = value as Record<string, unknown>;
+src/host/convexSlice.ts:350:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+src/host/convexSlice.ts:358:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+src/host/convexSlice.ts:366:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
 src/component/deletionInternal.ts:20:    const parsed = JSON.parse(deletedCountsJson) as unknown;
 src/component/deletionInternal.ts:82:  await Promise.all(docs.map((doc) => ctx.db.delete(doc._id as never)));
 src/host/runtime.ts:430:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;

@@ -33,29 +33,15 @@ Aggregate entrypoint used by consumers that want one import.
 | `aggregateCodexReasoningSegments` | Stabilizes and orders reasoning segments. |
 | `toCodexUIMessage` | Converts persisted data into a UI message shape. |
 | `mergeCodexDurableAndStreamMessages` | Finalizes durable + stream message views for rendering. |
-
-## `@zakstam/codex-local-component/client`
-
-Runtime-safe Convex helpers (queries/mutations) and core domain types.
-
-| API | What you use it for |
-| --- | --- |
-| `createThread` | Ensure a thread exists for an actor context. |
-| `listThreads` | Render thread lists in UI and admin surfaces. |
-| `resolveThread` | Load the latest thread state before rendering a context. |
-| `getThreadState` | Read thread lifecycle state in one call. |
-| `startTurn` | Start a new turn. |
-| `interruptTurn` | Cancel an in-flight turn. |
-| `listMessages` | Read persisted thread messages. |
-| `listReasoningByThread` | Read reasoning records for a thread. |
-| `listPendingApprovals` | Show pending approvals in UI. |
-| `respondToApproval` | Send approval or rejection for command/file requests. |
-| `listPendingServerRequests` | Read pending tool/app requests from host callbacks. |
-| `resolvePendingServerRequest` | Resolve a server-initiated request after user action. |
-| `deleteTurnCascade` | Delete a turn and all dependent turn data. |
-| `purgeActorCodexData` | Purge all data for an actor scope. |
-| `CodexActorContext` | Canonical actor argument contract for all client API calls. |
+| `CodexActorContext` | Canonical actor argument contract for all API calls. |
 | `CodexUIMessage` | Main UI message type returned by message-focused hooks/queries. |
+| `CodexComponent` | Type alias for the component API surface. |
+| `CodexQueryRunner` | Query runner context contract for host/component calls. |
+| `CodexMutationRunner` | Mutation runner context contract for host/component calls. |
+| `CodexMessageDoc` | Raw persisted message document type. |
+| `CodexReasoningSegment` | Persisted reasoning segment type. |
+| `CodexStreamOverlay` | Stream overlay return type from replay. |
+| `CodexSyncRuntimeOptions` | Runtime options for stream sync operations. |
 
 ## `@zakstam/codex-local-component/react`
 
@@ -216,7 +202,7 @@ Shared error helpers used across host and Convex boundary surfaces.
 This page is a curated quick-start map.
 For complete export surfaces, use your editor's TypeScript completion on:
 
-- `@zakstam/codex-local-component/client`
+- `@zakstam/codex-local-component`
 - `@zakstam/codex-local-component/react`
 - `@zakstam/codex-local-component/react-integration`
 - `@zakstam/codex-local-component/host`

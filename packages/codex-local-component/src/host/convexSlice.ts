@@ -1,17 +1,6 @@
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 import { v } from "convex/values";
 import {
-  getThreadState,
-  interruptTurn,
-  listPendingServerRequests,
-  listPendingApprovals,
-  listTurnMessages,
-  resolvePendingServerRequest,
-  respondToApproval,
-  startTurn,
-  upsertPendingServerRequest,
-} from "../client/index.js";
-import {
   ingestBatchSafe,
   listThreadMessagesForHooks,
   listThreadReasoningForHooks,
@@ -581,7 +570,7 @@ export async function threadSnapshot<
   component: Component,
   args: ThreadSnapshotArgs,
 ): Promise<FunctionReturnType<Component["threads"]["getState"]>> {
-  return getThreadState(ctx, component, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
+  return ctx.runQuery(component.threads.getState, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
 }
 
 function isThreadSnapshotSafeError(error: unknown): boolean {
@@ -706,7 +695,7 @@ export async function listTurnMessagesForHooksForActor<
     turnId: string;
   },
 ): Promise<FunctionReturnType<Component["messages"]["getByTurn"]>> {
-  return listTurnMessages(ctx, component, {
+  return ctx.runQuery(component.messages.getByTurn, {
     ...args,
     actor: args.actor,
   });
@@ -723,7 +712,7 @@ export async function listPendingApprovalsForHooksForActor<
     paginationOpts: { cursor: string | null; numItems: number };
   },
 ): Promise<FunctionReturnType<Component["approvals"]["listPending"]>> {
-  return listPendingApprovals(ctx, component, {
+  return ctx.runQuery(component.approvals.listPending, {
     ...args,
     actor: args.actor,
   });
@@ -742,7 +731,7 @@ export async function respondApprovalForHooksForActor<
     decision: "accepted" | "declined";
   },
 ): Promise<FunctionReturnType<Component["approvals"]["respond"]>> {
-  return respondToApproval(ctx, component, {
+  return ctx.runMutation(component.approvals.respond, {
     ...args,
     actor: args.actor,
   });
@@ -759,7 +748,7 @@ export async function listPendingServerRequestsForHooksForActor<
     limit?: number;
   },
 ): Promise<FunctionReturnType<Component["serverRequests"]["listPending"]>> {
-  return listPendingServerRequests(ctx, component, {
+  return ctx.runQuery(component.serverRequests.listPending, {
     ...args,
     actor: args.actor,
   });
@@ -787,7 +776,7 @@ export async function upsertPendingServerRequestForHooksForActor<
     requestedAt: number;
   },
 ): Promise<FunctionReturnType<Component["serverRequests"]["upsertPending"]>> {
-  return upsertPendingServerRequest(ctx, component, {
+  return ctx.runMutation(component.serverRequests.upsertPending, {
     ...args,
     actor: args.actor,
   });
@@ -807,7 +796,7 @@ export async function resolvePendingServerRequestForHooksForActor<
     responseJson?: string;
   },
 ): Promise<FunctionReturnType<Component["serverRequests"]["resolve"]>> {
-  return resolvePendingServerRequest(ctx, component, {
+  return ctx.runMutation(component.serverRequests.resolve, {
     ...args,
     actor: args.actor,
   });
@@ -881,7 +870,7 @@ export async function interruptTurnForHooksForActor<
     reason?: string;
   },
 ): Promise<FunctionReturnType<Component["turns"]["interrupt"]>> {
-  return interruptTurn(ctx, component, {
+  return ctx.runMutation(component.turns.interrupt, {
     ...args,
     actor: args.actor,
   });

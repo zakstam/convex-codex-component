@@ -170,8 +170,3 @@ If your app does not define `wiring:smoke`, run the check inline with `ConvexHtt
 
 If an endpoint belongs to preset behavior, add it in the package preset/manifest and consume it through the helper API.
 
-## Advanced Appendix (Non-Default)
-
-Dispatch-managed orchestration is advanced and non-default. Reference only when explicitly requested:
-
-- `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`

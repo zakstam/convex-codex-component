@@ -5,7 +5,7 @@ It is an example implementation of the package strategy defined in:
 
 - `packages/codex-local-component/LLMS.md`
 
-Canonical default used here: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default used here: runtime-owned host integration.
 
 ## Run
 

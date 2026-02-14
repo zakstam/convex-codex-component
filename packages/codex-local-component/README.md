@@ -31,7 +31,7 @@ That file is the normative, single-path consumer strategy.
 1. Mount component in `convex/convex.config.ts` with `app.use(codexLocal)`.
 2. Define host endpoints directly in `convex/chat.ts` with `defineRuntimeOwnedHostEndpoints(...)`.
 3. Optionally keep app-specific additions in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
-4. Start runtime in runtime-owned mode (`dispatchManaged: false`).
+4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
 
@@ -55,7 +55,6 @@ That file is the normative, single-path consumer strategy.
 - API reference (consumer-first quick-start + selected high-value entry points): `docs/API_REFERENCE.md`
 - Operations and errors: `docs/OPERATIONS_AND_ERRORS.md`
 - Reference matrix: `docs/HOST_PRESET_MATRIX.md`
-- Advanced appendix (non-default): `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`
 - Runtime-owned reference details: `docs/RUNTIME_OWNED_REFERENCE_HOST.md`
 
 ## Data Lifecycle APIs

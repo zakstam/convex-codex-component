@@ -24,7 +24,7 @@ Use one implementation path only:
 
 - `packages/codex-local-component/LLMS.md`
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 
 ## Monorepo Layout
 
@@ -79,4 +79,4 @@ pnpm start
 - Host details: `packages/codex-local-component/docs/HOST_INTEGRATION.md`
 - Hooks and client contracts: `packages/codex-local-component/docs/CLIENT_AND_REACT_HOOKS.md`
 - Operations and errors: `packages/codex-local-component/docs/OPERATIONS_AND_ERRORS.md`
-- Advanced appendix (non-default): `packages/codex-local-component/docs/DISPATCH_MANAGED_REFERENCE_HOST.md`
+- Runtime-owned reference details: `packages/codex-local-component/docs/RUNTIME_OWNED_REFERENCE_HOST.md`

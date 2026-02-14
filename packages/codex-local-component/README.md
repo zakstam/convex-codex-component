@@ -52,6 +52,7 @@ That file is the normative, single-path consumer strategy.
 - Canonical implementation: `./LLMS.md`
 - Host details (aligned to canonical path): `docs/HOST_INTEGRATION.md`
 - Client and hooks contracts: `docs/CLIENT_AND_REACT_HOOKS.md`
+- API reference (consumer-first quick-start + selected high-value entry points): `docs/API_REFERENCE.md`
 - Operations and errors: `docs/OPERATIONS_AND_ERRORS.md`
 - Reference matrix: `docs/HOST_PRESET_MATRIX.md`
 - Advanced appendix (non-default): `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`

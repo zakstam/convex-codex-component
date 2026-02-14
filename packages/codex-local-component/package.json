@@ -75,6 +75,7 @@
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
+    "check:api-reference": "node ./scripts/check-api-reference-useful.mjs",
     "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path"
   },
   "dependencies": {

@@ -2,6 +2,7 @@
 
 Canonical default: runtime-owned host integration (`dispatchManaged: false`).
 Official recommendation: use React hooks as the primary consumer integration surface.
+Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 
 ## Actor Scope Contract
 

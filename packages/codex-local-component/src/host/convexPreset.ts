@@ -3,14 +3,6 @@ import { v } from "convex/values";
 import {
   dataHygiene,
   durableHistoryStats,
-  ensureSession as ensureSessionHandler,
-  ensureThreadByCreate,
-  ensureThreadByResolve,
-  ingestBatchMixed,
-  ingestBatchStreamOnly,
-  ingestEventMixed,
-  ingestEventStreamOnly,
-  interruptTurnForHooksForActor,
   listPendingApprovalsForHooksForActor,
   listPendingServerRequestsForHooksForActor,
   listTokenUsageForHooksForActor,
@@ -18,28 +10,20 @@ import {
   listThreadReasoningForHooksForActor,
   listTurnMessagesForHooksForActor,
   persistenceStats,
-  resolvePendingServerRequestForHooksForActor,
-  respondApprovalForHooksForActor,
   threadSnapshot,
   threadSnapshotSafe,
-  upsertPendingServerRequestForHooksForActor,
-  upsertTokenUsageForActor,
   vHostActorContext,
   vHostDataHygiene,
   vHostDurableHistoryStats,
-  vHostEnsureSessionResult,
-  vHostIngestSafeResult,
-  vHostLifecycleInboundEvent,
   vHostPersistenceStats,
   vHostStreamArgs,
-  vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
   type CodexHostComponentRefs,
   type CodexHostComponentsInput,
   type HostActorContext,
-  type HostMutationRunner,
   type HostQueryRunner,
 } from "./convexSlice.js";
+import { buildPresetMutations } from "./convexPresetMutations.js";
 import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
 
 export type CodexHostSliceProfile = "runtimeOwned";
@@ -86,10 +70,7 @@ function resolveCodexComponent<Components extends CodexHostComponentsInput>(
 }
 
 function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
-  return {
-    ...args,
-    actor: serverActor,
-  };
+  return { ...args, actor: serverActor };
 }
 
 export function defineCodexHostSlice<Components extends CodexHostComponentsInput>(
@@ -132,550 +113,78 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             checks.push({ name, ok: true });
             return;
           }
-          checks.push({
-            name,
-            ok: false,
-            error: message,
-          });
+          checks.push({ name, ok: false, error: message });
         }
       };
 
       await runCheck("threads.getState", () =>
-        ctx.runQuery(component.threads.getState, {
-          actor: options.serverActor,
-          threadId: checkThreadId,
-        }),
+        ctx.runQuery(component.threads.getState, { actor: options.serverActor, threadId: checkThreadId }),
       );
       await runCheck("messages.listByThread", () =>
-        ctx.runQuery(component.messages.listByThread, {
-          actor: options.serverActor,
-          threadId: checkThreadId,
-          paginationOpts: {
-            cursor: null,
-            numItems: 1,
-          },
-        }),
+        ctx.runQuery(component.messages.listByThread, { actor: options.serverActor, threadId: checkThreadId, paginationOpts: { cursor: null, numItems: 1 } }),
       );
       await runCheck("messages.getByTurn", () =>
-        ctx.runQuery(component.messages.getByTurn, {
-          actor: options.serverActor,
-          threadId: checkThreadId,
-          turnId: checkTurnId,
-        }),
+        ctx.runQuery(component.messages.getByTurn, { actor: options.serverActor, threadId: checkThreadId, turnId: checkTurnId }),
       );
       if (features.approvals) {
         await runCheck("approvals.listPending", () =>
-          ctx.runQuery(component.approvals.listPending, {
-            actor: options.serverActor,
-            paginationOpts: {
-              cursor: null,
-              numItems: 1,
-            },
-          }),
+          ctx.runQuery(component.approvals.listPending, { actor: options.serverActor, paginationOpts: { cursor: null, numItems: 1 } }),
         );
       }
-
       if (features.reasoning) {
         await runCheck("reasoning.listByThread", () =>
-          ctx.runQuery(component.reasoning.listByThread, {
-            actor: options.serverActor,
-            threadId: checkThreadId,
-            paginationOpts: {
-              cursor: null,
-              numItems: 1,
-            },
-            includeRaw: false,
-          }),
+          ctx.runQuery(component.reasoning.listByThread, { actor: options.serverActor, threadId: checkThreadId, paginationOpts: { cursor: null, numItems: 1 }, includeRaw: false }),
         );
       }
-
       if (features.serverRequests) {
         await runCheck("serverRequests.listPending", () =>
-          ctx.runQuery(component.serverRequests.listPending, {
-            actor: options.serverActor,
-            limit: 1,
-          }),
+          ctx.runQuery(component.serverRequests.listPending, { actor: options.serverActor, limit: 1 }),
         );
       }
 
-      return {
-        ok: checks.every((check) => check.ok),
-        checks,
-      };
+      return { ok: checks.every((check) => check.ok), checks };
     },
   };
 
-  const ensureThread = {
-    args: {
-      actor: vHostActorContext,
-      threadId: v.optional(v.string()),
-      externalThreadId: v.optional(v.string()),
-      model: v.optional(v.string()),
-      cwd: v.optional(v.string()),
-    },
-    handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
-      actor: HostActorContext;
-      threadId?: string;
-      externalThreadId?: string;
-      model?: string;
-      cwd?: string;
-    }) => {
-      if (options.threadMode === "resolve") {
-        return ensureThreadByResolve(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        );
-      }
-      if (!args.threadId) {
-        throw new Error("ensureThread requires threadId when threadMode=create");
-      }
-      return ensureThreadByCreate(
-        ctx,
-        component,
-        withServerActor(
-          { ...args, threadId: args.threadId },
-          options.serverActor,
-        ),
-      );
-    },
-  };
-
-  const ingestEvent = {
-    args: {
-      actor: vHostActorContext,
-      sessionId: v.string(),
-      threadId: v.string(),
-      event: v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent),
-    },
-    returns: vHostIngestSafeResult,
-    handler: async (
-      ctx: HostMutationRunner & HostQueryRunner,
-      args: {
-        actor: HostActorContext;
-        sessionId: string;
-        threadId: string;
-        event:
-          | {
-              type: "stream_delta";
-              eventId: string;
-              turnId: string;
-              streamId: string;
-              kind: string;
-              payloadJson: string;
-              cursorStart: number;
-              cursorEnd: number;
-              createdAt: number;
-            }
-          | {
-              type: "lifecycle_event";
-              eventId: string;
-              turnId?: string;
-              kind: string;
-              payloadJson: string;
-              createdAt: number;
-            };
-      },
-    ) => {
-      if (options.ingestMode === "mixed") {
-        return ingestEventMixed(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        );
-      }
-
-      if (args.event.type === "lifecycle_event") {
-        throw new Error("ingestEvent(streamOnly) does not accept lifecycle events");
-      }
-      return ingestEventStreamOnly(
-        ctx,
-        component,
-        withServerActor({ ...args, event: args.event }, options.serverActor),
-      );
-    },
-  };
-
-  const ingestBatch = {
-    args: {
-      actor: vHostActorContext,
-      sessionId: v.string(),
-      threadId: v.string(),
-      deltas: v.array(v.union(vHostStreamInboundEvent, vHostLifecycleInboundEvent)),
-      runtime: v.optional(vHostSyncRuntimeOptions),
-    },
-    returns: vHostIngestSafeResult,
-    handler: async (
-      ctx: HostMutationRunner & HostQueryRunner,
-      args: {
-        actor: HostActorContext;
-        sessionId: string;
-        threadId: string;
-        deltas: Array<
-          | {
-              type: "stream_delta";
-              eventId: string;
-              turnId: string;
-              streamId: string;
-              kind: string;
-              payloadJson: string;
-              cursorStart: number;
-              cursorEnd: number;
-              createdAt: number;
-            }
-          | {
-              type: "lifecycle_event";
-              eventId: string;
-              turnId?: string;
-              kind: string;
-              payloadJson: string;
-              createdAt: number;
-            }
-        >;
-        runtime?: {
-          saveStreamDeltas?: boolean;
-          saveReasoningDeltas?: boolean;
-          exposeRawReasoningDeltas?: boolean;
-          maxDeltasPerStreamRead?: number;
-          maxDeltasPerRequestRead?: number;
-          finishedStreamDeleteDelayMs?: number;
-        };
-      },
-    ) => {
-      if (options.ingestMode === "mixed") {
-        return ingestBatchMixed(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        );
-      }
-
-      const hasLifecycle = args.deltas.some((delta) => delta.type === "lifecycle_event");
-      if (hasLifecycle) {
-        throw new Error("ingestBatch(streamOnly) does not accept lifecycle events");
-      }
-      const streamDeltas = args.deltas
-        .filter((delta): delta is Extract<(typeof args.deltas)[number], { type: "stream_delta" }> =>
-          delta.type === "stream_delta")
-        .map((delta) => ({
-          eventId: delta.eventId,
-          turnId: delta.turnId,
-          streamId: delta.streamId,
-          kind: delta.kind,
-          payloadJson: delta.payloadJson,
-          cursorStart: delta.cursorStart,
-          cursorEnd: delta.cursorEnd,
-          createdAt: delta.createdAt,
-        }));
-      return ingestBatchStreamOnly(
-        ctx,
-        component,
-        withServerActor({ ...args, deltas: streamDeltas }, options.serverActor),
-      );
-    },
-  };
-
-  const mutations = {
-    ensureThread,
-    ensureSession: {
-      args: {
-        actor: vHostActorContext,
-        sessionId: v.string(),
-        threadId: v.string(),
-      },
-      returns: vHostEnsureSessionResult,
-      handler: async (
-        ctx: HostMutationRunner & HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          sessionId: string;
-          threadId: string;
-        },
-      ) =>
-        ensureSessionHandler(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
-    },
-    ingestEvent,
-    ingestBatch,
-    ...(features.approvals
-      ? {
-          respondApprovalForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              turnId: v.string(),
-              itemId: v.string(),
-              decision: v.union(v.literal("accepted"), v.literal("declined")),
-            },
-            returns: v.null(),
-            handler: async (
-              ctx: HostMutationRunner & HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                turnId: string;
-                itemId: string;
-                decision: "accepted" | "declined";
-              },
-            ) =>
-              respondApprovalForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
-          },
-        }
-      : {}),
-    ...(features.serverRequests
-      ? {
-          upsertPendingServerRequestForHooks: {
-            args: {
-              actor: vHostActorContext,
-              requestId: v.union(v.string(), v.number()),
-              threadId: v.string(),
-              turnId: v.string(),
-              itemId: v.string(),
-              method: v.union(
-                v.literal("item/commandExecution/requestApproval"),
-                v.literal("item/fileChange/requestApproval"),
-                v.literal("item/tool/requestUserInput"),
-                v.literal("item/tool/call"),
-              ),
-              payloadJson: v.string(),
-              reason: v.optional(v.string()),
-              questionsJson: v.optional(v.string()),
-              requestedAt: v.number(),
-            },
-            returns: v.null(),
-            handler: async (
-              ctx: HostMutationRunner & HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                requestId: string | number;
-                threadId: string;
-                turnId: string;
-                itemId: string;
-                method:
-                  | "item/commandExecution/requestApproval"
-                  | "item/fileChange/requestApproval"
-                  | "item/tool/requestUserInput"
-                  | "item/tool/call";
-                payloadJson: string;
-                reason?: string;
-                questionsJson?: string;
-                requestedAt: number;
-              },
-            ) =>
-              upsertPendingServerRequestForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
-          },
-          resolvePendingServerRequestForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              requestId: v.union(v.string(), v.number()),
-              status: v.union(v.literal("answered"), v.literal("expired")),
-              resolvedAt: v.number(),
-              responseJson: v.optional(v.string()),
-            },
-            returns: v.null(),
-            handler: async (
-              ctx: HostMutationRunner & HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                requestId: string | number;
-                status: "answered" | "expired";
-                resolvedAt: number;
-                responseJson?: string;
-              },
-            ) =>
-              resolvePendingServerRequestForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
-          },
-        }
-      : {}),
-    ...(features.hooks
-      ? {
-          interruptTurnForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              turnId: v.string(),
-              reason: v.optional(v.string()),
-            },
-            returns: v.null(),
-            handler: async (
-              ctx: HostMutationRunner & HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                turnId: string;
-                reason?: string;
-              },
-            ) =>
-              interruptTurnForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
-          },
-        }
-      : {}),
-    ...(features.tokenUsage
-      ? {
-          upsertTokenUsageForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              turnId: v.string(),
-              totalTokens: v.number(),
-              inputTokens: v.number(),
-              cachedInputTokens: v.number(),
-              outputTokens: v.number(),
-              reasoningOutputTokens: v.number(),
-              lastTotalTokens: v.number(),
-              lastInputTokens: v.number(),
-              lastCachedInputTokens: v.number(),
-              lastOutputTokens: v.number(),
-              lastReasoningOutputTokens: v.number(),
-              modelContextWindow: v.optional(v.number()),
-            },
-            returns: v.null(),
-            handler: async (
-              ctx: HostMutationRunner & HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                turnId: string;
-                totalTokens: number;
-                inputTokens: number;
-                cachedInputTokens: number;
-                outputTokens: number;
-                reasoningOutputTokens: number;
-                lastTotalTokens: number;
-                lastInputTokens: number;
-                lastCachedInputTokens: number;
-                lastOutputTokens: number;
-                lastReasoningOutputTokens: number;
-                modelContextWindow?: number;
-              },
-            ) =>
-              upsertTokenUsageForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
-          },
-        }
-      : {}),
-  };
+  const mutations = buildPresetMutations({
+    component,
+    serverActor: options.serverActor,
+    ingestMode: options.ingestMode,
+    threadMode: options.threadMode,
+    features,
+  });
 
   const queries = {
     validateHostWiring,
     threadSnapshot: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-      },
-      handler: async (
-        ctx: HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-        },
-      ) =>
-        threadSnapshot(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
+      args: { actor: vHostActorContext, threadId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
+        threadSnapshot(ctx, component, withServerActor(args, options.serverActor)),
     },
     threadSnapshotSafe: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-      },
-      handler: async (
-        ctx: HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-        },
-      ) =>
-        threadSnapshotSafe(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
+      args: { actor: vHostActorContext, threadId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
+        threadSnapshotSafe(ctx, component, withServerActor(args, options.serverActor)),
     },
     persistenceStats: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-      },
+      args: { actor: vHostActorContext, threadId: v.string() },
       returns: vHostPersistenceStats,
-      handler: async (
-        ctx: HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-        },
-      ) =>
-        persistenceStats(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
+        persistenceStats(ctx, component, withServerActor(args, options.serverActor)),
     },
     durableHistoryStats: {
-      args: {
-        actor: vHostActorContext,
-        threadId: v.string(),
-      },
+      args: { actor: vHostActorContext, threadId: v.string() },
       returns: vHostDurableHistoryStats,
-      handler: async (
-        ctx: HostQueryRunner,
-        args: {
-          actor: HostActorContext;
-          threadId: string;
-        },
-      ) =>
-        durableHistoryStats(
-          ctx,
-          component,
-          withServerActor(args, options.serverActor),
-        ),
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
+        durableHistoryStats(ctx, component, withServerActor(args, options.serverActor)),
     },
     ...(features.hygiene
       ? {
           dataHygiene: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-            },
+            args: { actor: vHostActorContext, threadId: v.string() },
             returns: vHostDataHygiene,
-            handler: async (
-              ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-              },
-            ) =>
-              dataHygiene(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
+              dataHygiene(ctx, component, withServerActor(args, options.serverActor)),
           },
         }
       : {}),
@@ -695,156 +204,63 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 actor: HostActorContext;
                 threadId: string;
                 paginationOpts: { cursor: string | null; numItems: number };
-                streamArgs?:
-                  | {
-                      kind: "list";
-                      startOrder?: number;
-                    }
-                  | {
-                      kind: "deltas";
-                      cursors: Array<{ streamId: string; cursor: number }>;
-                    };
-                runtime?: {
-                  saveStreamDeltas?: boolean;
-                  saveReasoningDeltas?: boolean;
-                  exposeRawReasoningDeltas?: boolean;
-                  maxDeltasPerStreamRead?: number;
-                  maxDeltasPerRequestRead?: number;
-                  finishedStreamDeleteDelayMs?: number;
-                };
+                streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
+                runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
               },
-            ) =>
-              listThreadMessagesForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+            ) => listThreadMessagesForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
           },
           listTurnMessagesForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              turnId: v.string(),
-            },
-            handler: async (
-              ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                turnId: string;
-              },
-            ) =>
-              listTurnMessagesForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+            args: { actor: vHostActorContext, threadId: v.string(), turnId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string; turnId: string }) =>
+              listTurnMessagesForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
           },
         }
       : {}),
     ...(features.reasoning
       ? {
           listThreadReasoningForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              paginationOpts: paginationOptsValidator,
-              includeRaw: v.optional(v.boolean()),
-            },
+            args: { actor: vHostActorContext, threadId: v.string(), paginationOpts: paginationOptsValidator, includeRaw: v.optional(v.boolean()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                paginationOpts: { cursor: string | null; numItems: number };
-                includeRaw?: boolean;
-              },
-            ) =>
-              listThreadReasoningForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+              args: { actor: HostActorContext; threadId: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
+            ) => listThreadReasoningForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
           },
         }
       : {}),
     ...(features.approvals
       ? {
           listPendingApprovalsForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.optional(v.string()),
-              paginationOpts: paginationOptsValidator,
-            },
+            args: { actor: vHostActorContext, threadId: v.optional(v.string()), paginationOpts: paginationOptsValidator },
             handler: async (
               ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId?: string;
-                paginationOpts: { cursor: string | null; numItems: number };
-              },
-            ) =>
-              listPendingApprovalsForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+              args: { actor: HostActorContext; threadId?: string; paginationOpts: { cursor: string | null; numItems: number } },
+            ) => listPendingApprovalsForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
           },
         }
       : {}),
     ...(features.serverRequests
       ? {
           listPendingServerRequestsForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.optional(v.string()),
-              limit: v.optional(v.number()),
-            },
+            args: { actor: vHostActorContext, threadId: v.optional(v.string()), limit: v.optional(v.number()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId?: string;
-                limit?: number;
-              },
-            ) =>
-              listPendingServerRequestsForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+              args: { actor: HostActorContext; threadId?: string; limit?: number },
+            ) => listPendingServerRequestsForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
           },
         }
       : {}),
     ...(features.tokenUsage
       ? {
           listTokenUsageForHooks: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-            },
-            handler: async (
-              ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-              },
-            ) =>
-              listTokenUsageForHooksForActor(
-                ctx,
-                component,
-                withServerActor(args, options.serverActor),
-              ),
+            args: { actor: vHostActorContext, threadId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
+              listTokenUsageForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
           },
         }
       : {}),
   };
 
-  return {
-    profile: options.profile,
-    mutations,
-    queries,
-  };
+  return { profile: options.profile, mutations, queries };
 }
 
 type CodexHostSliceDefinitions = ReturnType<typeof defineCodexHostSlice>;

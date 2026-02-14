@@ -143,10 +143,8 @@ await runtime.start({
 - `useCodexThreadActivity` -> `chat.threadSnapshotSafe`
 - `useCodexIngestHealth` -> `chat.threadSnapshotSafe`
 - `useCodexBranchActivity` -> `chat.threadSnapshotSafe`
-- `useCodexApprovals` -> `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks`
 - `useCodexDynamicTools` -> `chat.listPendingServerRequestsForHooks` + runtime `respondDynamicToolCall(...)`
-- `useCodexComposer` -> `chat.enqueueTurnDispatch`
-- Prefer `useCodexChat` for bundled wiring (messages + activity + approvals + composer + interrupt + explicit tool controls), or `useCodexConversationController` when you need the lower-level contract.
+- Prefer `useCodexChat` for bundled wiring (messages + activity + approvals + composer + interrupt + explicit tool controls).
 - Use `useCodexRuntimeBridge`, `useCodexAccountAuth`, and `useCodexThreads` for bridge lifecycle, auth flows, and thread selection state in React apps.
 - Treat `threadSnapshotSafe` timestamps as terminal-aware authority (`completedAt/updatedAt` before `createdAt`) when deriving terminal boundary decisions.
 

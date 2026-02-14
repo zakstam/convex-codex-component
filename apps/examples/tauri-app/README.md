@@ -5,7 +5,7 @@ React hooks are the official recommendation for consumer integrations.
 
 Canonical wiring in this app centers on:
 - `useCodexChat`
-- `useCodexConversationController` (advanced control path for special approval/tool flows)
+- `useCodexChat` (advanced control path for approval/tool flows via tool policy controls)
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
 - helper-defined host wrappers in `convex/chat.ts`

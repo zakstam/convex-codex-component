@@ -49,7 +49,6 @@ Primary consumer surface for UI apps.
 
 | API | What you use it for |
 | --- | --- |
-| `useCodexConversationController` | Most complete UI integration: messages, state, composer, approvals, and interrupt flow. |
 | `useCodexChat` | High-level conversation facade with message/activity/composer orchestration plus explicit tool policy controls (`disableTools`, `overrideToolHandler`, etc.). |
 | `CodexChatOptions` | Configuration object for `useCodexChat` with built-in message, state, and tool policy inputs. |
 | `CodexChatTools` | Tool policy control surface returned by `useCodexChat` (`disableTools`, `overrideToolHandler`, etc.). |
@@ -58,16 +57,10 @@ Primary consumer surface for UI apps.
 | `useCodexThreadState` | Show loading/spinner/error from thread lifecycle. |
 | `useCodexThreadActivity` | Render live activity state (pending, completed, terminal). |
 | `useCodexTurn` | Pull message + turn status in one cohesive view. |
-| `useCodexApprovals` | Render and resolve approval workflows. |
 | `useCodexDynamicTools` | Resolve and normalize dynamic tool calls from server requests. |
-| `useCodexComposer` | Render composer state + send action for a thread. |
-| `useCodexInterruptTurn` | Expose interrupt action with disabled/loading state. |
-| `useCodexAutoResume` | Recover interrupted stream replay when process restarts. |
 | `useCodexRuntimeBridge` | Run and monitor local bridge lifecycle for desktop/dev workflows. |
 | `useCodexAccountAuth` | Handle login/logout flows from UI. |
 | `useCodexThreads` | List and sync thread rows with paging. |
-| `CodexConversationApprovalItem` | Normalized approval row payload for UI. |
-| `CodexConversationApprovalDecision` | Decision payload used when approving tool/file requests. |
 | `CodexDynamicToolServerRequest` | Typed incoming tool request contract for UI adapters. |
 | `CodexTokenUsage` | Read spend summaries and attribution for reporting views. |
 

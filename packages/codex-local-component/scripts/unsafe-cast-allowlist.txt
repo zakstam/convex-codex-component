@@ -1,18 +1,22 @@
-src/host/convexPreset.ts:6:  ensureSession as ensureSessionHandler,
-src/host/convexPreset.ts:81:  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
-src/host/convexPreset.ts:85:  return components as ExtractCodexHostComponentRefs<Components>;
-src/host/convexPreset.ts:871:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
+src/host/convexPresetMutations.ts:7:  ensureSession as ensureSessionHandler,
+src/host/convexPreset.ts:65:  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
+src/host/convexPreset.ts:69:  return components as ExtractCodexHostComponentRefs<Components>;
+src/host/convexPreset.ts:287:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
 src/component/threads.ts:118:    const parsed = JSON.parse(deletedCountsJson) as unknown;
 src/component/threads.ts:844:          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };
-src/host/convexSlice.ts:338:  const record = value as Record<string, unknown>;
-src/host/convexSlice.ts:350:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
-src/host/convexSlice.ts:358:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
-src/host/convexSlice.ts:366:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
-src/component/deletionInternal.ts:20:    const parsed = JSON.parse(deletedCountsJson) as unknown;
-src/component/deletionInternal.ts:82:  await Promise.all(docs.map((doc) => ctx.db.delete(doc._id as never)));
-src/host/runtime.ts:430:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-src/host/runtime.ts:1555:                ? (message.result as Record<string, unknown>)
-src/host/runtime.ts:1558:                ? (resultObj.turn as Record<string, unknown>)
+src/host/convexSlice.ts:334:  const record = value as Record<string, unknown>;
+src/host/convexSlice.ts:346:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
+src/host/convexSlice.ts:354:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
+src/host/convexSlice.ts:362:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
+src/component/deletionInternal.ts:21:    const parsed = JSON.parse(deletedCountsJson) as unknown;
+src/component/deletionCascade.ts:18:  await Promise.all(docs.map((doc) => ctx.db.delete(doc._id as never)));
+src/host/runtimeHelpers.ts:36:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+src/host/runtimeCoreHandlers.ts:270:      const ro = typeof message.result === "object" && message.result !== null ? (message.result as Record<string, unknown>) : null;
+src/host/runtimeCoreHandlers.ts:271:      const to = ro && typeof ro.turn === "object" && ro.turn !== null ? (ro.turn as Record<string, unknown>) : null;
+src/host/runtimeCore.ts:36:  clearPendingServerRequestRetryTimer as clearRetryTimer,
+src/host/runtimeCore.ts:39:  flushQueue as flushQueueHandler,
+src/host/runtimeCore.ts:40:  handleBridgeEvent as bridgeEventHandler,
+src/host/runtimeCore.ts:41:  handleBridgeGlobalMessage as bridgeGlobalHandler,
 src/component/tokenUsage.ts:35:    // (for example runtime placeholder turn ids). Treat as best-effort.
 src/host/wrapDefinitions.ts:21:  const mutationWrapper = wrap.mutation as (
 src/host/wrapDefinitions.ts:24:  const queryWrapper = wrap.query as (
@@ -26,19 +30,14 @@ src/react/useCodexTokenUsage.ts:27:  const queryArgs = (args === "skip" ? ["skip
 src/react/useCodexThreads.ts:30:    : [config.list.args] as [FunctionArgs<Query>];
 src/react/useCodexThreads.ts:31:  const listArgs = listQueryArgs as unknown as OptionalRestArgsOrSkip<Query>;
 src/react/useCodexDynamicTools.ts:49:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
-src/react/useCodexAutoResume.ts:59:    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
 src/react/dynamicTools.ts:43:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 src/react/dynamicTools.ts:48:    const parsed = JSON.parse(payloadJson) as unknown;
 src/react/useCodexConversationController.ts:69:  const record = value as Record<string, unknown>;
 src/react/useCodexConversationController.ts:99:      (config.threadState.query as unknown as DynamicToolsQuery),
-src/react/useCodexInterruptTurn.ts:65:  return runner(...([args] as OptionalRestArgs<Mutation>));
 src/react/useCodexReasoning.ts:16:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
 src/react/useCodexTurn.ts:46:  const messagesArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<MessagesQuery>;
 src/react/useCodexTurn.ts:47:  const stateQueryArgs = (stateArgs === "skip" ? ["skip"] : [stateArgs]) as unknown as OptionalRestArgsOrSkip<StateQuery>;
 src/react/useCodexStreamOverlay.ts:212:    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
-src/react/useCodexApprovals.ts:53:  return runner(...([args] as OptionalRestArgs<Mutation>));
-src/react/useCodexApprovals.ts:68:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
-src/react/useCodexComposer.ts:42:  return runner(...([args] as OptionalRestArgs<Mutation>));
 src/react/useCodexThreadState.ts:19:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
 src/react/useCodexMessages.ts:15:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
 src/protocol/events.ts:96:  return item as ThreadItem;

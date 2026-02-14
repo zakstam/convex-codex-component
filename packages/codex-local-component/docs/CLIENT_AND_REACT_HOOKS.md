@@ -32,15 +32,10 @@ Host Convex wrappers should be defined in `convex/chat.ts` via `defineRuntimeOwn
 - `useCodexIngestHealth`
 - `useCodexBranchActivity`
 - `useCodexChat`
-- `useCodexConversationController`
 - `useCodexDynamicTools`
 - `useCodexRuntimeBridge`
 - `useCodexAccountAuth`
 - `useCodexThreads`
-- `useCodexApprovals`
-- `useCodexInterruptTurn`
-- `useCodexAutoResume`
-- `useCodexComposer`
 - `useCodexTokenUsage`
 - `optimisticallySendCodexMessage`
 
@@ -70,13 +65,10 @@ Return shape:
 - `useCodexThreadActivity` -> `chat.threadSnapshotSafe`
 - `useCodexIngestHealth` -> `chat.threadSnapshotSafe`
 - `useCodexBranchActivity` -> `chat.threadSnapshotSafe`
-- `useCodexApprovals` -> `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks`
 - `useCodexDynamicTools` -> `chat.listPendingServerRequestsForHooks` + host runtime `respondDynamicToolCall(...)`
 - `useCodexThreads` -> app thread-list query + thread lifecycle mutations
-- `useCodexInterruptTurn` -> `chat.interruptTurnForHooks`
-- `useCodexComposer` -> `chat.ensureThread` + `runtime.sendTurn`
 - `useCodexTokenUsage` -> `chat.listTokenUsageForHooks`
-- `useCodexChat` -> composition of `useCodexMessages` + `useCodexThreadActivity` + `useCodexConversationController` with explicit tool policy controls
+- `useCodexChat` -> composition of `useCodexMessages` + `useCodexThreadActivity` + conversation controller with explicit tool policy controls
 
 ## Reference React Integration Adapter
 
@@ -137,7 +129,7 @@ The blessed production wiring reference is:
 
 - `apps/examples/tauri-app`
 
-It demonstrates helper-defined host wrappers plus React-first hook composition (`useCodexChat` + `useCodexConversationController` fallback patterns in advanced views) and thread snapshot hooks.
+It demonstrates helper-defined host wrappers plus React-first hook composition (`useCodexChat` with tool policy controls) and thread snapshot hooks.
 
 ## Strict State Authority Table
 

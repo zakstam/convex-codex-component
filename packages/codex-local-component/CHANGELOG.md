@@ -1,5 +1,12 @@
 # @convex-dev/codex-local-component
 
+## 0.12.1
+
+### Patch Changes
+
+- 57f0d3c: Replace the long API reference with a shorter consumer-first map that highlights recommended import paths and only high-signal, importable APIs.
+  Add a docs check to verify every documented API exists in the package export surface.
+
 ## 0.12.0
 
 ### Minor Changes

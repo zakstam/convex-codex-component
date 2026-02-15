@@ -63,11 +63,7 @@ export function createCodexHostRuntime(args: {
 
   const start = async (startArgs: HostRuntimeStartArgs): Promise<void> => {
     if (core.bridge) { core.emitState(); return; }
-    if (typeof startArgs.dispatchManaged !== "boolean") {
-      throw core.runtimeError("E_RUNTIME_DISPATCH_MODE_REQUIRED", "start() requires dispatchManaged=true|false to make orchestration ownership explicit.");
-    }
     core.actor = startArgs.actor;
-    core.dispatchManaged = startArgs.dispatchManaged;
     core.sessionId = startArgs.sessionId ? `${startArgs.sessionId}-${randomSessionId()}` : randomSessionId();
     core.externalThreadId = startArgs.externalThreadId ?? null;
     core.startupModel = startArgs.model;
@@ -131,23 +127,12 @@ export function createCodexHostRuntime(args: {
 
   const sendTurn = (text: string) => {
     if (!core.bridge) throw new Error("Bridge/thread not ready. Start runtime first.");
-    if (core.dispatchManaged !== false) throw core.runtimeError("E_RUNTIME_DISPATCH_MODE_CONFLICT", "sendTurn is only available when dispatchManaged=false.");
-    if (core.activeDispatch?.source === "external_claim") throw core.runtimeError("E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE", "Cannot enqueue runtime-managed turn while an external claimed dispatch is active.");
     if (core.turnInFlight && !core.turnSettled) throw core.runtimeError("E_RUNTIME_DISPATCH_TURN_IN_FLIGHT", "A turn is already in flight.");
     core.pushDispatchText(text);
     void core.ensureThreadBinding(core.runtimeThreadId ?? undefined).then(() => core.processDispatchQueue());
   };
 
   // TODO(turn/steer): Route steer payloads through app-server `turn/steer` instead of forcing new turns.
-
-  const startClaimedTurn = async (a: Parameters<CodexHostRuntime["startClaimedTurn"]>[0]): Promise<void> => {
-    if (!core.bridge) throw new Error("Bridge/thread not ready. Start runtime first.");
-    if (core.dispatchManaged !== true) throw core.runtimeError("E_RUNTIME_DISPATCH_MODE_CONFLICT", "startClaimedTurn is only available when dispatchManaged=true.");
-    if (core.turnInFlight && !core.turnSettled) throw core.runtimeError("E_RUNTIME_DISPATCH_TURN_IN_FLIGHT", "A turn is already in flight.");
-    if (!a.dispatchId || !a.claimToken || !a.turnId || !a.inputText) throw core.runtimeError("E_RUNTIME_DISPATCH_CLAIM_INVALID", "dispatchId, claimToken, turnId, and inputText are required for startClaimedTurn.");
-    await core.ensureThreadBinding(core.runtimeThreadId ?? undefined);
-    await core.sendClaimedDispatch({ dispatchId: a.dispatchId, claimToken: a.claimToken, turnId: a.turnId, inputText: a.inputText, idempotencyKey: a.idempotencyKey ?? randomSessionId(), leaseExpiresAt: Date.now() + 15_000, attemptCount: 1, source: "external_claim" });
-  };
 
   const interrupt = () => {
     if (!core.bridge || !core.runtimeThreadId) return;
@@ -219,7 +204,7 @@ export function createCodexHostRuntime(args: {
   };
 
   return {
-    start, stop, sendTurn, startClaimedTurn, interrupt,
+    start, stop, sendTurn, interrupt,
     resumeThread, forkThread, archiveThread, unarchiveThread, rollbackThread,
     readThread, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
     readAccountRateLimits, listThreads, listLoadedThreads,

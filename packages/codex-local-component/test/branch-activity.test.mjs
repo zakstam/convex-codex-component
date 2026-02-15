@@ -99,57 +99,28 @@ test("deriveCodexBranchActivity ignores stale streamStats when selected branch h
   assert.deepEqual(activity, { phase: "idle" });
 });
 
-test("deriveCodexBranchActivity keeps dispatchManaged/runtimeOwned transition parity", () => {
-  const snapshotsByMode = {
-    dispatchManaged: [
-      {
-        pendingApprovals: [],
-        recentMessages: [{ turnId: "turn-a", messageId: "m-a", status: "streaming", createdAt: 2 }],
-        dispatches: [{ turnId: "turn-a", status: "started", updatedAt: 2 }],
-        streamStats: [{ state: "streaming" }],
-        activeStreams: [{ streamId: "stream-a", turnId: "turn-a", startedAt: 2 }],
-        turns: [{ turnId: "turn-a", status: "inProgress", startedAt: 1 }],
-      },
-      {
-        pendingApprovals: [],
-        recentMessages: [{ turnId: "turn-a", messageId: "m-a", status: "completed", createdAt: 10 }],
-        dispatches: [{ turnId: "turn-a", status: "started", updatedAt: 5 }],
-        streamStats: [{ state: "streaming" }],
-        activeStreams: [],
-        lifecycleMarkers: [{ kind: "stream/drain_complete", turnId: "turn-a", createdAt: 11 }],
-        turns: [{ turnId: "turn-a", status: "inProgress", startedAt: 6 }],
-      },
-    ],
-    runtimeOwned: [
-      {
-        pendingApprovals: [],
-        recentMessages: [{ turnId: "turn-a", messageId: "m-a", status: "streaming", createdAt: 2 }],
-        dispatches: [],
-        streamStats: [{ state: "streaming" }],
-        activeStreams: [{ streamId: "stream-a", turnId: "turn-a", startedAt: 2 }],
-        turns: [{ turnId: "turn-a", status: "inProgress", startedAt: 1 }],
-      },
-      {
-        pendingApprovals: [],
-        recentMessages: [{ turnId: "turn-a", messageId: "m-a", status: "completed", createdAt: 10 }],
-        dispatches: [],
-        streamStats: [{ state: "streaming" }],
-        activeStreams: [],
-        lifecycleMarkers: [{ kind: "stream/drain_complete", turnId: "turn-a", createdAt: 11 }],
-        turns: [{ turnId: "turn-a", status: "inProgress", startedAt: 6 }],
-      },
-    ],
-  };
-
+test("deriveCodexBranchActivity keeps expected phases for in-flight dispatch scenarios", () => {
+  const snapshots = [
+    {
+      pendingApprovals: [],
+      recentMessages: [{ turnId: "turn-a", messageId: "m-a", status: "streaming", createdAt: 2 }],
+      dispatches: [{ turnId: "turn-a", status: "started", updatedAt: 2 }],
+      streamStats: [{ state: "streaming" }],
+      activeStreams: [{ streamId: "stream-a", turnId: "turn-a", startedAt: 2 }],
+      turns: [{ turnId: "turn-a", status: "inProgress", startedAt: 1 }],
+    },
+    {
+      pendingApprovals: [],
+      recentMessages: [{ turnId: "turn-a", messageId: "m-a", status: "completed", createdAt: 10 }],
+      dispatches: [{ turnId: "turn-a", status: "started", updatedAt: 5 }],
+      streamStats: [{ state: "streaming" }],
+      activeStreams: [],
+      lifecycleMarkers: [{ kind: "stream/drain_complete", turnId: "turn-a", createdAt: 11 }],
+      turns: [{ turnId: "turn-a", status: "inProgress", startedAt: 6 }],
+    },
+  ];
   const selection = { turnId: "turn-a", includeDescendants: false };
-  const dispatchManagedPhases = snapshotsByMode.dispatchManaged.map(
-    (snapshot) => deriveCodexBranchActivity(snapshot, selection).phase,
-  );
-  const runtimeOwnedPhases = snapshotsByMode.runtimeOwned.map(
-    (snapshot) => deriveCodexBranchActivity(snapshot, selection).phase,
-  );
+  const phases = snapshots.map((snapshot) => deriveCodexBranchActivity(snapshot, selection).phase);
 
-  assert.deepEqual(dispatchManagedPhases, ["streaming", "idle"]);
-  assert.deepEqual(runtimeOwnedPhases, ["streaming", "idle"]);
-  assert.deepEqual(dispatchManagedPhases, runtimeOwnedPhases);
+  assert.deepEqual(phases, ["streaming", "idle"]);
 });

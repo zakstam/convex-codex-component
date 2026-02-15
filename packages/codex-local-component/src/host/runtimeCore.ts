@@ -58,16 +58,15 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let turnInFlight = false;
   let turnSettled = false;
   let interruptRequested = false;
-  let dispatchManaged: boolean | null = null;
   let nextRequestId = 1;
   let pendingDispatchTextQueue: string[] = [];
   let claimLoopRunning = false;
   const dispatchByTurnId = new Map<
     string,
-    { dispatchId: string; claimToken: string; source: "runtime_queue" | "external_claim"; persistedTurnId: string }
+    { dispatchId: string; claimToken: string; persistedTurnId: string }
   >();
   let activeDispatch:
-    | { dispatchId: string; claimToken: string; turnId: string; text: string; source: "runtime_queue" | "external_claim" }
+    | { dispatchId: string; claimToken: string; turnId: string; text: string }
     | null = null;
   let startupModel: string | undefined;
   let startupCwd: string | undefined;
@@ -97,7 +96,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (error === undefined) { /* keep */ } else if (error === null) { lastErrorCode = null; lastErrorMessage = null; }
     else { lastErrorCode = error.code; lastErrorMessage = `[${error.code}] ${error.message}`; }
     args.handlers?.onState?.({
-      running: !!bridge, dispatchManaged, threadId, externalThreadId, turnId, turnInFlight,
+      running: !!bridge, threadId, externalThreadId, turnId, turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
       ingestMetrics: { enqueuedEventCount, skippedEventCount, enqueuedByKind: snapshotKindCounts(enqueuedByKind), skippedByKind: snapshotKindCounts(skippedByKind) },
       lastErrorCode, lastError: lastErrorMessage,
@@ -182,28 +181,28 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
 
   // ── Dispatch ────────────────────────────────────────────────────────
 
-  const sendClaimedDispatch = async (claimed: { dispatchId: string; turnId: string; idempotencyKey: string; inputText: string; claimToken: string; leaseExpiresAt: number; attemptCount: number; source: "runtime_queue" | "external_claim" }) => {
+  const sendClaimedDispatch = async (claimed: { dispatchId: string; turnId: string; inputText: string; claimToken: string }) => {
     if (!runtimeThreadId) throw new Error("Cannot dispatch turn before runtime thread is ready.");
-    activeDispatch = { dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId, text: claimed.inputText, source: claimed.source };
+    activeDispatch = { dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId, text: claimed.inputText };
     turnId = claimed.turnId; turnInFlight = true; turnSettled = false; emitState();
     const reqId = requestIdFn();
-    pendingRequests.set(reqId, { method: "turn/start", dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId, dispatchSource: claimed.source });
+    pendingRequests.set(reqId, { method: "turn/start", dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId });
     assertRuntimeReady().send(buildTurnStartTextRequest(reqId, { threadId: runtimeThreadId, text: claimed.inputText }));
   };
 
   const processDispatchQueue = async (): Promise<void> => {
-    if (dispatchManaged !== false || claimLoopRunning) return;
+    if (claimLoopRunning) return;
     claimLoopRunning = true;
     try {
       while (true) {
-        if (!actor || !threadId || activeDispatch?.source === "external_claim" || (turnInFlight && !turnSettled) || pendingDispatchTextQueue.length === 0) return;
+        if (!actor || !threadId || (turnInFlight && !turnSettled) || pendingDispatchTextQueue.length === 0) return;
         const nextText = pendingDispatchTextQueue[0]; if (nextText === undefined) return;
         const enqResult = await args.persistence.enqueueTurnDispatch({ actor, threadId, turnId: randomSessionId(), idempotencyKey: randomSessionId(), input: [{ type: "text", text: nextText }] });
         if (!enqResult.accepted) { pendingDispatchTextQueue.shift(); continue; }
         const claimed = await args.persistence.claimNextTurnDispatch({ actor, threadId, claimOwner: sessionId ?? "runtime-owner" });
         if (!claimed) return;
         pendingDispatchTextQueue.shift();
-        try { await sendClaimedDispatch({ ...claimed, source: "runtime_queue" }); }
+        try { await sendClaimedDispatch(claimed); }
         catch (error) {
           if (actor && threadId) await args.persistence.markTurnDispatchFailed({ actor, threadId, dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, code: "TURN_START_DISPATCH_SEND_FAILED", reason: error instanceof Error ? error.message : String(error) });
           turnInFlight = false; turnSettled = true; turnId = null; activeDispatch = null; emitState(); continue;
@@ -230,7 +229,6 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     set turnSettled(v) { turnSettled = v; },
     get interruptRequested() { return interruptRequested; },
     set interruptRequested(v) { interruptRequested = v; },
-    get dispatchManaged() { return dispatchManaged; },
     get activeDispatch() { return activeDispatch; },
     setActiveDispatch: (v) => { activeDispatch = v; },
     setTurnId: (v) => { turnId = v; },
@@ -282,8 +280,6 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     get turnId() { return turnId; },
     get turnInFlight() { return turnInFlight; },
     get turnSettled() { return turnSettled; },
-    get dispatchManaged() { return dispatchManaged; },
-    set dispatchManaged(v) { dispatchManaged = v; },
     get activeDispatch() { return activeDispatch; },
     get interruptRequested() { return interruptRequested; },
     set interruptRequested(v) { interruptRequested = v; },
@@ -310,7 +306,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     resetAll() {
       bridge = null; actor = null; sessionId = null; threadId = null; runtimeThreadId = null;
       externalThreadId = null; turnId = null; turnInFlight = false; turnSettled = false;
-      interruptRequested = false; dispatchManaged = null; pendingDispatchTextQueue = [];
+      interruptRequested = false; pendingDispatchTextQueue = [];
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
       startupModel = undefined; startupCwd = undefined; pendingRequests.clear();
       pendingServerRequests.clear(); pendingServerRequestRetries.clear();
@@ -324,7 +320,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       return [];
     },
     getState: (): HostRuntimeState => ({
-      running: !!bridge, dispatchManaged, threadId, externalThreadId, turnId, turnInFlight,
+      running: !!bridge, threadId, externalThreadId, turnId, turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
       ingestMetrics: { enqueuedEventCount, skippedEventCount, enqueuedByKind: snapshotKindCounts(enqueuedByKind), skippedByKind: snapshotKindCounts(skippedByKind) },
       lastErrorCode, lastError: lastErrorMessage,

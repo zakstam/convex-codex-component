@@ -33,6 +33,7 @@
     "release:precheck:ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint:host && pnpm --filter codex-local-release-smoke-host run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck:convex && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",
     "release:precheck": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint:host && pnpm --filter codex-local-release-smoke-host run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck:convex && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-release-smoke-host run smoke:checks",
     "build": "pnpm -r --if-present run build",
+    "build:tauri": "pnpm --filter codex-local-tauri-example run build:tauri",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-release-smoke-host run typecheck"

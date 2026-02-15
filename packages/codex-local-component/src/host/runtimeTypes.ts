@@ -26,7 +26,6 @@ export type ActorContext = { userId?: string };
 
 export type HostRuntimeState = {
   running: boolean;
-  dispatchManaged: boolean | null;
   threadId: string | null;
   externalThreadId: string | null;
   turnId: string | null;
@@ -43,11 +42,7 @@ export type HostRuntimeState = {
 };
 
 export type HostRuntimeErrorCode =
-  | "E_RUNTIME_DISPATCH_MODE_REQUIRED"
-  | "E_RUNTIME_DISPATCH_MODE_CONFLICT"
-  | "E_RUNTIME_DISPATCH_EXTERNAL_CLAIM_ACTIVE"
   | "E_RUNTIME_DISPATCH_TURN_IN_FLIGHT"
-  | "E_RUNTIME_DISPATCH_CLAIM_INVALID"
   | "E_RUNTIME_PROTOCOL_EVENT_INVALID"
   | "E_RUNTIME_INGEST_FLUSH_FAILED";
 
@@ -64,7 +59,6 @@ export class CodexHostRuntimeError extends Error {
 export type HostRuntimeStartArgs = {
   actor: ActorContext;
   sessionId: string;
-  dispatchManaged: boolean;
   externalThreadId?: string;
   runtimeThreadId?: string;
   threadStrategy?: "start" | "resume" | "fork";
@@ -219,14 +213,6 @@ export type CodexHostRuntime = {
   start: (args: HostRuntimeStartArgs) => Promise<void>;
   stop: () => Promise<void>;
   sendTurn: (text: string) => void;
-  // TODO(turn/steer): Expose a `steerTurn(...)` API for mid-turn guidance when turn/steer is wired.
-  startClaimedTurn: (args: {
-    dispatchId: string;
-    claimToken: string;
-    turnId: string;
-    inputText: string;
-    idempotencyKey?: string;
-  }) => Promise<void>;
   interrupt: () => void;
   resumeThread: (
     runtimeThreadId: string,
@@ -348,7 +334,6 @@ export type PendingRequest = {
   dispatchId?: string;
   claimToken?: string;
   turnId?: string;
-  dispatchSource?: "runtime_queue" | "external_claim";
   resolve?: (message: CodexResponse) => void;
   reject?: (error: Error) => void;
 };

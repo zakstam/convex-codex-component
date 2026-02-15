@@ -9,6 +9,10 @@ import type {
   v2,
 } from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
+import {
+  KNOWN_DYNAMIC_TOOLS,
+  TAURI_RUNTIME_TOOL_NAME,
+} from "../src/lib/dynamicTools.js";
 
 type CommandExecutionApprovalDecision = v2.CommandExecutionApprovalDecision;
 type FileChangeApprovalDecision = v2.FileChangeApprovalDecision;
@@ -171,11 +175,20 @@ function mapIngestErrorCodes(errors: IngestBatchError[]): Array<{
   }));
 }
 
+type RuntimeDispatchQueueEntry = {
+  dispatchId: string;
+  claimToken: string;
+  turnId: string;
+  inputText: string;
+  idempotencyKey: string;
+};
+
 let runtime: CodexHostRuntime | null = null;
 let convex: ConvexHttpClient | null = null;
 let actor: ActorContext | null = null;
 let activeSessionId: string | null = null;
 let runtimeThreadId: string | null = null;
+const runtimeDispatchQueues = new Map<string, RuntimeDispatchQueueEntry[]>();
 let startRuntimeOptions: {
   saveStreamDeltas: boolean;
   maxDeltasPerStreamRead: number;
@@ -187,6 +200,26 @@ let startRuntimeOptions: {
   maxDeltasPerRequestRead: 1000,
   finishedStreamDeleteDelayMs: 300000,
 };
+
+function getDispatchQueue(threadId: string): RuntimeDispatchQueueEntry[] {
+  let queue = runtimeDispatchQueues.get(threadId);
+  if (!queue) {
+    queue = [];
+    runtimeDispatchQueues.set(threadId, queue);
+  }
+  return queue;
+}
+
+function parseDispatchInputText(
+  input: Array<{ type: string; text?: string; url?: string; path?: string }>,
+): string {
+  const textEntry = input.find((entry) => entry.type === "text" && typeof entry.text === "string");
+  if (textEntry?.text) {
+    return textEntry.text;
+  }
+  const fallbackEntry = input.find((entry) => typeof entry.url === "string" || typeof entry.path === "string");
+  return fallbackEntry ? JSON.stringify(fallbackEntry) : "";
+}
 
 let bridgeState: {
   running: boolean;
@@ -218,7 +251,7 @@ let latestStartPayload: StartPayload | null = null;
 
 const DYNAMIC_TOOLS: DynamicToolSpec[] = [
   {
-    name: "tauri_get_runtime_snapshot",
+    name: TAURI_RUNTIME_TOOL_NAME,
     description:
       "Return a local runtime snapshot from the Tauri host, including timestamp, runtime ids, and optional pending request summary.",
     inputSchema: {
@@ -238,7 +271,7 @@ const DYNAMIC_TOOLS: DynamicToolSpec[] = [
   },
 ];
 
-const DYNAMIC_TOOL_NAMES = new Set<string>(DYNAMIC_TOOLS.map((tool) => tool.name));
+const DYNAMIC_TOOL_NAMES = new Set<string>(KNOWN_DYNAMIC_TOOLS);
 
 const inFlightDynamicToolCalls = new Set<string>();
 
@@ -344,7 +377,7 @@ async function executeDynamicToolCall(
     };
   }
 
-  if (toolCall.tool !== "tauri_get_runtime_snapshot") {
+  if (toolCall.tool !== TAURI_RUNTIME_TOOL_NAME) {
     return {
       success: false,
       contentItems: [
@@ -658,6 +691,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
         if (!convex) {
           throw new Error("Convex client not initialized.");
         }
+        const requestedAt = (request as { createdAt?: number }).createdAt;
         await convex.mutation(
           requireDefined(
             chatApi.upsertPendingServerRequestForHooks,
@@ -673,7 +707,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
             payloadJson: request.payloadJson,
             ...(request.reason ? { reason: request.reason } : {}),
             ...(request.questions ? { questionsJson: JSON.stringify(request.questions) } : {}),
-            requestedAt: request.createdAt,
+            ...(typeof requestedAt === "number" ? { requestedAt } : {}),
           },
         );
       },
@@ -711,6 +745,66 @@ async function startBridge(payload: StartPayload): Promise<void> {
             limit: 100,
           },
         );
+      },
+      enqueueTurnDispatch: async ({ threadId, dispatchId, turnId, idempotencyKey, input }) => {
+        const normalizedDispatchId = dispatchId ?? randomSessionId();
+        const claimToken = randomSessionId();
+        const queue = getDispatchQueue(threadId);
+        queue.push({
+          dispatchId: normalizedDispatchId,
+          claimToken,
+          turnId,
+          inputText: parseDispatchInputText(input),
+          idempotencyKey,
+        });
+        return {
+          dispatchId: normalizedDispatchId,
+          turnId,
+          status: "queued",
+          accepted: true,
+        };
+      },
+      claimNextTurnDispatch: async ({ threadId, claimOwner }) => {
+        const queue = getDispatchQueue(threadId);
+        const entry = queue.shift();
+        if (!entry) {
+          void claimOwner;
+          return null;
+        }
+        return {
+          dispatchId: entry.dispatchId,
+          turnId: entry.turnId,
+          idempotencyKey: entry.idempotencyKey,
+          inputText: entry.inputText,
+          claimToken: entry.claimToken,
+          leaseExpiresAt: Date.now() + 60_000,
+          attemptCount: 1,
+        };
+      },
+      markTurnDispatchStarted: async ({ threadId, dispatchId, claimToken, runtimeThreadId: dispatchedRuntimeThreadId, runtimeTurnId }) => {
+        void threadId;
+        void dispatchId;
+        void claimToken;
+        void dispatchedRuntimeThreadId;
+        void runtimeTurnId;
+      },
+      markTurnDispatchCompleted: async ({ threadId, dispatchId, claimToken }) => {
+        void threadId;
+        void dispatchId;
+        void claimToken;
+      },
+      markTurnDispatchFailed: async ({ threadId, dispatchId, claimToken, code, reason }) => {
+        void threadId;
+        void dispatchId;
+        void claimToken;
+        void code;
+        void reason;
+      },
+      cancelTurnDispatch: async ({ threadId, dispatchId, claimToken, reason }) => {
+        void threadId;
+        void dispatchId;
+        void claimToken;
+        void reason;
       },
       upsertTokenUsage: async (args) => {
         if (!convex) {

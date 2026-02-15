@@ -49,8 +49,7 @@ export type HandlerCtx = {
   turnInFlight: boolean;
   turnSettled: boolean;
   interruptRequested: boolean;
-  readonly dispatchManaged: boolean | null;
-  readonly activeDispatch: { dispatchId: string; claimToken: string; turnId: string; text: string; source: "runtime_queue" | "external_claim" } | null;
+  readonly activeDispatch: { dispatchId: string; claimToken: string; turnId: string; text: string } | null;
   setActiveDispatch: (v: null) => void;
   setTurnId: (v: string | null) => void;
 
@@ -72,8 +71,8 @@ export type HandlerCtx = {
   setPendingServerRequestRetryTimer: (v: ReturnType<typeof setTimeout> | null) => void;
 
   // Dispatch maps
-  dispatchByTurnId: Map<string, { dispatchId: string; claimToken: string; source: "runtime_queue" | "external_claim"; persistedTurnId: string }>;
-  pendingRequests: Map<number, { method: string; dispatchId?: string; claimToken?: string; turnId?: string; dispatchSource?: "runtime_queue" | "external_claim"; resolve?: (message: CodexResponse) => void; reject?: (error: Error) => void }>;
+  dispatchByTurnId: Map<string, { dispatchId: string; claimToken: string; persistedTurnId: string }>;
+  pendingRequests: Map<number, { method: string; dispatchId?: string; claimToken?: string; turnId?: string; resolve?: (message: CodexResponse) => void; reject?: (error: Error) => void }>;
 
   // Delegates
   persistence: HostRuntimePersistence;
@@ -188,7 +187,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
     const ptid = ctx.resolvePersistedTurnId(event.turnId) ?? event.turnId;
     ctx.setTurnId(ptid); ctx.turnInFlight = true; ctx.turnSettled = false;
     if (ctx.activeDispatch && ctx.actor && ctx.threadId) {
-      ctx.dispatchByTurnId.set(event.turnId, { dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, source: ctx.activeDispatch.source, persistedTurnId: ctx.activeDispatch.turnId });
+      ctx.dispatchByTurnId.set(event.turnId, { dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, persistedTurnId: ctx.activeDispatch.turnId });
       await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, ...(ctx.runtimeThreadId ? { runtimeThreadId: ctx.runtimeThreadId } : {}), runtimeTurnId: event.turnId });
       ctx.setActiveDispatch(null);
     }
@@ -208,7 +207,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
     }
     ctx.setTurnId(null); ctx.turnInFlight = false; ctx.turnSettled = true; ctx.emitState();
     await ctx.expireTurnServerRequests({ threadId: ctx.threadId ?? event.threadId, ...(event.turnId ? { turnId: event.turnId } : {}) });
-    if (ctx.dispatchManaged === false) await ctx.processDispatchQueue();
+    await ctx.processDispatchQueue();
   }
 
   if (event.kind === "error") {
@@ -217,7 +216,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
     if (!event.turnId || event.turnId === ctx.turnId) ctx.setTurnId(null);
     ctx.emitState();
     await ctx.expireTurnServerRequests({ threadId: ctx.threadId ?? event.threadId, ...(event.turnId ? { turnId: event.turnId } : {}) });
-    if (ctx.dispatchManaged === false) await ctx.processDispatchQueue();
+    await ctx.processDispatchQueue();
   }
 
   const psr = parseManagedServerRequestFromEvent(event);
@@ -260,18 +259,20 @@ export async function handleBridgeGlobalMessage(ctx: HandlerCtx, message: Server
     const pending = ctx.pendingRequests.get(message.id); ctx.pendingRequests.delete(message.id);
     if (pending) {
       ctx.setRuntimeThreadFromResponse(message, pending.method);
-      if (pending.method === "thread/start" || pending.method === "thread/resume" || pending.method === "thread/fork") { await ctx.ensureThreadBinding(ctx.runtimeThreadId ?? undefined); if (ctx.dispatchManaged === false) await ctx.processDispatchQueue(); }
+      if (pending.method === "thread/start" || pending.method === "thread/resume" || pending.method === "thread/fork") {
+        await ctx.ensureThreadBinding(ctx.runtimeThreadId ?? undefined);
+      }
     }
     if (message.error && pending?.method === "turn/start") {
       if (ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: pending.dispatchId, claimToken: pending.claimToken, code: typeof message.error.code === "number" ? String(message.error.code) : "TURN_START_FAILED", reason: message.error.message });
       ctx.setActiveDispatch(null); ctx.turnInFlight = false; ctx.turnSettled = true; ctx.setTurnId(null); ctx.emitState();
-      if (ctx.dispatchManaged === false) await ctx.processDispatchQueue();
+      await ctx.processDispatchQueue();
     } else if (!message.error && pending?.method === "turn/start" && ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) {
-      const ro = typeof message.result === "object" && message.result !== null ? (message.result as Record<string, unknown>) : null;
-      const to = ro && typeof ro.turn === "object" && ro.turn !== null ? (ro.turn as Record<string, unknown>) : null;
+      const ro = asObject(message.result);
+      const to = ro && asObject(ro.turn);
       const rtid = typeof to?.id === "string" ? to.id : pending.turnId;
       await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: pending.dispatchId, claimToken: pending.claimToken, ...(ctx.runtimeThreadId ? { runtimeThreadId: ctx.runtimeThreadId } : {}), ...(rtid ? { runtimeTurnId: rtid } : {}) });
-      if (rtid) ctx.dispatchByTurnId.set(rtid, { dispatchId: pending.dispatchId, claimToken: pending.claimToken, source: pending.dispatchSource ?? "runtime_queue", persistedTurnId: pending.turnId ?? rtid });
+      if (rtid) ctx.dispatchByTurnId.set(rtid, { dispatchId: pending.dispatchId, claimToken: pending.claimToken, persistedTurnId: pending.turnId ?? rtid });
       ctx.setActiveDispatch(null);
     }
     if (pending?.resolve) { if (message.error) { const code = typeof message.error.code === "number" ? String(message.error.code) : "UNKNOWN"; pending.reject?.(new Error(`[${code}] ${message.error.message}`)); } else pending.resolve(message); }

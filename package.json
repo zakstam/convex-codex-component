@@ -7,6 +7,7 @@
     "version-packages": "changeset version",
     "release:publish": "changeset publish",
     "component:build": "pnpm --filter @zakstam/codex-local-component run build",
+    "component:coverage": "pnpm --filter @zakstam/codex-local-component run coverage",
     "component:typecheck": "pnpm --filter @zakstam/codex-local-component run typecheck",
     "component:test": "pnpm --filter @zakstam/codex-local-component run test",
     "component:ci": "pnpm --filter @zakstam/codex-local-component run ci",

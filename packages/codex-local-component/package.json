@@ -61,6 +61,7 @@
     "prepack": "pnpm run clean && pnpm run build",
     "typecheck": "tsc --noEmit",
     "test": "pnpm run build && node --test test/*.test.mjs",
+    "coverage": "pnpm run build && NODE_V8_COVERAGE=coverage node --test --experimental-test-coverage test/*.test.mjs",
     "check:mount-imports": "node ./scripts/check-mount-imports.mjs",
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",

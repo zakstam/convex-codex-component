@@ -1,4 +1,4 @@
-# Client Helpers and React Hooks
+# Client and React Hooks
 
 Canonical default: runtime-owned host integration.
 Official recommendation: prefer React hooks over app-defined state composition.
@@ -129,7 +129,7 @@ The blessed production wiring reference is:
 
 - `apps/examples/tauri-app`
 
-It demonstrates helper-defined host wrappers plus React-first hook composition (`useCodexChat` with tool policy controls) and thread snapshot hooks.
+It demonstrates runtime-owned host wrappers plus React-first hook composition (`useCodexChat` with tool policy controls) and thread snapshot hooks.
 
 ## Strict State Authority Table
 
@@ -166,4 +166,3 @@ const messages = useCodexMessages(
   { initialNumItems: 30, stream: true },
 );
 ```
-

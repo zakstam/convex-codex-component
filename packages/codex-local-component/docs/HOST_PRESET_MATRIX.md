@@ -4,7 +4,7 @@ Canonical source for host preset surfaces.
 
 ## Presets
 
-| Preset helper | Profile | Ingest mode | Thread mode | Intended host |
+| Preset builder | Profile | Ingest mode | Thread mode | Intended host |
 | --- | --- | --- | --- | --- |
 | `defineRuntimeOwnedHostEndpoints` | `runtimeOwned` | `streamOnly` | `create` | Runtime-owned orchestration |
 

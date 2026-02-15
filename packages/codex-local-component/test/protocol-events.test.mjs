@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   approvalRequestForPayload,
-  durableMessageDeltaForPayload,
+  classifyMessage,
   durableMessageForPayload,
+  durableMessageDeltaForPayload,
+  extractThreadId,
+  extractTurnId,
   itemSnapshotForPayload,
+  turnIdForPayload,
   reasoningDeltaForPayload,
   terminalStatusForPayload,
-  turnIdForPayload,
 } from "../dist/protocol/events.js";
 import { assertValidClientMessage, parseWireMessage } from "../dist/protocol/parser.js";
 
@@ -76,6 +79,134 @@ test("payload helpers extract turn id, durable message, and item snapshot", () =
     payloadJson: startedPayload,
     cursorEnd: 3,
   });
+});
+
+test("classifyMessage accepts global and thread scoped methods", () => {
+  assert.deepEqual(
+    classifyMessage({
+      jsonrpc: "2.0",
+      method: "item/started",
+      params: { threadId: "thread-1", turnId: "turn-1" },
+    }),
+    {
+      scope: "thread",
+      kind: "item/started",
+      threadId: "thread-1",
+    },
+  );
+
+  assert.deepEqual(
+    classifyMessage({
+      jsonrpc: "2.0",
+      method: "session/heartbeat",
+    }),
+    {
+      scope: "global",
+      kind: "session/heartbeat",
+    },
+  );
+});
+
+test("classifyMessage rejects thread-scoped messages missing threadId", () => {
+  assert.throws(
+    () =>
+      classifyMessage({
+        jsonrpc: "2.0",
+        method: "item/started",
+        params: {},
+      }),
+    /Thread-scoped protocol message missing threadId/,
+  );
+});
+
+test("extractThreadId reads thread.id and fallback conversationId", () => {
+  const fromThread = extractThreadId({
+    jsonrpc: "2.0",
+    method: "thread/start",
+    params: { thread: { id: "thread-2" } },
+  });
+  const fromConversation = extractThreadId({
+    jsonrpc: "2.0",
+    method: "thread/tokenUsage/updated",
+    params: { conversationId: "thread-legacy" },
+  });
+  assert.equal(fromThread, "thread-2");
+  assert.equal(fromConversation, "thread-legacy");
+});
+
+test("extractTurnId supports legacy codex/event payloads", () => {
+  assert.equal(
+    extractTurnId({
+      jsonrpc: "2.0",
+      method: "codex/event/task_complete",
+      params: { conversationId: "thread-1", msg: { type: "task_complete", turn_id: "legacy-turn" } },
+    }),
+    "legacy-turn",
+  );
+});
+
+test("terminalStatusForPayload reports payload parse failures when turn payload malformed", () => {
+  assert.deepEqual(terminalStatusForPayload("turn/completed", "{"), {
+    status: "failed",
+    code: "E_TERMINAL_PAYLOAD_PARSE_FAILED",
+    error: "Failed to parse payload for turn/completed terminal status",
+  });
+});
+
+test("terminalStatusForPayload requires error message for terminal errors", () => {
+  assert.deepEqual(
+    terminalStatusForPayload(
+      "turn/completed",
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: {
+            id: "turn-1",
+            items: [],
+            status: "interrupted",
+            error: { message: "" },
+          },
+        },
+      }),
+    ),
+    {
+      status: "interrupted",
+      code: "E_TERMINAL_ERROR_MISSING",
+      error: "turn/completed interrupted status missing error.message",
+    },
+  );
+});
+
+test("durableMessageForPayload supports tool user input requests", () => {
+  assert.deepEqual(
+    durableMessageForPayload(
+      "item/tool/requestUserInput",
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 31,
+        method: "item/tool/requestUserInput",
+        params: {
+          threadId: "thread-1",
+          turnId: "turn-1",
+          itemId: "tool-1",
+          tool: "tauri_demo",
+        },
+      }),
+    ),
+    {
+      messageId: "tool-1",
+      role: "tool",
+      status: "completed",
+      sourceItemType: "toolUserInputRequest",
+      text: "Tool requested user input",
+      payloadJson: JSON.stringify({
+        type: "toolUserInputRequest",
+        id: "tool-1",
+      }),
+    },
+  );
 });
 
 test("payload helpers extract approval requests and deltas", () => {
@@ -208,6 +339,28 @@ test("parseWireMessage accepts legacy codex/event envelopes", () => {
 
   const parsed = parseWireMessage(legacy);
   assert.equal(parsed.method, "codex/event/task_complete");
+});
+
+test("parseWireMessage rejects invalid json", () => {
+  assert.throws(() => parseWireMessage("{"), /Invalid JSON from codex app-server/);
+});
+
+test("parseWireMessage rejects non-codex server message shapes", () => {
+  assert.throws(
+    () =>
+      parseWireMessage(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "codex/event/task_complete",
+          foo: 1,
+        }),
+      ),
+    /Message is valid JSON-RPC but not a supported codex server notification\/request\/response shape\./,
+  );
+});
+
+test("assertValidClientMessage rejects malformed outbound message", () => {
+  assert.throws(() => assertValidClientMessage({ id: "1", method: "turn/start" }), /Invalid outbound codex client message/);
 });
 
 test("turnIdForPayload ignores legacy params.id fallback for codex/event envelopes", () => {

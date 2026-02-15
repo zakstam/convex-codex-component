@@ -2,6 +2,8 @@
 
 Date: 2026-02-14
 Status: Approved
+Note: Historical plan artifact. The project has moved past these milestones; this document is preserved as implementation context only.
+For active guidance, use `packages/codex-local-component/README.md` and current docs in `docs/`.
 Goal: Prepare @zakstam/codex-local-component for beta/GA by reducing complexity, consolidating the API surface, and removing unused code paths.
 
 ## Motivation

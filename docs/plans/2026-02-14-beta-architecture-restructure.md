@@ -1,6 +1,8 @@
 # Beta Architecture Restructure Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+ 
+> Note: Historical plan artifact preserved for implementation context only. Current canonical guidance is in package documentation.
 
 **Goal:** Prepare @zakstam/codex-local-component for beta/GA by removing dispatch-managed mode, eliminating the client passthrough layer, consolidating export paths (11 to 7), splitting oversized files, and simplifying the React hook surface.
 
@@ -287,7 +289,7 @@ Remove the entire `src/client/` directory.
 
 Remove the `"./client"` entry from the `exports` field.
 
-**Step 6: Verify typecheck**
+**Step 6: Verify typecheck** _(archived step)_
 
 ```bash
 pnpm run typecheck
@@ -297,7 +299,8 @@ Expected: Clean within the package. External consumers importing from `/client` 
 
 **Step 7: Update external consumer**
 
-In `apps/` find any imports from `@zakstam/codex-local-component/client` and update them. Known: test-app uses `getThreadState` from `/client` — replace with the host or generated API equivalent.
+In `apps/` find any imports from `@zakstam/codex-local-component/client` and update them. Known: test-app uses `getThreadState` from `/client` — replace with the host or generated API equivalent.  
+This guidance is historical context for this migration plan and is not current runtime guidance.
 
 **Step 8: Run tests**
 
@@ -305,7 +308,7 @@ In `apps/` find any imports from `@zakstam/codex-local-component/client` and upd
 pnpm run test
 ```
 
-Expected: All 17 remaining tests pass (dispatch test was removed in Task 5). Check `client-helpers.test.mjs` — it tests client functions that no longer exist. Either remove the test file or update it to test the new shared types / host layer directly.
+Expected: All 17 remaining tests pass (dispatch test was removed in Task 5). The old `client-helpers` passthrough test path no longer exists in the current architecture and should be considered deprecated in this plan history.
 
 **Step 9: Commit**
 
@@ -340,12 +343,15 @@ Remove `./bridge` from `package.json` exports.
 In `src/host/index.ts`, add: `export * from "../app-server/index.js";`
 Remove `./app-server` from `package.json` exports.
 
-**Step 4: Update consumers of removed paths**
+**Step 4: Update consumers of removed paths** _(legacy migration note)_
 
 Search all apps for imports from these paths:
-- `@zakstam/codex-local-component/bridge` used in: `cli-app/src/index.ts`, `persistent-cli-app/src/index.ts`, `release-smoke-host/src/index.ts` — change to `@zakstam/codex-local-component/host`
-- `@zakstam/codex-local-component/errors` — check if used, update to default import
-- `@zakstam/codex-local-component/app-server` — check if used, update to `/host`
+- `@zakstam/codex-local-component/bridge` used in: `cli-app/src/index.ts`, `persistent-cli-app/src/index.ts`, `release-smoke-host/src/index.ts` — change to `@zakstam/codex-local-component/host`  
+  (legacy migration note)
+- `@zakstam/codex-local-component/errors` — check if used, update to default import  
+  (legacy migration note)
+- `@zakstam/codex-local-component/app-server` — check if used, update to `/host`  
+  (legacy migration note)
 
 **Step 5: Update check-api-reference-useful.mjs**
 

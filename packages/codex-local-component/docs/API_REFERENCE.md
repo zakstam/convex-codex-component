@@ -100,7 +100,7 @@ Runtime ownership and host wiring for Convex surface generation.
 | `ensureThreadByCreate` | Create or load host thread context. |
 | `ensureThreadByResolve` | Resolve thread by host mapping inputs. |
 | `threadSnapshotSafe` | Read terminal-aware thread snapshot for orchestration. |
-| `listPendingApprovalsForHooksForActor` | Actor-scoped approval query helper used by UI hooks. |
+| `listPendingApprovalsForHooksForActor` | Actor-scoped approval query utility used by UI hooks. |
 | `respondApprovalForHooksForActor` | Persist approval decisions from UI/runtime adapters. |
 | `CodexLocalBridge` | Spawn, monitor, and stop a local codex app-server process. |
 | `BridgeConfig` | Configure bridge process path and working directory. |
@@ -139,7 +139,7 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | `wrapHostDefinitions` | Export-ready wrapper for generated endpoint sets. |
 | `HOST_PRESET_DEFINITIONS` | Built-in preset endpoints and role map. |
 | `HOST_SURFACE_MANIFEST` | Canonical mutation/query manifest for boundary wiring. |
-| `ingestBatchSafe` | Convex-safe ingestion helper for mixed incoming events. |
+| `ingestBatchSafe` | Convex-safe ingestion utility for mixed incoming events. |
 | `computeDataHygiene` | Convex-safe hygiene metrics query builder. |
 | `computeDurableHistoryStats` | Convex-safe durable history metrics query builder. |
 | `computePersistenceStats` | Convex-safe persistence metrics query builder. |

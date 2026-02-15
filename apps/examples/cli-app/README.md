@@ -7,6 +7,8 @@ Canonical consumer implementation path:
 
 - `packages/codex-local-component/LLMS.md`
 
+LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
+
 ## Run
 
 ```bash

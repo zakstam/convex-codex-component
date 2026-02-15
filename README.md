@@ -20,9 +20,10 @@
 
 ## Canonical Consumer Strategy
 
-Use one implementation path only:
+For this monorepo, use one implementation path:
 
-- `packages/codex-local-component/LLMS.md`
+- `packages/codex-local-component/README.md` (for package consumers)
+- `packages/codex-local-component/LLMS.md` (for LLM execution-only path)
 
 Canonical default: runtime-owned host integration.
 
@@ -45,6 +46,35 @@ pnpm install
 ```bash
 pnpm run component:build
 pnpm run component:ci
+```
+
+## External consumer onboarding
+
+- npm consumers should start at `packages/codex-local-component/README.md`
+  and use the included one-shot LLM handoff prompt for automated integration.
+
+## LLM handoff prompt (paste this into an LLM)
+
+```text
+Integrate `@zakstam/codex-local-component` in this project using only the package docs.
+
+Use `packages/codex-local-component/README.md` first, then follow only the mapped docs for the task:
+
+- Host wiring: `packages/codex-local-component/docs/HOST_INTEGRATION.md`
+- React integration: `packages/codex-local-component/docs/CLIENT_AND_REACT_HOOKS.md` (if using React)
+- API lookup: `packages/codex-local-component/docs/API_REFERENCE.md`
+- Runtime/protocol troubleshooting: `packages/codex-local-component/docs/OPERATIONS_AND_ERRORS.md`
+- Optional runbook/checks: `packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md`
+
+Keep changes minimal and stay in runtime-owned mode.
+Validate with:
+
+- `npx convex dev --once`
+- `pnpm run dev:convex:once` (or app equivalent)
+- `pnpm run wiring:smoke` (if available)
+- `pnpm run typecheck`
+
+If a prerequisite is missing for an app, ask for package-specific assumptions before continuing.
 ```
 
 ## Examples
@@ -74,7 +104,7 @@ pnpm start
 
 ## Docs
 
-- Canonical implementation: `packages/codex-local-component/LLMS.md`
+- Canonical package onboarding implementation: `packages/codex-local-component/README.md`
 - Package front door: `packages/codex-local-component/README.md`
 - Host details: `packages/codex-local-component/docs/HOST_INTEGRATION.md`
 - Hooks and client contracts: `packages/codex-local-component/docs/CLIENT_AND_REACT_HOOKS.md`

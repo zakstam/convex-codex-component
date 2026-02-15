@@ -3,6 +3,8 @@
 This app is the blessed reference integration for production-grade React + Convex host wiring.
 React hooks are the official recommendation for consumer integrations.
 
+LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
+
 Canonical wiring in this app centers on:
 - `useCodexChat`
 - `useCodexChat` (advanced control path for approval/tool flows via tool policy controls)
@@ -29,30 +31,11 @@ Canonical consumer implementation path:
   - unknown tool names are rejected by the helper command handler.
 - In this example, the known dynamic tool is `tauri_get_runtime_snapshot`.
 
-## Run
+## Runbook and Setup
 
-```bash
-pnpm install
-cd apps/examples/tauri-app
-pnpm run dev
-```
-
-## Required Env
-
-Create `apps/examples/tauri-app/.env.local`:
-
-```bash
-VITE_CONVEX_URL=...
-```
-
-Optional:
-
-- `VITE_CODEX_BIN`
-- `VITE_CODEX_MODEL`
-- `VITE_CODEX_CWD`
-- `CODEX_HELPER_BIN`
-- `CODEX_NODE_BIN`
-- `CODEX_BRIDGE_RAW_LOG` (`all` for every app-server line, `turns` for turn-focused lines)
+- Shared run/check commands and required variables live in [packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md](../../packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md).
+- Relevant section: `Tauri Example`.
+- Create `apps/examples/tauri-app/.env.local` with `VITE_CONVEX_URL=...` and app-specific optional overrides as documented there.
 
 ## Actor Security
 
@@ -109,11 +92,3 @@ Additional app-owned guarded cleanup endpoints:
 - `chat.getDeletionJobStatusForHooks`
 
 The Data cleanup panel schedules deletions with a grace window (10 minutes by default), allows undo/cancel before execution, and includes a force-run action to execute immediately.
-
-## Useful Checks
-
-```bash
-pnpm run typecheck:convex
-pnpm run check:wiring:convex
-pnpm run tauri:check
-```

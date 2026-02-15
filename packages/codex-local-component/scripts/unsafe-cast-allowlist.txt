@@ -1,6 +1,4 @@
 src/host/convexPresetMutations.ts:7:  ensureSession as ensureSessionHandler,
-src/host/convexPreset.ts:65:  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
-src/host/convexPreset.ts:69:  return components as ExtractCodexHostComponentRefs<Components>;
 src/host/convexPreset.ts:287:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
 src/component/threads.ts:118:    const parsed = JSON.parse(deletedCountsJson) as unknown;
 src/component/threads.ts:844:          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };

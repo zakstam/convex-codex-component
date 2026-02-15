@@ -18,12 +18,12 @@ import {
   vHostPersistenceStats,
   vHostStreamArgs,
   vHostSyncRuntimeOptions,
-  type CodexHostComponentRefs,
   type CodexHostComponentsInput,
   type HostActorContext,
   type HostQueryRunner,
 } from "./convexSlice.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
+import { resolveHostComponentRefs } from "./generatedTypingBoundary.js";
 import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
 
 export type CodexHostSliceProfile = "runtimeOwned";
@@ -39,15 +39,6 @@ export type CodexHostSliceFeatures = {
   tokenUsage?: boolean;
 };
 
-type ExtractCodexHostComponentRefs<Components extends CodexHostComponentsInput> =
-  Components extends { codexLocal: infer Component }
-    ? Component extends CodexHostComponentRefs
-      ? Component
-      : never
-    : Components extends CodexHostComponentRefs
-      ? Components
-      : never;
-
 export type DefineCodexHostSliceOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
 > = {
@@ -58,16 +49,6 @@ export type DefineCodexHostSliceOptions<
   threadMode: CodexHostSliceThreadMode;
   features?: CodexHostSliceFeatures;
 };
-
-function resolveCodexComponent<Components extends CodexHostComponentsInput>(
-  components: Components,
-): ExtractCodexHostComponentRefs<Components> {
-  const codexLocal = (components as { codexLocal?: ExtractCodexHostComponentRefs<Components> }).codexLocal;
-  if (codexLocal !== undefined) {
-    return codexLocal;
-  }
-  return components as ExtractCodexHostComponentRefs<Components>;
-}
 
 function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
   return { ...args, actor: serverActor };
@@ -85,7 +66,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     tokenUsage: options.features?.tokenUsage ?? true,
   };
 
-  const component = resolveCodexComponent(options.components);
+  const component = resolveHostComponentRefs(options.components);
 
   const validateHostWiring = {
     args: {

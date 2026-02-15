@@ -50,6 +50,7 @@ Host Convex wrappers should be defined in `convex/chat.ts` via `defineRuntimeOwn
 - `useCodexAccountAuth` now infers control result types from `readAccount`, `loginAccount`, `cancelAccountLogin`, `logoutAccount`, `readAccountRateLimits`, and optional `respondChatgptAuthTokensRefresh`.
 - `useCodexRuntimeBridge` now infers control result types from `start`, `stop`, optional `sendTurn`, and optional `interrupt`.
 - `useCodexDynamicTools` now tolerates broader query return shapes and safely derives tool calls only from valid server-request rows. This avoids casting workarounds when wiring shared query surfaces.
+- Generated Convex component typing can still be broad in some workspaces. The package contains this at a host-internal boundary (`src/host/generatedTypingBoundary.ts`) so external consumers do not need dispatch/workaround casts.
 
 ## `useCodexMessages` Host Query Contract
 

@@ -67,6 +67,8 @@ Primary consumer surface for UI apps.
 | `CodexDynamicToolServerRequest` | Typed incoming tool request contract for UI adapters. |
 | `CodexTokenUsage` | Read spend summaries and attribution for reporting views. |
 
+Type-safety note: generated Convex component refs may still be broad in some workspaces. This package contains that looseness at a host-internal boundary so consumer-facing hooks remain strongly typed.
+
 ## `@zakstam/codex-local-component/react-integration`
 
 Small adapter layer for hook-based applications already using host hooks.

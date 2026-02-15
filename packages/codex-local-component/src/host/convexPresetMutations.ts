@@ -52,6 +52,11 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
     },
+    returns: v.object({
+      threadId: v.string(),
+      externalThreadId: v.optional(v.string()),
+      created: v.optional(v.boolean()),
+    }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
       threadId?: string;

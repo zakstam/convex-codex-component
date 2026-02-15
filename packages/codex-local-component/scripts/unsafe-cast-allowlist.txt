@@ -26,19 +26,12 @@ src/host/wrapDefinitions.ts:39:    mutations: Object.fromEntries(mutationEntries
 src/host/wrapDefinitions.ts:40:    queries: Object.fromEntries(queryEntries) as WrappedDefinitionMap<Defs["queries"], QueryWrap>,
 src/component/pagination.ts:18:    return JSON.parse(cursor) as T;
 src/app-server/client.ts:56:  return { method, id, params } as RequestFor<M>;
-src/react/useCodexTokenUsage.ts:27:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
-src/react/useCodexThreads.ts:30:    : [config.list.args] as [FunctionArgs<Query>];
-src/react/useCodexThreads.ts:31:  const listArgs = listQueryArgs as unknown as OptionalRestArgsOrSkip<Query>;
-src/react/useCodexDynamicTools.ts:49:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
 src/react/dynamicTools.ts:43:  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 src/react/dynamicTools.ts:48:    const parsed = JSON.parse(payloadJson) as unknown;
 src/react/useCodexConversationController.ts:69:  const record = value as Record<string, unknown>;
-src/react/useCodexConversationController.ts:99:      (config.threadState.query as unknown as DynamicToolsQuery),
 src/react/useCodexReasoning.ts:16:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
-src/react/useCodexTurn.ts:46:  const messagesArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<MessagesQuery>;
-src/react/useCodexTurn.ts:47:  const stateQueryArgs = (stateArgs === "skip" ? ["skip"] : [stateArgs]) as unknown as OptionalRestArgsOrSkip<StateQuery>;
-src/react/useCodexStreamOverlay.ts:212:    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
-src/react/useCodexThreadState.ts:19:  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
+src/react/queryArgs.ts:12:    return ["skip"] as OptionalRestArgsOrSkip<Query>;
+src/react/queryArgs.ts:14:  return [args] as OptionalRestArgsOrSkip<Query>;
 src/react/useCodexMessages.ts:15:  const paginated = usePaginatedQuery(query, args as PaginatedQueryArgs<Query> | "skip", {
 src/protocol/events.ts:96:  return item as ThreadItem;
 src/protocol/events.ts:121:  const message = parsed as ServerInboundMessage;

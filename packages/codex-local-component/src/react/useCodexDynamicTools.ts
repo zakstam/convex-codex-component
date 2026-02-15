@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
+import { useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReference } from "convex/server";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DynamicToolCallOutputContentItem } from "../protocol/schemas/v2/DynamicToolCallOutputContentItem.js";
@@ -10,6 +10,7 @@ import {
   type CodexDynamicToolResponse,
   type CodexDynamicToolServerRequest,
 } from "./dynamicTools.js";
+import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 export type CodexDynamicToolsQuery<Args extends Record<string, unknown> = Record<string, unknown>> = FunctionReference<
   "query",
@@ -18,11 +19,11 @@ export type CodexDynamicToolsQuery<Args extends Record<string, unknown> = Record
   CodexDynamicToolServerRequest[]
 >;
 
-export type CodexDynamicToolsRespond = (args: {
+export type CodexDynamicToolsRespond<Result = unknown> = (args: {
   requestId: string | number;
   success: boolean;
   contentItems: DynamicToolCallOutputContentItem[];
-}) => Promise<unknown>;
+}) => Promise<Result>;
 
 export type CodexDynamicToolHandler = (
   call: CodexDynamicToolCall,
@@ -34,21 +35,56 @@ function requestKey(requestId: string | number): string {
   return `${typeof requestId}:${String(requestId)}`;
 }
 
+function isDynamicToolServerRequest(value: unknown): value is CodexDynamicToolServerRequest {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const requestId = Reflect.get(value, "requestId");
+  const method = Reflect.get(value, "method");
+  const threadId = Reflect.get(value, "threadId");
+  const turnId = Reflect.get(value, "turnId");
+  const itemId = Reflect.get(value, "itemId");
+  const payloadJson = Reflect.get(value, "payloadJson");
+  const createdAt = Reflect.get(value, "createdAt");
+  const methodIsSupported = method === "item/commandExecution/requestApproval" ||
+    method === "item/fileChange/requestApproval" ||
+    method === "item/tool/requestUserInput" ||
+    method === "item/tool/call";
+  return (
+    (typeof requestId === "string" || typeof requestId === "number") &&
+    methodIsSupported &&
+    typeof threadId === "string" &&
+    typeof turnId === "string" &&
+    typeof itemId === "string" &&
+    typeof payloadJson === "string" &&
+    (createdAt === undefined || typeof createdAt === "number")
+  );
+}
+
+function coerceDynamicToolServerRequests(value: unknown): CodexDynamicToolServerRequest[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isDynamicToolServerRequest);
+}
+
 export function useCodexDynamicTools<
-  Query extends CodexDynamicToolsQuery<Record<string, unknown>>,
+  Query extends FunctionReference<"query", "public", Record<string, unknown>, unknown>,
+  RespondResult = unknown,
 >(
   query: Query,
   args: FunctionArgs<Query> | "skip",
   options: {
-    respond?: CodexDynamicToolsRespond;
+    respond?: CodexDynamicToolsRespond<RespondResult>;
     handlers?: CodexDynamicToolsHandlerMap;
     autoHandle?: boolean;
     enabled?: boolean;
   },
 ) {
-  const queryArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<Query>;
-  const requests = useQuery(query, ...queryArgs);
-  const calls = useMemo(() => deriveCodexDynamicToolCalls(requests ?? []), [requests]);
+  const queryArgs = toOptionalRestArgsOrSkip<Query>(args);
+  const requestsRaw = useQuery(query, ...queryArgs);
+  const requests = useMemo(() => coerceDynamicToolServerRequests(requestsRaw), [requestsRaw]);
+  const calls = useMemo(() => deriveCodexDynamicToolCalls(requests), [requests]);
 
   const [runningRequestIds, setRunningRequestIds] = useState<string[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);

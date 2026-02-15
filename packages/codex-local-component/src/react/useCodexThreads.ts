@@ -1,34 +1,41 @@
 "use client";
 
-import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
+import { useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReference } from "convex/server";
 import { useCallback, useMemo, useState } from "react";
+import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 export type CodexThreadsListQuery<
   Args extends Record<string, unknown> = Record<string, unknown>,
   Result = unknown,
 > = FunctionReference<"query", "public", Args, Result>;
 
-export type CodexThreadsControls = {
-  createThread?: (args?: Record<string, unknown>) => Promise<unknown>;
-  resolveThread?: (args: { localThreadId: string }) => Promise<unknown>;
-  resumeThread?: (args: { threadId: string }) => Promise<unknown>;
+export type CodexThreadsControls<
+  CreateResult = unknown,
+  ResolveResult = unknown,
+  ResumeResult = unknown,
+> = {
+  createThread?: (args?: Record<string, unknown>) => Promise<CreateResult>;
+  resolveThread?: (args: { localThreadId: string }) => Promise<ResolveResult>;
+  resumeThread?: (args: { threadId: string }) => Promise<ResumeResult>;
 };
 
-export function useCodexThreads<Query extends CodexThreadsListQuery<Record<string, unknown>, unknown>>(
+export function useCodexThreads<
+  Query extends CodexThreadsListQuery<Record<string, unknown>, unknown>,
+  CreateResult = unknown,
+  ResolveResult = unknown,
+  ResumeResult = unknown,
+>(
   config: {
     list: {
       query: Query;
       args: FunctionArgs<Query> | "skip";
     };
-    controls?: CodexThreadsControls;
+    controls?: CodexThreadsControls<CreateResult, ResolveResult, ResumeResult>;
     initialSelectedThreadId?: string | null;
   },
 ) {
-  const listQueryArgs = config.list.args === "skip"
-    ? ["skip"]
-    : [config.list.args] as [FunctionArgs<Query>];
-  const listArgs = listQueryArgs as unknown as OptionalRestArgsOrSkip<Query>;
+  const listArgs = toOptionalRestArgsOrSkip<Query>(config.list.args);
   const listed = useQuery(config.list.query, ...listArgs);
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(

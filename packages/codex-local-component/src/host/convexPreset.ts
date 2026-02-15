@@ -103,7 +103,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         message.includes("Thread not found") ||
         message.includes("Turn not found");
 
-      const runCheck = async (name: string, fn: () => Promise<unknown>) => {
+      const runCheck = async (name: string, fn: () => Promise<void>) => {
         try {
           await fn();
           checks.push({ name, ok: true });

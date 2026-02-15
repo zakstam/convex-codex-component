@@ -47,7 +47,7 @@ import type {
 } from "convex/server";
 import { anyApi, componentsGeneric } from "convex/server";
 
-const fullApi: ApiFromModules<{
+type GeneratedApiModules = {
   approvals: typeof approvals;
   index: typeof index;
   "ingest/applyApprovals": typeof ingest_applyApprovals;
@@ -79,7 +79,8 @@ const fullApi: ApiFromModules<{
   turnsInternal: typeof turnsInternal;
   types: typeof types;
   utils: typeof utils;
-}> = anyApi as any;
+};
+const fullApi: ApiFromModules<GeneratedApiModules> = anyApi as unknown as ApiFromModules<GeneratedApiModules>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
@@ -91,8 +92,8 @@ const fullApi: ApiFromModules<{
  */
 export const api: FilterApi<
   typeof fullApi,
-  FunctionReference<any, "public">
-> = anyApi as any;
+  FunctionReference<"query" | "mutation", "public">
+> = fullApi;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
@@ -104,7 +105,7 @@ export const api: FilterApi<
  */
 export const internal: FilterApi<
   typeof fullApi,
-  FunctionReference<any, "internal">
-> = anyApi as any;
+  FunctionReference<"query" | "mutation", "internal">
+> = fullApi;
 
 export const components = componentsGeneric() as unknown as {};

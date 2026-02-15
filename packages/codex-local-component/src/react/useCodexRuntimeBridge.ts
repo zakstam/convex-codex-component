@@ -10,16 +10,37 @@ export type CodexRuntimeBridgeState = {
   [key: string]: unknown;
 };
 
-export type CodexRuntimeBridgeControls<StartArgs, SendArgs = string> = {
-  start: (args: StartArgs) => Promise<unknown>;
-  stop: () => Promise<unknown>;
+export type CodexRuntimeBridgeControls<
+  StartArgs,
+  SendArgs = string,
+  StartResult = unknown,
+  StopResult = unknown,
+  SendTurnResult = unknown,
+  InterruptResult = unknown,
+> = {
+  start: (args: StartArgs) => Promise<StartResult>;
+  stop: () => Promise<StopResult>;
   getState?: () => Promise<CodexRuntimeBridgeState>;
-  sendTurn?: (args: SendArgs) => Promise<unknown>;
-  interrupt?: () => Promise<unknown>;
+  sendTurn?: (args: SendArgs) => Promise<SendTurnResult>;
+  interrupt?: () => Promise<InterruptResult>;
 };
 
-export function useCodexRuntimeBridge<StartArgs, SendArgs = string>(
-  controls: CodexRuntimeBridgeControls<StartArgs, SendArgs>,
+export function useCodexRuntimeBridge<
+  StartArgs,
+  SendArgs = string,
+  StartResult = unknown,
+  StopResult = unknown,
+  SendTurnResult = unknown,
+  InterruptResult = unknown,
+>(
+  controls: CodexRuntimeBridgeControls<
+    StartArgs,
+    SendArgs,
+    StartResult,
+    StopResult,
+    SendTurnResult,
+    InterruptResult
+  >,
   options?: {
     initialState?: CodexRuntimeBridgeState;
   },
@@ -88,7 +109,7 @@ export function useCodexRuntimeBridge<StartArgs, SendArgs = string>(
     async (args: SendArgs) => {
       const sendTurnControl = controls.sendTurn;
       if (!sendTurnControl) {
-        return;
+        return undefined;
       }
       return runAction("send", () => sendTurnControl(args));
     },
@@ -97,7 +118,7 @@ export function useCodexRuntimeBridge<StartArgs, SendArgs = string>(
 
   const interrupt = useCallback(async () => {
     if (!controls.interrupt) {
-      return;
+      return undefined;
     }
     return runAction("interrupt", controls.interrupt);
   }, [controls.interrupt, runAction]);

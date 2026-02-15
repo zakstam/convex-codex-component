@@ -1,10 +1,11 @@
 "use client";
 
-import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
+import { useQuery } from "convex/react";
 import type { FunctionArgs } from "convex/server";
 import { useEffect, useState } from "react";
 import type { CodexStreamDeltaLike } from "../mapping.js";
 import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
+import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 type StreamOverlayState = {
   threadId: string | undefined;
@@ -209,7 +210,7 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
 
   const streamDeltaQuery = useQuery(
     query,
-    ...((toQueryArgs() === "skip" ? ["skip"] : [toQueryArgs()]) as unknown as OptionalRestArgsOrSkip<Query>),
+    ...toOptionalRestArgsOrSkip<Query>(toQueryArgs()),
   );
 
   const deltaPayload =

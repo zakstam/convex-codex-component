@@ -2,18 +2,26 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-export type CodexAccountAuthControls<LoginParams = unknown> = {
-  readAccount: (args?: { refreshToken?: boolean }) => Promise<unknown>;
-  loginAccount: (args: { params: LoginParams }) => Promise<unknown>;
-  cancelAccountLogin: (args: { loginId: string }) => Promise<unknown>;
-  logoutAccount: () => Promise<unknown>;
-  readAccountRateLimits: () => Promise<unknown>;
+export type CodexAccountAuthControls<
+  LoginParams = unknown,
+  ReadAccountResult = unknown,
+  LoginResult = unknown,
+  CancelLoginResult = unknown,
+  LogoutResult = unknown,
+  ReadRateLimitsResult = unknown,
+  RefreshTokensResult = unknown,
+> = {
+  readAccount: (args?: { refreshToken?: boolean }) => Promise<ReadAccountResult>;
+  loginAccount: (args: { params: LoginParams }) => Promise<LoginResult>;
+  cancelAccountLogin: (args: { loginId: string }) => Promise<CancelLoginResult>;
+  logoutAccount: () => Promise<LogoutResult>;
+  readAccountRateLimits: () => Promise<ReadRateLimitsResult>;
   respondChatgptAuthTokensRefresh?: (args: {
     requestId: string | number;
     accessToken: string;
     chatgptAccountId: string;
     chatgptPlanType?: string | null;
-  }) => Promise<unknown>;
+  }) => Promise<RefreshTokensResult>;
 };
 
 type AuthAction =
@@ -25,8 +33,24 @@ type AuthAction =
   | "read_rate_limits"
   | "refresh_tokens";
 
-export function useCodexAccountAuth<LoginParams = unknown>(
-  controls: CodexAccountAuthControls<LoginParams>,
+export function useCodexAccountAuth<
+  LoginParams = unknown,
+  ReadAccountResult = unknown,
+  LoginResult = unknown,
+  CancelLoginResult = unknown,
+  LogoutResult = unknown,
+  ReadRateLimitsResult = unknown,
+  RefreshTokensResult = unknown,
+>(
+  controls: CodexAccountAuthControls<
+    LoginParams,
+    ReadAccountResult,
+    LoginResult,
+    CancelLoginResult,
+    LogoutResult,
+    ReadRateLimitsResult,
+    RefreshTokensResult
+  >,
 ) {
   const [busyAction, setBusyAction] = useState<AuthAction | null>(null);
   const [error, setError] = useState<string | null>(null);

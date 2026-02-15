@@ -27,26 +27,31 @@ export type CodexReactHostHooks<Actor extends Record<string, unknown>> = {
   listPendingServerRequestsForHooks?: CodexDynamicToolsQuery<{ actor: Actor; threadId: string; limit?: number }>;
 };
 
-export type CodexReactConversationControllerOptions = {
+export type CodexReactConversationControllerOptions<
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
+> = {
   initialNumItems: number;
   stream?: boolean;
   branchOptions?: CodexBranchActivityOptions;
   composer?: {
     initialValue?: string;
-    onSend: (text: string) => Promise<unknown>;
+    onSend: (text: string) => Promise<ComposerResult>;
   };
   approvals?: {
-    onResolve: (approval: CodexConversationApprovalItem, decision: CodexConversationApprovalDecision) => Promise<unknown>;
+    onResolve: (approval: CodexConversationApprovalItem, decision: CodexConversationApprovalDecision) => Promise<ApprovalResult>;
   };
   dynamicTools?: {
-    respond?: CodexDynamicToolsRespond;
+    respond?: CodexDynamicToolsRespond<DynamicToolsRespondResult>;
     handlers?: Record<string, CodexDynamicToolHandler>;
     autoHandle?: boolean;
     enabled?: boolean;
     limit?: number;
   };
   interrupt?: {
-    onInterrupt: (activity: CodexThreadActivity) => Promise<unknown>;
+    onInterrupt: (activity: CodexThreadActivity) => Promise<InterruptResult>;
   };
 };
 
@@ -109,11 +114,29 @@ export function createCodexReactConvexAdapter<
         config.hooks.threadSnapshotSafe,
         codexThreadScopeArgs(config.actor, threadId),
       ),
-    useConversationController: (
+    useConversationController: <
+      ComposerResult = unknown,
+      ApprovalResult = unknown,
+      InterruptResult = unknown,
+      DynamicToolsRespondResult = unknown,
+    >(
       threadId: string | null | undefined,
-      options: CodexReactConversationControllerOptions,
+      options: CodexReactConversationControllerOptions<
+        ComposerResult,
+        ApprovalResult,
+        InterruptResult,
+        DynamicToolsRespondResult
+      >,
     ) =>
-      useCodexConversationController({
+      useCodexConversationController<
+        CodexReactHostHooks<Actor>["listThreadMessagesForHooks"],
+        CodexReactHostHooks<Actor>["threadSnapshotSafe"],
+        NonNullable<CodexReactHostHooks<Actor>["listPendingServerRequestsForHooks"]>,
+        ComposerResult,
+        ApprovalResult,
+        InterruptResult,
+        DynamicToolsRespondResult
+      >({
         messages: {
           query: config.hooks.listThreadMessagesForHooks,
           args: codexThreadScopeArgs(config.actor, threadId),

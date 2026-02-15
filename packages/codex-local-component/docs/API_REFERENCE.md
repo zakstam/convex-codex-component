@@ -59,8 +59,11 @@ Primary consumer surface for UI apps.
 | `useCodexTurn` | Pull message + turn status in one cohesive view. |
 | `useCodexDynamicTools` | Resolve and normalize dynamic tool calls from server requests. |
 | `useCodexRuntimeBridge` | Run and monitor local bridge lifecycle for desktop/dev workflows. |
+| `CodexRuntimeBridgeControls` | Generic bridge control contract with inferred `start`/`stop`/`sendTurn`/`interrupt` return types. |
 | `useCodexAccountAuth` | Handle login/logout flows from UI. |
+| `CodexAccountAuthControls` | Generic auth control contract with inferred account/auth callback return types. |
 | `useCodexThreads` | List and sync thread rows with paging. |
+| `CodexThreadsControls` | Generic control contract for `createThread`/`resolveThread`/`resumeThread` result inference. |
 | `CodexDynamicToolServerRequest` | Typed incoming tool request contract for UI adapters. |
 | `CodexTokenUsage` | Read spend summaries and attribution for reporting views. |
 
@@ -76,7 +79,7 @@ Small adapter layer for hook-based applications already using host hooks.
 | `CodexThreadScopeArgs` | Typed actor/thread context for adapter construction. |
 | `CodexThreadTurnScopeArgs` | Typed actor/thread/turn context for turn-level adapters. |
 | `CodexReactHostHooks` | Contract expected from host-side hooks to use adapters. |
-| `CodexReactConversationControllerOptions` | Adapter options for composer, approvals, and interrupts. |
+| `CodexReactConversationControllerOptions` | Adapter options for composer, approvals, interrupts, and dynamic-tool response handlers with generic callback result inference. |
 
 ## `@zakstam/codex-local-component/host`
 

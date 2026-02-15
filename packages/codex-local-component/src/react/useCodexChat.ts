@@ -18,10 +18,11 @@ import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 
 export type CodexChatDynamicToolsConfig<
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
+  DynamicToolsRespondResult = unknown,
 > = {
   query: DynamicToolsQuery;
   args: FunctionArgs<DynamicToolsQuery> | "skip";
-  respond?: CodexDynamicToolsRespond;
+  respond?: CodexDynamicToolsRespond<DynamicToolsRespondResult>;
   handlers?: CodexDynamicToolsHandlerMap;
   autoHandle?: boolean;
   enabled?: boolean;
@@ -33,11 +34,23 @@ export type CodexChatConfig<
   MessagesQuery extends CodexMessagesQuery<unknown>,
   ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
 > = Omit<
-  CodexConversationControllerConfig<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>,
+  CodexConversationControllerConfig<
+    MessagesQuery,
+    ThreadStateQuery,
+    DynamicToolsQuery,
+    ComposerResult,
+    ApprovalResult,
+    InterruptResult,
+    DynamicToolsRespondResult
+  >,
   "dynamicTools"
 > & {
-  dynamicTools?: CodexChatDynamicToolsConfig<DynamicToolsQuery>;
+  dynamicTools?: CodexChatDynamicToolsConfig<DynamicToolsQuery, DynamicToolsRespondResult>;
 };
 
 export type CodexChatTools = {
@@ -56,7 +69,21 @@ type CodexChatResultState<
   MessagesQuery extends CodexMessagesQuery<unknown>,
   ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
-> = ReturnType<typeof useCodexConversationController<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>> & {
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
+> = ReturnType<
+  typeof useCodexConversationController<
+    MessagesQuery,
+    ThreadStateQuery,
+    DynamicToolsQuery,
+    ComposerResult,
+    ApprovalResult,
+    InterruptResult,
+    DynamicToolsRespondResult
+  >
+> & {
   tools: CodexChatTools;
 };
 
@@ -64,7 +91,19 @@ export type CodexChatResult<
   MessagesQuery extends CodexMessagesQuery<unknown>,
   ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
-> = CodexChatResultState<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>;
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
+> = CodexChatResultState<
+  MessagesQuery,
+  ThreadStateQuery,
+  DynamicToolsQuery,
+  ComposerResult,
+  ApprovalResult,
+  InterruptResult,
+  DynamicToolsRespondResult
+>;
 
 export type CodexChatOptions<
   MessagesQuery extends CodexMessagesQuery<unknown>,
@@ -72,7 +111,19 @@ export type CodexChatOptions<
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>> = CodexDynamicToolsQuery<
     Record<string, unknown>
   >,
-> = CodexChatConfig<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>;
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
+> = CodexChatConfig<
+  MessagesQuery,
+  ThreadStateQuery,
+  DynamicToolsQuery,
+  ComposerResult,
+  ApprovalResult,
+  InterruptResult,
+  DynamicToolsRespondResult
+>;
 
 function normalizeToolName(toolName: string): string {
   return toolName.trim();
@@ -95,10 +146,26 @@ export function useCodexChat<
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>> = CodexDynamicToolsQuery<
     Record<string, unknown>
   >,
->(config: CodexChatOptions<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>): CodexChatResult<
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
+>(config: CodexChatOptions<
   MessagesQuery,
   ThreadStateQuery,
-  DynamicToolsQuery
+  DynamicToolsQuery,
+  ComposerResult,
+  ApprovalResult,
+  InterruptResult,
+  DynamicToolsRespondResult
+>): CodexChatResult<
+  MessagesQuery,
+  ThreadStateQuery,
+  DynamicToolsQuery,
+  ComposerResult,
+  ApprovalResult,
+  InterruptResult,
+  DynamicToolsRespondResult
 > {
   const [disabledTools, setDisabledTools] = useState<readonly string[]>(() =>
     normalizeToolList(config.dynamicTools?.disabledTools ?? []),
@@ -214,7 +281,15 @@ export function useCodexChat<
     return filtered;
   }, [config.dynamicTools?.handlers, disabledTools, toolOverrides]);
 
-  const conversation = useCodexConversationController<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>({
+  const conversation = useCodexConversationController<
+    MessagesQuery,
+    ThreadStateQuery,
+    DynamicToolsQuery,
+    ComposerResult,
+    ApprovalResult,
+    InterruptResult,
+    DynamicToolsRespondResult
+  >({
     messages: config.messages,
     threadState: config.threadState,
     ...(config.composer !== undefined ? { composer: config.composer } : {}),

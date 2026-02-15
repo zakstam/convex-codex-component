@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery, type OptionalRestArgsOrSkip } from "convex/react";
+import { useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
+import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 type CodexTurnMessage = {
   turnId: string;
@@ -43,8 +44,8 @@ export function useCodexTurn<
   status: "streaming" | "completed" | "failed" | "interrupted" | "unknown";
   threadState: FunctionReturnType<StateQuery> | undefined;
 } {
-  const messagesArgs = (args === "skip" ? ["skip"] : [args]) as unknown as OptionalRestArgsOrSkip<MessagesQuery>;
-  const stateQueryArgs = (stateArgs === "skip" ? ["skip"] : [stateArgs]) as unknown as OptionalRestArgsOrSkip<StateQuery>;
+  const messagesArgs = toOptionalRestArgsOrSkip<MessagesQuery>(args);
+  const stateQueryArgs = toOptionalRestArgsOrSkip<StateQuery>(stateArgs);
   const messages = useQuery(messagesQuery, ...messagesArgs);
   const threadState = useQuery(stateQuery, ...stateQueryArgs);
 

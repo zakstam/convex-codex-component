@@ -1,6 +1,6 @@
 # Changesets
 
-Use Changesets to record releasable changes for `@convex-dev/codex-local-component`.
+Use Changesets to record releasable changes for `@zakstam/codex-local-component`.
 
 ## Add a changeset in a PR
 
@@ -12,7 +12,7 @@ pnpm changeset
 
 Then:
 
-1. Select `@convex-dev/codex-local-component`.
+1. Select `@zakstam/codex-local-component`.
 2. Choose version bump type (`patch`, `minor`, or `major`).
 3. Write a concise human-readable summary of the change.
 4. Commit the generated `.changeset/*.md` file with your PR.

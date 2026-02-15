@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import type { FunctionArgs } from "convex/server";
+import type { FunctionArgs, FunctionReference } from "convex/server";
 import { useCodexMessages } from "./useCodexMessages.js";
 import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 import { useCodexThreadState, type CodexThreadStateQuery } from "./useCodexThreadState.js";
@@ -30,6 +30,10 @@ export type CodexConversationControllerConfig<
   MessagesQuery extends CodexMessagesQuery<unknown>,
   ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
 > = {
   messages: {
     query: MessagesQuery;
@@ -44,21 +48,21 @@ export type CodexConversationControllerConfig<
   };
   composer?: {
     initialValue?: string;
-    onSend: (text: string) => Promise<unknown>;
+    onSend: (text: string) => Promise<ComposerResult>;
   };
   approvals?: {
-    onResolve: (approval: CodexConversationApprovalItem, decision: CodexConversationApprovalDecision) => Promise<unknown>;
+    onResolve: (approval: CodexConversationApprovalItem, decision: CodexConversationApprovalDecision) => Promise<ApprovalResult>;
   };
   dynamicTools?: {
     query: DynamicToolsQuery;
     args: FunctionArgs<DynamicToolsQuery> | "skip";
-    respond?: CodexDynamicToolsRespond;
+    respond?: CodexDynamicToolsRespond<DynamicToolsRespondResult>;
     handlers?: Record<string, CodexDynamicToolHandler>;
     autoHandle?: boolean;
     enabled?: boolean;
   };
   interrupt?: {
-    onInterrupt: (activity: CodexThreadActivity) => Promise<unknown>;
+    onInterrupt: (activity: CodexThreadActivity) => Promise<InterruptResult>;
   };
 };
 
@@ -66,13 +70,17 @@ function isApprovalLike(value: unknown): value is CodexConversationApprovalItem 
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const record = value as Record<string, unknown>;
+  const threadId = Reflect.get(value, "threadId");
+  const turnId = Reflect.get(value, "turnId");
+  const itemId = Reflect.get(value, "itemId");
+  const kind = Reflect.get(value, "kind");
+  const createdAt = Reflect.get(value, "createdAt");
   return (
-    typeof record.threadId === "string" &&
-    typeof record.turnId === "string" &&
-    typeof record.itemId === "string" &&
-    typeof record.kind === "string" &&
-    typeof record.createdAt === "number"
+    typeof threadId === "string" &&
+    typeof turnId === "string" &&
+    typeof itemId === "string" &&
+    typeof kind === "string" &&
+    typeof createdAt === "number"
   );
 }
 
@@ -80,8 +88,20 @@ export function useCodexConversationController<
   MessagesQuery extends CodexMessagesQuery<unknown>,
   ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>> = CodexDynamicToolsQuery<Record<string, unknown>>,
+  ComposerResult = unknown,
+  ApprovalResult = unknown,
+  InterruptResult = unknown,
+  DynamicToolsRespondResult = unknown,
 >(
-  config: CodexConversationControllerConfig<MessagesQuery, ThreadStateQuery, DynamicToolsQuery>,
+  config: CodexConversationControllerConfig<
+    MessagesQuery,
+    ThreadStateQuery,
+    DynamicToolsQuery,
+    ComposerResult,
+    ApprovalResult,
+    InterruptResult,
+    DynamicToolsRespondResult
+  >,
 ) {
   const messages = useCodexMessages(config.messages.query, config.messages.args, {
     initialNumItems: config.messages.initialNumItems,
@@ -94,10 +114,12 @@ export function useCodexConversationController<
     () => deriveCodexBranchActivity(threadState, config.threadState.branchOptions),
     [config.threadState.branchOptions, threadState],
   );
+  const dynamicToolsQuery: FunctionReference<"query", "public", Record<string, unknown>, unknown> =
+    config.dynamicTools?.query ?? config.threadState.query;
+  const dynamicToolsArgs = config.dynamicTools?.args ?? "skip";
   const dynamicTools = useCodexDynamicTools(
-    config.dynamicTools?.query ??
-      (config.threadState.query as unknown as DynamicToolsQuery),
-    config.dynamicTools?.args ?? "skip",
+    dynamicToolsQuery,
+    dynamicToolsArgs,
     {
       ...(config.dynamicTools?.respond !== undefined ? { respond: config.dynamicTools.respond } : {}),
       ...(config.dynamicTools?.handlers !== undefined ? { handlers: config.dynamicTools.handlers } : {}),
@@ -121,17 +143,18 @@ export function useCodexConversationController<
   const send = useCallback(
     async (overrideText?: string) => {
       if (!config.composer) {
-        return;
+        return undefined;
       }
       const text = (overrideText ?? composerValue).trim();
       if (!text) {
-        return;
+        return undefined;
       }
       setComposerSending(true);
       setComposerError(null);
       try {
-        await config.composer.onSend(text);
+        const result = await config.composer.onSend(text);
         setComposerValue("");
+        return result;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setComposerError(message);
@@ -149,12 +172,12 @@ export function useCodexConversationController<
       decision: CodexConversationApprovalDecision,
     ) => {
       if (!config.approvals) {
-        return;
+        return undefined;
       }
       setApprovingItemId(approval.itemId);
       setApprovalError(null);
       try {
-        await config.approvals.onResolve(approval, decision);
+        return await config.approvals.onResolve(approval, decision);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setApprovalError(message);
@@ -168,11 +191,11 @@ export function useCodexConversationController<
 
   const interrupt = useCallback(async () => {
     if (!config.interrupt) {
-      return;
+      return undefined;
     }
     setInterrupting(true);
     try {
-      await config.interrupt.onInterrupt(activity);
+      return await config.interrupt.onInterrupt(activity);
     } finally {
       setInterrupting(false);
     }

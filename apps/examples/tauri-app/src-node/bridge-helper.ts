@@ -577,8 +577,12 @@ async function startBridge(payload: StartPayload): Promise<void> {
         if (!convex) {
           throw new Error("Convex client not initialized.");
         }
+        if (!args.localThreadId) {
+          throw new Error("ensureThread requires localThreadId in runtime-owned create mode.");
+        }
         return convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
           actor: args.actor,
+          threadId: args.localThreadId,
           ...(args.externalThreadId ? { externalThreadId: args.externalThreadId } : {}),
           ...(args.model ? { model: args.model } : {}),
           ...(args.cwd ? { cwd: args.cwd } : {}),

@@ -39,6 +39,18 @@ Host Convex wrappers should be defined in `convex/chat.ts` via `defineRuntimeOwn
 - `useCodexTokenUsage`
 - `optimisticallySendCodexMessage`
 
+## Consumer Type Inference Notes
+
+- `useCodexChat` and `createCodexReactConvexAdapter(...).useConversationController(...)` now infer callback result types from:
+- `composer.onSend`
+- `approvals.onResolve`
+- `interrupt.onInterrupt`
+- `dynamicTools.respond`
+- `useCodexThreads` now infers control result types from `controls.createThread`, `controls.resolveThread`, and `controls.resumeThread`.
+- `useCodexAccountAuth` now infers control result types from `readAccount`, `loginAccount`, `cancelAccountLogin`, `logoutAccount`, `readAccountRateLimits`, and optional `respondChatgptAuthTokensRefresh`.
+- `useCodexRuntimeBridge` now infers control result types from `start`, `stop`, optional `sendTurn`, and optional `interrupt`.
+- `useCodexDynamicTools` now tolerates broader query return shapes and safely derives tool calls only from valid server-request rows. This avoids casting workarounds when wiring shared query surfaces.
+
 ## `useCodexMessages` Host Query Contract
 
 Your host query must accept:

@@ -1,11 +1,11 @@
 import { now } from "../utils.js";
 import { requireTurnForActor } from "../utils.js";
-import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import type { MessageIngestContext, NormalizedInboundEvent } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
 export async function applyMessageEffectsForEvent(
-  ingest: IngestContext,
+  ingest: MessageIngestContext,
   event: NormalizedInboundEvent,
   cache: IngestStateCache,
 ): Promise<void> {

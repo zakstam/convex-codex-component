@@ -1,11 +1,11 @@
 import { makeFunctionReference } from "convex/server";
 import { pickHigherPriorityTerminalStatus } from "../syncHelpers.js";
 import { authzError, now, requireTurnForActor } from "../utils.js";
-import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import type { NormalizedInboundEvent, TurnIngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 
 export async function ensureTurnForEvent(
-  ingest: IngestContext,
+  ingest: TurnIngestContext,
   event: NormalizedInboundEvent,
 ): Promise<void> {
   const turnId = event.turnId;
@@ -49,7 +49,7 @@ export async function ensureTurnForEvent(
   ingest.collected.knownTurnIds.add(turnId);
 }
 
-export function collectTurnSignals(ingest: IngestContext, event: NormalizedInboundEvent): void {
+export function collectTurnSignals(ingest: TurnIngestContext, event: NormalizedInboundEvent): void {
   if (!event.turnId) {
     return;
   }
@@ -67,7 +67,7 @@ export function collectTurnSignals(ingest: IngestContext, event: NormalizedInbou
   }
 }
 
-export async function finalizeTurns(ingest: IngestContext): Promise<void> {
+export async function finalizeTurns(ingest: TurnIngestContext): Promise<void> {
   for (const turnId of ingest.collected.startedTurns) {
     const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, turnId);
     if (turn.status === "queued") {

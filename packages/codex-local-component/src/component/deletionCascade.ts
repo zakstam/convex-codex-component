@@ -8,6 +8,11 @@ import type { MutationCtx } from "./_generated/server.js";
 type DeletionJob = Doc<"codex_deletion_jobs">;
 type DeletedCounts = Record<string, number>;
 
+type BatchStep = {
+  tableName: string;
+  run: (limit: number) => Promise<number>;
+};
+
 async function deleteDocs(
   ctx: MutationCtx,
   docs: Array<{ _id: unknown }>,
@@ -45,7 +50,9 @@ async function deleteThreadStreamDeltasBatch(args: {
   let remaining = args.limit;
   let deleted = 0;
   for (const streamId of streamIds) {
-    if (remaining <= 0) break;
+    if (remaining <= 0) {
+      break;
+    }
     const batch = await args.ctx.db
       .query("codex_stream_deltas_ttl")
       .withIndex("userScope_streamId_cursorStart", (q) =>
@@ -87,7 +94,9 @@ async function deleteTurnStreamDeltasBatch(args: {
   let remaining = args.limit;
   let deleted = 0;
   for (const streamId of streamIds) {
-    if (remaining <= 0) break;
+    if (remaining <= 0) {
+      break;
+    }
     const batch = await args.ctx.db
       .query("codex_stream_deltas_ttl")
       .withIndex("userScope_streamId_cursorStart", (q) =>
@@ -101,238 +110,600 @@ async function deleteTurnStreamDeltasBatch(args: {
   return deleted;
 }
 
-async function runThreadBatch(args: {
-  ctx: MutationCtx;
-  job: DeletionJob;
-  batchSize: number;
-}): Promise<{ deletedByTable: DeletedCounts; phase?: string }> {
-  const threadId = args.job.threadId;
-  if (!threadId) return { deletedByTable: {} };
-
+async function runBatchSteps(
+  batchSize: number,
+  steps: BatchStep[],
+): Promise<{ deletedByTable: DeletedCounts; phase?: string }> {
   const deletedByTable: DeletedCounts = {};
   let phase: string | undefined;
-  let remaining = args.batchSize;
+  let remaining = batchSize;
 
-  const runStep = async (tableName: string, run: (limit: number) => Promise<number>) => {
-    if (remaining <= 0) return;
-    const deleted = await run(remaining);
-    if (deleted > 0) { deletedByTable[tableName] = (deletedByTable[tableName] ?? 0) + deleted; remaining -= deleted; phase = tableName; }
-  };
-
-  await runStep("codex_stream_deltas_ttl", (limit) => deleteThreadStreamDeltasBatch({ ctx: args.ctx, userScope: args.job.userScope, threadId, limit }));
-  await runStep("codex_server_requests", async (limit) => {
-    const docs = await args.ctx.db.query("codex_server_requests").withIndex("userScope_threadId_requestIdType_requestIdText", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_approvals", async (limit) => {
-    const docs = await args.ctx.db.query("codex_approvals").withIndex("userScope_userId_threadId_status_createdAt_itemId", (q) => q.eq("userScope", args.job.userScope).eq("userId", args.job.userId).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_items", async (limit) => {
-    const docs = await args.ctx.db.query("codex_items").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_messages", async (limit) => {
-    const docs = await args.ctx.db.query("codex_messages").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_reasoning_segments", async (limit) => {
-    const docs = await args.ctx.db.query("codex_reasoning_segments").withIndex("userScope_threadId_createdAt_segmentId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_token_usage", async (limit) => {
-    const docs = await args.ctx.db.query("codex_token_usage").withIndex("userScope_threadId_updatedAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_event_summaries", async (limit) => {
-    const docs = await args.ctx.db.query("codex_event_summaries").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_lifecycle_events", async (limit) => {
-    const docs = await args.ctx.db.query("codex_lifecycle_events").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_stream_checkpoints", async (limit) => {
-    const docs = await args.ctx.db.query("codex_stream_checkpoints").withIndex("userScope_threadId_streamId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_sessions", async (limit) => {
-    const docs = await args.ctx.db.query("codex_sessions").withIndex("userScope_threadId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_turns", async (limit) => {
-    const docs = await args.ctx.db.query("codex_turns").withIndex("userScope_threadId_startedAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_stream_stats", async (limit) => {
-    const docs = await args.ctx.db.query("codex_stream_stats").withIndex("userScope_threadId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_streams", async (limit) => {
-    const docs = await args.ctx.db.query("codex_streams").withIndex("userScope_threadId_state", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_thread_bindings", async (limit) => {
-    const docs = await args.ctx.db.query("codex_thread_bindings").withIndex("userScope_userId_threadId", (q) => q.eq("userScope", args.job.userScope).eq("userId", args.job.userId).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_threads", async (limit) => {
-    const docs = await args.ctx.db.query("codex_threads").withIndex("userScope_threadId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
+  for (const step of steps) {
+    if (remaining <= 0) {
+      break;
+    }
+    const deleted = await step.run(remaining);
+    if (deleted <= 0) {
+      continue;
+    }
+    deletedByTable[step.tableName] = (deletedByTable[step.tableName] ?? 0) + deleted;
+    remaining -= deleted;
+    phase = step.tableName;
+  }
 
   return { deletedByTable, ...(phase !== undefined ? { phase } : {}) };
 }
 
-async function runTurnBatch(args: {
+function createThreadSteps(args: {
   ctx: MutationCtx;
   job: DeletionJob;
-  batchSize: number;
-}): Promise<{ deletedByTable: DeletedCounts; phase?: string }> {
-  const threadId = args.job.threadId;
-  const turnId = args.job.turnId;
-  if (!threadId || !turnId) return { deletedByTable: {} };
-
-  const deletedByTable: DeletedCounts = {};
-  let phase: string | undefined;
-  let remaining = args.batchSize;
-
-  const runStep = async (tableName: string, run: (limit: number) => Promise<number>) => {
-    if (remaining <= 0) return;
-    const deleted = await run(remaining);
-    if (deleted > 0) { deletedByTable[tableName] = (deletedByTable[tableName] ?? 0) + deleted; remaining -= deleted; phase = tableName; }
-  };
-
-  await runStep("codex_stream_deltas_ttl", (limit) => deleteTurnStreamDeltasBatch({ ctx: args.ctx, userScope: args.job.userScope, threadId, turnId, limit }));
-  await runStep("codex_server_requests", async (limit) => {
-    const docs = await args.ctx.db.query("codex_server_requests").withIndex("userScope_threadId_requestIdType_requestIdText", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).filter((q) => q.eq(q.field("turnId"), turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_approvals", async (limit) => {
-    const docs = await args.ctx.db.query("codex_approvals").withIndex("userScope_threadId_turnId_itemId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_items", async (limit) => {
-    const docs = await args.ctx.db.query("codex_items").withIndex("userScope_threadId_turnId_itemId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_messages", async (limit) => {
-    const docs = await args.ctx.db.query("codex_messages").withIndex("userScope_threadId_turnId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_reasoning_segments", async (limit) => {
-    const docs = await args.ctx.db.query("codex_reasoning_segments").withIndex("userScope_threadId_turnId_itemId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_token_usage", async (limit) => {
-    const docs = await args.ctx.db.query("codex_token_usage").withIndex("userScope_threadId_turnId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_event_summaries", async (limit) => {
-    const docs = await args.ctx.db.query("codex_event_summaries").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).filter((q) => q.eq(q.field("turnId"), turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_lifecycle_events", async (limit) => {
-    const docs = await args.ctx.db.query("codex_lifecycle_events").withIndex("userScope_threadId_turnId_createdAt", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_turns", async (limit) => {
-    const docs = await args.ctx.db.query("codex_turns").withIndex("userScope_threadId_turnId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_stream_stats", async (limit) => {
-    const docs = await args.ctx.db.query("codex_stream_stats").withIndex("userScope_threadId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId)).filter((q) => q.eq(q.field("turnId"), turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_streams", async (limit) => {
-    const docs = await args.ctx.db.query("codex_streams").withIndex("userScope_threadId_turnId", (q) => q.eq("userScope", args.job.userScope).eq("threadId", threadId).eq("turnId", turnId)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-
-  return { deletedByTable, ...(phase !== undefined ? { phase } : {}) };
+  threadId: string;
+}): BatchStep[] {
+  return [
+    {
+      tableName: "codex_stream_deltas_ttl",
+      run: (limit) =>
+        deleteThreadStreamDeltasBatch({
+          ctx: args.ctx,
+          userScope: args.job.userScope,
+          threadId: args.threadId,
+          limit,
+        }),
+    },
+    {
+      tableName: "codex_server_requests",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_server_requests")
+          .withIndex("userScope_threadId_requestIdType_requestIdText", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_approvals",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_approvals")
+          .withIndex("userScope_userId_threadId_status_createdAt_itemId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("userId", args.job.userId)
+              .eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_items",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_items")
+          .withIndex("userScope_threadId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_messages",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_messages")
+          .withIndex("userScope_threadId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_reasoning_segments",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_reasoning_segments")
+          .withIndex("userScope_threadId_createdAt_segmentId", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_token_usage",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_token_usage")
+          .withIndex("userScope_threadId_updatedAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_event_summaries",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_event_summaries")
+          .withIndex("userScope_threadId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_lifecycle_events",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_lifecycle_events")
+          .withIndex("userScope_threadId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_stream_checkpoints",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_stream_checkpoints")
+          .withIndex("userScope_threadId_streamId", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_sessions",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_sessions")
+          .withIndex("userScope_threadId", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_turns",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_turns")
+          .withIndex("userScope_threadId_startedAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_stream_stats",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_stream_stats")
+          .withIndex("userScope_threadId", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_streams",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_streams")
+          .withIndex("userScope_threadId_state", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_thread_bindings",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_thread_bindings")
+          .withIndex("userScope_userId_threadId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("userId", args.job.userId)
+              .eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_threads",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_threads")
+          .withIndex("userScope_threadId", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+  ];
 }
 
-async function runActorBatch(args: {
+function createTurnSteps(args: {
   ctx: MutationCtx;
   job: DeletionJob;
-  batchSize: number;
-}): Promise<{ deletedByTable: DeletedCounts; phase?: string }> {
-  const deletedByTable: DeletedCounts = {};
-  let phase: string | undefined;
-  let remaining = args.batchSize;
+  threadId: string;
+  turnId: string;
+}): BatchStep[] {
+  return [
+    {
+      tableName: "codex_stream_deltas_ttl",
+      run: (limit) =>
+        deleteTurnStreamDeltasBatch({
+          ctx: args.ctx,
+          userScope: args.job.userScope,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          limit,
+        }),
+    },
+    {
+      tableName: "codex_server_requests",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_server_requests")
+          .withIndex("userScope_threadId_requestIdType_requestIdText", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .filter((q) => q.eq(q.field("turnId"), args.turnId))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_approvals",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_approvals")
+          .withIndex("userScope_threadId_turnId_itemId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_items",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_items")
+          .withIndex("userScope_threadId_turnId_itemId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_messages",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_messages")
+          .withIndex("userScope_threadId_turnId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_reasoning_segments",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_reasoning_segments")
+          .withIndex("userScope_threadId_turnId_itemId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_token_usage",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_token_usage")
+          .withIndex("userScope_threadId_turnId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_event_summaries",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_event_summaries")
+          .withIndex("userScope_threadId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .filter((q) => q.eq(q.field("turnId"), args.turnId))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_lifecycle_events",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_lifecycle_events")
+          .withIndex("userScope_threadId_turnId_createdAt", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_turns",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_turns")
+          .withIndex("userScope_threadId_turnId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_stream_stats",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_stream_stats")
+          .withIndex("userScope_threadId", (q) =>
+            q.eq("userScope", args.job.userScope).eq("threadId", args.threadId),
+          )
+          .filter((q) => q.eq(q.field("turnId"), args.turnId))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_streams",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_streams")
+          .withIndex("userScope_threadId_turnId", (q) =>
+            q.eq("userScope", args.job.userScope)
+              .eq("threadId", args.threadId)
+              .eq("turnId", args.turnId),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+  ];
+}
 
-  const runStep = async (tableName: string, run: (limit: number) => Promise<number>) => {
-    if (remaining <= 0) return;
-    const deleted = await run(remaining);
-    if (deleted > 0) { deletedByTable[tableName] = (deletedByTable[tableName] ?? 0) + deleted; remaining -= deleted; phase = tableName; }
-  };
+function createActorSteps(args: {
+  ctx: MutationCtx;
+  job: DeletionJob;
+}): BatchStep[] {
+  return [
+    {
+      tableName: "codex_stream_deltas_ttl",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_stream_deltas_ttl")
+          .withIndex("userScope_streamId_cursorStart", (q) =>
+            q.eq("userScope", args.job.userScope),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_server_requests",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_server_requests")
+          .withIndex("userScope_threadId_requestIdType_requestIdText", (q) =>
+            q.eq("userScope", args.job.userScope),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_approvals",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_approvals")
+          .withIndex("userScope_threadId_status", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_items",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_items")
+          .withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_messages",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_messages")
+          .withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_reasoning_segments",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_reasoning_segments")
+          .withIndex("userScope_threadId_createdAt_segmentId", (q) =>
+            q.eq("userScope", args.job.userScope),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_token_usage",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_token_usage")
+          .withIndex("userScope_threadId_updatedAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_event_summaries",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_event_summaries")
+          .withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_lifecycle_events",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_lifecycle_events")
+          .withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_stream_checkpoints",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_stream_checkpoints")
+          .withIndex("userScope_threadId_streamId", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_sessions",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_sessions")
+          .withIndex("userScope_lastHeartbeatAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_turns",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_turns")
+          .withIndex("userScope_threadId_startedAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_stream_stats",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_stream_stats")
+          .withIndex("userScope_streamId", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_streams",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_streams")
+          .withIndex("userScope_streamId", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_thread_bindings",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_thread_bindings")
+          .withIndex("userScope_userId_externalThreadId", (q) =>
+            q.eq("userScope", args.job.userScope),
+          )
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+    {
+      tableName: "codex_threads",
+      run: async (limit) => {
+        const docs = await args.ctx.db
+          .query("codex_threads")
+          .withIndex("userScope_updatedAt", (q) => q.eq("userScope", args.job.userScope))
+          .take(limit);
+        return deleteDocs(args.ctx, docs);
+      },
+    },
+  ];
+}
 
-  await runStep("codex_stream_deltas_ttl", async (limit) => {
-    const docs = await args.ctx.db.query("codex_stream_deltas_ttl").withIndex("userScope_streamId_cursorStart", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_server_requests", async (limit) => {
-    const docs = await args.ctx.db.query("codex_server_requests").withIndex("userScope_threadId_requestIdType_requestIdText", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_approvals", async (limit) => {
-    const docs = await args.ctx.db.query("codex_approvals").withIndex("userScope_threadId_status", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_items", async (limit) => {
-    const docs = await args.ctx.db.query("codex_items").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_messages", async (limit) => {
-    const docs = await args.ctx.db.query("codex_messages").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_reasoning_segments", async (limit) => {
-    const docs = await args.ctx.db.query("codex_reasoning_segments").withIndex("userScope_threadId_createdAt_segmentId", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_token_usage", async (limit) => {
-    const docs = await args.ctx.db.query("codex_token_usage").withIndex("userScope_threadId_updatedAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_event_summaries", async (limit) => {
-    const docs = await args.ctx.db.query("codex_event_summaries").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_lifecycle_events", async (limit) => {
-    const docs = await args.ctx.db.query("codex_lifecycle_events").withIndex("userScope_threadId_createdAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_stream_checkpoints", async (limit) => {
-    const docs = await args.ctx.db.query("codex_stream_checkpoints").withIndex("userScope_threadId_streamId", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_sessions", async (limit) => {
-    const docs = await args.ctx.db.query("codex_sessions").withIndex("userScope_lastHeartbeatAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_turns", async (limit) => {
-    const docs = await args.ctx.db.query("codex_turns").withIndex("userScope_threadId_startedAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_stream_stats", async (limit) => {
-    const docs = await args.ctx.db.query("codex_stream_stats").withIndex("userScope_streamId", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_streams", async (limit) => {
-    const docs = await args.ctx.db.query("codex_streams").withIndex("userScope_streamId", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_thread_bindings", async (limit) => {
-    const docs = await args.ctx.db.query("codex_thread_bindings").withIndex("userScope_userId_externalThreadId", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-  await runStep("codex_threads", async (limit) => {
-    const docs = await args.ctx.db.query("codex_threads").withIndex("userScope_updatedAt", (q) => q.eq("userScope", args.job.userScope)).take(limit);
-    return deleteDocs(args.ctx, docs);
-  });
-
-  return { deletedByTable, ...(phase !== undefined ? { phase } : {}) };
+function createTargetSteps(args: {
+  ctx: MutationCtx;
+  job: DeletionJob;
+}): BatchStep[] {
+  switch (args.job.targetKind) {
+    case "thread": {
+      const threadId = args.job.threadId;
+      return threadId ? createThreadSteps({ ...args, threadId }) : [];
+    }
+    case "turn": {
+      const threadId = args.job.threadId;
+      const turnId = args.job.turnId;
+      return threadId && turnId ? createTurnSteps({ ...args, threadId, turnId }) : [];
+    }
+    case "actor":
+      return createActorSteps(args);
+    default:
+      return [];
+  }
 }
 
 export async function runBatchForTarget(args: {
@@ -340,14 +711,5 @@ export async function runBatchForTarget(args: {
   job: DeletionJob;
   batchSize: number;
 }): Promise<{ deletedByTable: DeletedCounts; phase?: string }> {
-  switch (args.job.targetKind) {
-    case "thread":
-      return runThreadBatch(args);
-    case "turn":
-      return runTurnBatch(args);
-    case "actor":
-      return runActorBatch(args);
-    default:
-      return { deletedByTable: {} };
-  }
+  return runBatchSteps(args.batchSize, createTargetSteps(args));
 }

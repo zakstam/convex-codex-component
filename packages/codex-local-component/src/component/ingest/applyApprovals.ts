@@ -1,10 +1,10 @@
 import { now } from "../utils.js";
 import { requireTurnForActor } from "../utils.js";
-import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import type { ApprovalIngestContext, NormalizedInboundEvent } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
-export function collectApprovalEffects(ingest: IngestContext, event: NormalizedInboundEvent): void {
+export function collectApprovalEffects(ingest: ApprovalIngestContext, event: NormalizedInboundEvent): void {
   if (!event.turnId) {
     return;
   }
@@ -22,7 +22,7 @@ export function collectApprovalEffects(ingest: IngestContext, event: NormalizedI
 }
 
 export async function finalizeApprovals(
-  ingest: IngestContext,
+  ingest: ApprovalIngestContext,
   cache: IngestStateCache,
 ): Promise<void> {
   for (const [key, approval] of ingest.collected.pendingApprovals) {

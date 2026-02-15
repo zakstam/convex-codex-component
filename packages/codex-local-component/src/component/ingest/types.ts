@@ -139,15 +139,43 @@ export type NormalizedInboundEvent = InboundEvent & {
   reasoningDelta: ReasoningDeltaFromEvent | null;
 };
 
-export type IngestContext = {
+export type IngestSharedContext = {
   ctx: MutationCtx;
   args: PushEventsArgs;
-  runtime: RuntimeOptions;
   thread: Doc<"codex_threads">;
-  session: IngestSession;
-  collected: IngestCollectedState;
-  streamState: IngestStreamStatsState;
+};
+
+export type IngestRuntimeContext = IngestSharedContext & {
+  runtime: RuntimeOptions;
+};
+
+export type IngestProgressState = {
   lastPersistedCursor: number;
   persistedAnyEvent: boolean;
   ingestStatus: "ok" | "partial";
+};
+
+export type TurnIngestContext = IngestSharedContext & {
+  collected: IngestCollectedState;
+};
+
+export type MessageIngestContext = IngestRuntimeContext;
+
+export type ApprovalIngestContext = IngestSharedContext & {
+  collected: IngestCollectedState;
+};
+
+export type StreamIngestContext = IngestRuntimeContext & {
+  collected: IngestCollectedState;
+  streamState: IngestStreamStatsState;
+  progress: IngestProgressState;
+};
+
+export type CheckpointIngestContext = IngestSharedContext & {
+  streamState: IngestStreamStatsState;
+};
+
+export type SessionIngestContext = Pick<IngestSharedContext, "ctx" | "args"> & {
+  session: IngestSession;
+  progress: IngestProgressState;
 };

@@ -2,11 +2,10 @@ import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
-import type { CodexResponse, ServerInboundMessage } from "@zakstam/codex-local-component/protocol";
+import { extractAssistantDeltaFromPayload, isResponse, isServerNotification } from "../../../shared/protocolPayload.js";
 import type {
   ClientNotification,
   ClientRequest,
-  ServerNotification,
 } from "@zakstam/codex-local-component/protocol";
 
 const model = process.env.CODEX_MODEL ?? null;
@@ -33,14 +32,6 @@ function requestId(): number {
   const id = nextId;
   nextId += 1;
   return id;
-}
-
-function isServerNotification(message: ServerInboundMessage): message is ServerNotification {
-  return "method" in message;
-}
-
-function isResponse(message: ServerInboundMessage): message is CodexResponse {
-  return "id" in message && !isServerNotification(message);
 }
 
 function sendMessage(
@@ -75,8 +66,7 @@ const bridge = new CodexLocalBridge(
       }
 
       if (event.kind === "item/agentMessage/delta") {
-        const payload = JSON.parse(event.payloadJson) as ServerInboundMessage;
-        const delta = extractAssistantDelta(payload);
+        const delta = extractAssistantDeltaFromPayload(event.payloadJson);
         if (!delta) {
           return;
         }
@@ -168,21 +158,6 @@ const bridge = new CodexLocalBridge(
     },
   },
 );
-
-function extractAssistantDelta(message: ServerInboundMessage): string | null {
-  if (!("method" in message)) {
-    return null;
-  }
-
-  if (message.method === "item/agentMessage/delta") {
-    const params =
-      typeof message.params === "object" && message.params !== null
-        ? (message.params as Record<string, unknown>)
-        : null;
-    return typeof params?.delta === "string" ? params.delta : null;
-  }
-  return null;
-}
 
 async function waitForThreadStart(): Promise<void> {
   if (threadId) {

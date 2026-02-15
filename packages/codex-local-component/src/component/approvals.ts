@@ -17,60 +17,63 @@ export const listPending = query({
       await requireThreadForActor(ctx, args.actor, args.threadId);
     }
 
+    const userScope = userScopeFromActor(args.actor);
+    const takeLimit = args.paginationOpts.numItems + 1;
     const cursor = decodeKeysetCursor<{ createdAt: number; threadId: string; itemId: string }>(
       args.paginationOpts.cursor,
     );
 
-    const paginated = args.threadId
-      ? await ctx.db
-          .query("codex_approvals")
-          .withIndex("userScope_userId_threadId_status_createdAt_itemId", (q) =>
-            q
-              .eq("userScope", userScopeFromActor(args.actor))
-              .eq("userId", args.actor.userId)
-              .eq("threadId", args.threadId!)
-              .eq("status", "pending"),
+    let paginated;
+    if (args.threadId) {
+      const base = ctx.db
+        .query("codex_approvals")
+        .withIndex("userScope_userId_threadId_status_createdAt_itemId", (q) =>
+          q
+            .eq("userScope", userScope)
+            .eq("userId", args.actor.userId)
+            .eq("threadId", args.threadId!)
+            .eq("status", "pending"),
+        );
+      const filtered = cursor
+        ? base.filter((q) =>
+            q.or(
+              q.lt(q.field("createdAt"), cursor.createdAt),
+              q.and(
+                q.eq(q.field("createdAt"), cursor.createdAt),
+                q.lt(q.field("itemId"), cursor.itemId),
+              ),
+            ),
           )
-          .filter((q) =>
-            cursor
-              ? q.or(
-                  q.lt(q.field("createdAt"), cursor.createdAt),
+        : base;
+      paginated = await filtered.order("desc").take(takeLimit);
+    } else {
+      const base = ctx.db
+        .query("codex_approvals")
+        .withIndex("userScope_userId_status_createdAt_threadId_itemId", (q) =>
+          q
+            .eq("userScope", userScope)
+            .eq("userId", args.actor.userId)
+            .eq("status", "pending"),
+        );
+      const filtered = cursor
+        ? base.filter((q) =>
+            q.or(
+              q.lt(q.field("createdAt"), cursor.createdAt),
+              q.and(
+                q.eq(q.field("createdAt"), cursor.createdAt),
+                q.or(
+                  q.lt(q.field("threadId"), cursor.threadId),
                   q.and(
-                    q.eq(q.field("createdAt"), cursor.createdAt),
+                    q.eq(q.field("threadId"), cursor.threadId),
                     q.lt(q.field("itemId"), cursor.itemId),
                   ),
-                )
-              : q.eq(q.field("threadId"), args.threadId!),
+                ),
+              ),
+            ),
           )
-          .order("desc")
-          .take(args.paginationOpts.numItems + 1)
-      : await ctx.db
-          .query("codex_approvals")
-          .withIndex("userScope_userId_status_createdAt_threadId_itemId", (q) =>
-            q
-              .eq("userScope", userScopeFromActor(args.actor))
-              .eq("userId", args.actor.userId)
-              .eq("status", "pending"),
-          )
-          .filter((q) =>
-            cursor
-              ? q.or(
-                  q.lt(q.field("createdAt"), cursor.createdAt),
-                  q.and(
-                    q.eq(q.field("createdAt"), cursor.createdAt),
-                    q.or(
-                      q.lt(q.field("threadId"), cursor.threadId),
-                      q.and(
-                        q.eq(q.field("threadId"), cursor.threadId),
-                        q.lt(q.field("itemId"), cursor.itemId),
-                      ),
-                    ),
-                  ),
-                )
-              : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
-          )
-          .order("desc")
-          .take(args.paginationOpts.numItems + 1);
+        : base;
+      paginated = await filtered.order("desc").take(takeLimit);
+    }
 
     const result = keysetPageResult(paginated, args.paginationOpts, (approval) => ({
       createdAt: Number(approval.createdAt),

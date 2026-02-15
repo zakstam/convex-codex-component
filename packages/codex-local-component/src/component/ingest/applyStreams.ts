@@ -12,12 +12,12 @@ import {
   ensureStreamStat,
 } from "../streamStats.js";
 import { now } from "../utils.js";
-import type { IngestContext, NormalizedInboundEvent } from "./types.js";
+import type { NormalizedInboundEvent, StreamIngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
 
 export async function persistLifecycleEventIfMissing(
-  ingest: IngestContext,
+  ingest: StreamIngestContext,
   event: NormalizedInboundEvent,
 ): Promise<void> {
   if (event.type !== "lifecycle_event") {
@@ -54,7 +54,7 @@ export async function persistLifecycleEventIfMissing(
 }
 
 export async function applyStreamEvent(
-  ingest: IngestContext,
+  ingest: StreamIngestContext,
   event: NormalizedInboundEvent,
   cache: IngestStateCache,
 ): Promise<void> {
@@ -131,7 +131,7 @@ export async function applyStreamEvent(
     );
   }
   if (event.cursorStart > streamExpectedCursor) {
-    ingest.ingestStatus = "partial";
+    ingest.progress.ingestStatus = "partial";
   }
 
   if (ingest.collected.inBatchEventIds.has(event.eventId)) {
@@ -176,8 +176,8 @@ export async function applyStreamEvent(
       });
     }
 
-    ingest.lastPersistedCursor = event.cursorEnd;
-    ingest.persistedAnyEvent = true;
+    ingest.progress.lastPersistedCursor = event.cursorEnd;
+    ingest.progress.persistedAnyEvent = true;
   }
 
   ingest.streamState.streamCheckpointCursorByStreamId.set(
@@ -187,7 +187,7 @@ export async function applyStreamEvent(
   ingest.streamState.expectedCursorByStreamId.set(event.streamId, event.cursorEnd);
 }
 
-export async function flushStreamStats(ingest: IngestContext): Promise<void> {
+export async function flushStreamStats(ingest: StreamIngestContext): Promise<void> {
   await addStreamDeltaStatsBatch(ingest.ctx, {
     userScope: userScopeFromActor(ingest.args.actor),
     threadId: ingest.args.threadId,

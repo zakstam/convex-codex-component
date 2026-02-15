@@ -5,23 +5,23 @@ import {
   STALE_SWEEP_MIN_INTERVAL_MS,
 } from "../syncRuntime.js";
 import { now } from "../utils.js";
-import type { IngestContext } from "./types.js";
+import type { SessionIngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 
-export async function patchSessionAfterIngest(ingest: IngestContext): Promise<number> {
+export async function patchSessionAfterIngest(ingest: SessionIngestContext): Promise<number> {
   const sessionPatch: {
     status: "active";
     lastHeartbeatAt?: number;
     lastEventCursor?: number;
   } = { status: "active" };
 
-  const nextLastEventCursor = Math.max(ingest.session.lastEventCursor, ingest.lastPersistedCursor);
+  const nextLastEventCursor = Math.max(ingest.session.lastEventCursor, ingest.progress.lastPersistedCursor);
   if (nextLastEventCursor !== ingest.session.lastEventCursor) {
     sessionPatch.lastEventCursor = nextLastEventCursor;
   }
 
   const nowMs = now();
-  if (ingest.persistedAnyEvent || nowMs - ingest.session.lastHeartbeatAt >= HEARTBEAT_WRITE_MIN_INTERVAL_MS) {
+  if (ingest.progress.persistedAnyEvent || nowMs - ingest.session.lastHeartbeatAt >= HEARTBEAT_WRITE_MIN_INTERVAL_MS) {
     sessionPatch.lastHeartbeatAt = nowMs;
   }
 
@@ -30,7 +30,7 @@ export async function patchSessionAfterIngest(ingest: IngestContext): Promise<nu
 }
 
 export async function schedulePostIngestMaintenance(
-  ingest: IngestContext,
+  ingest: SessionIngestContext,
   nowMs: number,
 ): Promise<void> {
   if (nowMs - ingest.session.lastHeartbeatAt >= STALE_SWEEP_MIN_INTERVAL_MS) {
@@ -44,7 +44,7 @@ export async function schedulePostIngestMaintenance(
     );
   }
 
-  if (ingest.persistedAnyEvent && nowMs - ingest.session.lastHeartbeatAt >= CLEANUP_SWEEP_MIN_INTERVAL_MS) {
+  if (ingest.progress.persistedAnyEvent && nowMs - ingest.session.lastHeartbeatAt >= CLEANUP_SWEEP_MIN_INTERVAL_MS) {
     await ingest.ctx.scheduler.runAfter(
       0,
       makeFunctionReference<"mutation">("streams:cleanupExpiredDeltas"),

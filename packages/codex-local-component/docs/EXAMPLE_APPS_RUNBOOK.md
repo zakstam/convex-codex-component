@@ -10,6 +10,11 @@ From repo root:
 pnpm install
 ```
 
+Shared helper paths used by CLI/smoke hosts:
+
+- `apps/shared/resolveConvexUrl.ts` for Convex URL resolution precedence
+- `apps/shared/protocolPayload.ts` for protocol notification/response parsing helpers
+
 ## Environment Variables
 
 Use the app-specific variable sets below before running an example.
@@ -70,4 +75,3 @@ pnpm run dev:convex:once
 pnpm run wiring:smoke
 pnpm run typecheck
 ```
-

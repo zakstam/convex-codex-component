@@ -1,22 +1,22 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
+import { resolveConvexUrl } from "../../shared/resolveConvexUrl.js";
+import {
+  extractAssistantDelta,
+  isResponse,
+  isServerNotification,
+  parseServerInboundMessage,
+} from "../../shared/protocolPayload.js";
 import type {
-  CodexResponse,
   NormalizedEvent,
-  ServerInboundMessage,
   ClientNotification,
   ClientRequest,
-  ServerNotification,
 } from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
-
-type EnvMap = Record<string, string>;
 
 type IngestDelta = {
   eventId: string;
@@ -34,85 +34,6 @@ const MAX_BATCH_SIZE = 32;
 const ACTIVE_FLUSH_INTERVAL_MS = 250;
 const IDLE_FLUSH_INTERVAL_MS = 5000;
 const TURN_LIFECYCLE_KINDS = new Set<string>(["turn/started", "turn/completed"]);
-
-function readEnvFile(path: string): EnvMap {
-  if (!existsSync(path)) {
-    return {};
-  }
-  const out: EnvMap = {};
-  const content = readFileSync(path, "utf8");
-  for (const rawLine of content.split("\n")) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-    const eq = line.indexOf("=");
-    if (eq <= 0) {
-      continue;
-    }
-    const key = line.slice(0, eq).trim();
-    const value = line.slice(eq + 1).trim();
-    out[key] = value;
-  }
-  return out;
-}
-
-function deploymentToUrl(deploymentRaw: string | undefined): string | null {
-  if (!deploymentRaw) {
-    return null;
-  }
-  const deployment = deploymentRaw.includes(":")
-    ? deploymentRaw.slice(deploymentRaw.lastIndexOf(":") + 1)
-    : deploymentRaw;
-  if (!deployment) {
-    return null;
-  }
-  return `https://${deployment}.convex.cloud`;
-}
-
-function resolveConvexUrl(): string | null {
-  if (process.env.CONVEX_URL) {
-    return process.env.CONVEX_URL;
-  }
-  if (process.env.NEXT_PUBLIC_CONVEX_URL) {
-    return process.env.NEXT_PUBLIC_CONVEX_URL;
-  }
-
-  const envLocal = readEnvFile(join(process.cwd(), ".env.local"));
-  const convexEnvLocal = readEnvFile(join(process.cwd(), "convex", ".env.local"));
-  const merged: EnvMap = { ...envLocal, ...convexEnvLocal };
-
-  if (merged.CONVEX_URL) {
-    return merged.CONVEX_URL;
-  }
-  if (merged.NEXT_PUBLIC_CONVEX_URL) {
-    return merged.NEXT_PUBLIC_CONVEX_URL;
-  }
-  return deploymentToUrl(merged.CONVEX_DEPLOYMENT);
-}
-
-function isServerNotification(message: ServerInboundMessage): message is ServerNotification {
-  return "method" in message;
-}
-
-function isResponse(message: ServerInboundMessage): message is CodexResponse {
-  return "id" in message && !isServerNotification(message);
-}
-
-function extractAssistantDelta(message: ServerInboundMessage): string | null {
-  if (!("method" in message)) {
-    return null;
-  }
-
-  if (message.method === "item/agentMessage/delta") {
-    const params =
-      typeof message.params === "object" && message.params !== null
-        ? (message.params as Record<string, unknown>)
-        : null;
-    return typeof params?.delta === "string" ? params.delta : null;
-  }
-  return null;
-}
 
 const convexUrl = resolveConvexUrl();
 if (!convexUrl) {
@@ -382,7 +303,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     rejectThreadReady = null;
   }
 
-  const payload = JSON.parse(event.payloadJson) as ServerInboundMessage;
+  const payload = parseServerInboundMessage(event.payloadJson);
   const delta = extractAssistantDelta(payload);
   if (delta) {
     if (!assistantLineOpen) {

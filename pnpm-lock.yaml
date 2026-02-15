@@ -102,7 +102,7 @@ importers:
   apps/release-smoke-host:
     dependencies:
       convex:
-        specifier: ^1.17.4
+        specifier: ^1.31.7
         version: 1.31.7(react@19.2.4)
     devDependencies:
       '@types/node':
@@ -121,7 +121,7 @@ importers:
         specifier: ^8.17.1
         version: 8.17.1
       convex:
-        specifier: ^1.17.4
+        specifier: ^1.31.7
         version: 1.31.7(react@19.2.4)
       react:
         specifier: ^18.0.0 || ^19.0.0

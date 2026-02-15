@@ -1,9 +1,9 @@
 import { now, requireStreamForActor, requireThreadRefForActor } from "../utils.js";
 import type { MutationCtx } from "../_generated/server.js";
-import type { ActorContext, IngestContext } from "./types.js";
+import type { ActorContext, CheckpointIngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 
-export async function applyStreamCheckpoints(ingest: IngestContext): Promise<void> {
+export async function applyStreamCheckpoints(ingest: CheckpointIngestContext): Promise<void> {
   const streamCheckpointRows = await ingest.ctx.db
     .query("codex_stream_checkpoints")
     .withIndex("userScope_threadId_streamId", (q) =>

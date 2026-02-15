@@ -3,7 +3,7 @@ import type { MutationCtx } from "../_generated/server.js";
 import { normalizeInboundEvents } from "./normalize.js";
 import { createIngestStateCache } from "./stateCache.js";
 import { requireBoundSession } from "./sessionGuard.js";
-import type { PushEventsArgs } from "./types.js";
+import type { IngestProgressState, PushEventsArgs } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import { ensureTurnForEvent, collectTurnSignals, finalizeTurns } from "./applyTurns.js";
 import { applyMessageEffectsForEvent } from "./applyMessages.js";
@@ -40,30 +40,63 @@ export async function ingestEvents(
     )
     .take(500);
 
-  const ingest = {
+  const shared = {
     ctx,
     args,
-    runtime,
     thread,
-    session,
-    collected: {
-      inBatchEventIds: new Set<string>(),
-      knownTurnIds: new Set<string>(),
-      startedTurns: new Set<string>(),
-      terminalTurns: new Map(),
-      pendingApprovals: new Map(),
-      resolvedApprovals: new Map(),
-    },
-    streamState: {
-      persistedStatsByStreamId: new Map(),
-      streamCheckpointCursorByStreamId: new Map<string, number>(),
-      expectedCursorByStreamId: new Map<string, number>(
-        streamStats.map((stat) => [String(stat.streamId), Number(stat.latestCursor)]),
-      ),
-    },
+  };
+
+  const collected = {
+    inBatchEventIds: new Set<string>(),
+    knownTurnIds: new Set<string>(),
+    startedTurns: new Set<string>(),
+    terminalTurns: new Map(),
+    pendingApprovals: new Map(),
+    resolvedApprovals: new Map(),
+  };
+
+  const streamState = {
+    persistedStatsByStreamId: new Map(),
+    streamCheckpointCursorByStreamId: new Map<string, number>(),
+    expectedCursorByStreamId: new Map<string, number>(
+      streamStats.map((stat) => [String(stat.streamId), Number(stat.latestCursor)]),
+    ),
+  };
+
+  const progress: IngestProgressState = {
     lastPersistedCursor: session.lastEventCursor,
     persistedAnyEvent: false,
-    ingestStatus: "ok" as const,
+    ingestStatus: "ok",
+  };
+
+  const turnIngest = {
+    ...shared,
+    collected,
+  };
+  const messageIngest = {
+    ...shared,
+    runtime,
+  };
+  const approvalIngest = {
+    ...shared,
+    collected,
+  };
+  const streamIngest = {
+    ...shared,
+    runtime,
+    collected,
+    streamState,
+    progress,
+  };
+  const checkpointIngest = {
+    ...shared,
+    streamState,
+  };
+  const sessionIngest = {
+    ctx,
+    args,
+    session,
+    progress,
   };
 
   const cache = createIngestStateCache({
@@ -73,31 +106,31 @@ export async function ingestEvents(
   });
 
   for (const event of deltas) {
-    await ensureTurnForEvent(ingest, event);
-    collectTurnSignals(ingest, event);
-    collectApprovalEffects(ingest, event);
-    await applyMessageEffectsForEvent(ingest, event, cache);
+    await ensureTurnForEvent(turnIngest, event);
+    collectTurnSignals(turnIngest, event);
+    collectApprovalEffects(approvalIngest, event);
+    await applyMessageEffectsForEvent(messageIngest, event, cache);
 
     if (event.type === "lifecycle_event") {
-      await persistLifecycleEventIfMissing(ingest, event);
+      await persistLifecycleEventIfMissing(streamIngest, event);
       continue;
     }
 
-    await applyStreamEvent(ingest, event, cache);
+    await applyStreamEvent(streamIngest, event, cache);
   }
 
   await cache.flushMessagePatches();
-  await finalizeTurns(ingest);
-  await finalizeApprovals(ingest, cache);
-  await flushStreamStats(ingest);
-  await applyStreamCheckpoints(ingest);
+  await finalizeTurns(turnIngest);
+  await finalizeApprovals(approvalIngest, cache);
+  await flushStreamStats(streamIngest);
+  await applyStreamCheckpoints(checkpointIngest);
 
-  const nowMs = await patchSessionAfterIngest(ingest);
-  await schedulePostIngestMaintenance(ingest, nowMs);
+  const nowMs = await patchSessionAfterIngest(sessionIngest);
+  await schedulePostIngestMaintenance(sessionIngest, nowMs);
 
-  const ackedStreams = Array.from(ingest.streamState.streamCheckpointCursorByStreamId.entries())
+  const ackedStreams = Array.from(streamState.streamCheckpointCursorByStreamId.entries())
     .map(([streamId, ackCursorEnd]) => ({ streamId, ackCursorEnd }))
     .sort((a, b) => a.streamId.localeCompare(b.streamId));
 
-  return { ackedStreams, ingestStatus: ingest.ingestStatus };
+  return { ackedStreams, ingestStatus: progress.ingestStatus };
 }

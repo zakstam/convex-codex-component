@@ -22,7 +22,7 @@ await runtime.start({
 
 In this mode:
 
-- `runtime.sendTurn(...)` starts turns.
+- `await runtime.sendTurn(...)` durably accepts turns before returning.
 
 ## Host Surface Expectations
 
@@ -40,4 +40,5 @@ Successful turn path:
 Failure path:
 
 1. `sendTurn` accepted.
-2. Runtime emits failure event.
+2. Runtime emits failure event or start failure.
+3. Runtime reconciles accepted turn to explicit terminal state.

@@ -125,11 +125,13 @@ export function createCodexHostRuntime(args: {
     core.emitState(null);
   };
 
-  const sendTurn = (text: string) => {
+  const sendTurn: CodexHostRuntime["sendTurn"] = async (text) => {
     if (!core.bridge) throw new Error("Bridge/thread not ready. Start runtime first.");
     if (core.turnInFlight && !core.turnSettled) throw core.runtimeError("E_RUNTIME_DISPATCH_TURN_IN_FLIGHT", "A turn is already in flight.");
-    core.pushDispatchText(text);
-    void core.ensureThreadBinding(core.runtimeThreadId ?? undefined).then(() => core.processDispatchQueue());
+    await core.ensureThreadBinding(core.runtimeThreadId ?? undefined);
+    const accepted = await core.acceptTurnSend(text);
+    await core.processDispatchQueue();
+    return accepted;
   };
 
   // TODO(turn/steer): Route steer payloads through app-server `turn/steer` instead of forcing new turns.

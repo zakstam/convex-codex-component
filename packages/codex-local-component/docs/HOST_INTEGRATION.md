@@ -17,7 +17,7 @@ Use `actor: { userId?: string }` at all host/component boundaries.
 1. Mount component in `convex/convex.config.ts`.
 2. Define host wrappers in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`.
 3. Optionally define app-specific endpoints in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
-4. Submit turns through `runtime.sendTurn(text)`.
+4. Submit turns through `await runtime.sendTurn(text)`.
 6. Run `chat.validateHostWiring` at startup.
 
 ## Mount the Component
@@ -90,7 +90,8 @@ await runtime.start({
 Turn start API for canonical flow:
 
 ```ts
-await runtime.sendTurn(inputText);
+const accepted = await runtime.sendTurn(inputText);
+// accepted.turnId is durable once this promise resolves.
 ```
 
 ## Ingest Contract
@@ -126,4 +127,3 @@ If `ok` is `false`, fail startup and surface details in logs.
 
 Convex-deployed code must not import `@zakstam/codex-local-component/protocol/parser`.
 Use host wrapper exports (`@zakstam/codex-local-component/host/convex`) inside Convex functions.
-

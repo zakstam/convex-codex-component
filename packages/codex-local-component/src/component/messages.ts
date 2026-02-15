@@ -5,6 +5,7 @@ import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { requireThreadForActor, requireTurnForActor } from "./utils.js";
+import { isThreadMissing } from "../errors.js";
 
 export const listByThread = query({
   args: {
@@ -13,7 +14,18 @@ export const listByThread = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    await requireThreadForActor(ctx, args.actor, args.threadId);
+    try {
+      await requireThreadForActor(ctx, args.actor, args.threadId);
+    } catch (error) {
+      if (isThreadMissing(error)) {
+        return {
+          page: [],
+          isDone: true,
+          continueCursor: args.paginationOpts.cursor ?? "",
+        };
+      }
+      throw error;
+    }
 
     const cursor = decodeKeysetCursor<{ createdAt: number; messageId: string }>(
       args.paginationOpts.cursor,

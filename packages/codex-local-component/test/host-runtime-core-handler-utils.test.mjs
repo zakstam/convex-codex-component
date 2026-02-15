@@ -43,6 +43,7 @@ function createBaseContext(overrides = {}) {
       context.activeDispatch = value;
     },
     processDispatchQueue: async () => {},
+    failAcceptedTurnSend: async () => {},
     markTurnDispatchStarted: async () => {},
     markTurnDispatchFailed: async () => {},
     cancelTurnDispatch: async () => {},

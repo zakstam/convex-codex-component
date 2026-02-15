@@ -84,6 +84,14 @@ export type HandlerCtx = {
   clearFlushTimer: () => void;
   ensureThreadBinding: (preferred?: string) => Promise<void>;
   processDispatchQueue: () => Promise<void>;
+  failAcceptedTurnSend: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    turnId: string;
+    code?: string;
+    reason: string;
+  }) => Promise<void>;
   registerPendingServerRequest: (request: PendingServerRequest) => Promise<void>;
   resolvePendingServerRequest: (a: { requestId: RpcId; status: "answered" | "expired"; responseJson?: string }) => Promise<void>;
   expireTurnServerRequests: (turn: { threadId: string; turnId?: string | null }) => Promise<void>;
@@ -202,7 +210,17 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
       if (d) {
         if (terminal === "completed") await ctx.persistence.markTurnDispatchCompleted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken });
         else if (terminal === "cancelled") await ctx.persistence.cancelTurnDispatch({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, reason: "interrupted" });
-        else await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, code: "TURN_COMPLETED_FAILED", reason: "turn/completed reported failed status" });
+        else {
+          await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, code: "TURN_COMPLETED_FAILED", reason: "turn/completed reported failed status" });
+          await ctx.failAcceptedTurnSend({
+            actor: ctx.actor,
+            threadId: ctx.threadId,
+            dispatchId: d.dispatchId,
+            turnId: d.persistedTurnId,
+            code: "TURN_COMPLETED_FAILED",
+            reason: "turn/completed reported failed status",
+          });
+        }
       }
     }
     ctx.setTurnId(null); ctx.turnInFlight = false; ctx.turnSettled = true; ctx.emitState();
@@ -211,7 +229,20 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
   }
 
   if (event.kind === "error") {
-    if (ctx.actor && ctx.threadId && event.turnId) { const d = ctx.dispatchByTurnId.get(event.turnId); if (d) await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, code: "TURN_ERROR_EVENT", reason: "Runtime emitted error event for turn" }); }
+    if (ctx.actor && ctx.threadId && event.turnId) {
+      const d = ctx.dispatchByTurnId.get(event.turnId);
+      if (d) {
+        await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, code: "TURN_ERROR_EVENT", reason: "Runtime emitted error event for turn" });
+        await ctx.failAcceptedTurnSend({
+          actor: ctx.actor,
+          threadId: ctx.threadId,
+          dispatchId: d.dispatchId,
+          turnId: d.persistedTurnId,
+          code: "TURN_ERROR_EVENT",
+          reason: "Runtime emitted error event for turn",
+        });
+      }
+    }
     ctx.turnInFlight = false; ctx.turnSettled = true;
     if (!event.turnId || event.turnId === ctx.turnId) ctx.setTurnId(null);
     ctx.emitState();
@@ -264,7 +295,20 @@ export async function handleBridgeGlobalMessage(ctx: HandlerCtx, message: Server
       }
     }
     if (message.error && pending?.method === "turn/start") {
-      if (ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: pending.dispatchId, claimToken: pending.claimToken, code: typeof message.error.code === "number" ? String(message.error.code) : "TURN_START_FAILED", reason: message.error.message });
+      if (ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) {
+        const code = typeof message.error.code === "number" ? String(message.error.code) : "TURN_START_FAILED";
+        await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: pending.dispatchId, claimToken: pending.claimToken, code, reason: message.error.message });
+        if (pending.turnId) {
+          await ctx.failAcceptedTurnSend({
+            actor: ctx.actor,
+            threadId: ctx.threadId,
+            dispatchId: pending.dispatchId,
+            turnId: pending.turnId,
+            code,
+            reason: message.error.message,
+          });
+        }
+      }
       ctx.setActiveDispatch(null); ctx.turnInFlight = false; ctx.turnSettled = true; ctx.setTurnId(null); ctx.emitState();
       await ctx.processDispatchQueue();
     } else if (!message.error && pending?.method === "turn/start" && ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) {

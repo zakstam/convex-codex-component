@@ -123,24 +123,26 @@ export type HostRuntimePersistence = {
     actor: ActorContext;
     threadId?: string;
   }) => Promise<HostRuntimePersistedServerRequest[]>;
-  enqueueTurnDispatch: (args: {
+  acceptTurnSend: (args: {
     actor: ActorContext;
     threadId: string;
+    inputText: string;
+    idempotencyKey: string;
     dispatchId?: string;
     turnId: string;
-    idempotencyKey: string;
-    input: Array<{
-      type: string;
-      text?: string;
-      url?: string;
-      path?: string;
-    }>;
   }) => Promise<{
     dispatchId: string;
     turnId: string;
-    status: "queued" | "claimed" | "started" | "completed" | "failed" | "cancelled";
     accepted: boolean;
   }>;
+  failAcceptedTurnSend: (args: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    turnId: string;
+    code?: string;
+    reason: string;
+  }) => Promise<void>;
   claimNextTurnDispatch: (args: {
     actor: ActorContext;
     threadId: string;
@@ -212,7 +214,7 @@ export type HostRuntimeHandlers = {
 export type CodexHostRuntime = {
   start: (args: HostRuntimeStartArgs) => Promise<void>;
   stop: () => Promise<void>;
-  sendTurn: (text: string) => void;
+  sendTurn: (text: string) => Promise<{ turnId: string; accepted: true }>;
   interrupt: () => void;
   resumeThread: (
     runtimeThreadId: string,

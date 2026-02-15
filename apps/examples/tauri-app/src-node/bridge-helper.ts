@@ -210,17 +210,6 @@ function getDispatchQueue(threadId: string): RuntimeDispatchQueueEntry[] {
   return queue;
 }
 
-function parseDispatchInputText(
-  input: Array<{ type: string; text?: string; url?: string; path?: string }>,
-): string {
-  const textEntry = input.find((entry) => entry.type === "text" && typeof entry.text === "string");
-  if (textEntry?.text) {
-    return textEntry.text;
-  }
-  const fallbackEntry = input.find((entry) => typeof entry.url === "string" || typeof entry.path === "string");
-  return fallbackEntry ? JSON.stringify(fallbackEntry) : "";
-}
-
 let bridgeState: {
   running: boolean;
   localThreadId: string | null;
@@ -750,23 +739,47 @@ async function startBridge(payload: StartPayload): Promise<void> {
           },
         );
       },
-      enqueueTurnDispatch: async ({ threadId, dispatchId, turnId, idempotencyKey, input }) => {
-        const normalizedDispatchId = dispatchId ?? randomSessionId();
+      acceptTurnSend: async ({ actor: turnActor, threadId, dispatchId, turnId, idempotencyKey, inputText }) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        const acceptResult = await convex.mutation(
+          requireDefined(chatApi.acceptTurnSendForHooks, "api.chat.acceptTurnSendForHooks"),
+          {
+            actor: turnActor,
+            threadId,
+            turnId,
+            inputText,
+            idempotencyKey,
+            ...(dispatchId ? { dispatchId } : {}),
+          },
+        );
         const claimToken = randomSessionId();
         const queue = getDispatchQueue(threadId);
         queue.push({
-          dispatchId: normalizedDispatchId,
+          dispatchId: acceptResult.dispatchId,
           claimToken,
-          turnId,
-          inputText: parseDispatchInputText(input),
+          turnId: acceptResult.turnId,
+          inputText,
           idempotencyKey,
         });
-        return {
-          dispatchId: normalizedDispatchId,
-          turnId,
-          status: "queued",
-          accepted: true,
-        };
+        return acceptResult;
+      },
+      failAcceptedTurnSend: async ({ actor: turnActor, threadId, turnId, dispatchId, reason, code }) => {
+        if (!convex) {
+          throw new Error("Convex client not initialized.");
+        }
+        await convex.mutation(
+          requireDefined(chatApi.failAcceptedTurnSendForHooks, "api.chat.failAcceptedTurnSendForHooks"),
+          {
+            actor: turnActor,
+            threadId,
+            turnId,
+            dispatchId,
+            reason,
+            ...(code ? { code } : {}),
+          },
+        );
       },
       claimNextTurnDispatch: async ({ threadId, claimOwner }) => {
         const queue = getDispatchQueue(threadId);

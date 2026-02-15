@@ -10,6 +10,8 @@ This is an operations/runbook companion to `../LLMS.md`.
 - `E_RUNTIME_PROTOCOL_EVENT_INVALID`: incoming event payload was malformed or inconsistent with required runtime shape.
 - `E_RUNTIME_INGEST_FLUSH_FAILED`: queued ingest flush failed and was surfaced explicitly.
 
+`runtime.sendTurn(...)` resolves only after durable accept. If runtime start/send fails after accept, runtime reconciles the accepted turn to a terminal non-streaming state.
+
 Terminal turn artifacts are reconciled through one internal mutation path; avoid app-side/manual split finalization of turns, messages, and streams.
 Relationship integrity is reference-first: parent/child tables store Convex `v.id(...)` references (`threadRef`, `turnRef`, `streamRef`) alongside external ids.
 Treat these refs as canonical for integrity checks and internal joins; string ids remain protocol-facing identifiers.
@@ -111,4 +113,3 @@ When pending server requests accumulate:
 2. Confirm request id is still pending.
 3. Respond through the matching runtime response API.
 4. If turn already ended, treat request as expired.
-

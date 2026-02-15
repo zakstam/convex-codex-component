@@ -59,7 +59,6 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let turnSettled = false;
   let interruptRequested = false;
   let nextRequestId = 1;
-  let pendingDispatchTextQueue: string[] = [];
   let claimLoopRunning = false;
   const dispatchByTurnId = new Map<
     string,
@@ -195,16 +194,16 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     claimLoopRunning = true;
     try {
       while (true) {
-        if (!actor || !threadId || (turnInFlight && !turnSettled) || pendingDispatchTextQueue.length === 0) return;
-        const nextText = pendingDispatchTextQueue[0]; if (nextText === undefined) return;
-        const enqResult = await args.persistence.enqueueTurnDispatch({ actor, threadId, turnId: randomSessionId(), idempotencyKey: randomSessionId(), input: [{ type: "text", text: nextText }] });
-        if (!enqResult.accepted) { pendingDispatchTextQueue.shift(); continue; }
+        if (!actor || !threadId || (turnInFlight && !turnSettled)) return;
         const claimed = await args.persistence.claimNextTurnDispatch({ actor, threadId, claimOwner: sessionId ?? "runtime-owner" });
         if (!claimed) return;
-        pendingDispatchTextQueue.shift();
         try { await sendClaimedDispatch(claimed); }
         catch (error) {
-          if (actor && threadId) await args.persistence.markTurnDispatchFailed({ actor, threadId, dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, code: "TURN_START_DISPATCH_SEND_FAILED", reason: error instanceof Error ? error.message : String(error) });
+          if (actor && threadId) {
+            const reason = error instanceof Error ? error.message : String(error);
+            await args.persistence.markTurnDispatchFailed({ actor, threadId, dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, code: "TURN_START_DISPATCH_SEND_FAILED", reason });
+            await args.persistence.failAcceptedTurnSend({ actor, threadId, dispatchId: claimed.dispatchId, turnId: claimed.turnId, code: "TURN_START_DISPATCH_SEND_FAILED", reason });
+          }
           turnInFlight = false; turnSettled = true; turnId = null; activeDispatch = null; emitState(); continue;
         }
         return;
@@ -212,7 +211,35 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     } finally { claimLoopRunning = false; }
   };
 
+  const acceptTurnSend = async (inputText: string): Promise<{ turnId: string; accepted: true }> => {
+    if (!actor || !threadId) {
+      throw new Error("Cannot accept turn send before thread binding is ready.");
+    }
+    const accepted = await args.persistence.acceptTurnSend({
+      actor,
+      threadId,
+      inputText,
+      idempotencyKey: randomSessionId(),
+      dispatchId: randomSessionId(),
+      turnId: randomSessionId(),
+    });
+    if (!accepted.accepted) {
+      throw new Error("Turn send was not accepted by persistence.");
+    }
+    return { turnId: accepted.turnId, accepted: true };
+  };
+
   const resolvePersistedTurnId = (rtid?: string): string | null => { if (rtid) return dispatchByTurnId.get(rtid)?.persistedTurnId ?? rtid; return turnId; };
+  const failAcceptedTurnSend = async (argsForFailure: {
+    actor: ActorContext;
+    threadId: string;
+    dispatchId: string;
+    turnId: string;
+    code?: string;
+    reason: string;
+  }): Promise<void> => {
+    await args.persistence.failAcceptedTurnSend(argsForFailure);
+  };
 
   // ── Handler context ─────────────────────────────────────────────────
 
@@ -258,6 +285,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     clearFlushTimer,
     ensureThreadBinding,
     processDispatchQueue,
+    failAcceptedTurnSend,
     registerPendingServerRequest,
     resolvePendingServerRequest,
     expireTurnServerRequests,
@@ -296,6 +324,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     flushQueue: () => flushQueueHandler(handlerCtx),
     resetIngestMetrics,
     ensureThreadBinding, sendClaimedDispatch, processDispatchQueue,
+    acceptTurnSend,
     throwIfTurnMutationLocked,
     getPendingServerRequest, sendServerRequestResponse,
     getPendingAuthTokensRefreshRequest, resolvePendingAuthTokensRefreshRequest,
@@ -306,7 +335,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     resetAll() {
       bridge = null; actor = null; sessionId = null; threadId = null; runtimeThreadId = null;
       externalThreadId = null; turnId = null; turnInFlight = false; turnSettled = false;
-      interruptRequested = false; pendingDispatchTextQueue = [];
+      interruptRequested = false;
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
       startupModel = undefined; startupCwd = undefined; pendingRequests.clear();
       pendingServerRequests.clear(); pendingServerRequestRetries.clear();
@@ -314,7 +343,6 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       flushTail = Promise.resolve();
     },
     rejectAllPending() { for (const [, p] of pendingRequests) p.reject?.(new Error("Bridge stopped before request completed.")); },
-    pushDispatchText(text: string) { pendingDispatchTextQueue.push(text); },
     listPendingServerRequests: async (threadIdFilter?: string): Promise<HostRuntimePersistedServerRequest[]> => {
       if (actor) return args.persistence.listPendingServerRequests({ actor, ...(threadIdFilter ? { threadId: threadIdFilter } : {}) });
       return [];

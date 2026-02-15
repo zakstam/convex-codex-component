@@ -149,6 +149,59 @@ export const interruptTurnForHooks = mutation({
   },
 });
 
+export const acceptTurnSendForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    idempotencyKey: v.string(),
+    inputText: v.string(),
+    dispatchId: v.optional(v.string()),
+  },
+  returns: v.object({
+    dispatchId: v.string(),
+    turnId: v.string(),
+    accepted: v.literal(true),
+  }),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    await ctx.runMutation(components.codexLocal.turns.start, {
+      actor: SERVER_ACTOR,
+      threadId: args.threadId,
+      turnId: args.turnId,
+      idempotencyKey: args.idempotencyKey,
+      input: [{ type: "text", text: args.inputText }],
+    });
+    return {
+      dispatchId: args.dispatchId ?? args.turnId,
+      turnId: args.turnId,
+      accepted: true as const,
+    } as const;
+  },
+});
+
+export const failAcceptedTurnSendForHooks = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    turnId: v.string(),
+    dispatchId: v.optional(v.string()),
+    code: v.optional(v.string()),
+    reason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireBoundServerActorForMutation(ctx, args.actor);
+    await ctx.runMutation(components.codexLocal.turns.interrupt, {
+      actor: SERVER_ACTOR,
+      threadId: args.threadId,
+      turnId: args.turnId,
+      reason: args.code ? `[${args.code}] ${args.reason}` : args.reason,
+    });
+    return null;
+  },
+});
+
 export const deleteThreadCascadeForHooks = mutation({
   args: {
     actor: vHostActorContext,

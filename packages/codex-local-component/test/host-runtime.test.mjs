@@ -58,18 +58,18 @@ function createHarness(options = {}) {
         resolved.push(args);
       },
       listPendingServerRequests: async () => [],
-      enqueueTurnDispatch: async (args) => {
-        const queued = {
+      acceptTurnSend: async (args) => {
+        const accepted = {
           dispatchId: `${args.turnId}-dispatch`,
           turnId: args.turnId,
           idempotencyKey: args.idempotencyKey,
-          inputText: args.input?.[0]?.text ?? "",
-          status: "queued",
+          inputText: args.inputText,
           accepted: true,
         };
-        dispatchQueue.push(queued);
-        return queued;
+        dispatchQueue.push(accepted);
+        return accepted;
       },
+      failAcceptedTurnSend: async () => undefined,
       claimNextTurnDispatch: async () => {
         const next = dispatchQueue.shift();
         if (!next) {
@@ -146,7 +146,7 @@ test("runtime start supports threadStrategy=resume", async () => {
   const resumeRequest = sent.find((message) => message.method === "thread/resume");
   await emitResponse({ id: resumeRequest.id, result: { thread: { id: threadId } } });
 
-  runtime.sendTurn("hello");
+  await runtime.sendTurn("hello");
   const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
   assert.equal(turnStartRequest.params.threadId, threadId);
 
@@ -184,7 +184,7 @@ test("runtime thread lifecycle mutations are blocked while turn is in flight", a
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
 
-  runtime.sendTurn("hello");
+  await runtime.sendTurn("hello");
   await waitForMessage(sent, (message) => message.method === "turn/start");
   await assert.rejects(
     runtime.archiveThread(threadId),
@@ -211,7 +211,7 @@ test("resumeThread updates active runtime thread id after response", async () =>
   await emitResponse({ id: resumeRequest.id, result: { thread: { id: resumedThreadId } } });
   await resumePromise;
 
-  runtime.sendTurn("hello");
+  await runtime.sendTurn("hello");
   await waitForMessage(sent, (message) => message.method === "turn/start");
   const turnStartRequests = sent.filter((message) => message.method === "turn/start");
   assert.equal(turnStartRequests[0].params.threadId, resumedThreadId);
@@ -471,7 +471,7 @@ test("runtime remaps runtime turnId 0 to claimed persisted turn id for ingest", 
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
 
-  runtime.sendTurn("hello");
+  await runtime.sendTurn("hello");
   const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
   const claimedTurnId = runtime.getState().turnId;
   assert.ok(claimedTurnId);
@@ -551,7 +551,7 @@ test("runtime retries pending server request persistence and rewrites runtime tu
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
 
-  runtime.sendTurn("hello");
+  await runtime.sendTurn("hello");
   const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
   const claimedTurnId = runtime.getState().turnId;
   assert.ok(claimedTurnId);
@@ -682,7 +682,7 @@ test("runtime fail-closes malformed turn/completed payloads by marking dispatch 
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
 
-  runtime.sendTurn("hello");
+  await runtime.sendTurn("hello");
   const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
   await emitResponse({
     id: turnStartRequest.id,

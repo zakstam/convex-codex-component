@@ -1,5 +1,39 @@
 # @convex-dev/codex-local-component
 
+## 0.13.0
+
+### Minor Changes
+
+- c782976: Beta architecture restructure: remove dispatch-managed mode, eliminate client passthrough layer, consolidate export paths (11 to 7), split oversized files, simplify React hook surface.
+
+  Breaking changes:
+  - Removed `./client` export path (use default import or `./host/convex`)
+  - Removed `./errors` export path (use default import)
+  - Removed `./bridge` export path (use `./host`)
+  - Removed `./app-server` export path (use `./host`)
+  - Removed dispatch-managed mode (use runtime-owned exclusively)
+  - Removed `useCodexComposer`, `useCodexApprovals`, `useCodexInterruptTurn`, `useCodexAutoResume` hooks
+  - `useCodexConversationController` is no longer publicly exported (use `useCodexChat`)
+  - Removed `codex_turn_dispatches` table from schema
+
+- 056f25e: Add a Tauri example Tool Policy panel and bridge support for disabling dynamic tools at runtime.
+
+  The new UI in the Tauri example allows blocking named dynamic tools from the sidebar. The bridge now accepts `set_disabled_tools` from Rust/React, synchronizes the policy in bridge state, and enforces it in the helper before invoking any dynamic tool execution.
+
+- 056f25e: Add a new high-level `useCodexChat` hook as a dedicated conversation facade for UI consumers.
+  The new API wraps `useCodexConversationController`, preserves existing surface behavior, and adds explicit tool policy controls for disabling tools and overriding tool handlers. Update docs and the blessed Tauri example to reference the new hook.
+
+### Patch Changes
+
+- 92741ec: Remove dispatch-managed mode handling from the host runtime API and align tests/examples to runtime-owned dispatch only.
+  `createCodexHostRuntime().start` no longer accepts a `dispatchManaged` flag, `startClaimedTurn` has been removed from runtime usage, and Tauri example wiring now uses shared dynamic-tool constants.
+- b716998: Improve external consumer onboarding docs in the published package:
+  - Keep `packages/codex-local-component/README.md` as the human entrypoint.
+  - Keep `packages/codex-local-component/LLMS.md` as the LLM-only routing manifest.
+  - Add a copy-paste one-shot prompt for external users to give an LLM and get setup flowing end-to-end.
+  - Add onboarding metadata (`description` and `codex.onboarding.prompt`) in package manifest so npm discoverability includes the same external onboarding flow.
+  - Add the same LLM handoff prompt to monorepo `README.md` for external consumers.
+
 ## 0.12.1
 
 ### Patch Changes

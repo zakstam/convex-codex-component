@@ -1,5 +1,29 @@
 # @convex-dev/codex-local-component
 
+## 0.13.2
+
+### Patch Changes
+
+- acbe424: Improve external consumer type-safety across React hooks and adapter contracts.
+  - Add generic callback-result inference to `useCodexConversationController`, `useCodexChat`, and `createCodexReactConvexAdapter(...).useConversationController(...)` for `composer`, `approvals`, `interrupt`, and dynamic-tool `respond` handlers.
+  - Add generic result inference to `useCodexThreads` controls (`createThread`, `resolveThread`, `resumeThread`) to reduce downstream casts.
+  - Harden `useCodexDynamicTools` against non-matching query payloads by deriving calls only from validated server-request rows.
+  - Tighten host preset definitions by making preflight checks explicitly `Promise<void>` and adding an explicit `returns` validator for `ensureThread`.
+  - Update React/client docs and API reference to reflect the stronger consumer typing contracts.
+
+- b3c5b87: Harden linting coverage and expose lint scripts across the published package and app surfaces.
+  - Add a workspace `lint` script in `package.json` targeting only intended TS/TSX source trees and switch release prechecks to use it.
+  - Expand root ESLint target files to include the Tauri example and component package sources, plus TSX files.
+  - Add explicit root excludes for `submodules/**`, `**/src-tauri/**`, `**/target/**`, and generated bundle assets.
+  - Add `lint` scripts to `packages/codex-local-component` and `apps/examples/tauri-app`.
+  - Update docs to reflect the new lint commands in onboarding and app checks.
+
+- acbe424: Improve React hook typing so external consumers can avoid manual casts.
+  - Add generic callback-result inference to `useCodexAccountAuth` and `useCodexRuntimeBridge`.
+  - Remove repeated per-hook `OptionalRestArgsOrSkip` cast patterns by centralizing query-arg conversion in one helper.
+  - Remove the `useCodexConversationController` fallback cast when deriving the dynamic-tools query source.
+  - Update React/client docs and API reference to reflect the stronger consumer-facing type contracts.
+
 ## 0.13.1
 
 ### Patch Changes

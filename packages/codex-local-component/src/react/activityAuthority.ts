@@ -28,7 +28,7 @@ export type CodexThreadActivityMessageLike = {
 
 export type CodexThreadActivityDispatchLike = {
   turnId?: string;
-  status?: "queued" | "claimed" | "started" | "completed" | "failed" | "cancelled" | string;
+  status?: "queued" | "claimed" | "started" | "completed" | "failed" | "interrupted" | string;
   updatedAt?: number;
   createdAt?: number;
 };
@@ -79,7 +79,7 @@ const IN_FLIGHT_DISPATCH_STATUSES = new Set(["queued", "claimed", "started"]);
 const IN_FLIGHT_TURN_STATUSES = new Set(["queued", "inProgress", "started", "streaming"]);
 const COMPLETED_TURN_STATUSES = new Set(["completed"]);
 const FAILED_TURN_STATUSES = new Set(["failed"]);
-const INTERRUPTED_TURN_STATUSES = new Set(["interrupted", "cancelled"]);
+const INTERRUPTED_TURN_STATUSES = new Set(["interrupted"]);
 
 function candidateTimestamp(input?: number): number {
   return typeof input === "number" ? input : 0;
@@ -249,7 +249,7 @@ export function deriveCodexActivityByAuthorityRules(
     latestTurnByStatus(turns, (status) => COMPLETED_TURN_STATUSES.has(status), terminalTurnTimestamp),
     failed,
     interrupted,
-    latestDispatchByStatus(dispatches, (status) => status === "failed" || status === "cancelled"),
+    latestDispatchByStatus(dispatches, (status) => status === "failed" || status === "interrupted"),
     latestTurnByStatus(
       turns,
       (status) => FAILED_TURN_STATUSES.has(status) || INTERRUPTED_TURN_STATUSES.has(status),

@@ -83,7 +83,7 @@ test("requireThreadForActor returns query result", async () => {
 
 test("requireThreadForActor reports missing thread", async () => {
   const ctx = { db: createDbQueryStub(null) };
-  await assert.rejects(() => requireThreadForActor(ctx, { userId: "u" }, "missing"), /Thread not found for scope: missing/);
+  await assert.rejects(() => requireThreadForActor(ctx, { userId: "u" }, "missing"), /\[E_THREAD_NOT_FOUND\] Thread not found: missing/);
 });
 
 test("requireThreadRefForActor returns both thread and ref", async () => {

@@ -6,6 +6,7 @@ import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from
 import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
 import type { ChatgptAuthTokensRefreshParams } from "../protocol/schemas/v2/ChatgptAuthTokensRefreshParams.js";
 import { terminalStatusForPayload } from "../protocol/events.js";
+import type { TerminalTurnStatus } from "../shared/status.js";
 import type {
   IngestSafeError,
   ManagedServerRequestMethod,
@@ -115,7 +116,7 @@ export function isResponse(message: ServerInboundMessage): message is CodexRespo
   return "id" in message && !isServerNotification(message);
 }
 
-export function parseTurnCompletedStatus(payloadJson: string): "completed" | "failed" | "cancelled" {
+export function parseTurnCompletedStatus(payloadJson: string): TerminalTurnStatus {
   const terminal = terminalStatusForPayload("turn/completed", payloadJson);
   if (!terminal) {
     throw new Error("turn/completed payload did not produce terminal status");
@@ -124,7 +125,7 @@ export function parseTurnCompletedStatus(payloadJson: string): "completed" | "fa
     return "failed";
   }
   if (terminal.status === "interrupted") {
-    return "cancelled";
+    return "interrupted";
   }
   return "completed";
 }

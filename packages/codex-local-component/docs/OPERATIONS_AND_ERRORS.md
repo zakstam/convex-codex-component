@@ -29,6 +29,14 @@ Set `CODEX_BRIDGE_RAW_LOG=all|turns` to print raw `codex app-server` stdout line
 - `E_AUTH_TURN_FORBIDDEN`
 - `E_AUTH_SESSION_FORBIDDEN`
 
+Auth failures use coded error envelopes (`[E_AUTH_*] authorization failed: ...`) so host classifiers can fail closed without relying on ad-hoc freeform text.
+
+## Not Found Errors
+
+- `E_THREAD_NOT_FOUND`
+- `E_TURN_NOT_FOUND`
+- `E_STREAM_NOT_FOUND`
+
 ## Sync Ingest Errors
 
 - `E_SYNC_EMPTY_BATCH`
@@ -56,6 +64,12 @@ Public classifier utilities are available for consistent host/app fallback handl
 - `E_TERMINAL_ERROR_MISSING`: terminal status/event was missing a required `error.message`.
 - `E_TERMINAL_INTERRUPTED`: interrupted terminal status with explicit error details.
 - `E_TERMINAL_FAILED`: failed terminal status with explicit error details.
+
+Canonical terminal status names are:
+
+- `completed`
+- `failed`
+- `interrupted`
 
 ## Replay Recovery
 

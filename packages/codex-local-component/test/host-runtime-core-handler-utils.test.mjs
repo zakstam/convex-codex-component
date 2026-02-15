@@ -9,6 +9,7 @@ import {
 } from "../dist/host/runtimeCoreHandlers.js";
 import {
   isManagedServerRequestMethod,
+  parseTurnCompletedStatus,
   isResponse,
   isServerNotification,
   isToolRequestUserInputQuestion,
@@ -100,6 +101,22 @@ test("runtime helper request keys and type guards are consistent", () => {
   );
   assert.equal(isResponse({ id: "x", result: {} }), true);
   assert.equal(isResponse({ id: "x", method: "x" }), false);
+});
+
+test("parseTurnCompletedStatus maps interrupted turn/completed payloads to interrupted", () => {
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "turn/completed",
+    params: {
+      threadId: "thread-1",
+      turn: {
+        id: "turn-1",
+        status: "interrupted",
+        error: { message: "cancelled by user" },
+      },
+    },
+  });
+  assert.equal(parseTurnCompletedStatus(payload), "interrupted");
 });
 
 test("clearPendingServerRequestRetryTimer resets the timer state", () => {

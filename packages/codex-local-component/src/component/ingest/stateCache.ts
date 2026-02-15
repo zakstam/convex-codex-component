@@ -22,16 +22,22 @@ export function createIngestStateCache(args: {
   const { ctx, userScope, threadId } = args;
 
   const messageOrderCacheByTurn = new Map<string, number>();
-  const messageByKey = new Map<string, CachedMessage | null>();
+  const messageByTurnAndId = new Map<string, Map<string, CachedMessage | null>>();
   const streamById = new Map<string, CachedStream | null>();
-  const approvalByKey = new Map<string, CachedApproval | null>();
+  const approvalByTurnAndId = new Map<string, Map<string, CachedApproval | null>>();
   const messagePatchById = new Map<GenericId<"codex_messages">, Record<string, unknown>>();
 
-  const messageKey = (turnId: string, messageId: string): string =>
-    `${userScope}:${threadId}:${turnId}:${messageId}`;
+  const getNestedValue = <T>(store: Map<string, Map<string, T>>, outerKey: string, innerKey: string): T | undefined =>
+    store.get(outerKey)?.get(innerKey);
 
-  const approvalKey = (turnId: string, itemId: string): string =>
-    `${userScope}:${threadId}:${turnId}:${itemId}`;
+  const setNestedValue = <T>(store: Map<string, Map<string, T>>, outerKey: string, innerKey: string, value: T): void => {
+    const inner = store.get(outerKey);
+    if (inner) {
+      inner.set(innerKey, value);
+      return;
+    }
+    store.set(outerKey, new Map([[innerKey, value]]));
+  };
 
   const nextOrderForTurn = async (turnId: string): Promise<number> => {
     const cached = messageOrderCacheByTurn.get(turnId);
@@ -53,9 +59,9 @@ export function createIngestStateCache(args: {
   };
 
   const getMessageRecord = async (turnId: string, messageId: string): Promise<CachedMessage | null> => {
-    const key = messageKey(turnId, messageId);
-    if (messageByKey.has(key)) {
-      return messageByKey.get(key) ?? null;
+    const cached = getNestedValue(messageByTurnAndId, turnId, messageId);
+    if (cached !== undefined) {
+      return cached;
     }
     const existing = await ctx.db
       .query("codex_messages")
@@ -74,18 +80,18 @@ export function createIngestStateCache(args: {
           text: existing.text,
         }
       : null;
-    messageByKey.set(key, normalized);
+    setNestedValue(messageByTurnAndId, turnId, messageId, normalized);
     return normalized;
   };
 
   const setMessageRecord = (turnId: string, messageId: string, value: CachedMessage | null): void => {
-    messageByKey.set(messageKey(turnId, messageId), value);
+    setNestedValue(messageByTurnAndId, turnId, messageId, value);
   };
 
   const getApprovalRecord = async (turnId: string, itemId: string): Promise<CachedApproval | null> => {
-    const key = approvalKey(turnId, itemId);
-    if (approvalByKey.has(key)) {
-      return approvalByKey.get(key) ?? null;
+    const cached = getNestedValue(approvalByTurnAndId, turnId, itemId);
+    if (cached !== undefined) {
+      return cached;
     }
     const existing = await ctx.db
       .query("codex_approvals")
@@ -99,12 +105,12 @@ export function createIngestStateCache(args: {
           status: existing.status,
         }
       : null;
-    approvalByKey.set(key, normalized);
+    setNestedValue(approvalByTurnAndId, turnId, itemId, normalized);
     return normalized;
   };
 
   const setApprovalRecord = (turnId: string, itemId: string, value: CachedApproval | null): void => {
-    approvalByKey.set(approvalKey(turnId, itemId), value);
+    setNestedValue(approvalByTurnAndId, turnId, itemId, value);
   };
 
   const getStreamRecord = async (streamId: string): Promise<CachedStream | null> => {

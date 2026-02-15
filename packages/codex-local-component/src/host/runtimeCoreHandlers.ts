@@ -25,6 +25,7 @@ import {
   shouldDropRejectedIngestBatch,
   toRequestKey,
 } from "./runtimeHelpers.js";
+import { IDLE_INGEST_FLUSH_MS } from "../shared/limits.js";
 import type {
   ActorContext,
   ClientMessage,
@@ -167,6 +168,18 @@ export async function flushQueue(ctx: HandlerCtx): Promise<void> {
   await next;
 }
 
+function transitionTurnStarted(ctx: HandlerCtx, persistedTurnId: string): void {
+  ctx.setTurnId(persistedTurnId);
+  ctx.turnInFlight = true;
+  ctx.turnSettled = false;
+}
+
+function transitionTurnSettled(ctx: HandlerCtx, turnId: string | null): void {
+  ctx.turnInFlight = false;
+  ctx.turnSettled = true;
+  ctx.setTurnId(turnId);
+}
+
 function toIngestDelta(ctx: HandlerCtx, event: NormalizedEvent, ptid: string): IngestDelta | null {
   const resolved = ctx.resolvePersistedTurnId(event.turnId);
   if (!resolved || !isTurnScopedEvent(event.kind)) return null;
@@ -180,7 +193,7 @@ async function enqueueIngestDelta(ctx: HandlerCtx, delta: IngestDelta, forceFlus
   ctx.ingestQueue.push(delta);
   if (forceFlush || ctx.ingestQueue.length >= MAX_BATCH_SIZE) { await flushQueue(ctx); return; }
   if (!ctx.flushTimer) {
-    ctx.setFlushTimer(setTimeout(() => { ctx.setFlushTimer(null); void flushQueue(ctx).catch((error) => { const reason = error instanceof Error ? error.message : String(error); const coded = ctx.runtimeError("E_RUNTIME_INGEST_FLUSH_FAILED", `Deferred ingest flush failed: ${reason}`); ctx.handlers?.onProtocolError?.({ message: coded.message, line: "[runtime:flushTimer]" }); }); }, ctx.turnInFlight ? ctx.ingestFlushMs : 5000));
+    ctx.setFlushTimer(setTimeout(() => { ctx.setFlushTimer(null); void flushQueue(ctx).catch((error) => { const reason = error instanceof Error ? error.message : String(error); const coded = ctx.runtimeError("E_RUNTIME_INGEST_FLUSH_FAILED", `Deferred ingest flush failed: ${reason}`); ctx.handlers?.onProtocolError?.({ message: coded.message, line: "[runtime:flushTimer]" }); }); }, ctx.turnInFlight ? ctx.ingestFlushMs : IDLE_INGEST_FLUSH_MS));
   }
 }
 
@@ -193,7 +206,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
 
   if (event.kind === "turn/started" && event.turnId) {
     const ptid = ctx.resolvePersistedTurnId(event.turnId) ?? event.turnId;
-    ctx.setTurnId(ptid); ctx.turnInFlight = true; ctx.turnSettled = false;
+    transitionTurnStarted(ctx, ptid);
     if (ctx.activeDispatch && ctx.actor && ctx.threadId) {
       ctx.dispatchByTurnId.set(event.turnId, { dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, persistedTurnId: ctx.activeDispatch.turnId });
       await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, ...(ctx.runtimeThreadId ? { runtimeThreadId: ctx.runtimeThreadId } : {}), runtimeTurnId: event.turnId });
@@ -209,7 +222,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
       const d = ctx.dispatchByTurnId.get(event.turnId);
       if (d) {
         if (terminal === "completed") await ctx.persistence.markTurnDispatchCompleted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken });
-        else if (terminal === "cancelled") await ctx.persistence.cancelTurnDispatch({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, reason: "interrupted" });
+        else if (terminal === "interrupted") await ctx.persistence.cancelTurnDispatch({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, reason: "interrupted" });
         else {
           await ctx.persistence.markTurnDispatchFailed({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: d.dispatchId, claimToken: d.claimToken, code: "TURN_COMPLETED_FAILED", reason: "turn/completed reported failed status" });
           await ctx.failAcceptedTurnSend({
@@ -223,7 +236,8 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
         }
       }
     }
-    ctx.setTurnId(null); ctx.turnInFlight = false; ctx.turnSettled = true; ctx.emitState();
+    transitionTurnSettled(ctx, null);
+    ctx.emitState();
     await ctx.expireTurnServerRequests({ threadId: ctx.threadId ?? event.threadId, ...(event.turnId ? { turnId: event.turnId } : {}) });
     await ctx.processDispatchQueue();
   }
@@ -243,8 +257,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
         });
       }
     }
-    ctx.turnInFlight = false; ctx.turnSettled = true;
-    if (!event.turnId || event.turnId === ctx.turnId) ctx.setTurnId(null);
+    transitionTurnSettled(ctx, !event.turnId || event.turnId === ctx.turnId ? null : ctx.turnId);
     ctx.emitState();
     await ctx.expireTurnServerRequests({ threadId: ctx.threadId ?? event.threadId, ...(event.turnId ? { turnId: event.turnId } : {}) });
     await ctx.processDispatchQueue();
@@ -309,7 +322,9 @@ export async function handleBridgeGlobalMessage(ctx: HandlerCtx, message: Server
           });
         }
       }
-      ctx.setActiveDispatch(null); ctx.turnInFlight = false; ctx.turnSettled = true; ctx.setTurnId(null); ctx.emitState();
+      ctx.setActiveDispatch(null);
+      transitionTurnSettled(ctx, null);
+      ctx.emitState();
       await ctx.processDispatchQueue();
     } else if (!message.error && pending?.method === "turn/start" && ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) {
       const ro = asObject(message.result);

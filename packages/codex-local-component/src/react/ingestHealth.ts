@@ -35,7 +35,7 @@ export type CodexIngestHealthThreadState = {
   }> | null;
   pendingApprovals?: unknown[] | null;
   dispatches?: Array<{
-    status?: "queued" | "claimed" | "started" | "completed" | "failed" | "cancelled" | string;
+    status?: "queued" | "claimed" | "started" | "completed" | "failed" | "interrupted" | string;
   }> | null;
   turns?: Array<{
     startedAt?: number;

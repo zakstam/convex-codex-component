@@ -4,6 +4,7 @@
  */
 import type { Doc } from "./_generated/dataModel.js";
 import type { MutationCtx } from "./_generated/server.js";
+import { DELETION_QUERY_LIMITS } from "../shared/limits.js";
 
 type DeletionJob = Doc<"codex_deletion_jobs">;
 type DeletedCounts = Record<string, number>;
@@ -35,13 +36,13 @@ async function deleteThreadStreamDeltasBatch(args: {
     .withIndex("userScope_threadId_turnId", (q) =>
       q.eq("userScope", args.userScope).eq("threadId", args.threadId),
     )
-    .take(1000);
+    .take(DELETION_QUERY_LIMITS.threadStreamScan);
   const streamStatRows = await args.ctx.db
     .query("codex_stream_stats")
     .withIndex("userScope_threadId", (q) =>
       q.eq("userScope", args.userScope).eq("threadId", args.threadId),
     )
-    .take(1000);
+    .take(DELETION_QUERY_LIMITS.threadStreamScan);
   const streamIds = new Set<string>([
     ...streamRows.map((row) => String(row.streamId)),
     ...streamStatRows.map((row) => String(row.streamId)),
@@ -78,14 +79,14 @@ async function deleteTurnStreamDeltasBatch(args: {
     .withIndex("userScope_threadId_turnId", (q) =>
       q.eq("userScope", args.userScope).eq("threadId", args.threadId).eq("turnId", args.turnId),
     )
-    .take(500);
+    .take(DELETION_QUERY_LIMITS.turnStreamScan);
   const streamStatRows = await args.ctx.db
     .query("codex_stream_stats")
     .withIndex("userScope_threadId", (q) =>
       q.eq("userScope", args.userScope).eq("threadId", args.threadId),
     )
     .filter((q) => q.eq(q.field("turnId"), args.turnId))
-    .take(500);
+    .take(DELETION_QUERY_LIMITS.turnStreamScan);
   const streamIds = new Set<string>([
     ...streamRows.map((row) => String(row.streamId)),
     ...streamStatRows.map((row) => String(row.streamId)),

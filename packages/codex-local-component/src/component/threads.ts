@@ -9,6 +9,7 @@ import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor, requireThreadRefForActor } from "./utils.js";
 import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
 import { identifyStaleStreamingStatIds } from "./streamStats.js";
+import { loadThreadSnapshotRows } from "./repositories/threadSnapshotRepo.js";
 
 const DEFAULT_DELETE_GRACE_MS = 10 * 60 * 1000;
 const MIN_DELETE_GRACE_MS = 1_000;
@@ -758,58 +759,18 @@ export const getState = query({
   returns: vThreadState,
   handler: async (ctx, args) => {
     const thread = await requireThreadForActor(ctx, args.actor, args.threadId);
-
-    const turns = await ctx.db
-      .query("codex_turns")
-      .withIndex("userScope_threadId_startedAt")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
-          q.eq(q.field("userId"), args.actor.userId),
-          q.eq(q.field("threadId"), args.threadId),
-        ),
-      )
-      .order("desc")
-      .take(50);
-
-    const streams = await ctx.db
-      .query("codex_streams")
-      .withIndex("userScope_threadId_state")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
-          q.eq(q.field("threadId"), args.threadId),
-        ),
-      )
-      .take(200);
-
-    const stats = await ctx.db
-      .query("codex_stream_stats")
-      .withIndex("userScope_threadId", (q) =>
-        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
-      )
-      .take(500);
-
-    const approvals = await ctx.db
-      .query("codex_approvals")
-      .withIndex("userScope_threadId_status")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
-          q.eq(q.field("userId"), args.actor.userId),
-          q.eq(q.field("threadId"), args.threadId),
-          q.eq(q.field("status"), "pending"),
-        ),
-      )
-      .take(100);
-
-    const recentMessages = await ctx.db
-      .query("codex_messages")
-      .withIndex("userScope_threadId_createdAt", (q) =>
-        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
-      )
-      .order("desc")
-      .take(20);
+    const {
+      turns,
+      streams,
+      stats,
+      approvals,
+      recentMessages,
+      lifecycle,
+    } = await loadThreadSnapshotRows({
+      ctx,
+      actor: args.actor,
+      threadId: args.threadId,
+    });
 
     const allStreams = streams.map((stream) => ({
       streamId: String(stream.streamId),
@@ -827,14 +788,6 @@ export const getState = query({
         state: stat.state,
       })),
     });
-
-    const lifecycle = await ctx.db
-      .query("codex_lifecycle_events")
-      .withIndex("userScope_threadId_createdAt", (q) =>
-        q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
-      )
-      .order("desc")
-      .take(50);
 
     const lifecycleMarkers = lifecycle
       .filter((event) => event.kind === STREAM_DRAIN_COMPLETE_KIND)

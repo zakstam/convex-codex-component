@@ -16,9 +16,11 @@ export function parseErrorCode(error: unknown): string | null {
 
 export function isThreadMissing(error: unknown): boolean {
   const message = errorMessage(error);
+  const code = parseErrorCode(error);
   return (
     message.includes("Thread not found") ||
-    parseErrorCode(error) === "E_SYNC_SESSION_NOT_FOUND"
+    code === "E_SYNC_SESSION_NOT_FOUND" ||
+    code === "E_THREAD_NOT_FOUND"
   );
 }
 

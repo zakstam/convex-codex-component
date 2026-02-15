@@ -8,8 +8,7 @@ type TurnRecord = Doc<"codex_turns">;
 type StreamRecord = Doc<"codex_streams">;
 
 export function authzError(code: "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_TURN_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN", message: string): never {
-  void message;
-  throw new Error(`[${code}] authorization failed`);
+  throw new Error(`[${code}] authorization failed: ${message}`);
 }
 
 export async function requireThreadForActor(
@@ -30,7 +29,7 @@ export async function requireThreadForActor(
     .first();
 
   if (!thread) {
-    throw new Error(`Thread not found for scope: ${threadId}`);
+    throw new Error(`[E_THREAD_NOT_FOUND] Thread not found: ${threadId}`);
   }
   return thread;
 }
@@ -64,7 +63,7 @@ export async function requireTurnForActor(
     .first();
 
   if (!turn) {
-    throw new Error(`Turn not found: ${turnId}`);
+    throw new Error(`[E_TURN_NOT_FOUND] Turn not found: ${turnId}`);
   }
   return turn;
 }
@@ -97,7 +96,7 @@ export async function requireStreamForActor(
     .first();
 
   if (!stream) {
-    throw new Error(`Stream not found: ${streamId}`);
+    throw new Error(`[E_STREAM_NOT_FOUND] Stream not found: ${streamId}`);
   }
   return stream;
 }

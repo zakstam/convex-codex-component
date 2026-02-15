@@ -46,6 +46,7 @@ pnpm install
 ```bash
 pnpm run component:build
 pnpm run component:ci
+pnpm run lint
 ```
 
 ## External consumer onboarding

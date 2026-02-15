@@ -111,6 +111,7 @@ npx convex dev --once
 ```bash
 pnpm run dev:convex:once
 pnpm run wiring:smoke
+pnpm run lint
 pnpm run typecheck
 ```
 
@@ -130,5 +131,6 @@ The component supports async cascade deletion with job polling:
 
 ## Type Safety Checks
 
+- `pnpm --filter @zakstam/codex-local-component run lint`
 - `pnpm --filter @zakstam/codex-local-component run typecheck`
 - `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`

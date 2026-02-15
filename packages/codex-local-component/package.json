@@ -58,6 +58,7 @@
     "clean": "rm -rf dist",
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "lint": "eslint . --ext .ts,.tsx",
     "prepack": "pnpm run clean && pnpm run build",
     "typecheck": "tsc --noEmit",
     "test": "pnpm run build && node --test test/*.test.mjs",

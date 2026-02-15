@@ -310,7 +310,7 @@ export function extractTurnId(message: ServerInboundMessage): string | undefined
     if (!params || !isMessageRecord(params.msg)) {
       return undefined;
     }
-    const msg = params.msg as Record<string, unknown>;
+    const msg = params.msg;
     if (typeof msg.turn_id === "string") {
       return msg.turn_id;
     }

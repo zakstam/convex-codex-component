@@ -1,6 +1,6 @@
 {
   "name": "@zakstam/codex-local-component",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "description": "Integrate with one prompt: install this package, open `README.md` then follow mapped docs (`docs/HOST_INTEGRATION.md`, `docs/CLIENT_AND_REACT_HOOKS.md`, `docs/API_REFERENCE.md`, `docs/OPERATIONS_AND_ERRORS.md`) and validate with `npx convex dev --once`, `pnpm run dev:convex:once`, `pnpm run wiring:smoke`, `pnpm run typecheck`.",
   "type": "module",
   "main": "./dist/index.js",

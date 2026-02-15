@@ -15,7 +15,9 @@
     "dev:web": "vite",
     "dev": "node ./scripts/dev.mjs",
     "start": "pnpm run prepare:component && pnpm run prepare:tauri-assets && pnpm run build:node && tauri dev",
-    "build": "pnpm run prepare:tauri-assets && pnpm run build:node && vite build && tauri build",
+    "build:tauri:all": "pnpm run prepare:component && pnpm run prepare:tauri-assets && pnpm run build:node && tauri build",
+    "build": "pnpm run build:tauri",
+    "build:tauri": "pnpm run prepare:component && pnpm run prepare:tauri-assets && pnpm run build:node && tauri build --bundles deb,rpm",
     "typecheck": "pnpm run prepare:component && pnpm run check:generated:convex && tsc --noEmit",
     "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:generated:convex && pnpm run check:wiring:convex && tsc --noEmit",
     "tauri:check": "pnpm run prepare:tauri-assets && (cd src-tauri && cargo check)"

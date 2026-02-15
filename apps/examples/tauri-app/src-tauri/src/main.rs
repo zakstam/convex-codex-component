@@ -24,6 +24,7 @@ struct StartBridgeConfig {
     start_source: Option<String>,
     model: Option<String>,
     cwd: Option<String>,
+    disabled_tools: Option<Vec<String>>,
     delta_throttle_ms: Option<u64>,
     save_stream_deltas: Option<bool>,
     thread_strategy: Option<String>,
@@ -72,6 +73,12 @@ struct RespondChatgptAuthTokensRefreshConfig {
     chatgpt_plan_type: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetDisabledToolsConfig {
+    tools: Vec<String>,
+}
+
 #[tauri::command]
 async fn start_bridge(
     app: tauri::AppHandle,
@@ -111,6 +118,7 @@ async fn start_bridge(
                 convex_url: config.convex_url,
                 actor: config.actor,
                 session_id: config.session_id,
+                disabled_tools: config.disabled_tools,
                 model: config.model,
                 cwd: config.cwd,
                 delta_throttle_ms: config.delta_throttle_ms,
@@ -279,6 +287,18 @@ async fn get_bridge_state(state: State<'_, AppBridgeState>) -> Result<bridge_pro
     Ok(state.runtime.snapshot().await)
 }
 
+#[tauri::command]
+async fn set_disabled_tools(
+    app: tauri::AppHandle,
+    state: State<'_, AppBridgeState>,
+    config: SetDisabledToolsConfig,
+) -> Result<(), String> {
+    state
+        .runtime
+        .set_disabled_tools(app, config.tools)
+        .await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -299,7 +319,8 @@ pub fn run() {
             read_account_rate_limits,
             respond_chatgpt_auth_tokens_refresh,
             stop_bridge,
-            get_bridge_state
+            get_bridge_state,
+            set_disabled_tools
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

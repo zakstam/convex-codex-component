@@ -8,7 +8,7 @@ Convex component for Codex integrations where Codex runs locally while thread st
 > `@zakstam/codex-local-component` is in **alpha** and ready for active testing.
 > It is still experimental and **not** ready for production use.
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 
 ## Install
 
@@ -31,21 +31,19 @@ That file is the normative, single-path consumer strategy.
 1. Mount component in `convex/convex.config.ts` with `app.use(codexLocal)`.
 2. Define host endpoints directly in `convex/chat.ts` with `defineRuntimeOwnedHostEndpoints(...)`.
 3. Optionally keep app-specific additions in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
-4. Start runtime in runtime-owned mode (`dispatchManaged: false`).
+4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
 
 ## Package Import Paths
 
-- `@zakstam/codex-local-component/convex.config`
-- `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component`
 - `@zakstam/codex-local-component/react`
 - `@zakstam/codex-local-component/react-integration`
-- `@zakstam/codex-local-component/errors`
-- `@zakstam/codex-local-component/client`
-- `@zakstam/codex-local-component/bridge`
-- `@zakstam/codex-local-component/app-server`
 - `@zakstam/codex-local-component/protocol`
+- `@zakstam/codex-local-component/host`
+- `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component/convex.config`
 
 ## Docs Map
 
@@ -55,7 +53,6 @@ That file is the normative, single-path consumer strategy.
 - API reference (consumer-first quick-start + selected high-value entry points): `docs/API_REFERENCE.md`
 - Operations and errors: `docs/OPERATIONS_AND_ERRORS.md`
 - Reference matrix: `docs/HOST_PRESET_MATRIX.md`
-- Advanced appendix (non-default): `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`
 - Runtime-owned reference details: `docs/RUNTIME_OWNED_REFERENCE_HOST.md`
 
 ## Data Lifecycle APIs

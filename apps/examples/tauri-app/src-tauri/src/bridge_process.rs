@@ -21,6 +21,7 @@ pub struct HelperStartPayload {
     pub actor: ActorContext,
     pub session_id: String,
     pub model: Option<String>,
+    pub disabled_tools: Option<Vec<String>>,
     pub cwd: Option<String>,
     pub delta_throttle_ms: Option<u64>,
     pub save_stream_deltas: Option<bool>,
@@ -38,6 +39,7 @@ pub struct BridgeStateSnapshot {
     pub last_error_code: Option<String>,
     pub last_error: Option<String>,
     pub runtime_thread_id: Option<String>,
+    pub disabled_tools: Vec<String>,
     pub pending_server_request_count: Option<u64>,
     pub ingest_enqueued_event_count: Option<u64>,
     pub ingest_skipped_event_count: Option<u64>,
@@ -265,6 +267,10 @@ impl BridgeRuntime {
         .await
     }
 
+    pub async fn set_disabled_tools(&self, app: AppHandle, tools: Vec<String>) -> Result<(), String> {
+        self.send_to_helper(&app, "set_disabled_tools", json!({ "tools": tools })).await
+    }
+
     pub async fn stop(&self, app: AppHandle) -> Result<(), String> {
         let process = {
             let mut inner = self.inner.lock().await;
@@ -301,6 +307,7 @@ impl BridgeRuntime {
                 "ingestSkippedEventCount": 0,
                 "ingestEnqueuedByKind": [],
                 "ingestSkippedByKind": [],
+                "disabledTools": [],
                 "lastErrorCode": null,
                 "lastError": null
             }),
@@ -341,11 +348,7 @@ impl BridgeRuntime {
     }
 
     async fn handle_helper_disconnect(&self, app: &AppHandle, message: String) {
-        {
-            let mut inner = self.inner.lock().await;
-            *inner = None;
-        }
-        {
+        let disabled_tools = {
             let mut snapshot = self.snapshot.lock().await;
             snapshot.running = false;
             snapshot.local_thread_id = None;
@@ -358,6 +361,12 @@ impl BridgeRuntime {
             snapshot.ingest_skipped_by_kind = Some(Vec::new());
             snapshot.last_error_code = None;
             snapshot.last_error = Some(message.clone());
+            snapshot.disabled_tools.clone()
+        };
+
+        {
+            let mut inner = self.inner.lock().await;
+            *inner = None;
         }
         let _ = app.emit(
             "codex:bridge_state",
@@ -371,6 +380,7 @@ impl BridgeRuntime {
                 "ingestSkippedEventCount": 0,
                 "ingestEnqueuedByKind": [],
                 "ingestSkippedByKind": [],
+                "disabledTools": disabled_tools,
                 "lastErrorCode": null,
                 "lastError": message
             }),

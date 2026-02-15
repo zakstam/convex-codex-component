@@ -3,7 +3,7 @@
 import { usePaginatedQuery, type PaginatedQueryArgs, type UsePaginatedQueryResult } from "convex/react";
 import { useMemo } from "react";
 import { mergeCodexDurableAndStreamMessages } from "../mapping.js";
-import type { CodexUIMessage } from "../client/types.js";
+import type { CodexUIMessage } from "../shared/types.js";
 import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 import { useCodexStreamOverlay } from "./useCodexStreamOverlay.js";
 

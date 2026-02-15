@@ -1,6 +1,6 @@
 # Host Integration Guide
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 
 This doc is aligned to the single canonical implementation in `../LLMS.md`.
 
@@ -17,8 +17,7 @@ Use `actor: { userId?: string }` at all host/component boundaries.
 1. Mount component in `convex/convex.config.ts`.
 2. Define host wrappers in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`.
 3. Optionally define app-specific endpoints in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
-4. Start runtime with `dispatchManaged: false`.
-5. Submit turns through `runtime.sendTurn(text)`.
+4. Submit turns through `runtime.sendTurn(text)`.
 6. Run `chat.validateHostWiring` at startup.
 
 ## Mount the Component
@@ -55,12 +54,6 @@ const defs = defineRuntimeOwnedHostEndpoints({
 });
 
 export const ensureThread = mutation(defs.mutations.ensureThread);
-export const enqueueTurnDispatch = mutation(defs.mutations.enqueueTurnDispatch);
-export const claimNextTurnDispatch = mutation(defs.mutations.claimNextTurnDispatch);
-export const markTurnDispatchStarted = mutation(defs.mutations.markTurnDispatchStarted);
-export const markTurnDispatchCompleted = mutation(defs.mutations.markTurnDispatchCompleted);
-export const markTurnDispatchFailed = mutation(defs.mutations.markTurnDispatchFailed);
-export const cancelTurnDispatch = mutation(defs.mutations.cancelTurnDispatch);
 export const ensureSession = mutation(defs.mutations.ensureSession);
 export const ingestEvent = mutation(defs.mutations.ingestEvent);
 export const ingestBatch = mutation(defs.mutations.ingestBatch);
@@ -69,8 +62,6 @@ export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsage
 export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
 
 export const validateHostWiring = query(defs.queries.validateHostWiring);
-export const getTurnDispatchState = query(defs.queries.getTurnDispatchState);
-export const getDispatchObservability = query(defs.queries.getDispatchObservability);
 export const threadSnapshot = query(defs.queries.threadSnapshot);
 export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
 export const persistenceStats = query(defs.queries.persistenceStats);
@@ -86,13 +77,12 @@ This keeps Convex codegen and app-generated types authoritative while avoiding c
 
 ## Runtime Contract
 
-Runtime startup must be explicit runtime-owned:
+Runtime startup:
 
 ```ts
 await runtime.start({
   actor,
   sessionId,
-  dispatchManaged: false,
   threadStrategy: "start",
 });
 ```
@@ -137,8 +127,3 @@ If `ok` is `false`, fail startup and surface details in logs.
 Convex-deployed code must not import `@zakstam/codex-local-component/protocol/parser`.
 Use host wrapper exports (`@zakstam/codex-local-component/host/convex`) inside Convex functions.
 
-## Advanced Appendix (Non-Default)
-
-Dispatch-managed orchestration is advanced and non-default. Use only when explicitly requested:
-
-- `DISPATCH_MANAGED_REFERENCE_HOST.md`

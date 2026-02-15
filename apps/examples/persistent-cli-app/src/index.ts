@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
-import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
+import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
 import type {
   ClientNotification,
@@ -354,7 +354,6 @@ function requireDefined<T>(value: T | undefined, name: string): T {
 const chatFns = {
   validateHostWiring: requireDefined(chatApi.validateHostWiring, "chat.validateHostWiring"),
   ensureThread: requireDefined(chatApi.ensureThread, "chat.ensureThread"),
-  enqueueTurnDispatch: requireDefined(chatApi.enqueueTurnDispatch, "chat.enqueueTurnDispatch"),
   ensureSession: requireDefined(chatApi.ensureSession, "chat.ensureSession"),
   ingestBatch: requireDefined(chatApi.ingestBatch, "chat.ingestBatch"),
   persistenceStats: requireDefined(chatApi.persistenceStats, "chat.persistenceStats"),
@@ -736,15 +735,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
       };
       sendMessage(bridge, interruptReq, "turn/interrupt");
     }
-    if (pendingTurn && threadId) {
-      await convex.mutation(chatFns.enqueueTurnDispatch, {
-        actor,
-        threadId,
-        dispatchId: randomUUID(),
-        turnId: event.turnId,
-        idempotencyKey: pendingTurn.idempotencyKey,
-        input: [{ type: "text", text: pendingTurn.inputText }],
-      });
+    if (pendingTurn) {
       pendingTurn = null;
     }
   }

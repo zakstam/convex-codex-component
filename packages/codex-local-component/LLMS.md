@@ -1,6 +1,6 @@
 # LLMS: Canonical Consumer Integration (Single Path)
 
-Canonical default: runtime-owned host integration (`dispatchManaged: false`).
+Canonical default: runtime-owned host integration.
 Official recommendation: use React hooks as the primary consumer integration surface.
 Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 
@@ -15,7 +15,6 @@ Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 ## Hard Rule
 
 - Follow this file as the only default implementation strategy.
-- Do not implement dispatch-managed orchestration unless explicitly requested.
 - Define host wrappers with `defineRuntimeOwnedHostEndpoints(...)`.
 - Always use app-generated Convex types from `./_generated/api` and `./_generated/server`.
 
@@ -67,12 +66,6 @@ const defs = defineRuntimeOwnedHostEndpoints({
 });
 
 export const ensureThread = mutation(defs.mutations.ensureThread);
-export const enqueueTurnDispatch = mutation(defs.mutations.enqueueTurnDispatch);
-export const claimNextTurnDispatch = mutation(defs.mutations.claimNextTurnDispatch);
-export const markTurnDispatchStarted = mutation(defs.mutations.markTurnDispatchStarted);
-export const markTurnDispatchCompleted = mutation(defs.mutations.markTurnDispatchCompleted);
-export const markTurnDispatchFailed = mutation(defs.mutations.markTurnDispatchFailed);
-export const cancelTurnDispatch = mutation(defs.mutations.cancelTurnDispatch);
 export const ensureSession = mutation(defs.mutations.ensureSession);
 export const ingestEvent = mutation(defs.mutations.ingestEvent);
 export const ingestBatch = mutation(defs.mutations.ingestBatch);
@@ -81,8 +74,6 @@ export const upsertTokenUsageForHooks = mutation(defs.mutations.upsertTokenUsage
 export const interruptTurnForHooks = mutation(defs.mutations.interruptTurnForHooks);
 
 export const validateHostWiring = query(defs.queries.validateHostWiring);
-export const getTurnDispatchState = query(defs.queries.getTurnDispatchState);
-export const getDispatchObservability = query(defs.queries.getDispatchObservability);
 export const threadSnapshot = query(defs.queries.threadSnapshot);
 export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
 export const persistenceStats = query(defs.queries.persistenceStats);
@@ -110,30 +101,21 @@ const runtime = createCodexHostRuntime({
     upsertPendingServerRequest,
     resolvePendingServerRequest,
     listPendingServerRequests,
-    enqueueTurnDispatch,
-    claimNextTurnDispatch,
-    markTurnDispatchStarted,
-    markTurnDispatchCompleted,
-    markTurnDispatchFailed,
-    cancelTurnDispatch,
   },
 });
 ```
 
-- Runtime startup must be explicit runtime-owned:
+- Runtime startup:
 
 ```ts
 await runtime.start({
   actor,
   sessionId,
-  dispatchManaged: false,
   threadStrategy: "start",
 });
 ```
 
 6. Start turns through `runtime.sendTurn(text)`.
-
-- Do not call `startClaimedTurn` in the canonical path.
 
 7. Validate host wiring during startup.
 
@@ -147,10 +129,8 @@ await runtime.start({
 - `useCodexThreadActivity` -> `chat.threadSnapshotSafe`
 - `useCodexIngestHealth` -> `chat.threadSnapshotSafe`
 - `useCodexBranchActivity` -> `chat.threadSnapshotSafe`
-- `useCodexApprovals` -> `chat.listPendingApprovalsForHooks` + `chat.respondApprovalForHooks`
 - `useCodexDynamicTools` -> `chat.listPendingServerRequestsForHooks` + runtime `respondDynamicToolCall(...)`
-- `useCodexComposer` -> `chat.enqueueTurnDispatch`
-- Prefer `useCodexConversationController` for bundled wiring (messages + activity + approvals + composer + interrupt).
+- Prefer `useCodexChat` for bundled wiring (messages + activity + approvals + composer + interrupt + explicit tool controls).
 - Use `useCodexRuntimeBridge`, `useCodexAccountAuth`, and `useCodexThreads` for bridge lifecycle, auth flows, and thread selection state in React apps.
 - Treat `threadSnapshotSafe` timestamps as terminal-aware authority (`completedAt/updatedAt` before `createdAt`) when deriving terminal boundary decisions.
 
@@ -174,8 +154,3 @@ If your app does not define `wiring:smoke`, run the check inline with `ConvexHtt
 
 If an endpoint belongs to preset behavior, add it in the package preset/manifest and consume it through the helper API.
 
-## Advanced Appendix (Non-Default)
-
-Dispatch-managed orchestration is advanced and non-default. Reference only when explicitly requested:
-
-- `docs/DISPATCH_MANAGED_REFERENCE_HOST.md`

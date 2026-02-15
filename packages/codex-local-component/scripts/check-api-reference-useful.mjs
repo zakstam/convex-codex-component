@@ -7,16 +7,12 @@ const docsPath = resolve(packageRoot, "docs/API_REFERENCE.md");
 
 const sectionMap = {
   ".": "index.d.ts",
-  client: "client/index.d.ts",
   "react": "react/index.d.ts",
   "react-integration": "react-integration/index.d.ts",
   host: "host/index.d.ts",
   "host/convex": "host/convex-entry.d.ts",
-  "app-server": "app-server/index.d.ts",
   protocol: "protocol/index.d.ts",
-  bridge: "bridge.d.ts",
   "convex.config": "component/convex.config.d.ts",
-  errors: "errors.d.ts",
 };
 
 const failures = [];

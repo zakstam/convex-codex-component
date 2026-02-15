@@ -73,45 +73,6 @@ export default defineSchema({
     .index("userScope_threadRef_startedAt", ["userScope", "threadRef", "startedAt"])
     .index("userScope_threadRef_turnId", ["userScope", "threadRef", "turnId"]),
 
-  codex_turn_dispatches: defineTable({
-    userScope: v.string(),
-    userId: v.optional(v.string()),
-    threadId: v.string(),
-    threadRef: v.id("codex_threads"),
-    dispatchId: v.string(),
-    turnId: v.string(),
-    turnRef: v.id("codex_turns"),
-    idempotencyKey: v.string(),
-    inputText: v.string(),
-    status: v.union(
-      v.literal("queued"),
-      v.literal("claimed"),
-      v.literal("started"),
-      v.literal("completed"),
-      v.literal("failed"),
-      v.literal("cancelled"),
-    ),
-    claimOwner: v.optional(v.string()),
-    claimToken: v.optional(v.string()),
-    leaseExpiresAt: v.number(),
-    attemptCount: v.number(),
-    runtimeThreadId: v.optional(v.string()),
-    runtimeTurnId: v.optional(v.string()),
-    failureCode: v.optional(v.string()),
-    failureReason: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-    startedAt: v.optional(v.number()),
-    completedAt: v.optional(v.number()),
-    cancelledAt: v.optional(v.number()),
-  })
-    .index("userScope_threadId_dispatchId", ["userScope", "threadId", "dispatchId"])
-    .index("userScope_threadId_turnId", ["userScope", "threadId", "turnId"])
-    .index("userScope_turnRef", ["userScope", "turnRef"])
-    .index("userScope_threadId_idempotencyKey", ["userScope", "threadId", "idempotencyKey"])
-    .index("userScope_threadId_status_createdAt", ["userScope", "threadId", "status", "createdAt"])
-    .index("userScope_threadId_status_leaseExpiresAt", ["userScope", "threadId", "status", "leaseExpiresAt"]),
-
   codex_items: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
@@ -272,7 +233,6 @@ export default defineSchema({
     createdAt: v.number(),
     expiresAt: v.number(),
   })
-    .index("userScope", ["userScope"])
     .index("userScope_streamId_cursorStart", ["userScope", "streamId", "cursorStart"])
     .index("userScope_streamId_eventId", ["userScope", "streamId", "eventId"])
     .index("expiresAt", ["expiresAt"]),

@@ -1,32 +1,10 @@
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 import { v } from "convex/values";
 import {
-  cancelTurnDispatch,
-  claimNextTurnDispatch,
-  enqueueTurnDispatch,
-  getThreadState,
-  interruptTurn,
-  listPendingServerRequests,
-  listPendingApprovals,
-  listTurnMessages,
-  markTurnCompleted,
-  markTurnFailed,
-  markTurnStarted,
-  resolvePendingServerRequest,
-  respondToApproval,
-  startTurn,
-  getTurnDispatchState,
-  upsertPendingServerRequest,
-} from "../client/index.js";
-import {
   ingestBatchSafe,
-  listThreadMessagesForHooks,
-  listThreadReasoningForHooks,
   type HostInboundLifecycleEvent,
   type HostInboundStreamDelta,
-  type HostMessagesForHooksArgs,
   type HostReplayResult,
-  type HostReasoningForHooksArgs,
   type HostSyncRuntimeOptions,
 } from "./convex.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
@@ -124,15 +102,6 @@ export const vHostEnsureSessionResult = v.object({
   status: v.union(v.literal("created"), v.literal("active")),
 });
 
-export const vHostDispatchStatus = v.union(
-  v.literal("queued"),
-  v.literal("claimed"),
-  v.literal("started"),
-  v.literal("completed"),
-  v.literal("failed"),
-  v.literal("cancelled"),
-);
-
 export const vHostTurnInput = v.array(
   v.object({
     type: v.string(),
@@ -141,77 +110,6 @@ export const vHostTurnInput = v.array(
     path: v.optional(v.string()),
   }),
 );
-
-export const vHostEnqueueTurnDispatchResult = v.object({
-  dispatchId: v.string(),
-  turnId: v.string(),
-  status: vHostDispatchStatus,
-  accepted: v.boolean(),
-});
-
-export const vHostClaimedTurnDispatch = v.union(
-  v.null(),
-  v.object({
-    dispatchId: v.string(),
-    turnId: v.string(),
-    idempotencyKey: v.string(),
-    inputText: v.string(),
-    claimToken: v.string(),
-    leaseExpiresAt: v.number(),
-    attemptCount: v.number(),
-  }),
-);
-
-export const vHostTurnDispatchState = v.union(
-  v.null(),
-  v.object({
-    dispatchId: v.string(),
-    turnId: v.string(),
-    status: vHostDispatchStatus,
-    idempotencyKey: v.string(),
-    inputText: v.string(),
-    claimToken: v.optional(v.string()),
-    claimOwner: v.optional(v.string()),
-    leaseExpiresAt: v.number(),
-    attemptCount: v.number(),
-    runtimeThreadId: v.optional(v.string()),
-    runtimeTurnId: v.optional(v.string()),
-    failureCode: v.optional(v.string()),
-    failureReason: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-    startedAt: v.optional(v.number()),
-    completedAt: v.optional(v.number()),
-    cancelledAt: v.optional(v.number()),
-  }),
-);
-
-export const vHostDispatchObservability = v.object({
-  threadId: v.string(),
-  dispatch: vHostTurnDispatchState,
-  claim: v.object({
-    owner: v.optional(v.string()),
-    token: v.optional(v.string()),
-    leaseExpiresAt: v.optional(v.number()),
-    active: v.boolean(),
-  }),
-  runtime: v.object({
-    runtimeThreadId: v.optional(v.string()),
-    runtimeTurnId: v.optional(v.string()),
-    inFlight: v.boolean(),
-  }),
-  turn: v.object({
-    turnId: v.optional(v.string()),
-    status: v.optional(v.string()),
-  }),
-  correlations: v.object({
-    dispatchId: v.optional(v.string()),
-    claimToken: v.optional(v.string()),
-    localTurnId: v.optional(v.string()),
-    runtimeTurnId: v.optional(v.string()),
-    runtimeThreadId: v.optional(v.string()),
-  }),
-});
 
 export const vHostStreamArgs = v.optional(
   v.union(
@@ -314,18 +212,6 @@ type CodexServerRequestsComponent = {
   };
 };
 
-type CodexDispatchComponent = {
-  dispatch: {
-    enqueueTurnDispatch: FunctionReference<"mutation", "public" | "internal">;
-    claimNextTurnDispatch: FunctionReference<"mutation", "public" | "internal">;
-    markTurnStarted: FunctionReference<"mutation", "public" | "internal">;
-    markTurnCompleted: FunctionReference<"mutation", "public" | "internal">;
-    markTurnFailed: FunctionReference<"mutation", "public" | "internal">;
-    cancelTurnDispatch: FunctionReference<"mutation", "public" | "internal">;
-    getTurnDispatchState: FunctionReference<"query", "public" | "internal">;
-  };
-};
-
 type CodexThreadsStateComponent = {
   threads: {
     getState: FunctionReference<"query", "public" | "internal">;
@@ -355,7 +241,6 @@ export type CodexHostComponentRefs =
   & CodexApprovalsComponent
   & CodexServerRequestsComponent
   & CodexTokenUsageComponent
-  & CodexDispatchComponent
   & CodexThreadsStateComponent
   & CodexReasoningComponent;
 
@@ -375,74 +260,6 @@ type EnsureThreadResolveArgs = {
   externalThreadId?: string;
   model?: string;
   cwd?: string;
-};
-
-type EnqueueTurnDispatchArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId?: string;
-  turnId: string;
-  idempotencyKey: string;
-  input: Array<{
-    type: string;
-    text?: string;
-    url?: string;
-    path?: string;
-  }>;
-};
-
-type ClaimNextTurnDispatchArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  claimOwner: string;
-  leaseMs?: number;
-};
-
-type MarkTurnDispatchStartedArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId: string;
-  claimToken: string;
-  runtimeThreadId?: string;
-  runtimeTurnId?: string;
-};
-
-type MarkTurnDispatchCompletedArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId: string;
-  claimToken: string;
-};
-
-type MarkTurnDispatchFailedArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId: string;
-  claimToken: string;
-  code?: string;
-  reason: string;
-};
-
-type CancelTurnDispatchArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId: string;
-  claimToken?: string;
-  reason: string;
-};
-
-type GetTurnDispatchStateArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId?: string;
-  turnId?: string;
-};
-
-type DispatchObservabilityArgs = {
-  actor: HostActorContext;
-  threadId: string;
-  dispatchId?: string;
-  turnId?: string;
 };
 
 type EnsureSessionArgs = {
@@ -546,21 +363,6 @@ function getAllStreamsCandidate(state: unknown): Array<{ streamId: string }> | n
   return Array.isArray(allStreams) ? allStreams : null;
 }
 
-type ThreadStateTurn = {
-  turnId: string;
-  status: string;
-  startedAt: number;
-  completedAt?: number;
-};
-
-function getTurnsCandidate(state: unknown): ThreadStateTurn[] | null {
-  if (typeof state !== "object" || state === null || !("turns" in state)) {
-    return null;
-  }
-  const turns = (state as { turns?: ThreadStateTurn[] | null }).turns;
-  return Array.isArray(turns) ? turns : null;
-}
-
 export function computePersistenceStats(state: { streamStats?: unknown[] | null }): {
   streamCount: number;
   deltaCount: number;
@@ -651,226 +453,6 @@ export async function ensureThreadByResolve<
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
   });
-}
-
-export async function enqueueTurnDispatchForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: EnqueueTurnDispatchArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["enqueueTurnDispatch"]>> {
-  return enqueueTurnDispatch(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    ...(args.dispatchId !== undefined ? { dispatchId: args.dispatchId } : {}),
-    turnId: args.turnId,
-    idempotencyKey: args.idempotencyKey,
-    input: args.input,
-  });
-}
-
-export async function claimNextTurnDispatchForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: ClaimNextTurnDispatchArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["claimNextTurnDispatch"]>> {
-  return claimNextTurnDispatch(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    claimOwner: args.claimOwner,
-    ...(args.leaseMs !== undefined ? { leaseMs: args.leaseMs } : {}),
-  });
-}
-
-export async function markTurnDispatchStartedForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: MarkTurnDispatchStartedArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["markTurnStarted"]>> {
-  return markTurnStarted(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    dispatchId: args.dispatchId,
-    claimToken: args.claimToken,
-    ...(args.runtimeThreadId !== undefined ? { runtimeThreadId: args.runtimeThreadId } : {}),
-    ...(args.runtimeTurnId !== undefined ? { runtimeTurnId: args.runtimeTurnId } : {}),
-  });
-}
-
-export async function markTurnDispatchCompletedForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: MarkTurnDispatchCompletedArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["markTurnCompleted"]>> {
-  return markTurnCompleted(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    dispatchId: args.dispatchId,
-    claimToken: args.claimToken,
-  });
-}
-
-export async function markTurnDispatchFailedForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: MarkTurnDispatchFailedArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["markTurnFailed"]>> {
-  return markTurnFailed(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    dispatchId: args.dispatchId,
-    claimToken: args.claimToken,
-    ...(args.code !== undefined ? { code: args.code } : {}),
-    reason: args.reason,
-  });
-}
-
-export async function cancelTurnDispatchForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: CancelTurnDispatchArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["cancelTurnDispatch"]>> {
-  return cancelTurnDispatch(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    dispatchId: args.dispatchId,
-    ...(args.claimToken !== undefined ? { claimToken: args.claimToken } : {}),
-    reason: args.reason,
-  });
-}
-
-export async function getTurnDispatchStateForActor<
-  Component extends CodexDispatchComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: GetTurnDispatchStateArgs,
-): Promise<FunctionReturnType<Component["dispatch"]["getTurnDispatchState"]>> {
-  return getTurnDispatchState(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-    ...(args.dispatchId !== undefined ? { dispatchId: args.dispatchId } : {}),
-    ...(args.turnId !== undefined ? { turnId: args.turnId } : {}),
-  });
-}
-
-export async function dispatchObservabilityForActor<
-  Component extends CodexDispatchComponent & CodexThreadsStateComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: DispatchObservabilityArgs,
-): Promise<{
-  threadId: string;
-  dispatch: FunctionReturnType<Component["dispatch"]["getTurnDispatchState"]>;
-  claim: {
-    owner?: string;
-    token?: string;
-    leaseExpiresAt?: number;
-    active: boolean;
-  };
-  runtime: {
-    runtimeThreadId?: string;
-    runtimeTurnId?: string;
-    inFlight: boolean;
-  };
-  turn: {
-    turnId?: string;
-    status?: string;
-  };
-  correlations: {
-    dispatchId?: string;
-    claimToken?: string;
-    localTurnId?: string;
-    runtimeTurnId?: string;
-    runtimeThreadId?: string;
-  };
-}> {
-  const dispatch = await getTurnDispatchStateForActor(ctx, component, args);
-  const state = await threadSnapshot(ctx, component, {
-    actor: args.actor,
-    threadId: args.threadId,
-  });
-  const turns = getTurnsCandidate(state) ?? [];
-  const dispatchTurnId =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "turnId" in dispatch
-      ? (dispatch.turnId as string | undefined)
-      : undefined;
-  const resolvedTurnId =
-    dispatchTurnId ??
-    args.turnId;
-  const matchedTurn = resolvedTurnId
-    ? turns.find((turn) => turn.turnId === resolvedTurnId)
-    : turns.sort((left, right) => right.startedAt - left.startedAt)[0];
-
-  const claimOwner =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "claimOwner" in dispatch
-      ? (dispatch.claimOwner as string | undefined)
-      : undefined;
-  const claimToken =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "claimToken" in dispatch
-      ? (dispatch.claimToken as string | undefined)
-      : undefined;
-  const leaseExpiresAt =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "leaseExpiresAt" in dispatch
-      ? (dispatch.leaseExpiresAt as number | undefined)
-      : undefined;
-  const runtimeThreadId =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "runtimeThreadId" in dispatch
-      ? (dispatch.runtimeThreadId as string | undefined)
-      : undefined;
-  const runtimeTurnId =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "runtimeTurnId" in dispatch
-      ? (dispatch.runtimeTurnId as string | undefined)
-      : undefined;
-  const dispatchId =
-    dispatch && typeof dispatch === "object" && dispatch !== null && "dispatchId" in dispatch
-      ? (dispatch.dispatchId as string | undefined)
-      : undefined;
-
-  const inFlight =
-    dispatch !== null &&
-    typeof dispatch === "object" &&
-    "status" in dispatch &&
-    (dispatch.status === "claimed" || dispatch.status === "started");
-
-  return {
-    threadId: args.threadId,
-    dispatch,
-    claim: {
-      ...(claimOwner !== undefined ? { owner: claimOwner } : {}),
-      ...(claimToken !== undefined ? { token: claimToken } : {}),
-      ...(leaseExpiresAt !== undefined ? { leaseExpiresAt } : {}),
-      active: inFlight,
-    },
-    runtime: {
-      ...(runtimeThreadId !== undefined ? { runtimeThreadId } : {}),
-      ...(runtimeTurnId !== undefined ? { runtimeTurnId } : {}),
-      inFlight,
-    },
-    turn: {
-      ...(resolvedTurnId !== undefined ? { turnId: resolvedTurnId } : {}),
-      ...(matchedTurn?.status !== undefined ? { status: matchedTurn.status } : {}),
-    },
-    correlations: {
-      ...(dispatchId !== undefined ? { dispatchId } : {}),
-      ...(claimToken !== undefined ? { claimToken } : {}),
-      ...(resolvedTurnId !== undefined ? { localTurnId: resolvedTurnId } : {}),
-      ...(runtimeTurnId !== undefined ? { runtimeTurnId } : {}),
-      ...(runtimeThreadId !== undefined ? { runtimeThreadId } : {}),
-    },
-  };
 }
 
 export async function ensureSession<
@@ -984,7 +566,7 @@ export async function threadSnapshot<
   component: Component,
   args: ThreadSnapshotArgs,
 ): Promise<FunctionReturnType<Component["threads"]["getState"]>> {
-  return getThreadState(ctx, component, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
+  return ctx.runQuery(component.threads.getState, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
 }
 
 function isThreadSnapshotSafeError(error: unknown): boolean {
@@ -1055,237 +637,17 @@ export async function dataHygiene<
   });
 }
 
-export async function listThreadMessagesForHooksForActor<
-  Component extends CodexHooksComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: HostMessagesForHooksArgs<HostActorContext>,
-): Promise<
-  FunctionReturnType<Component["messages"]["listByThread"]> & {
-    streams?:
-      | { kind: "list"; streams: Array<{ streamId: string; state: string }> }
-      | {
-          kind: "deltas";
-          streams: Array<{ streamId: string; state: string }>;
-          deltas: Array<Record<string, unknown>>;
-          streamWindows: Array<{
-            streamId: string;
-            status: "ok" | "rebased" | "stale";
-            serverCursorStart: number;
-            serverCursorEnd: number;
-          }>;
-          nextCheckpoints: Array<{ streamId: string; cursor: number }>;
-        };
-  }
-> {
-  return listThreadMessagesForHooks(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function listThreadReasoningForHooksForActor<
-  Component extends CodexReasoningComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: HostReasoningForHooksArgs<HostActorContext>,
-): Promise<FunctionReturnType<Component["reasoning"]["listByThread"]>> {
-  return listThreadReasoningForHooks(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function listTurnMessagesForHooksForActor<
-  Component extends CodexMessagesComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId: string;
-    turnId: string;
-  },
-): Promise<FunctionReturnType<Component["messages"]["getByTurn"]>> {
-  return listTurnMessages(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function listPendingApprovalsForHooksForActor<
-  Component extends CodexApprovalsComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId?: string;
-    paginationOpts: { cursor: string | null; numItems: number };
-  },
-): Promise<FunctionReturnType<Component["approvals"]["listPending"]>> {
-  return listPendingApprovals(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function respondApprovalForHooksForActor<
-  Component extends CodexApprovalsComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId: string;
-    turnId: string;
-    itemId: string;
-    decision: "accepted" | "declined";
-  },
-): Promise<FunctionReturnType<Component["approvals"]["respond"]>> {
-  return respondToApproval(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function listPendingServerRequestsForHooksForActor<
-  Component extends CodexServerRequestsComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId?: string;
-    limit?: number;
-  },
-): Promise<FunctionReturnType<Component["serverRequests"]["listPending"]>> {
-  return listPendingServerRequests(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function upsertPendingServerRequestForHooksForActor<
-  Component extends CodexServerRequestsComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    requestId: string | number;
-    threadId: string;
-    turnId: string;
-    itemId: string;
-    method:
-      | "item/commandExecution/requestApproval"
-      | "item/fileChange/requestApproval"
-      | "item/tool/requestUserInput"
-      | "item/tool/call";
-    payloadJson: string;
-    reason?: string;
-    questionsJson?: string;
-    requestedAt: number;
-  },
-): Promise<FunctionReturnType<Component["serverRequests"]["upsertPending"]>> {
-  return upsertPendingServerRequest(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function resolvePendingServerRequestForHooksForActor<
-  Component extends CodexServerRequestsComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId: string;
-    requestId: string | number;
-    status: "answered" | "expired";
-    resolvedAt: number;
-    responseJson?: string;
-  },
-): Promise<FunctionReturnType<Component["serverRequests"]["resolve"]>> {
-  return resolvePendingServerRequest(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
-
-export async function upsertTokenUsageForActor<
-  Component extends CodexTokenUsageComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId: string;
-    turnId: string;
-    totalTokens: number;
-    inputTokens: number;
-    cachedInputTokens: number;
-    outputTokens: number;
-    reasoningOutputTokens: number;
-    lastTotalTokens: number;
-    lastInputTokens: number;
-    lastCachedInputTokens: number;
-    lastOutputTokens: number;
-    lastReasoningOutputTokens: number;
-    modelContextWindow?: number;
-  },
-): Promise<FunctionReturnType<Component["tokenUsage"]["upsert"]>> {
-  return ctx.runMutation(component.tokenUsage.upsert, {
-    actor: args.actor,
-    threadId: args.threadId,
-    turnId: args.turnId,
-    totalTokens: args.totalTokens,
-    inputTokens: args.inputTokens,
-    cachedInputTokens: args.cachedInputTokens,
-    outputTokens: args.outputTokens,
-    reasoningOutputTokens: args.reasoningOutputTokens,
-    lastTotalTokens: args.lastTotalTokens,
-    lastInputTokens: args.lastInputTokens,
-    lastCachedInputTokens: args.lastCachedInputTokens,
-    lastOutputTokens: args.lastOutputTokens,
-    lastReasoningOutputTokens: args.lastReasoningOutputTokens,
-    ...(args.modelContextWindow !== undefined ? { modelContextWindow: args.modelContextWindow } : {}),
-  });
-}
-
-export async function listTokenUsageForHooksForActor<
-  Component extends CodexTokenUsageComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId: string;
-  },
-): Promise<FunctionReturnType<Component["tokenUsage"]["listByThread"]>> {
-  return ctx.runQuery(component.tokenUsage.listByThread, {
-    actor: args.actor,
-    threadId: args.threadId,
-  });
-}
-
-export async function interruptTurnForHooksForActor<
-  Component extends CodexTurnsComponent,
->(
-  ctx: HostMutationRunner,
-  component: Component,
-  args: {
-    actor: HostActorContext;
-    threadId: string;
-    turnId: string;
-    reason?: string;
-  },
-): Promise<FunctionReturnType<Component["turns"]["interrupt"]>> {
-  return interruptTurn(ctx, component, {
-    ...args,
-    actor: args.actor,
-  });
-}
+// Re-export hook delegation functions from convexSliceHooks.ts
+export {
+  listThreadMessagesForHooksForActor,
+  listThreadReasoningForHooksForActor,
+  listTurnMessagesForHooksForActor,
+  listPendingApprovalsForHooksForActor,
+  respondApprovalForHooksForActor,
+  listPendingServerRequestsForHooksForActor,
+  upsertPendingServerRequestForHooksForActor,
+  resolvePendingServerRequestForHooksForActor,
+  upsertTokenUsageForActor,
+  listTokenUsageForHooksForActor,
+  interruptTurnForHooksForActor,
+} from "./convexSliceHooks.js";

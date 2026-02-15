@@ -4,11 +4,11 @@ This app is the blessed reference integration for production-grade React + Conve
 React hooks are the official recommendation for consumer integrations.
 
 Canonical wiring in this app centers on:
-- `useCodexConversationController`
+- `useCodexChat`
+- `useCodexChat` (advanced control path for approval/tool flows via tool policy controls)
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
 - helper-defined host wrappers in `convex/chat.ts`
-- dispatch-managed host mode (`dispatchManaged: true`) with `runtime.startClaimedTurn(...)`
 
 Canonical consumer implementation path:
 
@@ -19,6 +19,15 @@ Canonical consumer implementation path:
 - Runtime start/stop UI signals must be sourced from `codex:bridge_state`.
 - `useCodexTauriEvents` is the only place that subscribes to Tauri bridge events.
 - The hook is StrictMode-safe and deduplicates transition toasts to one toast per real running-state edge.
+
+## Tool Policy Panel
+
+- Use the **Tool Policy** panel in the sidebar to block known dynamic tools for the current session.
+- Toggle checks are mapped into a policy list and sent through `set_disabled_tools`.
+- The runtime enforces the policy inside the bridge helper:
+  - blocked tools are denied before any execution,
+  - unknown tool names are rejected by the helper command handler.
+- In this example, the known dynamic tool is `tauri_get_runtime_snapshot`.
 
 ## Run
 

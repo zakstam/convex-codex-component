@@ -1,3 +1,7 @@
+// All Convex-safe exports (validators, actor wrappers, endpoint definers, error classifiers)
+export * from "./convex-entry.js";
+
+// Non-Convex host runtime
 export {
   createCodexHostRuntime,
   CodexHostRuntimeError,
@@ -10,43 +14,7 @@ export {
   type HostRuntimeState,
 } from "./runtime.js";
 
-export {
-  defineDispatchManagedHostEndpoints,
-  defineRuntimeOwnedHostEndpoints,
-  defineDispatchManagedHostSlice,
-  defineRuntimeOwnedHostSlice,
-  type CodexHostSliceFeatures,
-  type CodexHostSliceIngestMode,
-  type CodexHostSliceProfile,
-  type CodexHostSliceThreadMode,
-  type DefineDispatchManagedHostEndpointsOptions,
-  type DefineRuntimeOwnedHostEndpointsOptions,
-  type DefineDispatchManagedHostSliceOptions,
-  type DefineRuntimeOwnedHostSliceOptions,
-  type DispatchManagedHostDefinitions,
-  type RuntimeOwnedHostDefinitions,
-} from "./convexPreset.js";
-export { wrapHostDefinitions } from "./wrapDefinitions.js";
-export {
-  HOST_PRESET_DEFINITIONS,
-  HOST_SURFACE_MANIFEST,
-  type HostSurfaceProfile,
-  type HostSurfaceMutationKey,
-  type HostSurfaceQueryKey,
-} from "./surfaceManifest.js";
-
-export {
-  ingestBatchSafe,
-  listThreadMessagesForHooks,
-  listThreadReasoningForHooks,
-  type HostInboundLifecycleEvent,
-  type HostInboundStreamDelta,
-  type HostMessagesForHooksArgs,
-  type HostReasoningForHooksArgs,
-  type HostStreamArgs,
-  type HostSyncRuntimeOptions,
-} from "./convex.js";
-
+// Non-Convex normalization helpers
 export {
   normalizeInboundDeltas,
   type NormalizedInboundDelta,
@@ -54,69 +22,17 @@ export {
   type NormalizedInboundStreamDelta,
 } from "./normalizeInboundDeltas.js";
 
+// Non-Convex ingest recovery
 export { hasRecoverableIngestErrors, type HostIngestErrorLike } from "./ingestRecovery.js";
-export {
-  RECOVERABLE_INGEST_ERROR_CODES,
-  isRecoverableIngestError,
-  isSessionForbidden,
-  isThreadForbidden,
-  isThreadMissing,
-  parseErrorCode,
-} from "../errors.js";
 
+// Non-Convex: additional convexSlice exports only available at host level
 export {
-  computeDataHygiene,
-  computeDurableHistoryStats,
-  computePersistenceStats,
-  enqueueTurnDispatchForActor,
-  claimNextTurnDispatchForActor,
-  markTurnDispatchStartedForActor,
-  markTurnDispatchCompletedForActor,
-  markTurnDispatchFailedForActor,
-  cancelTurnDispatchForActor,
-  getTurnDispatchStateForActor,
-  dispatchObservabilityForActor,
-  dataHygiene,
-  durableHistoryStats,
-  ensureSession,
-  ensureThreadByCreate,
-  ensureThreadByResolve,
-  ingestBatchMixed,
-  ingestBatchStreamOnly,
-  ingestEventMixed,
-  ingestEventStreamOnly,
-  interruptTurnForHooksForActor,
-  isStreamStatSummary,
-  listPendingApprovalsForHooksForActor,
-  listPendingServerRequestsForHooksForActor,
-  listThreadMessagesForHooksForActor,
-  listThreadReasoningForHooksForActor,
   listTokenUsageForHooksForActor,
-  listTurnMessagesForHooksForActor,
-  persistenceStats,
-  respondApprovalForHooksForActor,
-  resolvePendingServerRequestForHooksForActor,
-  threadSnapshot,
-  threadSnapshotSafe,
-  upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
-  vHostActorContext,
-  vHostDataHygiene,
-  vHostDurableHistoryStats,
-  vHostDispatchStatus,
-  vHostDispatchObservability,
-  vHostEnqueueTurnDispatchResult,
-  vHostClaimedTurnDispatch,
-  vHostTurnDispatchState,
-  vHostTurnInput,
-  vHostEnsureSessionResult,
-  vHostIngestSafeResult,
-  vHostLifecycleInboundEvent,
-  vHostPersistenceStats,
-  vHostStreamArgs,
-  vHostStreamInboundEvent,
-  vHostSyncRuntimeOptions,
-  type CodexHostComponentRefs,
-  type CodexHostComponentsInput,
-  type HostActorContext,
 } from "./convexSlice.js";
+
+// Folded-in: bridge (previously @zakstam/codex-local-component/bridge)
+export * from "../local-adapter/bridge.js";
+
+// Folded-in: app-server (previously @zakstam/codex-local-component/app-server)
+export * from "../app-server/index.js";

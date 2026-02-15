@@ -11,6 +11,7 @@ export type BridgeState = {
   lastErrorCode?: string | null;
   lastError: string | null;
   runtimeThreadId?: string | null;
+  disabledTools?: string[];
   pendingServerRequestCount?: number | null;
   ingestEnqueuedEventCount?: number | null;
   ingestSkippedEventCount?: number | null;
@@ -42,6 +43,7 @@ export async function startBridge(config: {
   startSource?: string;
   model?: string;
   cwd?: string;
+  disabledTools?: string[];
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
   threadStrategy?: "start" | "resume" | "fork";
@@ -107,6 +109,10 @@ export async function respondChatgptAuthTokensRefresh(config: {
   chatgptPlanType?: string | null;
 }) {
   return await invoke("respond_chatgpt_auth_tokens_refresh", { config });
+}
+
+export async function setDisabledTools(config: { tools: string[] }) {
+  return await invoke("set_disabled_tools", { config });
 }
 
 export async function stopBridge() {

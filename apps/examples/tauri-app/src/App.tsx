@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   useCodexAccountAuth,
-  useCodexConversationController,
+  useCodexChat,
   useCodexRuntimeBridge,
   useCodexThreadState,
   useCodexThreads,
@@ -21,6 +21,7 @@ import {
   respondCommandApproval,
   respondFileChangeApproval,
   respondToolUserInput,
+  setDisabledTools,
   sendUserTurn,
   startBridge,
   stopBridge,
@@ -36,12 +37,13 @@ import { Composer } from "./components/Composer";
 import { ApprovalList } from "./components/ApprovalList";
 import { EventLog } from "./components/EventLog";
 import { TokenUsagePanel } from "./components/TokenUsagePanel";
+import { ToolDisablePanel } from "./components/ToolDisablePanel";
 import { ToastContainer, type ToastItem } from "./components/Toast";
 import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./hooks/useCodexTauriEvents";
+import { KNOWN_DYNAMIC_TOOLS, TAURI_RUNTIME_TOOL_PROMPT } from "./lib/dynamicTools";
 
 const ACTOR_STORAGE_KEY = "codex-local-tauri-actor-user-id";
 const DEFAULT_DELETE_DELAY_MS = 10 * 60 * 1000;
-
 function resolveActorUserId(): string {
   if (typeof window === "undefined") {
     return "demo-user";
@@ -115,6 +117,7 @@ export default function App() {
     running: false,
     localThreadId: null,
     turnId: null,
+    disabledTools: [],
     lastError: null,
     pendingServerRequestCount: 0,
     ingestEnqueuedEventCount: 0,
@@ -225,15 +228,16 @@ export default function App() {
         startSource,
         model: import.meta.env.VITE_CODEX_MODEL,
         cwd: import.meta.env.VITE_CODEX_CWD,
+        disabledTools: bridge.disabledTools ?? [],
         deltaThrottleMs: 250,
         saveStreamDeltas: true,
         ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
       });
     },
-    [actor, actorReady, runtimeBridge, selectedRuntimeThreadId],
+    [actor, actorReady, bridge.disabledTools, runtimeBridge, selectedRuntimeThreadId],
   );
 
-  const conversation = useCodexConversationController({
+  const conversation = useCodexChat({
     messages: {
       query: requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
       args: threadId && actorReady ? { actor, threadId } : "skip",
@@ -440,9 +444,23 @@ export default function App() {
   }, [startBridgeWithSelection]);
 
   const onInsertDynamicToolPrompt = () => {
-    const prompt =
-      "Use the dynamic tool `tauri_get_runtime_snapshot` with includePendingRequests=true and summarize the response.";
+    const prompt = TAURI_RUNTIME_TOOL_PROMPT;
     conversation.composer.setValue((prev) => (prev.trim() ? `${prev}\n\n${prompt}` : prompt));
+  };
+
+  const onSetDisabledTools = async (nextTools: string[]) => {
+    const normalized = [...new Set(nextTools.filter((tool) => tool.trim().length > 0))].sort();
+    try {
+      await setDisabledTools({ tools: normalized });
+      setBridge((current) => ({
+        ...current,
+        disabledTools: normalized,
+      }));
+      addToast("success", `Tool policy updated (${normalized.length} blocked).`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addToast("error", message);
+    }
   };
 
   const onRespondCommandOrFile = async (
@@ -799,6 +817,12 @@ export default function App() {
 
       <aside className="side">
         <BridgeStatus bridge={bridge} />
+        <ToolDisablePanel
+          availableTools={[...KNOWN_DYNAMIC_TOOLS]}
+          disabledTools={bridge.disabledTools ?? []}
+          running={bridge.running}
+          onSetDisabledTools={onSetDisabledTools}
+        />
         <ApprovalList
           requests={pendingServerRequests}
           submittingRequestKey={submittingRequestKey}

@@ -1,5 +1,5 @@
 import type { FunctionArgs, FunctionReference, FunctionReturnType, PaginationOptions } from "convex/server";
-import type { CodexMutationRunner, CodexQueryRunner } from "../client/types.js";
+import type { CodexMutationRunner, CodexQueryRunner } from "../shared/types.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 
 type HostStreamListItem = { streamId: string; state: string };

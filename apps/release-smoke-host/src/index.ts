@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
-import { CodexLocalBridge } from "@zakstam/codex-local-component/bridge";
+import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
 import type {
   CodexResponse,
@@ -394,15 +394,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
 
   if (event.kind === "turn/started" && event.turnId) {
     turnId = event.turnId;
-    if (pendingTurn && threadId) {
-      await convex.mutation(api.chat.enqueueTurnDispatch, {
-        actor,
-        threadId,
-        dispatchId: randomUUID(),
-        turnId: event.turnId,
-        idempotencyKey: pendingTurn.idempotencyKey,
-        input: [{ type: "text", text: pendingTurn.inputText }],
-      });
+    if (pendingTurn) {
       pendingTurn = null;
     }
   }

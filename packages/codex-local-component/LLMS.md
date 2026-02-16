@@ -26,8 +26,9 @@ Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 ## Hard Rule
 
 - Follow this file as the only default implementation strategy.
-- Use runtime-owned host wrappers defined by `defineRuntimeOwnedHostEndpoints(...)`.
-- If actor binding/lock is enforced, prefer `defineGuardedRuntimeOwnedHostEndpoints(...)` to centralize actor resolution for both mutations and queries.
+- Use runtime-owned host wrappers with a single decision rule:
+  - actor binding/lock enabled: use `defineGuardedRuntimeOwnedHostEndpoints(...)` (canonical path)
+  - no actor binding/lock: use `defineRuntimeOwnedHostEndpoints(...)` (simple fallback)
 - Treat runtime-owned `ensureThread` as single-path: provide `threadId` or `externalThreadId`; do not implement mode branching.
 - Keep consumer APIs two-tiered: default (`startThread`/`resumeThread`/list) and advanced identity endpoints only for constrained integrations.
 - Always use app-generated Convex types from `./_generated/api` and `./_generated/server`.

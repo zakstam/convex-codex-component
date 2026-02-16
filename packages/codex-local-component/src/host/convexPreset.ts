@@ -51,7 +51,11 @@ export type DefineCodexHostSliceOptions<
 };
 
 function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
-  return { ...args, actor: serverActor };
+  // When the server actor has no userId (runtime-owned profiles), preserve the
+  // request actor so data is scoped to the authenticated user rather than the
+  // anonymous scope.
+  const actor = serverActor.userId ? serverActor : { ...serverActor, ...args.actor };
+  return { ...args, actor };
 }
 
 export function defineCodexHostSlice<Components extends CodexHostComponentsInput>(

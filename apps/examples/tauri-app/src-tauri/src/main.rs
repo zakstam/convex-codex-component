@@ -1,6 +1,8 @@
 mod bridge_process;
+mod bridge_contract_generated;
 
 use bridge_process::{AppBridgeState, BridgeRuntime};
+use bridge_contract_generated::{BRIDGE_COMMANDS, HELPER_COMMANDS};
 use serde::Deserialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -301,6 +303,8 @@ async fn set_disabled_tools(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    debug_assert_eq!(BRIDGE_COMMANDS.len(), 15);
+    debug_assert!(!HELPER_COMMANDS.is_empty());
     let app = tauri::Builder::default()
         .manage(AppBridgeState {
             runtime: BridgeRuntime::default(),

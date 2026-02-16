@@ -10,6 +10,12 @@ import type {
 } from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
 import {
+  parseHelperCommand,
+  type ActorContext,
+  type HelperCommand,
+  type StartPayload,
+} from "./bridge-contract.generated.js";
+import {
   KNOWN_DYNAMIC_TOOLS,
   TAURI_RUNTIME_TOOL_NAME,
 } from "../src/lib/dynamicTools.js";
@@ -20,47 +26,6 @@ type ToolRequestUserInputAnswer = v2.ToolRequestUserInputAnswer;
 type DynamicToolSpec = v2.DynamicToolSpec;
 type DynamicToolCallOutputContentItem = v2.DynamicToolCallOutputContentItem;
 type LoginAccountParams = v2.LoginAccountParams;
-
-type ActorContext = { userId?: string };
-type StartPayload = {
-  convexUrl: string;
-  actor: ActorContext;
-  sessionId: string;
-  model?: string;
-  cwd?: string;
-  disabledTools?: string[];
-  deltaThrottleMs?: number;
-  saveStreamDeltas?: boolean;
-  threadStrategy?: "start" | "resume" | "fork";
-  runtimeThreadId?: string;
-  externalThreadId?: string;
-};
-
-type HelperCommand =
-  | { type: "start"; payload: StartPayload }
-  | { type: "send_turn"; payload: { text: string } }
-  // TODO(turn/steer): add `steer_turn` command once runtime exposes `steerTurn(...)`.
-  | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
-  | { type: "respond_file_change_approval"; payload: { requestId: string | number; decision: FileChangeApprovalDecision } }
-  | { type: "respond_tool_user_input"; payload: { requestId: string | number; answers: Record<string, ToolRequestUserInputAnswer> } }
-  | { type: "account_read"; payload: { refreshToken?: boolean } }
-  | { type: "account_login_start"; payload: { params: LoginAccountParams } }
-  | { type: "account_login_cancel"; payload: { loginId: string } }
-  | { type: "account_logout"; payload: Record<string, never> }
-  | { type: "account_rate_limits_read"; payload: Record<string, never> }
-  | {
-      type: "respond_chatgpt_auth_tokens_refresh";
-      payload: {
-        requestId: string | number;
-        accessToken: string;
-        chatgptAccountId: string;
-        chatgptPlanType?: string | null;
-      };
-    }
-  | { type: "set_disabled_tools"; payload: { tools: string[] } }
-  | { type: "interrupt" }
-  | { type: "stop" }
-  | { type: "status" };
 
 type HelperEvent =
   | {
@@ -1178,7 +1143,7 @@ process.stdin.on("data", (chunk) => {
       continue;
     }
     try {
-      const command = JSON.parse(line) as HelperCommand;
+      const command = parseHelperCommand(line);
       void handle(command).catch((error) => {
         emit({ type: "error", payload: { message: error instanceof Error ? error.message : String(error) } });
       });

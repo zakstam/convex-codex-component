@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
   defineRuntimeOwnedHostEndpoints,
@@ -31,13 +32,13 @@ function resolveUserScope(actor: { userId?: string }): string {
 }
 
 async function loadThreadHandleByThreadId(
-  ctx: any,
+  ctx: MutationCtx | QueryCtx,
   serverActor: { userId?: string },
   threadId: string,
 ) {
   const threadRecord = await ctx.db
     .query("codex_threads")
-    .filter((q: any) =>
+    .filter((q) =>
       q.and(
         q.eq(q.field("userScope"), resolveUserScope(serverActor)),
         q.eq(q.field("threadId"), threadId),
@@ -64,7 +65,7 @@ async function loadThreadHandleByThreadId(
 }
 
 async function doEnsureThread(
-  ctx: any,
+  ctx: MutationCtx,
   args: {
     actor: { userId?: string };
     threadId?: string;
@@ -90,7 +91,7 @@ async function doEnsureThread(
 }
 
 async function doStartThread(
-  ctx: any,
+  ctx: MutationCtx,
   args: {
     actor: { userId?: string };
     threadId?: string;

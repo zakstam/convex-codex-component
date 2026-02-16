@@ -47,6 +47,7 @@ Optional:
 
 ```bash
 cd apps/examples/tauri-app
+pnpm run generate:bridge-contract
 pnpm run dev
 ```
 
@@ -63,6 +64,7 @@ pnpm start
 ### Tauri Example
 
 ```bash
+pnpm run check:bridge-contract
 pnpm run typecheck:convex
 pnpm run check:wiring:convex
 pnpm run tauri:check

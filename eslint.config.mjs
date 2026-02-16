@@ -25,6 +25,7 @@ export default [
       "apps/examples/cli-app/src/**/*.{ts,tsx}",
       "apps/examples/cli-app/convex/**/*.{ts,tsx}",
       "apps/examples/tauri-app/src/**/*.{ts,tsx}",
+      "apps/examples/tauri-app/src-node/**/*.{ts,tsx}",
       "apps/examples/tauri-app/convex/**/*.{ts,tsx}",
       "packages/codex-local-component/src/**/*.{ts,tsx}",
     ],

@@ -15,6 +15,7 @@ import {
   type HelperCommand,
   type StartPayload,
 } from "./bridge-contract.generated.js";
+import { HELPER_ACK_BY_TYPE } from "./bridge-dispatch.generated.js";
 import {
   KNOWN_DYNAMIC_TOOLS,
   TAURI_RUNTIME_TOOL_NAME,
@@ -1064,67 +1065,36 @@ function gracefulShutdown(reason: string, opts?: { exitCode?: number; emitAckCom
 }
 
 async function handle(command: HelperCommand): Promise<void> {
-  switch (command.type) {
-    case "start":
-      await startBridge(command.payload);
-      return;
-    case "send_turn":
-      await sendTurn(command.payload.text);
-      emit({ type: "ack", payload: { command: "send_turn" } });
-      return;
-    case "respond_command_approval":
-      await respondCommandApproval(command.payload.requestId, command.payload.decision);
-      emit({ type: "ack", payload: { command: "respond_command_approval" } });
-      return;
-    case "respond_file_change_approval":
-      await respondFileChangeApproval(command.payload.requestId, command.payload.decision);
-      emit({ type: "ack", payload: { command: "respond_file_change_approval" } });
-      return;
-    case "respond_tool_user_input":
-      await respondToolUserInput(command.payload.requestId, command.payload.answers);
-      emit({ type: "ack", payload: { command: "respond_tool_user_input" } });
-      return;
-    case "account_read":
-      await readAccount(command.payload.refreshToken);
-      emit({ type: "ack", payload: { command: "account_read" } });
-      return;
-    case "account_login_start":
-      await loginAccount(command.payload.params);
-      emit({ type: "ack", payload: { command: "account_login_start" } });
-      return;
-    case "account_login_cancel":
-      await cancelAccountLogin(command.payload.loginId);
-      emit({ type: "ack", payload: { command: "account_login_cancel" } });
-      return;
-    case "account_logout":
-      await logoutAccount();
-      emit({ type: "ack", payload: { command: "account_logout" } });
-      return;
-    case "account_rate_limits_read":
-      await readAccountRateLimits();
-      emit({ type: "ack", payload: { command: "account_rate_limits_read" } });
-      return;
-    case "respond_chatgpt_auth_tokens_refresh":
-      await respondChatgptAuthTokensRefresh(command.payload);
-      emit({ type: "ack", payload: { command: "respond_chatgpt_auth_tokens_refresh" } });
-      return;
-    case "set_disabled_tools":
-      await setDisabledTools(command.payload.tools);
-      emit({ type: "ack", payload: { command: "set_disabled_tools" } });
-      return;
-    case "interrupt":
-      interruptCurrentTurn();
-      emit({ type: "ack", payload: { command: "interrupt" } });
-      return;
-    case "stop":
-      await gracefulShutdown("stop", { emitAckCommand: "stop" });
-      return;
-    case "status":
-      emitState();
-      emit({ type: "ack", payload: { command: "status" } });
-      return;
-    default:
-      break;
+  const handlers: {
+    [K in HelperCommand["type"]]: (input: Extract<HelperCommand, { type: K }>) => Promise<void> | void;
+  } = {
+    start: (input) => startBridge(input.payload),
+    send_turn: (input) => sendTurn(input.payload.text),
+    respond_command_approval: (input) =>
+      respondCommandApproval(input.payload.requestId, input.payload.decision),
+    respond_file_change_approval: (input) =>
+      respondFileChangeApproval(input.payload.requestId, input.payload.decision),
+    respond_tool_user_input: (input) =>
+      respondToolUserInput(input.payload.requestId, input.payload.answers),
+    account_read: (input) => readAccount(input.payload.refreshToken),
+    account_login_start: (input) => loginAccount(input.payload.params),
+    account_login_cancel: (input) => cancelAccountLogin(input.payload.loginId),
+    account_logout: () => logoutAccount(),
+    account_rate_limits_read: () => readAccountRateLimits(),
+    respond_chatgpt_auth_tokens_refresh: (input) => respondChatgptAuthTokensRefresh(input.payload),
+    set_disabled_tools: async (input) => {
+      await setDisabledTools(input.payload.tools);
+    },
+    interrupt: () => interruptCurrentTurn(),
+    stop: () => gracefulShutdown("stop", { emitAckCommand: "stop" }),
+    status: () => emitState(),
+  };
+
+  const handler = handlers[command.type] as (input: HelperCommand) => Promise<void> | void;
+  await handler(command);
+
+  if (HELPER_ACK_BY_TYPE[command.type]) {
+    emit({ type: "ack", payload: { command: command.type } });
   }
 }
 

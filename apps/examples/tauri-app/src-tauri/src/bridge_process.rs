@@ -8,6 +8,8 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
+use crate::bridge_dispatch_generated::helper_command_for_tauri_command;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActorContext {
@@ -150,127 +152,13 @@ impl BridgeRuntime {
         self.send_to_helper(&app, "start", json!(payload)).await
     }
 
-    pub async fn send_turn(&self, app: AppHandle, text: String) -> Result<(), String> {
-        self.send_to_helper(&app, "send_turn", json!({ "text": text })).await
-    }
-
-    pub async fn interrupt(&self, app: AppHandle) -> Result<(), String> {
-        self.send_to_helper(&app, "interrupt", json!({})).await
-    }
-
-    pub async fn respond_command_approval(
+    pub async fn forward_tauri_json_command(
         &self,
         app: AppHandle,
-        request_id: serde_json::Value,
-        decision: serde_json::Value,
+        tauri_command: &str,
+        payload: serde_json::Value,
     ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "respond_command_approval",
-            json!({ "requestId": request_id, "decision": decision }),
-        )
-        .await
-    }
-
-    pub async fn respond_file_change_approval(
-        &self,
-        app: AppHandle,
-        request_id: serde_json::Value,
-        decision: serde_json::Value,
-    ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "respond_file_change_approval",
-            json!({ "requestId": request_id, "decision": decision }),
-        )
-        .await
-    }
-
-    pub async fn respond_tool_user_input(
-        &self,
-        app: AppHandle,
-        request_id: serde_json::Value,
-        answers: serde_json::Value,
-    ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "respond_tool_user_input",
-            json!({ "requestId": request_id, "answers": answers }),
-        )
-        .await
-    }
-
-    pub async fn read_account(
-        &self,
-        app: AppHandle,
-        refresh_token: Option<bool>,
-    ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "account_read",
-            json!({ "refreshToken": refresh_token.unwrap_or(false) }),
-        )
-        .await
-    }
-
-    pub async fn login_account(
-        &self,
-        app: AppHandle,
-        params: serde_json::Value,
-    ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "account_login_start",
-            json!({ "params": params }),
-        )
-        .await
-    }
-
-    pub async fn cancel_account_login(
-        &self,
-        app: AppHandle,
-        login_id: String,
-    ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "account_login_cancel",
-            json!({ "loginId": login_id }),
-        )
-        .await
-    }
-
-    pub async fn logout_account(&self, app: AppHandle) -> Result<(), String> {
-        self.send_to_helper(&app, "account_logout", json!({})).await
-    }
-
-    pub async fn read_account_rate_limits(&self, app: AppHandle) -> Result<(), String> {
-        self.send_to_helper(&app, "account_rate_limits_read", json!({}))
-            .await
-    }
-
-    pub async fn respond_chatgpt_auth_tokens_refresh(
-        &self,
-        app: AppHandle,
-        request_id: serde_json::Value,
-        access_token: String,
-        chatgpt_account_id: String,
-        chatgpt_plan_type: Option<String>,
-    ) -> Result<(), String> {
-        self.send_to_helper(
-            &app,
-            "respond_chatgpt_auth_tokens_refresh",
-            json!({
-                "requestId": request_id,
-                "accessToken": access_token,
-                "chatgptAccountId": chatgpt_account_id,
-                "chatgptPlanType": chatgpt_plan_type
-            }),
-        )
-        .await
-    }
-
-    pub async fn set_disabled_tools(&self, app: AppHandle, tools: Vec<String>) -> Result<(), String> {
-        self.send_to_helper(&app, "set_disabled_tools", json!({ "tools": tools })).await
+        self.forward_tauri_command(&app, tauri_command, payload).await
     }
 
     pub async fn stop(&self, app: AppHandle) -> Result<(), String> {
@@ -319,6 +207,17 @@ impl BridgeRuntime {
 
     pub async fn snapshot(&self) -> BridgeStateSnapshot {
         self.snapshot.lock().await.clone()
+    }
+
+    async fn forward_tauri_command(
+        &self,
+        app: &AppHandle,
+        tauri_command: &str,
+        payload: serde_json::Value,
+    ) -> Result<(), String> {
+        let helper_command = helper_command_for_tauri_command(tauri_command)
+            .ok_or_else(|| format!("No helper mapping configured for tauri command: {tauri_command}"))?;
+        self.send_to_helper(app, helper_command, payload).await
     }
 
     async fn send_to_helper(&self, app: &AppHandle, command: &str, payload: serde_json::Value) -> Result<(), String> {

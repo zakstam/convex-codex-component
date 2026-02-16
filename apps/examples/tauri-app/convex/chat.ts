@@ -17,51 +17,264 @@ const defs = defineRuntimeOwnedHostEndpoints({
   serverActor: SERVER_ACTOR,
 });
 
+const vThreadHandle = v.object({
+  threadId: v.string(),
+  status: v.union(v.literal("active"), v.literal("archived"), v.literal("failed")),
+  updatedAt: v.number(),
+  externalThreadId: v.optional(v.string()),
+  runtimeThreadId: v.optional(v.string()),
+  linkState: v.union(v.literal("linked"), v.literal("runtime_only"), v.literal("persisted_only")),
+});
+
+function resolveUserScope(actor: { userId?: string }): string {
+  return actor.userId?.trim() ? actor.userId.trim() : "__anonymous__";
+}
+
+async function loadThreadHandleByThreadId(
+  ctx: any,
+  serverActor: { userId?: string },
+  threadId: string,
+) {
+  const threadRecord = await ctx.db
+    .query("codex_threads")
+    .filter((q: any) =>
+      q.and(
+        q.eq(q.field("userScope"), resolveUserScope(serverActor)),
+        q.eq(q.field("threadId"), threadId),
+      ),
+    )
+    .first();
+  if (!threadRecord) {
+    return null;
+  }
+  const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
+    actor: serverActor,
+    threadId,
+  });
+  const externalThreadId = mapping?.externalThreadId;
+  const runtimeThreadId = externalThreadId ?? threadRecord.localThreadId;
+  return {
+    threadId,
+    status: String(threadRecord.status) as "active" | "archived" | "failed",
+    updatedAt: Number(threadRecord.updatedAt),
+    ...(externalThreadId ? { externalThreadId } : {}),
+    ...(runtimeThreadId ? { runtimeThreadId } : {}),
+    linkState: externalThreadId ? ("linked" as const) : ("persisted_only" as const),
+  };
+}
+
+async function doEnsureThread(
+  ctx: any,
+  args: {
+    actor: { userId?: string };
+    threadId?: string;
+    externalThreadId?: string;
+    model?: string;
+    cwd?: string;
+  },
+) {
+  const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+  const localThreadId = args.threadId ?? args.externalThreadId;
+  if (!localThreadId) {
+    throw new Error("ensureThread requires threadId or externalThreadId.");
+  }
+  const externalThreadId = args.externalThreadId ?? args.threadId ?? localThreadId;
+  const ensured = await ctx.runMutation(components.codexLocal.threads.resolve, {
+    actor: serverActor,
+    localThreadId,
+    externalThreadId,
+    ...(args.model ? { model: args.model } : {}),
+    ...(args.cwd ? { cwd: args.cwd } : {}),
+  });
+  return { ensured, serverActor };
+}
+
+async function doStartThread(
+  ctx: any,
+  args: {
+    actor: { userId?: string };
+    threadId?: string;
+    externalThreadId?: string;
+    model?: string;
+    cwd?: string;
+  },
+) {
+  const { ensured, serverActor } = await doEnsureThread(ctx, args);
+  const handle = await loadThreadHandleByThreadId(ctx, serverActor, ensured.threadId);
+  if (!handle) {
+    throw new Error(`Unable to load thread handle for threadId=${ensured.threadId}`);
+  }
+  return handle;
+}
+
 export const ensureThread = mutation({
-  ...defs.mutations.ensureThread,
+  args: {
+    actor: vHostActorContext,
+    threadId: v.optional(v.string()),
+    externalThreadId: v.optional(v.string()),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  returns: v.object({
+    threadId: v.string(),
+    externalThreadId: v.optional(v.string()),
+    created: v.optional(v.boolean()),
+  }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.ensureThread.handler(ctx, args);
+    const { ensured } = await doEnsureThread(ctx, args);
+    return ensured;
+  },
+});
+
+export const startThread = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.optional(v.string()),
+    externalThreadId: v.optional(v.string()),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  returns: vThreadHandle,
+  handler: async (ctx, args) => {
+    return doStartThread(ctx, args);
+  },
+});
+
+export const resolveThreadByExternalId = mutation({
+  args: {
+    actor: vHostActorContext,
+    externalThreadId: v.string(),
+    model: v.optional(v.string()),
+    cwd: v.optional(v.string()),
+  },
+  returns: vThreadHandle,
+  handler: async (ctx, args) => {
+    const handle = await doStartThread(ctx, {
+      actor: args.actor,
+      threadId: args.externalThreadId,
+      externalThreadId: args.externalThreadId,
+      ...(args.model ? { model: args.model } : {}),
+      ...(args.cwd ? { cwd: args.cwd } : {}),
+    });
+    return handle;
+  },
+});
+
+export const bindRuntimeThreadId = mutation({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+    runtimeThreadId: v.string(),
+  },
+  returns: vThreadHandle,
+  handler: async (ctx, args) => {
+    const handle = await doStartThread(ctx, {
+      actor: args.actor,
+      threadId: args.threadId,
+      externalThreadId: args.runtimeThreadId,
+    });
+    return handle;
+  },
+});
+
+export const resolveThreadByRuntimeId = query({
+  args: {
+    actor: vHostActorContext,
+    runtimeThreadId: v.string(),
+  },
+  returns: v.union(v.null(), vThreadHandle),
+  handler: async (ctx, args) => {
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    const mapping = await ctx.runQuery(components.codexLocal.threads.resolveByExternalId, {
+      actor: serverActor,
+      externalThreadId: args.runtimeThreadId,
+    });
+    if (!mapping) {
+      return null;
+    }
+    return loadThreadHandleByThreadId(ctx, serverActor, mapping.threadId);
+  },
+});
+
+export const lookupThreadHandle = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.optional(v.string()),
+    externalThreadId: v.optional(v.string()),
+    runtimeThreadId: v.optional(v.string()),
+  },
+  returns: v.union(v.null(), vThreadHandle),
+  handler: async (ctx, args) => {
+    const identities = [args.threadId, args.externalThreadId, args.runtimeThreadId].filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    );
+    if (identities.length !== 1) {
+      throw new Error("lookupThreadHandle requires exactly one identity: threadId, externalThreadId, or runtimeThreadId.");
+    }
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    if (args.threadId) {
+      return loadThreadHandleByThreadId(ctx, serverActor, args.threadId);
+    }
+    const mapped = await ctx.runQuery(components.codexLocal.threads.resolveByExternalId, {
+      actor: serverActor,
+      externalThreadId: args.externalThreadId ?? args.runtimeThreadId!,
+    });
+    if (!mapped) {
+      return null;
+    }
+    return loadThreadHandleByThreadId(ctx, serverActor, mapped.threadId);
+  },
+});
+
+export const resumeThread = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+  },
+  returns: v.union(v.null(), vThreadHandle),
+  handler: async (ctx, args) => {
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return loadThreadHandleByThreadId(ctx, serverActor, args.threadId);
   },
 });
 
 export const ensureSession = mutation({
   ...defs.mutations.ensureSession,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.ensureSession.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+    return defs.mutations.ensureSession.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const ingestEvent = mutation({
   ...defs.mutations.ingestEvent,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.ingestEvent.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+    return defs.mutations.ingestEvent.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const ingestBatch = mutation({
   ...defs.mutations.ingestBatch,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.ingestBatch.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+    return defs.mutations.ingestBatch.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const respondApprovalForHooks = mutation({
   ...defs.mutations.respondApprovalForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.respondApprovalForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+    return defs.mutations.respondApprovalForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const upsertTokenUsageForHooks = mutation({
   ...defs.mutations.upsertTokenUsageForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.upsertTokenUsageForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+    return defs.mutations.upsertTokenUsageForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
@@ -85,9 +298,9 @@ export const upsertPendingServerRequestForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.serverRequests.upsertPending, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       requestId: args.requestId,
       threadId: args.threadId,
       turnId: args.turnId,
@@ -112,9 +325,9 @@ export const resolvePendingServerRequestForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.serverRequests.resolve, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       requestId: args.requestId,
       status: args.status,
@@ -132,9 +345,9 @@ export const listPendingServerRequestsForHooks = query({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
     return ctx.runQuery(components.codexLocal.serverRequests.listPending, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       ...(args.threadId ? { threadId: args.threadId } : {}),
       ...(args.limit !== undefined ? { limit: args.limit } : {}),
     });
@@ -144,8 +357,8 @@ export const listPendingServerRequestsForHooks = query({
 export const interruptTurnForHooks = mutation({
   ...defs.mutations.interruptTurnForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
-    return defs.mutations.interruptTurnForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
+    return defs.mutations.interruptTurnForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
@@ -164,9 +377,9 @@ export const acceptTurnSendForHooks = mutation({
     accepted: v.literal(true),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     await ctx.runMutation(components.codexLocal.turns.start, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       turnId: args.turnId,
       idempotencyKey: args.idempotencyKey,
@@ -191,9 +404,9 @@ export const failAcceptedTurnSendForHooks = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     await ctx.runMutation(components.codexLocal.turns.interrupt, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       turnId: args.turnId,
       reason: args.code ? `[${args.code}] ${args.reason}` : args.reason,
@@ -213,9 +426,9 @@ export const deleteThreadCascadeForHooks = mutation({
     deletionJobId: v.string(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.threads.deleteCascade, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       ...(args.reason ? { reason: args.reason } : {}),
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
@@ -236,9 +449,9 @@ export const scheduleThreadDeleteCascadeForHooks = mutation({
     scheduledFor: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.threads.scheduleDeleteCascade, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       ...(args.reason ? { reason: args.reason } : {}),
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
@@ -259,9 +472,9 @@ export const deleteTurnCascadeForHooks = mutation({
     deletionJobId: v.string(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.turns.deleteCascade, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       turnId: args.turnId,
       ...(args.reason ? { reason: args.reason } : {}),
@@ -284,9 +497,9 @@ export const scheduleTurnDeleteCascadeForHooks = mutation({
     scheduledFor: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.turns.scheduleDeleteCascade, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       threadId: args.threadId,
       turnId: args.turnId,
       ...(args.reason ? { reason: args.reason } : {}),
@@ -306,9 +519,9 @@ export const purgeActorDataForHooks = mutation({
     deletionJobId: v.string(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.threads.purgeActorData, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       ...(args.reason ? { reason: args.reason } : {}),
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
     });
@@ -327,9 +540,9 @@ export const schedulePurgeActorDataForHooks = mutation({
     scheduledFor: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.threads.schedulePurgeActorData, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       ...(args.reason ? { reason: args.reason } : {}),
       ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
       ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
@@ -347,9 +560,9 @@ export const cancelScheduledDeletionForHooks = mutation({
     cancelled: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.threads.cancelScheduledDeletion, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       deletionJobId: args.deletionJobId,
     });
   },
@@ -365,9 +578,9 @@ export const forceRunScheduledDeletionForHooks = mutation({
     forced: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireBoundServerActorForMutation(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForMutation(ctx, args.actor);
     return ctx.runMutation(components.codexLocal.threads.forceRunScheduledDeletion, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       deletionJobId: args.deletionJobId,
     });
   },
@@ -376,72 +589,72 @@ export const forceRunScheduledDeletionForHooks = mutation({
 export const validateHostWiring = query({
   ...defs.queries.validateHostWiring,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.validateHostWiring.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.validateHostWiring.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const threadSnapshot = query({
   ...defs.queries.threadSnapshot,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.threadSnapshot.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.threadSnapshot.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const threadSnapshotSafe = query({
   ...defs.queries.threadSnapshotSafe,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.threadSnapshotSafe.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.threadSnapshotSafe.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const persistenceStats = query({
   ...defs.queries.persistenceStats,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.persistenceStats.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.persistenceStats.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const durableHistoryStats = query({
   ...defs.queries.durableHistoryStats,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.durableHistoryStats.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.durableHistoryStats.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const listThreadMessagesForHooks = query({
   ...defs.queries.listThreadMessagesForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.listThreadMessagesForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.listThreadMessagesForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const listTurnMessagesForHooks = query({
   ...defs.queries.listTurnMessagesForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.listTurnMessagesForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.listTurnMessagesForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const listPendingApprovalsForHooks = query({
   ...defs.queries.listPendingApprovalsForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.listPendingApprovalsForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.listPendingApprovalsForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
 export const listTokenUsageForHooks = query({
   ...defs.queries.listTokenUsageForHooks,
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
-    return defs.queries.listTokenUsageForHooks.handler(ctx, args);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    return defs.queries.listTokenUsageForHooks.handler(ctx, { ...args, actor: serverActor });
   },
 });
 
@@ -451,9 +664,9 @@ export const getDeletionJobStatusForHooks = query({
     deletionJobId: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
     return ctx.runQuery(components.codexLocal.threads.getDeletionJobStatus, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       deletionJobId: args.deletionJobId,
     });
   },

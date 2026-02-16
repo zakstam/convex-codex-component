@@ -27,4 +27,6 @@ Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
 
 - Follow this file as the only default implementation strategy.
 - Use runtime-owned host wrappers defined by `defineRuntimeOwnedHostEndpoints(...)`.
+- Treat runtime-owned `ensureThread` as single-path: provide `threadId` or `externalThreadId`; do not implement mode branching.
+- Keep consumer APIs two-tiered: default (`startThread`/`resumeThread`/list) and advanced identity endpoints only for constrained integrations.
 - Always use app-generated Convex types from `./_generated/api` and `./_generated/server`.

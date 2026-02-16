@@ -79,6 +79,12 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 - `convex/chat.ts`: app-owned guarded public surface (`api.chat.*`) that wraps helper-defined preset endpoints and enforces actor lock
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
 
+## Thread API Tiers
+
+- Default flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
+- Advanced flow: `chat.resolveThreadByExternalId`, `chat.resolveThreadByRuntimeId`, `chat.bindRuntimeThreadId`, and `chat.lookupThreadHandle`.
+- Runtime-owned host `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
+
 Additional app-owned guarded cleanup endpoints:
 
 - `chat.deleteThreadCascadeForHooks`

@@ -14,6 +14,12 @@ Canonical consumer implementation guidance is in:
 - `chat.ts`: stable guarded host surface (exports public `api.chat.*`) built from `defineRuntimeOwnedHostEndpoints(...)`
   - includes guarded deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
 
+## Thread API Tiers
+
+- Default flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
+- Advanced flow: `chat.resolveThreadByExternalId`, `chat.resolveThreadByRuntimeId`, `chat.bindRuntimeThreadId`, and `chat.lookupThreadHandle`.
+- Runtime-owned `ensureThread` uses one resolve path and requires `threadId` or `externalThreadId`.
+
 ## Actor Lock
 
 - Public `chat.*` functions require `actor.userId`.

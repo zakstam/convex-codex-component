@@ -90,7 +90,7 @@ Runtime ownership and host wiring for Convex surface generation.
 | API | What it gives you |
 | --- | --- |
 | `createCodexHostRuntime` | Create the runtime process adapter used by app-server bridge consumers. |
-| `defineRuntimeOwnedHostEndpoints` | Generate canonical runtime-owned Convex wrappers. |
+| `defineRuntimeOwnedHostEndpoints` | Generate canonical runtime-owned Convex wrappers with single-path `ensureThread` semantics. |
 | `defineRuntimeOwnedHostSlice` | Build a runtime-owned host slice definition. |
 | `wrapHostDefinitions` | Re-wrap generated endpoint definitions for export. |
 | `HOST_PRESET_DEFINITIONS` | Canonical built-in surface definitions for host setup. |
@@ -102,8 +102,8 @@ Runtime ownership and host wiring for Convex surface generation.
 | `computeDataHygiene` | Readable summary for retention/hygiene workflows. |
 | `computePersistenceStats` | Compute storage/persistence diagnostics. |
 | `ensureSession` | Persist or resolve session state for host operations. |
-| `ensureThreadByCreate` | Create or load host thread context. |
-| `ensureThreadByResolve` | Resolve thread by host mapping inputs. |
+| `ensureThreadByCreate` | Low-level create helper (not the runtime-owned preset default). |
+| `ensureThreadByResolve` | Canonical runtime-owned thread resolver helper (single-path). |
 | `threadSnapshotSafe` | Read terminal-aware thread snapshot for orchestration. |
 | `listPendingApprovalsForHooksForActor` | Actor-scoped approval query utility used by UI hooks. |
 | `respondApprovalForHooksForActor` | Persist approval decisions from UI/runtime adapters. |
@@ -158,6 +158,11 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | `hasRecoverableIngestErrors` | Pure function to check if ingest errors are recoverable. |
 | `vManagedServerRequestMethod` | Validator for managed server request method literals. |
 | `vServerRequestId` | Validator for server request IDs (`string \| number`). |
+
+For app-owned public `api.chat.*` contracts, recommended thread API tiers are:
+
+- default: `startThread`, `resumeThread`, thread list query
+- advanced: `resolveThreadByExternalId`, `resolveThreadByRuntimeId`, `bindRuntimeThreadId`, `lookupThreadHandle`
 
 ## `@zakstam/codex-local-component/protocol`
 

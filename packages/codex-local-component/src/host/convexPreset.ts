@@ -28,7 +28,6 @@ import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
 
 export type CodexHostSliceProfile = "runtimeOwned";
 export type CodexHostSliceIngestMode = "streamOnly" | "mixed";
-export type CodexHostSliceThreadMode = "create" | "resolve";
 
 export type CodexHostSliceFeatures = {
   hooks?: boolean;
@@ -46,7 +45,6 @@ export type DefineCodexHostSliceOptions<
   serverActor: HostActorContext;
   profile: CodexHostSliceProfile;
   ingestMode: CodexHostSliceIngestMode;
-  threadMode: CodexHostSliceThreadMode;
   features?: CodexHostSliceFeatures;
 };
 
@@ -56,6 +54,13 @@ function withServerActor<T extends { actor: HostActorContext }>(args: T, serverA
   // anonymous scope.
   const actor = serverActor.userId ? serverActor : { ...serverActor, ...args.actor };
   return { ...args, actor };
+}
+
+function resolveServerActor(
+  args: { actor: HostActorContext },
+  fallback: HostActorContext,
+): HostActorContext {
+  return args.actor.userId === undefined ? fallback : args.actor;
 }
 
 export function defineCodexHostSlice<Components extends CodexHostComponentsInput>(
@@ -103,27 +108,49 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       };
 
       await runCheck("threads.getState", () =>
-        ctx.runQuery(component.threads.getState, { actor: options.serverActor, threadId: checkThreadId }),
+        ctx.runQuery(component.threads.getState, {
+          actor: resolveServerActor(args, options.serverActor),
+          threadId: checkThreadId,
+        }),
       );
       await runCheck("messages.listByThread", () =>
-        ctx.runQuery(component.messages.listByThread, { actor: options.serverActor, threadId: checkThreadId, paginationOpts: { cursor: null, numItems: 1 } }),
+        ctx.runQuery(component.messages.listByThread, {
+          actor: resolveServerActor(args, options.serverActor),
+          threadId: checkThreadId,
+          paginationOpts: { cursor: null, numItems: 1 },
+        }),
       );
       await runCheck("messages.getByTurn", () =>
-        ctx.runQuery(component.messages.getByTurn, { actor: options.serverActor, threadId: checkThreadId, turnId: checkTurnId }),
+        ctx.runQuery(component.messages.getByTurn, {
+          actor: resolveServerActor(args, options.serverActor),
+          threadId: checkThreadId,
+          turnId: checkTurnId,
+        }),
       );
       if (features.approvals) {
         await runCheck("approvals.listPending", () =>
-          ctx.runQuery(component.approvals.listPending, { actor: options.serverActor, paginationOpts: { cursor: null, numItems: 1 } }),
+          ctx.runQuery(component.approvals.listPending, {
+            actor: resolveServerActor(args, options.serverActor),
+            paginationOpts: { cursor: null, numItems: 1 },
+          }),
         );
       }
       if (features.reasoning) {
         await runCheck("reasoning.listByThread", () =>
-          ctx.runQuery(component.reasoning.listByThread, { actor: options.serverActor, threadId: checkThreadId, paginationOpts: { cursor: null, numItems: 1 }, includeRaw: false }),
+          ctx.runQuery(component.reasoning.listByThread, {
+            actor: resolveServerActor(args, options.serverActor),
+            threadId: checkThreadId,
+            paginationOpts: { cursor: null, numItems: 1 },
+            includeRaw: false,
+          }),
         );
       }
       if (features.serverRequests) {
         await runCheck("serverRequests.listPending", () =>
-          ctx.runQuery(component.serverRequests.listPending, { actor: options.serverActor, limit: 1 }),
+          ctx.runQuery(component.serverRequests.listPending, {
+            actor: resolveServerActor(args, options.serverActor),
+            limit: 1,
+          }),
         );
       }
 
@@ -135,7 +162,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     component,
     serverActor: options.serverActor,
     ingestMode: options.ingestMode,
-    threadMode: options.threadMode,
     features,
   });
 
@@ -144,24 +170,24 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     threadSnapshot: {
       args: { actor: vHostActorContext, threadId: v.string() },
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        threadSnapshot(ctx, component, withServerActor(args, options.serverActor)),
+        threadSnapshot(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
     },
     threadSnapshotSafe: {
       args: { actor: vHostActorContext, threadId: v.string() },
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        threadSnapshotSafe(ctx, component, withServerActor(args, options.serverActor)),
+        threadSnapshotSafe(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
     },
     persistenceStats: {
       args: { actor: vHostActorContext, threadId: v.string() },
       returns: vHostPersistenceStats,
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        persistenceStats(ctx, component, withServerActor(args, options.serverActor)),
+        persistenceStats(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
     },
     durableHistoryStats: {
       args: { actor: vHostActorContext, threadId: v.string() },
       returns: vHostDurableHistoryStats,
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        durableHistoryStats(ctx, component, withServerActor(args, options.serverActor)),
+        durableHistoryStats(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
     },
     ...(features.hygiene
       ? {
@@ -169,7 +195,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             args: { actor: vHostActorContext, threadId: v.string() },
             returns: vHostDataHygiene,
             handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-              dataHygiene(ctx, component, withServerActor(args, options.serverActor)),
+              dataHygiene(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -192,12 +218,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
                 runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
               },
-            ) => listThreadMessagesForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
+            ) => listThreadMessagesForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
           listTurnMessagesForHooks: {
             args: { actor: vHostActorContext, threadId: v.string(), turnId: v.string() },
             handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string; turnId: string }) =>
-              listTurnMessagesForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
+              listTurnMessagesForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -208,7 +234,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             handler: async (
               ctx: HostQueryRunner,
               args: { actor: HostActorContext; threadId: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
-            ) => listThreadReasoningForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
+            ) => listThreadReasoningForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -219,7 +245,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             handler: async (
               ctx: HostQueryRunner,
               args: { actor: HostActorContext; threadId?: string; paginationOpts: { cursor: string | null; numItems: number } },
-            ) => listPendingApprovalsForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
+            ) => listPendingApprovalsForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -230,7 +256,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             handler: async (
               ctx: HostQueryRunner,
               args: { actor: HostActorContext; threadId?: string; limit?: number },
-            ) => listPendingServerRequestsForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
+            ) => listPendingServerRequestsForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -239,7 +265,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           listTokenUsageForHooks: {
             args: { actor: vHostActorContext, threadId: v.string() },
             handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-              listTokenUsageForHooksForActor(ctx, component, withServerActor(args, options.serverActor)),
+              listTokenUsageForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -293,7 +319,6 @@ export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponen
     ...options,
     profile: "runtimeOwned",
     ingestMode: "streamOnly",
-    threadMode: "create",
     features: {
       hooks: true,
       approvals: true,

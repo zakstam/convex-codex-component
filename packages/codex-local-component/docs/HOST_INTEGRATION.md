@@ -18,7 +18,7 @@ Use `actor: { userId?: string }` at all host/component boundaries.
 2. Define host wrappers in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`.
 3. Optionally define app-specific endpoints in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
 4. Submit turns through `await runtime.sendTurn(text)`.
-6. Run `chat.validateHostWiring` at startup.
+5. Run `chat.validateHostWiring` at startup.
 
 ## Mount the Component
 
@@ -74,6 +74,21 @@ export const listTokenUsageForHooks = query(defs.queries.listTokenUsageForHooks)
 ```
 
 This keeps Convex codegen and app-generated types authoritative while avoiding consumer-side file generation.
+
+## Thread Contract (Current)
+
+Runtime-owned host preset now uses a single `ensureThread` resolution path:
+
+- callers must provide at least one identity: `threadId` or `externalThreadId`
+- preset-level mode selection is removed
+- canonical persistence identity remains local `threadId`
+
+For app-owned public surfaces, recommended tiering is:
+
+- default APIs: `startThread`, `resumeThread`, thread list query
+- advanced APIs: `resolveThreadByExternalId`, `resolveThreadByRuntimeId`, `bindRuntimeThreadId`, `lookupThreadHandle`
+
+Keep advanced endpoints opt-in so most consumers never wire identity mapping manually.
 
 ## Runtime Contract
 

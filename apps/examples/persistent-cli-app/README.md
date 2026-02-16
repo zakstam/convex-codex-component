@@ -18,4 +18,9 @@ Canonical default used here: runtime-owned host integration.
 - `convex/chat.ts`: helper-defined preset wrappers via `defineRuntimeOwnedHostEndpoints(...)`
 - `convex/chat.extensions.ts`: optional app-specific additions
 
+Thread contract note:
+
+- runtime-owned `ensureThread` is single-path (no mode branching)
+- provide `threadId` or `externalThreadId` when resolving thread context
+
 Create and export environment before starting the app as documented in the shared runbook.

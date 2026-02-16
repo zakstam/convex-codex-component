@@ -4,9 +4,9 @@ Canonical source for host preset surfaces.
 
 ## Presets
 
-| Preset builder | Profile | Ingest mode | Thread mode | Intended host |
+| Preset builder | Profile | Ingest mode | Thread contract | Intended host |
 | --- | --- | --- | --- | --- |
-| `defineRuntimeOwnedHostEndpoints` | `runtimeOwned` | `streamOnly` | `create` | Runtime-owned orchestration |
+| `defineRuntimeOwnedHostEndpoints` | `runtimeOwned` | `streamOnly` | single-path `ensureThread` resolve contract | Runtime-owned orchestration |
 
 ## Deterministic query surface
 
@@ -34,6 +34,12 @@ The runtime-owned preset builder includes:
 - `respondApprovalForHooks`
 - `upsertTokenUsageForHooks`
 - `interruptTurnForHooks`
+
+`ensureThread` contract:
+
+- Accepts either `threadId` or `externalThreadId` (at least one required).
+- Resolves through a single deterministic path (no mode branching).
+- Returns canonical persisted `threadId` plus optional external mapping metadata.
 
 ## Wiring preflight
 

@@ -111,14 +111,14 @@ test("wrapHostDefinitions wraps every mutation/query key", () => {
 });
 
 test("resolves codexLocal refs when components uses proxy-like property traps", async () => {
-  const expectedCreateRef = Symbol("threads.create");
+  const expectedResolveRef = Symbol("threads.resolve");
   const componentRefs = {
     approvals: {},
     messages: {},
     reasoning: {},
     serverRequests: {},
     sync: {},
-    threads: { create: expectedCreateRef },
+    threads: { resolve: expectedResolveRef },
     turns: {},
   };
   const componentsProxy = new Proxy(
@@ -138,8 +138,9 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
     defs.mutations.ensureThread.handler(
       {
         runMutation: async (ref, args) => {
-          assert.equal(ref, componentRefs.threads.create);
-          assert.equal(args.threadId, "thread-1");
+          assert.equal(ref, componentRefs.threads.resolve);
+          assert.equal(args.externalThreadId, "thread-1");
+          assert.equal(args.localThreadId, "thread-1");
           return { threadId: "thread-1", externalThreadId: undefined };
         },
       },
@@ -166,4 +167,3 @@ test("manifest mutations/queries stay in parity with runtime-owned preset defini
     [...HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
   );
 });
-

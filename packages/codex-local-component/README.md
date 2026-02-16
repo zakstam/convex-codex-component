@@ -36,6 +36,12 @@ Use one source of truth for implementation steps:
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
 
+Thread API recommendation:
+
+- keep a simple default consumer surface (`startThread`, `resumeThread`, thread list)
+- expose advanced identity endpoints (`resolveThreadByExternalId`, `resolveThreadByRuntimeId`, `bindRuntimeThreadId`, `lookupThreadHandle`) only when needed
+- avoid consumer-side mode selection; runtime-owned `ensureThread` is single-path
+
 ## Package Import Paths
 
 - `@zakstam/codex-local-component`

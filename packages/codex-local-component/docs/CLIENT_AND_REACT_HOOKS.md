@@ -20,6 +20,15 @@ All hook/query/mutation args use `actor: { userId?: string }`.
 
 Host Convex wrappers should be defined in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`, with optional app-owned additions in `convex/chat.extensions.ts`.
 
+## Thread API Guidance
+
+For consumer-facing thread APIs, prefer a two-tier surface:
+
+- default tier: `startThread`, `resumeThread`, thread list query
+- advanced tier: `resolveThreadByExternalId`, `resolveThreadByRuntimeId`, `bindRuntimeThreadId`, `lookupThreadHandle`
+
+This keeps common integrations simple while still covering stateless external-id and runtime-id workflows.
+
 ## React Hooks
 
 - `useCodexMessages`

@@ -3,7 +3,6 @@ export const HOST_PRESET_DEFINITIONS = [
     builder: "defineRuntimeOwnedHostEndpoints",
     profile: "runtimeOwned",
     ingestMode: "streamOnly",
-    threadMode: "create",
     intendedHost: "Runtime-owned orchestration",
   },
 ] as const;

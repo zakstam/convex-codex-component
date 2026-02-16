@@ -4,7 +4,6 @@ export {
   type CodexHostSliceFeatures,
   type CodexHostSliceIngestMode,
   type CodexHostSliceProfile,
-  type CodexHostSliceThreadMode,
   type DefineRuntimeOwnedHostEndpointsOptions,
   type DefineRuntimeOwnedHostSliceOptions,
   type RuntimeOwnedHostDefinitions,

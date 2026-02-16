@@ -93,7 +93,9 @@ type PendingServerRequest = {
 
 type PickerThread = {
   threadId: string;
+  externalThreadId?: string | null;
   runtimeThreadId?: string | null;
+  linkState?: "linked" | "runtime_only" | "persisted_only";
   status: string;
   createdAt?: number;
 };
@@ -788,6 +790,9 @@ export default function App() {
       <section className="panel chat">
         <Header
           bridge={bridge}
+          actorUserId={actorUserId}
+          actorReady={actorReady}
+          preferredBoundUserId={preferredBoundUserId}
           onStart={onStartBridge}
           onStop={() => void runtimeBridge.stop()}
           onInterrupt={() => void conversation.interrupt()}

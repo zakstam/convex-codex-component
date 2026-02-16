@@ -225,7 +225,6 @@ type CodexTokenUsageComponent = {
   };
 };
 
-type CodexHooksComponent = CodexMessagesComponent & CodexSyncComponent;
 type CodexReasoningComponent = {
   reasoning: {
     listByThread: FunctionReference<"query", "public" | "internal">;

@@ -27,7 +27,6 @@ import type {
   PendingRequest,
   PendingServerRequest,
   PendingServerRequestRetryEntry,
-  RequestMethod,
   RuntimeBridge,
   RuntimeServerRequestStatus,
 } from "./runtimeTypes.js";
@@ -35,7 +34,6 @@ import { CodexHostRuntimeError } from "./runtimeTypes.js";
 import {
   clearPendingServerRequestRetryTimer as clearRetryTimer,
   enqueuePendingServerRequestRetry,
-  flushPendingServerRequestRetries,
   flushQueue as flushQueueHandler,
   handleBridgeEvent as bridgeEventHandler,
   handleBridgeGlobalMessage as bridgeGlobalHandler,

@@ -5,42 +5,15 @@ import type { MutationCtx } from "./_generated/server.js";
 import { internalMutation } from "./_generated/server.js";
 import { now } from "./utils.js";
 import { runBatchForTarget } from "./deletionCascade.js";
+import { parseDeletedCountsToRecord, mergeDeletedCounts } from "./deletionUtils.js";
 
 const DELETE_BATCH_DEFAULT = 500;
 const DELETE_BATCH_MAX = 2000;
 
 type DeletionJob = Doc<"codex_deletion_jobs">;
-type DeletedCounts = Record<string, number>;
 
 function clampBatchSize(batchSize: number | undefined): number {
   return Math.max(1, Math.min(batchSize ?? DELETE_BATCH_DEFAULT, DELETE_BATCH_MAX));
-}
-
-function parseDeletedCounts(deletedCountsJson: string): DeletedCounts {
-  try {
-    const parsed = JSON.parse(deletedCountsJson) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-    const result: DeletedCounts = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        result[key] = value;
-      }
-    }
-    return result;
-  } catch (error) {
-    void error;
-    return {};
-  }
-}
-
-function mergeDeletedCounts(current: DeletedCounts, delta: DeletedCounts): DeletedCounts {
-  const merged: DeletedCounts = { ...current };
-  for (const [tableName, count] of Object.entries(delta)) {
-    merged[tableName] = (merged[tableName] ?? 0) + count;
-  }
-  return merged;
 }
 
 async function loadDeletionJob(args: {
@@ -133,7 +106,7 @@ export const runDeletionJobChunk = internalMutation({
       });
       const deltaCounts = batchResult.deletedByTable;
       const totalDeleted = Object.values(deltaCounts).reduce((sum, count) => sum + count, 0);
-      const nextCounts = mergeDeletedCounts(parseDeletedCounts(job.deletedCountsJson), deltaCounts);
+      const nextCounts = mergeDeletedCounts(parseDeletedCountsToRecord(job.deletedCountsJson), deltaCounts);
 
       if (totalDeleted === 0) {
         await ctx.db.patch(job._id, {

@@ -41,6 +41,16 @@ export default [
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unnecessary-type-assertion": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "@typescript-eslint/no-floating-promises": "error",
+      "prefer-const": "error",
     },
   },
 ];

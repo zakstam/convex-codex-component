@@ -1,4 +1,4 @@
-import type { FunctionArgs, FunctionReference, FunctionReturnType, PaginationOptions } from "convex/server";
+import type { FunctionReference, FunctionReturnType, PaginationOptions } from "convex/server";
 import type { CodexMutationRunner, CodexQueryRunner } from "../shared/types.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
 

@@ -11,17 +11,7 @@ import {
   requireTurnRefForActor,
   summarizeInput,
 } from "./utils.js";
-
-const DEFAULT_DELETE_GRACE_MS = 10 * 60 * 1000;
-const MIN_DELETE_GRACE_MS = 1_000;
-const MAX_DELETE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-
-function clampDeleteDelayMs(delayMs: number | undefined): number {
-  return Math.max(
-    MIN_DELETE_GRACE_MS,
-    Math.min(delayMs ?? DEFAULT_DELETE_GRACE_MS, MAX_DELETE_GRACE_MS),
-  );
-}
+import { generateUuidV4, clampDeleteDelayMs } from "./deletionUtils.js";
 
 export const start = mutation({
   args: {
@@ -96,13 +86,6 @@ export const interrupt = mutation({
   },
 });
 
-function generateDeletionJobId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 export const deleteCascade = mutation({
   args: {
     actor: vActorContext,
@@ -116,7 +99,7 @@ export const deleteCascade = mutation({
     const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const { turnRef } = await requireTurnRefForActor(ctx, args.actor, args.threadId, args.turnId);
 
-    const deletionJobId = generateDeletionJobId();
+    const deletionJobId = generateUuidV4();
     const ts = now();
     const userScope = userScopeFromActor(args.actor);
 
@@ -168,7 +151,7 @@ export const scheduleDeleteCascade = mutation({
     const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
     const { turnRef } = await requireTurnRefForActor(ctx, args.actor, args.threadId, args.turnId);
 
-    const deletionJobId = generateDeletionJobId();
+    const deletionJobId = generateUuidV4();
     const ts = now();
     const userScope = userScopeFromActor(args.actor);
     const delayMs = clampDeleteDelayMs(args.delayMs);

@@ -106,7 +106,7 @@ function parsePayloadMessage(payloadJson: string): ServerInboundMessage | null {
   try {
     parsed = JSON.parse(payloadJson);
   } catch (error) {
-    void error;
+    console.warn("[events] Failed to parse payload message JSON:", error);
     payloadMessageCache.set(payloadJson, null);
     return null;
   }

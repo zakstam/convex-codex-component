@@ -211,7 +211,7 @@ export function rewritePayloadTurnId(args: {
   try {
     parsed = JSON.parse(payloadJson);
   } catch (error) {
-    void error;
+    console.warn("[runtimeHelpers] Failed to parse payloadJson for turnId rewrite:", error);
     return payloadJson;
   }
   const message = asObject(parsed);

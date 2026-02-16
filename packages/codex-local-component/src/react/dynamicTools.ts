@@ -64,7 +64,7 @@ export function parseCodexDynamicToolPayload(payloadJson: string): ParsedToolCal
       input: params.arguments,
     };
   } catch (error) {
-    void error;
+    console.warn("[dynamicTools] Failed to parse dynamic tool payload JSON:", error);
     return null;
   }
 }

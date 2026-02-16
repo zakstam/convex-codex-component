@@ -321,7 +321,7 @@ const pendingRequests = new Map<number, PendingRequest>();
 
 let eventChain: Promise<void> = Promise.resolve();
 let commandChain: Promise<void> = Promise.resolve();
-let ingestQueue: IngestDelta[] = [];
+const ingestQueue: IngestDelta[] = [];
 let flushTimer: NodeJS.Timeout | null = null;
 let flushTail: Promise<void> = Promise.resolve();
 

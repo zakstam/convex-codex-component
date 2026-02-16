@@ -172,7 +172,7 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
   query: Query,
   args: CodexMessagesQueryArgs<Query> | "skip",
   enabled: boolean,
-  options?: { startOrder?: number },
+  _options?: { startOrder?: number },
 ): {
   deltas: CodexStreamDeltaLike[];
   streamIds: string[];

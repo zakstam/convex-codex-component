@@ -1,217 +1,20 @@
 import { makeFunctionReference, paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel.js";
 import { mutation, query } from "./_generated/server.js";
-import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
-import { authzError, now, requireThreadForActor, requireThreadRefForActor } from "./utils.js";
+import { now, requireThreadForActor, requireThreadRefForActor } from "./utils.js";
 import { STREAM_DRAIN_COMPLETE_KIND } from "../shared/streamLifecycle.js";
 import { identifyStaleStreamingStatIds } from "./streamStats.js";
 import { loadThreadSnapshotRows } from "./repositories/threadSnapshotRepo.js";
-
-const DEFAULT_DELETE_GRACE_MS = 10 * 60 * 1000;
-const MIN_DELETE_GRACE_MS = 1_000;
-const MAX_DELETE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-
-const vThreadState = v.object({
-  threadId: v.string(),
-  threadStatus: v.string(),
-  turns: v.array(
-    v.object({
-      turnId: v.string(),
-      status: v.string(),
-      startedAt: v.number(),
-      completedAt: v.optional(v.number()),
-    }),
-  ),
-  activeStreams: v.array(
-    v.object({
-      streamId: v.string(),
-      turnId: v.string(),
-      state: v.string(),
-      startedAt: v.number(),
-    }),
-  ),
-  allStreams: v.array(
-    v.object({
-      streamId: v.string(),
-      turnId: v.string(),
-      state: v.string(),
-      startedAt: v.number(),
-    }),
-  ),
-  streamStats: v.array(
-    v.object({
-      streamId: v.string(),
-      state: v.union(v.literal("streaming"), v.literal("finished"), v.literal("aborted")),
-      deltaCount: v.number(),
-      latestCursor: v.number(),
-    }),
-  ),
-  pendingApprovals: v.array(
-    v.object({
-      turnId: v.string(),
-      itemId: v.string(),
-      kind: v.string(),
-      reason: v.optional(v.string()),
-    }),
-  ),
-  recentMessages: v.array(
-    v.object({
-      messageId: v.string(),
-      turnId: v.string(),
-      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("tool")),
-      status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
-      text: v.string(),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      completedAt: v.optional(v.number()),
-    }),
-  ),
-  lifecycleMarkers: v.array(
-    v.object({
-      kind: v.string(),
-      turnId: v.optional(v.string()),
-      streamId: v.optional(v.string()),
-      createdAt: v.number(),
-    }),
-  ),
-});
-
-const vDeletionJobStatus = v.object({
-  deletionJobId: v.string(),
-  status: v.union(
-    v.literal("scheduled"),
-    v.literal("queued"),
-    v.literal("running"),
-    v.literal("completed"),
-    v.literal("failed"),
-    v.literal("cancelled"),
-  ),
-  targetKind: v.union(v.literal("thread"), v.literal("turn"), v.literal("actor")),
-  threadId: v.optional(v.string()),
-  turnId: v.optional(v.string()),
-  batchSize: v.optional(v.number()),
-  scheduledFor: v.optional(v.number()),
-  reason: v.optional(v.string()),
-  phase: v.optional(v.string()),
-  deletedCountsByTable: v.array(
-    v.object({
-      tableName: v.string(),
-      deleted: v.number(),
-    }),
-  ),
-  errorCode: v.optional(v.string()),
-  errorMessage: v.optional(v.string()),
-  createdAt: v.number(),
-  startedAt: v.optional(v.number()),
-  completedAt: v.optional(v.number()),
-  cancelledAt: v.optional(v.number()),
-  updatedAt: v.number(),
-});
-
-function parseDeletedCounts(
-  deletedCountsJson: string,
-): Array<{ tableName: string; deleted: number }> {
-  try {
-    const parsed = JSON.parse(deletedCountsJson) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return [];
-    }
-    return Object.entries(parsed)
-      .filter(([, deleted]) => typeof deleted === "number" && Number.isFinite(deleted))
-      .map(([tableName, deleted]) => ({
-        tableName,
-        deleted: Number(deleted),
-      }))
-      .sort((left, right) => left.tableName.localeCompare(right.tableName));
-  } catch (error) {
-    void error;
-    return [];
-  }
-}
-
-function generateUuidV4(): string {
-  if (
-    "crypto" in globalThis &&
-    typeof globalThis.crypto === "object" &&
-    globalThis.crypto !== null &&
-    typeof globalThis.crypto.randomUUID === "function"
-  ) {
-    return globalThis.crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const rand = Math.floor(Math.random() * 16);
-    const value = char === "x" ? rand : (rand & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-function clampDeleteDelayMs(delayMs: number | undefined): number {
-  return Math.max(
-    MIN_DELETE_GRACE_MS,
-    Math.min(delayMs ?? DEFAULT_DELETE_GRACE_MS, MAX_DELETE_GRACE_MS),
-  );
-}
-
-async function touchThread(
-  ctx: MutationCtx,
-  args: {
-    actor: { userId?: string };
-    threadId: string;
-    model?: string;
-    cwd?: string;
-    personality?: string;
-    localThreadId?: string;
-  },
-): Promise<{ threadId: string; created: boolean; threadRef: Id<"codex_threads"> }> {
-  const existing = await ctx.db
-    .query("codex_threads")
-    .withIndex("userScope_threadId")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
-        q.eq(q.field("threadId"), args.threadId),
-      ),
-    )
-    .first();
-
-  const ts = now();
-  if (existing) {
-    if (existing.userId !== args.actor.userId) {
-      authzError(
-        "E_AUTH_THREAD_FORBIDDEN",
-        `User ${args.actor.userId} is not allowed to access thread ${args.threadId}`,
-      );
-    }
-    await ctx.db.patch(existing._id, {
-      status: "active",
-      updatedAt: ts,
-      model: args.model ?? existing.model,
-      cwd: args.cwd ?? existing.cwd,
-      personality: args.personality ?? existing.personality,
-      localThreadId: args.localThreadId ?? existing.localThreadId,
-    });
-    return { threadId: String(existing.threadId), created: false, threadRef: existing._id };
-  }
-
-  const threadRef = await ctx.db.insert("codex_threads", {
-    userScope: userScopeFromActor(args.actor),
-    ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
-    threadId: args.threadId,
-    status: "active",
-    ...(args.localThreadId ? { localThreadId: args.localThreadId } : {}),
-    ...(args.model ? { model: args.model } : {}),
-    ...(args.cwd ? { cwd: args.cwd } : {}),
-    ...(args.personality ? { personality: args.personality } : {}),
-    createdAt: ts,
-    updatedAt: ts,
-  });
-
-  return { threadId: args.threadId, created: true, threadRef };
-}
+import {
+  generateUuidV4,
+  clampDeleteDelayMs,
+  parseDeletedCountsToArray,
+} from "./deletionUtils.js";
+import { vThreadState, vDeletionJobStatus } from "./threadValidators.js";
+import { touchThread, getDeletionJobForActor } from "./threadHelpers.js";
 
 export const create = mutation({
   args: {
@@ -390,26 +193,6 @@ export const resume = mutation({
     return { threadId: String(thread.threadId), status: "active" };
   },
 });
-
-async function getDeletionJobForActor(args: {
-  ctx: MutationCtx | QueryCtx;
-  actor: { userId?: string };
-  deletionJobId: string;
-}) {
-  const job = await args.ctx.db
-    .query("codex_deletion_jobs")
-    .withIndex("userScope_deletionJobId", (q) =>
-      q.eq("userScope", userScopeFromActor(args.actor)).eq("deletionJobId", args.deletionJobId),
-    )
-    .first();
-  if (!job) {
-    return null;
-  }
-  if (job.userId !== args.actor.userId) {
-    return null;
-  }
-  return job;
-}
 
 export const deleteCascade = mutation({
   args: {
@@ -694,7 +477,7 @@ export const getDeletionJobStatus = query({
       ...(job.scheduledFor !== undefined ? { scheduledFor: Number(job.scheduledFor) } : {}),
       ...(job.reason !== undefined ? { reason: String(job.reason) } : {}),
       ...(job.phase !== undefined ? { phase: String(job.phase) } : {}),
-      deletedCountsByTable: parseDeletedCounts(String(job.deletedCountsJson)),
+      deletedCountsByTable: parseDeletedCountsToArray(String(job.deletedCountsJson)),
       ...(job.errorCode !== undefined ? { errorCode: String(job.errorCode) } : {}),
       ...(job.errorMessage !== undefined ? { errorMessage: String(job.errorMessage) } : {}),
       createdAt: Number(job.createdAt),
@@ -799,7 +582,7 @@ export const getState = query({
             streamId = parsed.streamId;
           }
         } catch (error) {
-          void error;
+          console.warn("[threads] Failed to parse lifecycle event payloadJson:", error);
           streamId = undefined;
         }
         return {

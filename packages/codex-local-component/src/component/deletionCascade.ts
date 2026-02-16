@@ -5,9 +5,9 @@
 import type { Doc } from "./_generated/dataModel.js";
 import type { MutationCtx } from "./_generated/server.js";
 import { DELETION_QUERY_LIMITS } from "../shared/limits.js";
+import type { DeletedCounts } from "./deletionUtils.js";
 
 type DeletionJob = Doc<"codex_deletion_jobs">;
-type DeletedCounts = Record<string, number>;
 
 type BatchStep = {
   tableName: string;

@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 
   const thread = await convex.mutation(api.chat.ensureThread, {
     actor,
-    threadId,
+    localThreadId: threadId,
   });
   assert.ok(hasRecord(thread));
   assert.equal(thread.threadId, threadId);
@@ -43,6 +43,7 @@ async function main(): Promise<void> {
     actor,
     sessionId,
     threadId,
+    lastEventCursor: 0,
   });
   assert.ok(hasRecord(heartbeat));
   assert.equal(heartbeat.sessionId, sessionId);

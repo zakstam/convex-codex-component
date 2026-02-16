@@ -571,7 +571,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
         }
         return convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
           actor: args.actor,
-          threadId: args.localThreadId,
+          localThreadId: args.localThreadId,
           ...(args.externalThreadId ? { externalThreadId: args.externalThreadId } : {}),
           ...(args.model ? { model: args.model } : {}),
           ...(args.cwd ? { cwd: args.cwd } : {}),
@@ -585,6 +585,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           actor: args.actor,
           sessionId: args.sessionId,
           threadId: args.threadId,
+          lastEventCursor: args.lastEventCursor,
         });
       },
       ingestSafe: async (args) => {
@@ -644,6 +645,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
               actor,
               sessionId: nextSessionId,
               threadId: args.threadId,
+              lastEventCursor: 0,
             });
 
             emit({

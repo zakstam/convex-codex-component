@@ -132,6 +132,7 @@ Runtime ownership and host wiring for Convex surface generation.
 | `isThreadForbidden` | Check if an error is thread-level access denied. |
 | `isSessionForbidden` | Check if an error is session-level access denied. |
 | `isRecoverableIngestError` | Check whether an error is safe to retry for ingest pipelines. |
+| `isTurnNotFound` | Check if an error means the referenced turn does not exist. |
 
 ## `@zakstam/codex-local-component/host/convex`
 
@@ -152,6 +153,11 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | `listThreadReasoningForHooksForActor` | Convex query for actor-scoped reasoning messages. |
 | `listPendingApprovalsForHooksForActor` | Convex query for actor-scoped approvals. |
 | `listPendingServerRequestsForHooksForActor` | Convex query for actor-scoped server requests. |
+| `upsertTokenUsageForActor` | Convex mutation for actor-scoped token usage upserts. |
+| `listTokenUsageForHooksForActor` | Convex query for actor-scoped token usage. |
+| `hasRecoverableIngestErrors` | Pure function to check if ingest errors are recoverable. |
+| `vManagedServerRequestMethod` | Validator for managed server request method literals. |
+| `vServerRequestId` | Validator for server request IDs (`string \| number`). |
 
 ## `@zakstam/codex-local-component/protocol`
 

@@ -5,6 +5,7 @@ import {
   isSessionForbidden,
   isThreadForbidden,
   isThreadMissing,
+  isTurnNotFound,
   parseErrorCode,
 } from "../dist/errors.js";
 
@@ -23,6 +24,13 @@ test("isRecoverableIngestError accepts structured safe-ingest entries", () => {
   assert.equal(isRecoverableIngestError([{ code: "SESSION_NOT_FOUND", recoverable: false }]), true);
   assert.equal(isRecoverableIngestError([{ code: "UNKNOWN", recoverable: false }]), false);
   assert.equal(isRecoverableIngestError([{ recoverable: true }]), true);
+});
+
+test("isTurnNotFound identifies turn-not-found errors", () => {
+  assert.equal(isTurnNotFound(new Error("Turn not found: turn-123")), true);
+  assert.equal(isTurnNotFound(new Error("[E_TURN_NOT_FOUND] no such turn")), true);
+  assert.equal(isTurnNotFound(new Error("Thread not found")), false);
+  assert.equal(isTurnNotFound(new Error("some other error")), false);
 });
 
 test("isRecoverableIngestError handles raw sync error strings", () => {

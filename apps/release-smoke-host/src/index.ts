@@ -294,7 +294,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     threadId = event.threadId;
     await convex.mutation(api.chat.ensureThread, {
       actor,
-      threadId,
+      localThreadId: threadId,
       ...(model !== null ? { model } : {}),
       cwd,
     });
@@ -471,6 +471,7 @@ async function startFlow(): Promise<void> {
       actor,
       sessionId,
       threadId,
+      lastEventCursor: 0,
     });
   }
   console.log(`thread> ready (${threadId}) session=${sessionId}`);

@@ -8,8 +8,8 @@ import {
 } from "../app-server/client.js";
 import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../protocol/generated.js";
 import type { ClientOutboundWireMessage } from "../protocol/outbound.js";
+import { isTurnNotFound } from "../errors.js";
 import {
-  isTurnNotFoundPersistenceError,
   randomSessionId,
   toRequestKey,
 } from "./runtimeHelpers.js";
@@ -125,7 +125,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     pendingServerRequests.set(toRequestKey(request.requestId), request);
     if (actor) {
       try { await args.persistence.upsertPendingServerRequest({ actor, request }); }
-      catch (error) { if (isTurnNotFoundPersistenceError(error)) enqueuePendingServerRequestRetry(handlerCtx, request, error); else throw error; }
+      catch (error) { if (isTurnNotFound(error)) enqueuePendingServerRequestRetry(handlerCtx, request, error); else throw error; }
     }
     emitState();
   };

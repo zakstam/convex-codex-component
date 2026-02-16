@@ -55,6 +55,7 @@ Public classifier utilities are available for consistent host/app fallback handl
 - `isThreadForbidden(error)`
 - `isSessionForbidden(error)`
 - `isRecoverableIngestError(errorOrSafeEntry)`
+- `isTurnNotFound(error)`
 
 ## Terminal Status Parsing Errors
 

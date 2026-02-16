@@ -145,7 +145,7 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
       },
       {
         actor,
-        threadId: "thread-1",
+        localThreadId: "thread-1",
       },
     ),
   );

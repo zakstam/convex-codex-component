@@ -3,13 +3,29 @@ import { useTheme } from "../hooks/useTheme";
 
 type Props = {
   bridge: BridgeState;
+  actorUserId: string;
+  actorReady: boolean;
+  preferredBoundUserId: string | null;
   onStart: () => void;
   onStop: () => void;
   onInterrupt: () => void;
 };
 
-export function Header({ bridge, onStart, onStop, onInterrupt }: Props) {
+export function Header({
+  bridge,
+  actorUserId,
+  actorReady,
+  preferredBoundUserId,
+  onStart,
+  onStop,
+  onInterrupt,
+}: Props) {
   const { theme, toggle } = useTheme();
+  const actorStatus = actorReady
+    ? `actor: ${actorUserId}`
+    : preferredBoundUserId
+      ? `actor: ${actorUserId} (waiting for actor lock)`
+      : `actor: ${actorUserId}`;
 
   return (
     <header className="header" role="toolbar" aria-label="Runtime controls">
@@ -29,6 +45,9 @@ export function Header({ bridge, onStart, onStop, onInterrupt }: Props) {
             {bridge.localThreadId
               ? `thread ${bridge.localThreadId.slice(0, 10)}...`
               : "no active thread"}
+          </p>
+          <p className="meta" title="Actor used for host API calls">
+            {actorStatus}
           </p>
         </div>
       </div>

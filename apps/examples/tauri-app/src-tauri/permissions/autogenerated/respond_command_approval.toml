@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-respond-command-approval"
+description = "Enables the respond_command_approval command without any pre-configured scope."
+commands.allow = ["respond_command_approval"]
+
+[[permission]]
+identifier = "deny-respond-command-approval"
+description = "Denies the respond_command_approval command without any pre-configured scope."
+commands.deny = ["respond_command_approval"]

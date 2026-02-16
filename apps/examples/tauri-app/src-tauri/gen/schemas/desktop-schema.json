@@ -177,6 +177,186 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the cancel_account_login command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-cancel-account-login",
+          "markdownDescription": "Enables the cancel_account_login command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_bridge_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-bridge-state",
+          "markdownDescription": "Enables the get_bridge_state command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the interrupt_turn command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-interrupt-turn",
+          "markdownDescription": "Enables the interrupt_turn command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the login_account command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-login-account",
+          "markdownDescription": "Enables the login_account command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the logout_account command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-logout-account",
+          "markdownDescription": "Enables the logout_account command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_account command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-account",
+          "markdownDescription": "Enables the read_account command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_account_rate_limits command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-account-rate-limits",
+          "markdownDescription": "Enables the read_account_rate_limits command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the respond_chatgpt_auth_tokens_refresh command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-respond-chatgpt-auth-tokens-refresh",
+          "markdownDescription": "Enables the respond_chatgpt_auth_tokens_refresh command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the respond_command_approval command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-respond-command-approval",
+          "markdownDescription": "Enables the respond_command_approval command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the respond_file_change_approval command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-respond-file-change-approval",
+          "markdownDescription": "Enables the respond_file_change_approval command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the respond_tool_user_input command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-respond-tool-user-input",
+          "markdownDescription": "Enables the respond_tool_user_input command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the send_user_turn command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-send-user-turn",
+          "markdownDescription": "Enables the send_user_turn command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_disabled_tools command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-disabled-tools",
+          "markdownDescription": "Enables the set_disabled_tools command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the start_bridge command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-start-bridge",
+          "markdownDescription": "Enables the start_bridge command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop_bridge command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-stop-bridge",
+          "markdownDescription": "Enables the stop_bridge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel_account_login command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-cancel-account-login",
+          "markdownDescription": "Denies the cancel_account_login command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_bridge_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-bridge-state",
+          "markdownDescription": "Denies the get_bridge_state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the interrupt_turn command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-interrupt-turn",
+          "markdownDescription": "Denies the interrupt_turn command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the login_account command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-login-account",
+          "markdownDescription": "Denies the login_account command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the logout_account command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-logout-account",
+          "markdownDescription": "Denies the logout_account command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_account command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-account",
+          "markdownDescription": "Denies the read_account command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_account_rate_limits command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-account-rate-limits",
+          "markdownDescription": "Denies the read_account_rate_limits command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the respond_chatgpt_auth_tokens_refresh command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-respond-chatgpt-auth-tokens-refresh",
+          "markdownDescription": "Denies the respond_chatgpt_auth_tokens_refresh command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the respond_command_approval command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-respond-command-approval",
+          "markdownDescription": "Denies the respond_command_approval command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the respond_file_change_approval command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-respond-file-change-approval",
+          "markdownDescription": "Denies the respond_file_change_approval command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the respond_tool_user_input command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-respond-tool-user-input",
+          "markdownDescription": "Denies the respond_tool_user_input command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the send_user_turn command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-send-user-turn",
+          "markdownDescription": "Denies the send_user_turn command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_disabled_tools command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-disabled-tools",
+          "markdownDescription": "Denies the set_disabled_tools command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the start_bridge command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-start-bridge",
+          "markdownDescription": "Denies the start_bridge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_bridge command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-stop-bridge",
+          "markdownDescription": "Denies the stop_bridge command without any pre-configured scope."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

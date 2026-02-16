@@ -37,16 +37,20 @@ function validateBoundUserId(
   }
 }
 
+function toServerActor(userId: string | null | undefined): HostActorContext {
+  return userId ? { userId } : {};
+}
+
 export async function requireBoundServerActorForMutation(
   ctx: MutationCtx,
   actor: HostActorContext,
-): Promise<void> {
+): Promise<HostActorContext> {
   const incomingUserId = requireIncomingUserId(actor);
   const pinnedUserId = validatePinnedUserId(incomingUserId);
   if (!ACTOR_LOCK_ENABLED) {
-    SERVER_ACTOR.userId = pinnedUserId ?? incomingUserId;
-    return;
+    return toServerActor(pinnedUserId ?? incomingUserId);
   }
+
   const lock = await ctx.db.query(ACTOR_LOCK_TABLE).first();
   const boundUserId = lock?.userId?.trim() ?? null;
 
@@ -58,29 +62,26 @@ export async function requireBoundServerActorForMutation(
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
-    SERVER_ACTOR.userId = resolvedUserId;
-    validateBoundUserId(incomingUserId, resolvedUserId);
-    return;
+    return toServerActor(resolvedUserId);
   }
 
-  SERVER_ACTOR.userId = boundUserId;
+  return toServerActor(boundUserId);
 }
 
 export async function requireBoundServerActorForQuery(
   ctx: QueryCtx,
   actor: HostActorContext,
-): Promise<void> {
+): Promise<HostActorContext> {
   const incomingUserId = requireIncomingUserId(actor);
   const pinnedUserId = validatePinnedUserId(incomingUserId);
   if (!ACTOR_LOCK_ENABLED) {
-    SERVER_ACTOR.userId = pinnedUserId ?? incomingUserId;
-    return;
+    return toServerActor(pinnedUserId ?? incomingUserId);
   }
   const lock = await ctx.db.query(ACTOR_LOCK_TABLE).first();
   const boundUserId = lock?.userId?.trim() ?? pinnedUserId;
 
   validateBoundUserId(incomingUserId, boundUserId ?? null);
-  SERVER_ACTOR.userId = boundUserId ?? incomingUserId;
+  return toServerActor(boundUserId ?? incomingUserId);
 }
 
 export async function readActorBindingForBootstrap(

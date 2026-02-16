@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -83,8 +83,10 @@ impl BridgeRuntime {
             if self.send_to_helper(&app, "start", json!(payload)).await.is_ok() {
                 return Ok(());
             }
-            let mut stale = self.inner.lock().await;
-            *stale = None;
+            {
+                let mut stale = self.inner.lock().await;
+                *stale = None;
+            }
         }
 
         let helper = resolve_helper_launch_spec(&app)?;
@@ -327,27 +329,33 @@ impl BridgeRuntime {
 
         let line = json!({ "type": command, "payload": payload }).to_string();
         if let Err(error) = process.stdin.write_all(line.as_bytes()).await {
-            drop(inner);
-            self.handle_helper_disconnect(app, format!("failed to write command: {error}"))
+            let _ = process.child.kill().await;
+            let _ = timeout(Duration::from_millis(500), process.child.wait()).await;
+            *inner = None;
+            self.record_helper_disconnect(app, format!("failed to write command: {error}"))
                 .await;
             return Err(format!("failed to write command: {error}"));
         }
         if let Err(error) = process.stdin.write_all(b"\n").await {
-            drop(inner);
-            self.handle_helper_disconnect(app, format!("failed to write newline: {error}"))
+            let _ = process.child.kill().await;
+            let _ = timeout(Duration::from_millis(500), process.child.wait()).await;
+            *inner = None;
+            self.record_helper_disconnect(app, format!("failed to write newline: {error}"))
                 .await;
             return Err(format!("failed to write newline: {error}"));
         }
         if let Err(error) = process.stdin.flush().await {
-            drop(inner);
-            self.handle_helper_disconnect(app, format!("failed to flush helper stdin: {error}"))
+            let _ = process.child.kill().await;
+            let _ = timeout(Duration::from_millis(500), process.child.wait()).await;
+            *inner = None;
+            self.record_helper_disconnect(app, format!("failed to flush helper stdin: {error}"))
                 .await;
             return Err(format!("failed to flush helper stdin: {error}"));
         }
         Ok(())
     }
 
-    async fn handle_helper_disconnect(&self, app: &AppHandle, message: String) {
+    async fn record_helper_disconnect(&self, app: &AppHandle, message: String) {
         let disabled_tools = {
             let mut snapshot = self.snapshot.lock().await;
             snapshot.running = false;
@@ -390,7 +398,7 @@ impl BridgeRuntime {
 
 fn resolve_helper_launch_spec(app: &AppHandle) -> Result<HelperLaunchSpec, String> {
     if let Ok(path) = std::env::var("CODEX_HELPER_BIN") {
-        let bin_path = PathBuf::from(path);
+        let bin_path = resolve_file_command(&path, "CODEX_HELPER_BIN")?;
         if bin_path.exists() {
             return Ok(HelperLaunchSpec {
                 command: bin_path,
@@ -406,9 +414,9 @@ fn resolve_helper_launch_spec(app: &AppHandle) -> Result<HelperLaunchSpec, Strin
     // In tauri dev, the resource directory can hold stale copies from older runs.
     // Prefer the freshly built local JS helper to keep host/component schemas in sync.
     if cfg!(debug_assertions) && fallback_js.exists() {
-        let node_bin = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+        let node_bin = resolve_node_command()?;
         return Ok(HelperLaunchSpec {
-            command: PathBuf::from(node_bin),
+            command: node_bin,
             args: vec![fallback_js.to_string_lossy().to_string()],
             mode: "node-js-dev-local",
         });
@@ -445,9 +453,9 @@ fn resolve_helper_launch_spec(app: &AppHandle) -> Result<HelperLaunchSpec, Strin
         .resolve("bridge-helper.js", tauri::path::BaseDirectory::Resource)
     {
         if path.exists() {
-            let node_bin = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+            let node_bin = resolve_node_command()?;
             return Ok(HelperLaunchSpec {
-                command: PathBuf::from(node_bin),
+                command: node_bin,
                 args: vec![path.to_string_lossy().to_string()],
                 mode: "node-js",
             });
@@ -472,9 +480,9 @@ fn resolve_helper_launch_spec(app: &AppHandle) -> Result<HelperLaunchSpec, Strin
     }
 
     if fallback_js.exists() {
-        let node_bin = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+        let node_bin = resolve_node_command()?;
         return Ok(HelperLaunchSpec {
-            command: PathBuf::from(node_bin),
+            command: node_bin,
             args: vec![fallback_js.to_string_lossy().to_string()],
             mode: "node-js",
         });
@@ -545,4 +553,92 @@ async fn handle_helper_line(app: &AppHandle, snapshot: &Arc<Mutex<BridgeStateSna
         }
         _ => {}
     }
+}
+
+fn resolve_file_command(path: &str, env_name: &str) -> Result<PathBuf, String> {
+    let candidate = path.trim();
+    if candidate.is_empty() {
+        return Err(format!("{env_name} cannot be empty"));
+    }
+
+    let candidate_path = Path::new(candidate);
+    if is_explicit_path(candidate_path) {
+        if !candidate_path.exists() {
+            return Err(format!(
+                "{env_name} must reference an existing file. Missing path: {candidate}"
+            ));
+        }
+        if !candidate_path.is_file() {
+            return Err(format!("{env_name} must reference a file: {candidate}"));
+        }
+        Ok(candidate_path.to_path_buf())
+    } else {
+        Ok(candidate_path.to_path_buf())
+    }
+}
+
+fn resolve_node_command() -> Result<PathBuf, String> {
+    let configured = std::env::var("CODEX_NODE_BIN").unwrap_or_else(|_| "node".to_string());
+    let command = configured.trim();
+    if command.is_empty() {
+        return Err("CODEX_NODE_BIN cannot be empty".to_string());
+    }
+
+    let command_path = Path::new(command);
+    if is_explicit_path(command_path) {
+        if !command_path.exists() {
+            return Err(format!(
+                "CODEX_NODE_BIN points to a missing file: {}",
+                command_path.to_string_lossy()
+            ));
+        }
+        if !command_path.is_file() {
+            return Err(format!("CODEX_NODE_BIN must point to a file: {command}"));
+        }
+        return Ok(command_path.to_path_buf());
+    }
+
+    if let Ok(canonical) = find_binary_in_path(command) {
+        return Ok(canonical);
+    }
+
+    Err(format!(
+        "Unable to find executable '{command}' in PATH. Set CODEX_NODE_BIN explicitly."
+    ))
+}
+
+fn is_explicit_path(path: &Path) -> bool {
+    if path.is_absolute() {
+        return true;
+    }
+    let raw = path.to_string_lossy();
+    raw.contains(std::path::MAIN_SEPARATOR)
+        || raw.contains('/')
+        || raw.contains('\\')
+}
+
+fn find_binary_in_path(command: &str) -> Result<PathBuf, String> {
+    let path = std::env::var_os("PATH").ok_or_else(|| "PATH environment variable is not set".to_string())?;
+
+    for path_dir in std::env::split_paths(&path) {
+        let candidate = path_dir.join(command);
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+
+        let path_with_exts: &[&str] = if cfg!(windows) {
+            &[".exe", ".cmd", ".bat"]
+        } else {
+            &[""]
+        };
+
+        for suffix in path_with_exts {
+            let candidate = path_dir.join(format!("{command}{suffix}"));
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+    }
+
+    Err(format!("command '{command}' not found in PATH"))
 }

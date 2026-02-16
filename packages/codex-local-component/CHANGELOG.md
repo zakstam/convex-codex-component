@@ -1,4 +1,4 @@
-# @convex-dev/codex-local-component
+# @zakstam/codex-local-component
 
 ## 0.15.1
 

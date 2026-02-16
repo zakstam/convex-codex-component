@@ -2,6 +2,7 @@
   "name": "@zakstam/codex-local-component",
   "version": "0.15.1",
   "description": "Integrate with one prompt: install this package, open `README.md` then follow mapped docs (`docs/HOST_INTEGRATION.md`, `docs/CLIENT_AND_REACT_HOOKS.md`, `docs/API_REFERENCE.md`, `docs/OPERATIONS_AND_ERRORS.md`) and validate with `npx convex dev --once`, `pnpm run dev:convex:once`, `pnpm run wiring:smoke`, `pnpm run typecheck`.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -43,8 +44,19 @@
     "dist",
     "README.md",
     "LLMS.md",
+    "LICENSE",
     "docs"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zakstam/convex-codex-component.git",
+    "directory": "packages/codex-local-component"
+  },
+  "homepage": "https://github.com/zakstam/convex-codex-component#readme",
+  "bugs": {
+    "url": "https://github.com/zakstam/convex-codex-component/issues"
+  },
+  "keywords": ["convex", "codex", "openai", "llm", "ai", "component", "realtime", "chat"],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
@@ -68,7 +80,7 @@
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
     "check:api-reference": "node ./scripts/check-api-reference-useful.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path"
+    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference"
   },
   "dependencies": {
     "ajv": "^8.17.1",

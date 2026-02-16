@@ -1,6 +1,5 @@
 > [!WARNING]
-> `@zakstam/codex-local-component` is in **alpha** and ready for active testing.
-> It is still experimental and **not** ready for production use.
+> `@zakstam/codex-local-component` is in **beta** and ready for integration — expect breaking changes before 1.0.
 
 <p align="center">
   <strong>@zakstam/codex-local-component</strong>

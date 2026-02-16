@@ -5,8 +5,8 @@
 Convex component for Codex integrations where Codex runs locally while thread state, messages, approvals, and replay are persisted in Convex.
 
 > [!IMPORTANT]
-> `@zakstam/codex-local-component` is in **beta** and ready for integration — expect breaking changes before 1.0.
-> Use with caution in production environments.
+> `@zakstam/codex-local-component` is in **alpha** and ready for active testing.
+> It is still experimental and **not** ready for production use.
 
 Canonical default: runtime-owned host integration.
 

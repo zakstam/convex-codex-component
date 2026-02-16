@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Source: bridge/command-contract.json
+// Source: @zakstam/codex-local-component/host/tauri
 pub const BRIDGE_COMMANDS: &[&str] = &[
     "start_bridge",
     "send_user_turn",

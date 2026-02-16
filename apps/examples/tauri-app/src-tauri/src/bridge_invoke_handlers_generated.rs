@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Source: bridge/command-contract.json
+// Source: @zakstam/codex-local-component/host/tauri
 
 macro_rules! bridge_generate_handler {
     () => {

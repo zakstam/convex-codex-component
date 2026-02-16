@@ -38,6 +38,10 @@
     "./host/convex": {
       "types": "./dist/host/convex-entry.d.ts",
       "import": "./dist/host/convex-entry.js"
+    },
+    "./host/tauri": {
+      "types": "./dist/host/tauri.d.ts",
+      "import": "./dist/host/tauri.js"
     }
   },
   "files": [

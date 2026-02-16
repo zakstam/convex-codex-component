@@ -12,6 +12,7 @@ Pick one path first, then expand only where needed:
 
 - **UI-first apps:** `@zakstam/codex-local-component/react` + `@zakstam/codex-local-component/react-integration`
 - **Host + Convex wiring:** `@zakstam/codex-local-component/host/convex` + `@zakstam/codex-local-component/host`
+- **Tauri host wiring:** `@zakstam/codex-local-component/host/tauri` + `@zakstam/codex-local-component/host`
 - **Protocol/debug tooling:** `@zakstam/codex-local-component/protocol` + `@zakstam/codex-local-component/host`
 
 If you are unsure, start with one path and stay there until it works, then layer in the next path.
@@ -195,4 +196,5 @@ For complete export surfaces, use your editor's TypeScript completion on:
 - `@zakstam/codex-local-component/react-integration`
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component/host/tauri`
 - `@zakstam/codex-local-component/protocol`

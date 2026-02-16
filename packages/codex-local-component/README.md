@@ -50,6 +50,7 @@ Thread API recommendation:
 - `@zakstam/codex-local-component/protocol`
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component/host/tauri`
 - `@zakstam/codex-local-component/convex.config`
 
 ## Docs Map

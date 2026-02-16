@@ -4,18 +4,18 @@ import {
   hasRecoverableIngestErrors,
   type CodexHostRuntime,
 } from "@zakstam/codex-local-component/host";
+import {
+  HELPER_ACK_BY_TYPE,
+  parseHelperCommand,
+  type ActorContext,
+  type HelperCommand,
+  type StartPayload,
+} from "@zakstam/codex-local-component/host/tauri";
 import type {
   ServerInboundMessage,
   v2,
 } from "@zakstam/codex-local-component/protocol";
 import { api } from "../convex/_generated/api.js";
-import {
-  parseHelperCommand,
-  type ActorContext,
-  type HelperCommand,
-  type StartPayload,
-} from "./bridge-contract.generated.js";
-import { HELPER_ACK_BY_TYPE } from "./bridge-dispatch.generated.js";
 import {
   KNOWN_DYNAMIC_TOOLS,
   TAURI_RUNTIME_TOOL_NAME,

@@ -1,5 +1,27 @@
 # @convex-dev/codex-local-component
 
+## 0.14.0
+
+### Minor Changes
+
+- 275a7d5: Refactor runtime and component internals to reduce implicit state handling, normalize terminal statuses, and centralize shared contracts.
+  - Normalize runtime terminal mapping to canonical `interrupted` status (instead of `cancelled`) for turn completion handling.
+  - Extract sync validators into a dedicated `component/validators` module to reduce inline validator sprawl in endpoint files.
+  - Replace string-concatenated ingest cache keys with nested map structures keyed by turn and id.
+  - Centralize repeated numeric limits into shared constants and apply them across thread snapshot reads, deletion scans, and runtime idle flush scheduling.
+  - Add coded not-found errors (`E_THREAD_NOT_FOUND`, `E_TURN_NOT_FOUND`, `E_STREAM_NOT_FOUND`) and improve auth error messaging consistency.
+  - Centralize thread snapshot query loading via a repository helper to reduce scattered inline query logic.
+
+### Patch Changes
+
+- 761ec1a: Refactor component internals and example hosts to reduce duplication and tighten architecture boundaries.
+  - Align Convex dependency baseline to `^1.31.7` for the published component package and release smoke host.
+  - Deduplicate CLI/smoke host protocol parsing and notification/response guards via `apps/shared/protocolPayload.ts`.
+  - Deduplicate Convex URL resolution in example hosts via `apps/shared/resolveConvexUrl.ts`.
+  - Simplify approvals pending-list query construction by centralizing shared pagination state.
+  - Consolidate deletion batch execution flow with shared batch-step runner logic.
+  - Split ingest module typing into slice-scoped context types (turn/message/approval/stream/checkpoint/session) to reduce monolithic `IngestContext` coupling.
+
 ## 0.13.4
 
 ### Patch Changes

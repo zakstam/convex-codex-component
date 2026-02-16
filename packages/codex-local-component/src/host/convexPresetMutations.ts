@@ -22,6 +22,8 @@ import {
   vHostLifecycleInboundEvent,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
+  vManagedServerRequestMethod,
+  vServerRequestId,
   type CodexHostComponentRefs,
   type HostActorContext,
   type HostMutationRunner,
@@ -47,7 +49,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
   const ensureThread = {
     args: {
       actor: vHostActorContext,
-      threadId: v.optional(v.string()),
+      localThreadId: v.optional(v.string()),
       externalThreadId: v.optional(v.string()),
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
@@ -59,7 +61,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
-      threadId?: string;
+      localThreadId?: string;
       externalThreadId?: string;
       model?: string;
       cwd?: string;
@@ -67,10 +69,10 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       if (threadMode === "resolve") {
         return ensureThreadByResolve(ctx, component, withServerActor(args, serverActor));
       }
-      if (!args.threadId) {
-        throw new Error("ensureThread requires threadId when threadMode=create");
+      if (!args.localThreadId) {
+        throw new Error("ensureThread requires localThreadId when threadMode=create");
       }
-      return ensureThreadByCreate(ctx, component, withServerActor({ ...args, threadId: args.threadId }, serverActor));
+      return ensureThreadByCreate(ctx, component, withServerActor({ ...args, threadId: args.localThreadId }, serverActor));
     },
   };
 
@@ -197,11 +199,12 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         actor: vHostActorContext,
         sessionId: v.string(),
         threadId: v.string(),
+        lastEventCursor: v.number(),
       },
       returns: vHostEnsureSessionResult,
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; sessionId: string; threadId: string },
+        args: { actor: HostActorContext; sessionId: string; threadId: string; lastEventCursor: number },
       ) => ensureSessionHandler(ctx, component, withServerActor(args, serverActor)),
     },
     ingestEvent,
@@ -229,16 +232,11 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           upsertPendingServerRequestForHooks: {
             args: {
               actor: vHostActorContext,
-              requestId: v.union(v.string(), v.number()),
+              requestId: vServerRequestId,
               threadId: v.string(),
               turnId: v.string(),
               itemId: v.string(),
-              method: v.union(
-                v.literal("item/commandExecution/requestApproval"),
-                v.literal("item/fileChange/requestApproval"),
-                v.literal("item/tool/requestUserInput"),
-                v.literal("item/tool/call"),
-              ),
+              method: vManagedServerRequestMethod,
               payloadJson: v.string(),
               reason: v.optional(v.string()),
               questionsJson: v.optional(v.string()),
@@ -265,7 +263,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             args: {
               actor: vHostActorContext,
               threadId: v.string(),
-              requestId: v.union(v.string(), v.number()),
+              requestId: vServerRequestId,
               status: v.union(v.literal("answered"), v.literal("expired")),
               resolvedAt: v.number(),
               responseJson: v.optional(v.string()),

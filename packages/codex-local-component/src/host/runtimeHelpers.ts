@@ -72,11 +72,6 @@ export function shouldDropRejectedIngestBatch(errors: IngestSafeError[]): boolea
   return errors.every((error) => error.code === "OUT_OF_ORDER");
 }
 
-export function isTurnNotFoundPersistenceError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("Turn not found:");
-}
-
 export function isTurnScopedEvent(kind: string): boolean {
   return kind === "error" || TURN_SCOPED_EVENT_PREFIXES.some((prefix) => kind.startsWith(prefix));
 }

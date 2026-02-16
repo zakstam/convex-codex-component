@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 
   await convex.mutation(api.chat.ensureThread, {
     actor,
-    threadId,
+    localThreadId: threadId,
     model: "runtime-smoke-model",
     cwd: process.cwd(),
   });
@@ -29,6 +29,7 @@ async function main(): Promise<void> {
     actor,
     sessionId,
     threadId,
+    lastEventCursor: 0,
   });
 
   const pushed = await convex.mutation(api.chat.ingestBatch, {

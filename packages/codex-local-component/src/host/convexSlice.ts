@@ -102,6 +102,15 @@ export const vHostEnsureSessionResult = v.object({
   status: v.union(v.literal("created"), v.literal("active")),
 });
 
+export const vManagedServerRequestMethod = v.union(
+  v.literal("item/commandExecution/requestApproval"),
+  v.literal("item/fileChange/requestApproval"),
+  v.literal("item/tool/requestUserInput"),
+  v.literal("item/tool/call"),
+);
+
+export const vServerRequestId = v.union(v.string(), v.number());
+
 export const vHostTurnInput = v.array(
   v.object({
     type: v.string(),
@@ -265,6 +274,7 @@ type EnsureSessionArgs = {
   actor: HostActorContext;
   sessionId: string;
   threadId: string;
+  lastEventCursor: number;
 };
 
 type IngestEventStreamOnlyArgs = {
@@ -465,7 +475,7 @@ export async function ensureSession<
     actor: args.actor,
     sessionId: args.sessionId,
     threadId: args.threadId,
-    lastEventCursor: 0,
+    lastEventCursor: args.lastEventCursor,
   });
 }
 

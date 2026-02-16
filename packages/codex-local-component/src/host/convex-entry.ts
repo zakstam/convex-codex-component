@@ -43,6 +43,7 @@ export {
   isSessionForbidden,
   isThreadForbidden,
   isThreadMissing,
+  isTurnNotFound,
   parseErrorCode,
 } from "../errors.js";
 
@@ -72,6 +73,8 @@ export {
   threadSnapshot,
   threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
+  upsertTokenUsageForActor,
+  listTokenUsageForHooksForActor,
   vHostActorContext,
   vHostDataHygiene,
   vHostDurableHistoryStats,
@@ -83,7 +86,11 @@ export {
   vHostStreamArgs,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
+  vManagedServerRequestMethod,
+  vServerRequestId,
   type CodexHostComponentRefs,
   type CodexHostComponentsInput,
   type HostActorContext,
 } from "./convexSlice.js";
+
+export { hasRecoverableIngestErrors, type HostIngestErrorLike } from "./ingestRecovery.js";

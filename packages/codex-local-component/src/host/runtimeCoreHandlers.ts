@@ -9,11 +9,11 @@ import {
 } from "../app-server/client.js";
 import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../protocol/generated.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
+import { isTurnNotFound } from "../errors.js";
 import {
   asObject,
   isChatgptAuthTokensRefreshRequest,
   isResponse,
-  isTurnNotFoundPersistenceError,
   isTurnScopedEvent,
   MAX_BATCH_SIZE,
   parseManagedServerRequestFromEvent,
@@ -138,7 +138,7 @@ export async function flushPendingServerRequestRetries(ctx: HandlerCtx): Promise
       await ctx.persistence.upsertPendingServerRequest({ actor: ctx.actor, request: entry.request });
       ctx.pendingServerRequestRetries.delete(key);
     } catch (error) {
-      if (isTurnNotFoundPersistenceError(error)) {
+      if (isTurnNotFound(error)) {
         ctx.pendingServerRequestRetries.set(key, { ...entry, attempts: entry.attempts + 1, lastError: error instanceof Error ? error.message : String(error) });
         continue;
       }

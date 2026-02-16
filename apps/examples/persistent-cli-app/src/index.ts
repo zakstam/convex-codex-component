@@ -631,7 +631,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     updateStatus();
     await convex.mutation(chatFns.ensureThread, {
       actor,
-      threadId,
+      localThreadId: threadId,
       ...(model ? { model } : {}),
       cwd,
     });
@@ -806,6 +806,7 @@ async function startFlow(): Promise<void> {
       actor,
       sessionId,
       threadId,
+      lastEventCursor: 0,
     });
   }
   updateStatus();

@@ -32,6 +32,12 @@ export function isSessionForbidden(error: unknown): boolean {
   return parseErrorCode(error) === "E_AUTH_SESSION_FORBIDDEN";
 }
 
+export function isTurnNotFound(error: unknown): boolean {
+  const message = errorMessage(error);
+  const code = parseErrorCode(error);
+  return message.includes("Turn not found") || code === "E_TURN_NOT_FOUND";
+}
+
 export function isRecoverableIngestError(
   error:
     | unknown

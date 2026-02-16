@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  defineGuardedRuntimeOwnedHostEndpoints,
   defineRuntimeOwnedHostEndpoints,
   defineRuntimeOwnedHostSlice,
   HOST_SURFACE_MANIFEST,
@@ -166,4 +167,47 @@ test("manifest mutations/queries stay in parity with runtime-owned preset defini
     Object.keys(defs.queries).sort(),
     [...HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
   );
+});
+
+test("defineGuardedRuntimeOwnedHostEndpoints applies actor guards to runtime-owned handlers", async () => {
+  const defs = defineGuardedRuntimeOwnedHostEndpoints({
+    components: createComponentRefs(),
+    serverActor: actor,
+    resolveMutationActor: async (_ctx, incoming) => ({
+      userId: `${incoming.userId}-mut`,
+    }),
+    resolveQueryActor: async (_ctx, incoming) => ({
+      userId: `${incoming.userId}-qry`,
+    }),
+  });
+
+  let mutationSeenActor = null;
+  await defs.mutations.ensureSession.handler(
+    {
+      runMutation: async (_ref, args) => {
+        mutationSeenActor = args.actor;
+        return { threadId: "t1", created: true, externalThreadId: "t1" };
+      },
+    },
+    {
+      actor: { userId: "u1" },
+      threadId: "t1",
+    },
+  );
+  assert.deepEqual(mutationSeenActor, { userId: "u1-mut" });
+
+  let querySeenActor = null;
+  await defs.queries.threadSnapshot.handler(
+    {
+      runQuery: async (_ref, args) => {
+        querySeenActor = args.actor;
+        return null;
+      },
+    },
+    {
+      actor: { userId: "u1" },
+      threadId: "t1",
+    },
+  );
+  assert.deepEqual(querySeenActor, { userId: "u1-qry" });
 });

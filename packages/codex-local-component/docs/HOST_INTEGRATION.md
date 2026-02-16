@@ -15,7 +15,7 @@ Use `actor: { userId?: string }` at all host/component boundaries.
 ## Required Flow
 
 1. Mount component in `convex/convex.config.ts`.
-2. Define host wrappers in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)`.
+2. Define host wrappers in `convex/chat.ts` via `defineRuntimeOwnedHostEndpoints(...)` or `defineGuardedRuntimeOwnedHostEndpoints(...)`.
 3. Optionally define app-specific endpoints in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
 4. Submit turns through `await runtime.sendTurn(text)`.
 5. Run `chat.validateHostWiring` at startup.
@@ -74,6 +74,27 @@ export const listTokenUsageForHooks = query(defs.queries.listTokenUsageForHooks)
 ```
 
 This keeps Convex codegen and app-generated types authoritative while avoiding consumer-side file generation.
+
+If your app enforces actor binding/lock, use the guarded helper to avoid repeating actor-wrap handlers:
+
+```ts
+import { mutation, query } from "./_generated/server";
+import { components } from "./_generated/api";
+import { defineGuardedRuntimeOwnedHostEndpoints } from "@zakstam/codex-local-component/host/convex";
+import { SERVER_ACTOR, requireBoundServerActorForMutation, requireBoundServerActorForQuery } from "./actorLock";
+
+const defs = defineGuardedRuntimeOwnedHostEndpoints({
+  components,
+  serverActor: SERVER_ACTOR,
+  resolveMutationActor: requireBoundServerActorForMutation,
+  resolveQueryActor: requireBoundServerActorForQuery,
+});
+
+export const ensureSession = mutation(defs.mutations.ensureSession);
+export const ingestBatch = mutation(defs.mutations.ingestBatch);
+export const validateHostWiring = query(defs.queries.validateHostWiring);
+export const threadSnapshotSafe = query(defs.queries.threadSnapshotSafe);
+```
 
 ## Thread Contract (Current)
 

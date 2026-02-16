@@ -312,6 +312,24 @@ export type DefineRuntimeOwnedHostEndpointsOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
 > = DefineRuntimeOwnedHostSliceOptions<Components>;
 
+type HostActorResolver<Ctx = unknown> = (
+  ctx: Ctx,
+  incomingActor: HostActorContext,
+) => Promise<HostActorContext> | HostActorContext;
+
+type RuntimeOwnedDefinitionWithActor<Ctx, Args extends { actor: HostActorContext } = { actor: HostActorContext }> = {
+  handler: (ctx: Ctx, args: Args) => unknown;
+};
+
+export type DefineGuardedRuntimeOwnedHostEndpointsOptions<
+  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
+  MutationCtx = unknown,
+  QueryCtx = unknown,
+> = DefineRuntimeOwnedHostEndpointsOptions<Components> & {
+  resolveMutationActor: HostActorResolver<MutationCtx>;
+  resolveQueryActor: HostActorResolver<QueryCtx>;
+};
+
 export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponentsInput>(
   options: DefineRuntimeOwnedHostSliceOptions<Components>,
 ): RuntimeOwnedHostDefinitions {
@@ -340,4 +358,68 @@ export function defineRuntimeOwnedHostEndpoints<Components extends CodexHostComp
   options: DefineRuntimeOwnedHostEndpointsOptions<Components>,
 ): RuntimeOwnedHostDefinitions {
   return defineRuntimeOwnedHostSlice(options);
+}
+
+export function guardRuntimeOwnedHostDefinitions<
+  MutationCtx = unknown,
+  QueryCtx = unknown,
+>(
+  defs: RuntimeOwnedHostDefinitions,
+  guards: {
+    resolveMutationActor: HostActorResolver<MutationCtx>;
+    resolveQueryActor: HostActorResolver<QueryCtx>;
+  },
+): RuntimeOwnedHostDefinitions {
+  const guardedMutations = Object.fromEntries(
+    Object.entries(defs.mutations).map(([name, definition]) => {
+      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
+      return [
+        name,
+        {
+          ...typedDefinition,
+          handler: async (ctx: MutationCtx, args: { actor: HostActorContext }) => {
+            const actor = await guards.resolveMutationActor(ctx, args.actor);
+            return typedDefinition.handler(ctx, { ...args, actor });
+          },
+        },
+      ];
+    }),
+  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
+
+  const guardedQueries = Object.fromEntries(
+    Object.entries(defs.queries).map(([name, definition]) => {
+      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
+      return [
+        name,
+        {
+          ...typedDefinition,
+          handler: async (ctx: QueryCtx, args: { actor: HostActorContext }) => {
+            const actor = await guards.resolveQueryActor(ctx, args.actor);
+            return typedDefinition.handler(ctx, { ...args, actor });
+          },
+        },
+      ];
+    }),
+  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
+
+  return {
+    ...defs,
+    mutations: guardedMutations,
+    queries: guardedQueries,
+  };
+}
+
+export function defineGuardedRuntimeOwnedHostEndpoints<
+  Components extends CodexHostComponentsInput,
+  MutationCtx = unknown,
+  QueryCtx = unknown,
+>(
+  options: DefineGuardedRuntimeOwnedHostEndpointsOptions<Components, MutationCtx, QueryCtx>,
+): RuntimeOwnedHostDefinitions {
+  const { resolveMutationActor, resolveQueryActor, ...runtimeOptions } = options;
+  const defs = defineRuntimeOwnedHostEndpoints(runtimeOptions);
+  return guardRuntimeOwnedHostDefinitions<MutationCtx, QueryCtx>(defs, {
+    resolveMutationActor,
+    resolveQueryActor,
+  });
 }

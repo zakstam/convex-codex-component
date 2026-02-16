@@ -142,6 +142,8 @@ Convex boundary surface to import only in Convex server files (`convex/chat.ts`,
 | API | What it gives you |
 | --- | --- |
 | `defineRuntimeOwnedHostEndpoints` | Build runtime-owned preset endpoints for host files. |
+| `defineGuardedRuntimeOwnedHostEndpoints` | Build runtime-owned endpoints with centralized actor guard resolvers for mutations/queries. |
+| `guardRuntimeOwnedHostDefinitions` | Apply actor guard resolvers to an existing runtime-owned definition object. |
 | `defineRuntimeOwnedHostSlice` | Define a runtime-owned host slice from Convex runtime context. |
 | `wrapHostDefinitions` | Export-ready wrapper for generated endpoint sets. |
 | `HOST_PRESET_DEFINITIONS` | Built-in preset endpoints and role map. |

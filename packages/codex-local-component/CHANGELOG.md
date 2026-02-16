@@ -21,6 +21,12 @@
 
 ### Patch Changes
 
+- 7c0a0d1: Simplify actor-locked host wiring for external consumers.
+  - Add `defineGuardedRuntimeOwnedHostEndpoints(...)` to `@zakstam/codex-local-component/host/convex` so consumers can apply mutation/query actor guards once instead of wrapping each exported endpoint manually.
+  - Add `guardRuntimeOwnedHostDefinitions(...)` for teams that already build runtime-owned defs and want to apply guard policy as a final step.
+  - Update host integration docs and API reference with the guarded runtime-owned wiring path.
+  - Migrate the Tauri example `convex/chat.ts` to the guarded helper and reduce repeated actor-resolution boilerplate in custom endpoints.
+
 - fabdc3a: Refactor across component source, config, and example apps.
   - Extract shared deletion utilities (UUID generation, delay clamping, deleted-counts parsing) into `deletionUtils.ts`, removing 3 sets of duplicated functions from `threads.ts`, `turns.ts`, and `deletionInternal.ts`.
   - Split `threads.ts` by extracting validators into `threadValidators.ts` and internal helpers into `threadHelpers.ts`, reducing the file from 850 to 632 lines.

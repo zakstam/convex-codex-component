@@ -91,6 +91,7 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 - `convex/chat.ts`: app-owned guarded public surface (`api.chat.*`) that wraps helper-defined preset endpoints and enforces actor lock
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
+- The app uses `defineGuardedRuntimeOwnedHostEndpoints(...)` to centralize actor-lock wrapping for runtime-owned mutations/queries.
 
 ## Thread API Tiers
 

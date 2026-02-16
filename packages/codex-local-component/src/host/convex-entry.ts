@@ -1,9 +1,12 @@
 export {
+  defineGuardedRuntimeOwnedHostEndpoints,
   defineRuntimeOwnedHostEndpoints,
   defineRuntimeOwnedHostSlice,
+  guardRuntimeOwnedHostDefinitions,
   type CodexHostSliceFeatures,
   type CodexHostSliceIngestMode,
   type CodexHostSliceProfile,
+  type DefineGuardedRuntimeOwnedHostEndpointsOptions,
   type DefineRuntimeOwnedHostEndpointsOptions,
   type DefineRuntimeOwnedHostSliceOptions,
   type RuntimeOwnedHostDefinitions,

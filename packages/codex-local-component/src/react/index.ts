@@ -123,3 +123,12 @@ export type {
 export {
   deriveCodexTokenUsage,
 } from "./tokenUsage.js";
+export {
+  CodexProvider,
+  type CodexProviderProps,
+  type CodexProviderApi,
+} from "./CodexProvider.js";
+export {
+  useCodex,
+  type UseCodexOptions,
+} from "./useCodex.js";

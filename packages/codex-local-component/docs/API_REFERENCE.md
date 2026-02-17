@@ -5,7 +5,7 @@ This package now documents one integration path only.
 Use this path in order:
 
 1. Mount `@zakstam/codex-local-component/convex.config`.
-2. Define host endpoints with `createCodexConvexHost(...)` from `@zakstam/codex-local-component/host/convex`.
+2. Define host endpoints with `createCodexHost(...)` from `@zakstam/codex-local-component/host/convex`.
 3. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
 4. Build UI with hooks from `@zakstam/codex-local-component/react`.
 
@@ -20,7 +20,7 @@ Use this path in order:
 
 From `@zakstam/codex-local-component/host/convex`:
 
-- `createCodexConvexHost`
+- `createCodexHost`
 - `HostActorContext`
 
 From `@zakstam/codex-local-component/host`:
@@ -31,6 +31,8 @@ From `@zakstam/codex-local-component/host`:
 
 From `@zakstam/codex-local-component/react`:
 
+- `CodexProvider`
+- `useCodex`
 - `useCodexChat`
 - `useCodexMessages`
 - `useCodexThreadActivity`
@@ -40,6 +42,6 @@ From `@zakstam/codex-local-component/react`:
 
 ## Notes
 
-- `createCodexConvexHost` is the only documented host-wiring entrypoint.
+- `createCodexHost` is the only documented host-wiring entrypoint.
 - Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

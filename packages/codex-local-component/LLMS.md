@@ -8,7 +8,7 @@ Canonical default: runtime-owned host integration.
 Use this sequence only:
 
 1. Mount the component with `@zakstam/codex-local-component/convex.config`.
-2. Define host wrappers with `createCodexConvexHost(...)`.
+2. Define host endpoints with `createCodexHost(...)`.
 3. Start runtime with `createCodexHostRuntime(...)`.
 4. Build UI with `@zakstam/codex-local-component/react` hooks.
 

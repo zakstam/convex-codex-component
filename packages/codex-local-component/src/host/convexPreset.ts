@@ -24,7 +24,11 @@ import {
 } from "./convexSlice.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
 import { resolveHostComponentRefs } from "./generatedTypingBoundary.js";
-import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
+import {
+  HOST_SURFACE_MANIFEST,
+  HOST_MUTATION_INTERNAL_ALIASES,
+  HOST_QUERY_INTERNAL_ALIASES,
+} from "./surfaceManifest.js";
 
 export type CodexHostSliceProfile = "runtimeOwned";
 export type CodexHostSliceIngestMode = "streamOnly" | "mixed";
@@ -276,37 +280,56 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
 
 type CodexHostSliceDefinitions = ReturnType<typeof defineCodexHostSlice>;
 
-type PickRequiredKeys<T, Keys extends keyof T> = {
-  [K in Keys]-?: T[K];
+/**
+ * Reverse an alias map: { internalKey: publicKey } -> { publicKey: internalKey }.
+ */
+type InvertAliasMap<M extends Record<string, string>> = {
+  [K in keyof M as M[K]]: K;
+};
+
+/**
+ * Resolve the internal (slice) key for a given public key.
+ * If the public key appears as a value in the alias map, the corresponding
+ * map key (the internal name) is returned; otherwise the public key itself
+ * is used (identity -- no alias needed).
+ */
+type InternalKeyFor<PublicKey extends string, AliasMap extends Record<string, string>> =
+  PublicKey extends AliasMap[keyof AliasMap]
+    ? Extract<keyof InvertAliasMap<AliasMap>, PublicKey> extends infer IK extends string
+      ? IK
+      : PublicKey
+    : PublicKey;
+
+/**
+ * Pick definitions from a slice output using public names, mapping each
+ * public name back to its internal key via the supplied alias map.
+ */
+type PickAliased<
+  SliceDefs,
+  PublicKeys extends string,
+  AliasMap extends Record<string, string>,
+> = {
+  [K in PublicKeys]-?: InternalKeyFor<K, AliasMap> extends keyof SliceDefs
+    ? SliceDefs[InternalKeyFor<K, AliasMap>]
+    : never;
 };
 
 type RuntimeOwnedMutationKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.mutations)[number];
 type RuntimeOwnedQueryKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.queries)[number];
 
-function pickRequiredKeys<T extends Record<string, unknown>, Keys extends readonly (keyof T)[]>(
-  source: T,
-  keys: Keys,
-): { [K in Keys[number]]-?: NonNullable<T[K]> } {
-  return Object.fromEntries(
-    keys.map((key) => {
-      const value = source[key];
-      if (value === undefined || value === null) {
-        throw new Error(`Missing required host surface key: ${String(key)}`);
-      }
-      return [key, value];
-    }),
-  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
-}
-
 export type RuntimeOwnedHostDefinitions = {
   profile: "runtimeOwned";
-  mutations: PickRequiredKeys<CodexHostSliceDefinitions["mutations"], RuntimeOwnedMutationKeys>;
-  queries: PickRequiredKeys<CodexHostSliceDefinitions["queries"], RuntimeOwnedQueryKeys>;
+  mutations: PickAliased<
+    CodexHostSliceDefinitions["mutations"],
+    RuntimeOwnedMutationKeys,
+    typeof HOST_MUTATION_INTERNAL_ALIASES
+  >;
+  queries: PickAliased<
+    CodexHostSliceDefinitions["queries"],
+    RuntimeOwnedQueryKeys,
+    typeof HOST_QUERY_INTERNAL_ALIASES
+  >;
 };
-
-export type DefineRuntimeOwnedHostSliceOptions<
-  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-> = Pick<DefineCodexHostSliceOptions<Components>, "components" | "serverActor">;
 
 type HostActorResolver<Ctx = unknown> = (
   ctx: Ctx,
@@ -334,49 +357,6 @@ export type CodexConvexHostActorPolicy<MutationCtx = unknown, QueryCtx = unknown
       resolveMutationActor: HostActorResolver<MutationCtx>;
       resolveQueryActor: HostActorResolver<QueryCtx>;
     };
-
-export type CreateCodexConvexHostOptions<
-  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-  MutationCtx = unknown,
-  QueryCtx = unknown,
-> = {
-  components: Components;
-  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
-};
-
-export type CodexConvexHostFacade<MutationCtx = unknown, QueryCtx = unknown> = {
-  profile: "runtimeOwned";
-  defs: RuntimeOwnedHostDefinitions;
-  register: <MutationWrap, QueryWrap>(wrap: { mutation: MutationWrap; query: QueryWrap }) => {
-    mutations: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
-    queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
-  };
-  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
-};
-
-export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponentsInput>(
-  options: DefineRuntimeOwnedHostSliceOptions<Components>,
-): RuntimeOwnedHostDefinitions {
-  const defs = defineCodexHostSlice({
-    ...options,
-    profile: "runtimeOwned",
-    ingestMode: "streamOnly",
-    features: {
-      hooks: true,
-      approvals: true,
-      serverRequests: false,
-      reasoning: false,
-      hygiene: true,
-      tokenUsage: true,
-    },
-  });
-
-  return {
-    profile: "runtimeOwned",
-    mutations: pickRequiredKeys(defs.mutations, HOST_SURFACE_MANIFEST.runtimeOwned.mutations),
-    queries: pickRequiredKeys(defs.queries, HOST_SURFACE_MANIFEST.runtimeOwned.queries),
-  };
-}
 
 function applyActorGuards<
   MutationCtx = unknown,
@@ -427,51 +407,164 @@ function applyActorGuards<
   };
 }
 
-export function createCodexConvexHost<
+// ---------------------------------------------------------------------------
+// createCodexHost – the new unified entry point
+// ---------------------------------------------------------------------------
+
+export type CreateCodexHostOptions<
+  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
+  MutationCtx = unknown,
+  QueryCtx = unknown,
+> = {
+  components: Components;
+  mutation: (definition: never) => unknown;
+  query: (definition: never) => unknown;
+  actorPolicy?: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
+};
+
+export type CodexHostFacade<MutationWrap = unknown, QueryWrap = unknown> = {
+  profile: "runtimeOwned";
+  mutations: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
+  queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
+  defs: RuntimeOwnedHostDefinitions;
+};
+
+/**
+ * Rename internal-named definition keys to their clean public aliases.
+ * Keys that have no alias are passed through unchanged.
+ */
+function aliasDefinitionKeys<T extends Record<string, unknown>>(
+  defs: T,
+  aliases: Record<string, string>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(defs).map(([key, value]) => [aliases[key] ?? key, value]),
+  );
+}
+
+export function createCodexHost<
   Components extends CodexHostComponentsInput,
   MutationCtx = unknown,
   QueryCtx = unknown,
 >(
-  options: CreateCodexConvexHostOptions<Components, MutationCtx, QueryCtx>,
-): CodexConvexHostFacade<MutationCtx, QueryCtx> {
-  const runtimeDefs = defineRuntimeOwnedHostSlice<Components>({
+  options: CreateCodexHostOptions<Components, MutationCtx, QueryCtx>,
+): CodexHostFacade<typeof options.mutation, typeof options.query> {
+  const actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx> =
+    options.actorPolicy ?? { mode: "serverActor", serverActor: {} };
+
+  // 1. Build raw internal-named slice definitions
+  const rawSlice = defineCodexHostSlice<Components>({
     components: options.components,
-    serverActor: options.actorPolicy.serverActor,
+    serverActor: actorPolicy.serverActor,
+    profile: "runtimeOwned",
+    ingestMode: "streamOnly",
+    features: {
+      hooks: true,
+      approvals: true,
+      serverRequests: false,
+      reasoning: false,
+      hygiene: true,
+      tokenUsage: true,
+    },
   });
-  const defs = options.actorPolicy.mode === "guarded"
-    ? applyActorGuards<MutationCtx, QueryCtx>(runtimeDefs, {
-        resolveMutationActor: options.actorPolicy.resolveMutationActor,
-        resolveQueryActor: options.actorPolicy.resolveQueryActor,
-      })
-    : runtimeDefs;
+
+  // Pick only the manifest-required keys from the raw slice (using internal names).
+  // We need to collect them before aliasing because the slice uses internal names.
+  const internalMutationKeys = HOST_SURFACE_MANIFEST.runtimeOwned.mutations.map(
+    (publicKey) => {
+      // Find the internal key that maps to this public key, or use the public key itself
+      const internalKey =
+        Object.entries(HOST_MUTATION_INTERNAL_ALIASES).find(
+          ([, pub]) => pub === publicKey,
+        )?.[0] ?? publicKey;
+      return internalKey;
+    },
+  );
+  const internalQueryKeys = HOST_SURFACE_MANIFEST.runtimeOwned.queries.map(
+    (publicKey) => {
+      const internalKey =
+        Object.entries(HOST_QUERY_INTERNAL_ALIASES).find(
+          ([, pub]) => pub === publicKey,
+        )?.[0] ?? publicKey;
+      return internalKey;
+    },
+  );
+
+  const pickedMutations = pickRequiredKeysFromRecord(rawSlice.mutations, internalMutationKeys);
+  const pickedQueries = pickRequiredKeysFromRecord(rawSlice.queries, internalQueryKeys);
+
+  const internalDefs: RuntimeOwnedHostDefinitions = {
+    profile: "runtimeOwned",
+    mutations: pickedMutations as RuntimeOwnedHostDefinitions["mutations"],
+    queries: pickedQueries as RuntimeOwnedHostDefinitions["queries"],
+  };
+
+  // 2. Optionally apply actor guards (still internal-named)
+  const guardedDefs =
+    actorPolicy.mode === "guarded"
+      ? applyActorGuards<MutationCtx, QueryCtx>(internalDefs, {
+          resolveMutationActor: actorPolicy.resolveMutationActor,
+          resolveQueryActor: actorPolicy.resolveQueryActor,
+        })
+      : internalDefs;
+
+  // 3. Alias internal names to clean public names
+  const publicMutationDefs = aliasDefinitionKeys(
+    guardedDefs.mutations,
+    HOST_MUTATION_INTERNAL_ALIASES,
+  );
+  const publicQueryDefs = aliasDefinitionKeys(
+    guardedDefs.queries,
+    HOST_QUERY_INTERNAL_ALIASES,
+  );
+
+  // 4. Wrap each definition with the supplied mutation/query constructors
+  const mutationWrapper = options.mutation as (definition: unknown) => unknown;
+  const queryWrapper = options.query as (definition: unknown) => unknown;
+
+  const wrappedMutations = Object.fromEntries(
+    Object.entries(publicMutationDefs).map(([name, definition]) => [
+      name,
+      mutationWrapper(definition),
+    ]),
+  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation>;
+
+  const wrappedQueries = Object.fromEntries(
+    Object.entries(publicQueryDefs).map(([name, definition]) => [
+      name,
+      queryWrapper(definition),
+    ]),
+  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
+
+  // Build the public-named defs for the escape hatch (unwrapped but aliased)
+  const publicDefs: RuntimeOwnedHostDefinitions = {
+    profile: "runtimeOwned",
+    mutations: publicMutationDefs as RuntimeOwnedHostDefinitions["mutations"],
+    queries: publicQueryDefs as RuntimeOwnedHostDefinitions["queries"],
+  };
 
   return {
     profile: "runtimeOwned",
-    defs,
-    register: ({ mutation, query }) => {
-      const mutationWrapper = mutation as (
-        definition: RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]],
-      ) => WrappedResult<typeof mutation>;
-      const queryWrapper = query as (
-        definition: RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]],
-      ) => WrappedResult<typeof query>;
-
-      const mutations = Object.fromEntries(
-        Object.entries(defs.mutations).map(([name, definition]) => [
-          name,
-          mutationWrapper(definition as RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]]),
-        ]),
-      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof mutation>;
-
-      const queries = Object.fromEntries(
-        Object.entries(defs.queries).map(([name, definition]) => [
-          name,
-          queryWrapper(definition as RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]]),
-        ]),
-      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof query>;
-
-      return { mutations, queries };
-    },
-    actorPolicy: options.actorPolicy,
+    mutations: wrappedMutations,
+    queries: wrappedQueries,
+    defs: publicDefs,
   };
+}
+
+/**
+ * Pick required keys from a record, throwing on missing keys.
+ */
+function pickRequiredKeysFromRecord<T extends Record<string, unknown>>(
+  source: T,
+  keys: string[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    keys.map((key) => {
+      const value = source[key];
+      if (value === undefined || value === null) {
+        throw new Error(`Missing required host surface key: ${String(key)}`);
+      }
+      return [key, value];
+    }),
+  );
 }

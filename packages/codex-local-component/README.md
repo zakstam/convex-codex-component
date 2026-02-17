@@ -30,7 +30,7 @@ Use one source of truth for implementation steps:
 ## Quickstart Summary
 
 1. Mount component in `convex/convex.config.ts` with `app.use(codexLocal)`.
-2. Define host endpoints directly in `convex/chat.ts` with `createCodexConvexHost(...)`.
+2. Define host endpoints directly in `convex/chat.ts` with `createCodexHost(...)`.
 3. Optionally keep app-specific additions in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
 4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
@@ -91,7 +91,7 @@ pnpm add @zakstam/codex-local-component convex
 npx convex dev --once
 ```
 
-4. Define host wrappers from `createCodexConvexHost(...)` in `convex/chat.ts`.
+4. Define host endpoints from `createCodexHost(...)` in `convex/chat.ts`.
 
 5. Start runtime-owned host wiring through `@zakstam/codex-local-component/host`.
 

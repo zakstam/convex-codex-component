@@ -15,7 +15,7 @@ Canonical default used here: runtime-owned host integration.
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: helper-defined preset wrappers via `createCodexConvexHost(...)`
+- `convex/chat.ts`: helper-defined host endpoints via `createCodexHost(...)`
 - `convex/chat.extensions.ts`: optional app-specific additions
 
 Thread contract note:

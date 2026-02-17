@@ -1,8 +1,9 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
+  CodexProvider,
+  useCodex,
   useCodexAccountAuth,
-  useCodexChat,
   useCodexRuntimeBridge,
   useCodexThreadState,
   useCodexThreads,
@@ -101,6 +102,42 @@ const chatApi = requireDefined(api.chat, "api.chat");
 
 export default function App() {
   const [actorUserId, setActorUserId] = useState<string>(() => resolveActorUserId());
+  const actorBinding = useQuery(
+    requireDefined(chatApi.getActorBindingForBootstrap, "api.chat.getActorBindingForBootstrap"),
+  );
+  const preferredBoundUserId = actorBinding?.lockEnabled
+    ? actorBinding.pinnedUserId?.trim() || actorBinding.boundUserId?.trim() || null
+    : actorBinding?.pinnedUserId?.trim() || null;
+  const actorReady = actorBinding !== undefined && (!preferredBoundUserId || preferredBoundUserId === actorUserId);
+  const actor: ActorContext = useMemo(
+    () => ({ userId: actorUserId }),
+    [actorUserId],
+  );
+
+  return (
+    <CodexProvider api={chatApi} actor={actor}>
+      <AppContent
+        actor={actor}
+        actorReady={actorReady}
+        preferredBoundUserId={preferredBoundUserId}
+        onActorChange={setActorUserId}
+      />
+    </CodexProvider>
+  );
+}
+
+function AppContent({
+  actor,
+  actorReady,
+  preferredBoundUserId,
+  onActorChange,
+}: {
+  actor: ActorContext;
+  actorReady: boolean;
+  preferredBoundUserId: string | null;
+  onActorChange: (userId: string) => void;
+}) {
+  const actorUserId = actor.userId ?? "";
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
     localThreadId: null,
@@ -134,26 +171,13 @@ export default function App() {
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
-  const actorBinding = useQuery(
-    requireDefined(chatApi.getActorBindingForBootstrap, "api.chat.getActorBindingForBootstrap"),
-  );
-  const preferredBoundUserId = actorBinding?.lockEnabled
-    ? actorBinding.pinnedUserId?.trim() || actorBinding.boundUserId?.trim() || null
-    : actorBinding?.pinnedUserId?.trim() || null;
-  const actorReady = actorBinding !== undefined && (!preferredBoundUserId || preferredBoundUserId === actorUserId);
-  const actor: ActorContext = useMemo(
-    () => ({
-      userId: actorUserId,
-    }),
-    [actorUserId],
-  );
 
   useEffect(() => {
     const preferredUserId = preferredBoundUserId;
     if (!preferredUserId || preferredUserId === actorUserId) {
       return;
     }
-    setActorUserId(preferredUserId);
+    onActorChange(preferredUserId);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(ACTOR_STORAGE_KEY, preferredUserId);
     }
@@ -161,7 +185,7 @@ export default function App() {
       "info",
       `Using bound host username "${preferredUserId}" to match Convex actor lock.`,
     );
-  }, [actorUserId, addToast, preferredBoundUserId]);
+  }, [actorUserId, addToast, onActorChange, preferredBoundUserId]);
 
   const threadId = bridge.localThreadId;
   const threads = useCodexThreads({
@@ -225,17 +249,9 @@ export default function App() {
     [actor, actorReady, bridge.disabledTools, runtimeBridge, selectedRuntimeThreadId],
   );
 
-  const conversation = useCodexChat({
-    messages: {
-      query: requireDefined(chatApi.listThreadMessages, "api.chat.listThreadMessages"),
-      args: threadId && actorReady ? { actor, threadId } : "skip",
-      initialNumItems: 30,
-      stream: true,
-    },
-    threadState: {
-      query: requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
-      args: threadId && actorReady ? { actor, threadId } : "skip",
-    },
+  const conversation = useCodex({
+    threadId,
+    actorReady,
     composer: {
       onSend: async (text: string) => {
         try {

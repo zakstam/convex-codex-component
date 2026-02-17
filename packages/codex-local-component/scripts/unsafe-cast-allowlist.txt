@@ -1,5 +1,23 @@
 src/host/convexPresetMutations.ts:7:  ensureSession as ensureSessionHandler,
-src/host/convexPreset.ts:268:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
+src/host/convexPreset.ts:283:  [K in keyof M as M[K]]: K;
+src/host/convexPreset.ts:288: * If the public key appears as a value in the alias map, the corresponding
+src/host/convexPreset.ts:369:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
+src/host/convexPreset.ts:381:  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
+src/host/convexPreset.ts:385:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
+src/host/convexPreset.ts:397:  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
+src/host/convexPreset.ts:494:    mutations: pickedMutations as RuntimeOwnedHostDefinitions["mutations"],
+src/host/convexPreset.ts:495:    queries: pickedQueries as RuntimeOwnedHostDefinitions["queries"],
+src/host/convexPreset.ts:518:  const mutationWrapper = options.mutation as (definition: unknown) => unknown;
+src/host/convexPreset.ts:519:  const queryWrapper = options.query as (definition: unknown) => unknown;
+src/host/convexPreset.ts:526:  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation>;
+src/host/convexPreset.ts:533:  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
+src/host/convexPreset.ts:538:    mutations: publicMutationDefs as RuntimeOwnedHostDefinitions["mutations"],
+src/host/convexPreset.ts:539:    queries: publicQueryDefs as RuntimeOwnedHostDefinitions["queries"],
+src/react/useCodex.ts:66:    : ({ actor: ctx.actor, threadId } as never);
+src/react/useCodex.ts:69:    : ({ actor: ctx.actor, threadId } as never);
+src/react/CodexProvider.tsx:32:      actor: actor ?? ({} as Record<string, unknown>),
+src/react/CodexProvider.tsx:33:      listThreadMessages: api.listThreadMessages as CodexMessagesQuery<unknown>,
+src/react/CodexProvider.tsx:34:      threadSnapshotSafe: api.threadSnapshotSafe as CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
 src/component/threads.ts:580:          const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };
 src/component/deletionUtils.ts:40:    const parsed = JSON.parse(deletedCountsJson) as unknown;
 src/component/deletionUtils.ts:59:    const parsed = JSON.parse(deletedCountsJson) as unknown;
@@ -52,37 +70,6 @@ src/host/convexSlice.ts:334:  const record = value as Record<string, unknown>;
 src/host/convexSlice.ts:346:  const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;
 src/host/convexSlice.ts:354:  const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;
 src/host/convexSlice.ts:362:  const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;
-src/host/convexPreset.ts:294:  ) as { [K in Keys[number]]-?: NonNullable<T[K]> };
-src/host/convexPreset.ts:415:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-src/host/convexPreset.ts:427:  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
-src/host/convexPreset.ts:431:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-src/host/convexPreset.ts:443:  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
-src/host/convexPreset.ts:490:      const mutationWrapper = mutation as (
-src/host/convexPreset.ts:493:      const queryWrapper = query as (
-src/host/convexPreset.ts:500:          mutationWrapper(definition as RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]]),
-src/host/convexPreset.ts:502:      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof mutation>;
-src/host/convexPreset.ts:507:          queryWrapper(definition as RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]]),
-src/host/convexPreset.ts:509:      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof query>;
-src/host/convexPreset.ts:408:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-src/host/convexPreset.ts:420:  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
-src/host/convexPreset.ts:424:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-src/host/convexPreset.ts:436:  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
-src/host/convexPreset.ts:483:      const mutationWrapper = mutation as (
-src/host/convexPreset.ts:486:      const queryWrapper = query as (
-src/host/convexPreset.ts:493:          mutationWrapper(definition as RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]]),
-src/host/convexPreset.ts:495:      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof mutation>;
-src/host/convexPreset.ts:500:          queryWrapper(definition as RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]]),
-src/host/convexPreset.ts:502:      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof query>;
-src/host/convexPreset.ts:389:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-src/host/convexPreset.ts:401:  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
-src/host/convexPreset.ts:405:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-src/host/convexPreset.ts:417:  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
-src/host/convexPreset.ts:448:      const mutationWrapper = mutation as (
-src/host/convexPreset.ts:451:      const queryWrapper = query as (
-src/host/convexPreset.ts:458:          mutationWrapper(definition as RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]]),
-src/host/convexPreset.ts:460:      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof mutation>;
-src/host/convexPreset.ts:465:          queryWrapper(definition as RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]]),
-src/host/convexPreset.ts:467:      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof query>;
 src/protocol/events.ts:304:    ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:476:    ? (message.params as Record<string, unknown>)
 src/protocol/events.ts:607:      ? (message.params as Record<string, unknown>)

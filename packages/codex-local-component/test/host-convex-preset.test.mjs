@@ -2,8 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as host from "../dist/host/index.js";
 
-const actor = { userId: "u" };
-
 function createComponentRefs() {
   return {
     codexLocal: {
@@ -18,49 +16,67 @@ function createComponentRefs() {
   };
 }
 
-test("defineRuntimeOwnedHostSlice returns deterministic runtime-owned surface", () => {
-  const hostApi = host.createCodexConvexHost({
-    components: createComponentRefs(),
-    actorPolicy: { mode: "serverActor", serverActor: actor },
-  });
-  const defs = hostApi.defs;
+const passthrough = {
+  mutation: (def) => def,
+  query: (def) => def,
+};
 
-  assert.ok(defs.mutations.ensureThread);
-  assert.ok(defs.mutations.ingestEvent);
-  assert.ok(defs.mutations.respondApprovalForHooks);
-  assert.ok(defs.queries.validateHostWiring);
-  assert.ok(defs.queries.dataHygiene);
-  assert.ok(defs.queries.listThreadMessagesForHooks);
+test("createCodexHost returns deterministic runtime-owned surface with clean names", () => {
+  const codex = host.createCodexHost({
+    components: createComponentRefs(),
+    ...passthrough,
+  });
+
+  // Wrapped output uses clean public names (no ForHooks suffix)
+  assert.ok(codex.mutations.ensureThread);
+  assert.ok(codex.mutations.ensureSession);
+  assert.ok(codex.mutations.ingestEvent);
+  assert.ok(codex.mutations.respondApproval);
+  assert.ok(codex.mutations.interruptTurn);
+
+  assert.ok(codex.queries.validateHostWiring);
+  assert.ok(codex.queries.threadSnapshot);
+  assert.ok(codex.queries.dataHygiene);
+  assert.ok(codex.queries.listThreadMessages);
+  assert.ok(codex.queries.listTurnMessages);
+  assert.ok(codex.queries.listPendingApprovals);
+  assert.ok(codex.queries.listTokenUsage);
+
+  // defs escape hatch also uses clean public names
+  assert.ok(codex.defs.mutations.ensureThread);
+  assert.ok(codex.defs.queries.validateHostWiring);
+  assert.ok(codex.defs.queries.listThreadMessages);
 });
 
-test("createCodexConvexHost serverActor mode matches defineRuntimeOwnedHostSlice output shape", () => {
-  const fromSlice = host.defineRuntimeOwnedHostSlice({
+test("createCodexHost output keys match HOST_SURFACE_MANIFEST keys", () => {
+  const codex = host.createCodexHost({
     components: createComponentRefs(),
-    serverActor: actor,
-  });
-  const fromFacade = host.createCodexConvexHost({
-    components: createComponentRefs(),
-    actorPolicy: { mode: "serverActor", serverActor: actor },
+    ...passthrough,
   });
 
-  assert.deepEqual(Object.keys(fromFacade.defs.mutations).sort(), Object.keys(fromSlice.mutations).sort());
-  assert.deepEqual(Object.keys(fromFacade.defs.queries).sort(), Object.keys(fromSlice.queries).sort());
+  assert.deepEqual(
+    Object.keys(codex.mutations).sort(),
+    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations].sort(),
+  );
+  assert.deepEqual(
+    Object.keys(codex.queries).sort(),
+    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
+  );
 });
 
 test("validateHostWiring reports missing component children as check failures", async () => {
-  const hostApi = host.createCodexConvexHost({
+  const codex = host.createCodexHost({
     components: createComponentRefs(),
-    actorPolicy: { mode: "serverActor", serverActor: actor },
+    ...passthrough,
   });
-  const defs = hostApi.defs;
 
-  const result = await defs.queries.validateHostWiring.handler(
+  const result = await codex.defs.queries.validateHostWiring.handler(
     {
       runQuery: async (_ref, _args) => {
         throw new Error('Child component ComponentName(Identifier("threads")) not found');
       },
     },
-    { actor },
+    { actor: {}, threadId: undefined },
   );
 
   assert.equal(result.ok, false);
@@ -68,44 +84,60 @@ test("validateHostWiring reports missing component children as check failures", 
   assert.ok(result.checks.every((check) => check.ok === false));
 });
 
-test("definitions are wrapper-consumable by mutation/query builders", () => {
-  const hostApi = host.createCodexConvexHost({
+test("mutation and query wrappers are called by createCodexHost", () => {
+  const mutationCalls = [];
+  const queryCalls = [];
+
+  const codex = host.createCodexHost({
     components: createComponentRefs(),
-    actorPolicy: { mode: "serverActor", serverActor: actor },
+    mutation: (def) => {
+      mutationCalls.push(def);
+      return { kind: "mutation", def };
+    },
+    query: (def) => {
+      queryCalls.push(def);
+      return { kind: "query", def };
+    },
   });
-  const defs = hostApi.defs;
 
-  const mutation = (def) => ({ kind: "mutation", def });
-  const query = (def) => ({ kind: "query", def });
+  // Every mutation key should have been passed through the mutation wrapper
+  const expectedMutationCount = host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations.length;
+  assert.equal(mutationCalls.length, expectedMutationCount);
 
-  const wrappedMutation = mutation(defs.mutations.ensureThread);
-  const wrappedQuery = query(defs.queries.threadSnapshot);
+  // Every query key should have been passed through the query wrapper
+  const expectedQueryCount = host.HOST_SURFACE_MANIFEST.runtimeOwned.queries.length;
+  assert.equal(queryCalls.length, expectedQueryCount);
 
-  assert.equal(wrappedMutation.kind, "mutation");
-  assert.equal(wrappedQuery.kind, "query");
-  assert.ok(typeof wrappedMutation.def.handler === "function");
-  assert.ok(typeof wrappedQuery.def.handler === "function");
+  // Wrapped output carries the wrapper return shape
+  assert.equal(codex.mutations.ensureThread.kind, "mutation");
+  assert.ok(typeof codex.mutations.ensureThread.def.handler === "function");
+  assert.equal(codex.queries.threadSnapshot.kind, "query");
+  assert.ok(typeof codex.queries.threadSnapshot.def.handler === "function");
 });
 
-test("register wraps every mutation/query key", () => {
-  const hostApi = host.createCodexConvexHost({
+test("wrapped output has all expected mutation and query keys", () => {
+  const codex = host.createCodexHost({
     components: createComponentRefs(),
-    actorPolicy: { mode: "serverActor", serverActor: actor },
-  });
-
-  const wrapped = hostApi.register({
-    mutation: (definition) => ({ kind: "mutation", definition }),
-    query: (definition) => ({ kind: "query", definition }),
+    mutation: (def) => ({ wrapped: true, def }),
+    query: (def) => ({ wrapped: true, def }),
   });
 
   assert.deepEqual(
-    Object.keys(wrapped.mutations).sort(),
-    Object.keys(hostApi.defs.mutations).sort(),
+    Object.keys(codex.mutations).sort(),
+    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations].sort(),
   );
   assert.deepEqual(
-    Object.keys(wrapped.queries).sort(),
-    Object.keys(hostApi.defs.queries).sort(),
+    Object.keys(codex.queries).sort(),
+    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
   );
+
+  // Every wrapped value carries the wrapper shape
+  for (const key of Object.keys(codex.mutations)) {
+    assert.equal(codex.mutations[key].wrapped, true, `mutation ${key} should be wrapped`);
+  }
+  for (const key of Object.keys(codex.queries)) {
+    assert.equal(codex.queries[key].wrapped, true, `query ${key} should be wrapped`);
+  }
 });
 
 test("resolves codexLocal refs when components uses proxy-like property traps", async () => {
@@ -127,51 +159,62 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
     },
   );
 
-  const defs = host.defineRuntimeOwnedHostSlice({
+  const codex = host.createCodexHost({
     components: componentsProxy,
-    serverActor: actor,
+    ...passthrough,
   });
 
   await assert.doesNotReject(
-    defs.mutations.ensureThread.handler(
+    codex.defs.mutations.ensureThread.handler(
       {
         runMutation: async (ref, args) => {
           assert.equal(ref, componentRefs.threads.resolve);
           assert.equal(args.externalThreadId, "thread-1");
-          assert.equal(args.localThreadId, "thread-1");
           return { threadId: "thread-1", externalThreadId: undefined };
         },
       },
       {
-        actor,
-        localThreadId: "thread-1",
+        actor: {},
+        threadId: "thread-1",
       },
     ),
   );
 });
 
-test("manifest mutations/queries stay in parity with runtime-owned preset definitions", () => {
-  const defs = host.defineRuntimeOwnedHostSlice({
+test("defs keys and wrapped keys match HOST_SURFACE_MANIFEST", () => {
+  const codex = host.createCodexHost({
     components: createComponentRefs(),
-    serverActor: actor,
+    ...passthrough,
   });
 
+  // defs (escape hatch) keys match manifest
   assert.deepEqual(
-    Object.keys(defs.mutations).sort(),
+    Object.keys(codex.defs.mutations).sort(),
     [...host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations].sort(),
   );
   assert.deepEqual(
-    Object.keys(defs.queries).sort(),
+    Object.keys(codex.defs.queries).sort(),
+    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
+  );
+
+  // Wrapped keys also match manifest
+  assert.deepEqual(
+    Object.keys(codex.mutations).sort(),
+    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations].sort(),
+  );
+  assert.deepEqual(
+    Object.keys(codex.queries).sort(),
     [...host.HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
   );
 });
 
-test("createCodexConvexHost guarded mode applies actor guards to runtime-owned handlers", async () => {
-  const hostApi = host.createCodexConvexHost({
+test("createCodexHost guarded mode applies actor guards to wrapped mutations and queries", async () => {
+  const codex = host.createCodexHost({
     components: createComponentRefs(),
+    ...passthrough,
     actorPolicy: {
       mode: "guarded",
-      serverActor: actor,
+      serverActor: {},
       resolveMutationActor: async (_ctx, incoming) => ({
         userId: `${incoming.userId}-mut`,
       }),
@@ -180,10 +223,10 @@ test("createCodexConvexHost guarded mode applies actor guards to runtime-owned h
       }),
     },
   });
-  const defs = hostApi.defs;
 
+  // Mutations should have guarded actors
   let mutationSeenActor = null;
-  await defs.mutations.ensureSession.handler(
+  await codex.defs.mutations.ensureSession.handler(
     {
       runMutation: async (_ref, args) => {
         mutationSeenActor = args.actor;
@@ -192,13 +235,15 @@ test("createCodexConvexHost guarded mode applies actor guards to runtime-owned h
     },
     {
       actor: { userId: "u1" },
+      sessionId: "s1",
       threadId: "t1",
     },
   );
   assert.deepEqual(mutationSeenActor, { userId: "u1-mut" });
 
+  // Queries should have guarded actors
   let querySeenActor = null;
-  await defs.queries.threadSnapshot.handler(
+  await codex.defs.queries.threadSnapshot.handler(
     {
       runQuery: async (_ref, args) => {
         querySeenActor = args.actor;
@@ -213,7 +258,12 @@ test("createCodexConvexHost guarded mode applies actor guards to runtime-owned h
   assert.deepEqual(querySeenActor, { userId: "u1-qry" });
 });
 
-test("removed helper exports are absent from host public surface", () => {
+test("removed exports are absent from host public surface", () => {
+  // Old facade function
+  assert.equal("createCodexConvexHost" in host, false);
+  // Old standalone slice builder
+  assert.equal("defineRuntimeOwnedHostSlice" in host, false);
+  // Legacy helpers from earlier refactors
   assert.equal("defineRuntimeOwnedHostEndpoints" in host, false);
   assert.equal("defineGuardedRuntimeOwnedHostEndpoints" in host, false);
   assert.equal("guardRuntimeOwnedHostDefinitions" in host, false);

@@ -6,11 +6,11 @@ React hooks are the official recommendation for consumer integrations.
 LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
 
 Canonical wiring in this app centers on:
-- `useCodexChat`
+- `CodexProvider` + `useCodex`
 - `useCodexRuntimeBridge`
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
-- helper-defined host wrappers in `convex/chat.ts`
+- helper-defined host endpoints in `convex/chat.ts`
 
 Canonical consumer implementation path:
 
@@ -89,7 +89,7 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexConvexHost(...)` and actor lock wrappers
+- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexHost(...)` and actor lock wrappers
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
 - Runtime-owned host mutations/queries are exported from this single surface.
 

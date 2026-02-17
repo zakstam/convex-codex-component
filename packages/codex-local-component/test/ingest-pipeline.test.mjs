@@ -167,6 +167,39 @@ test("normalizeInboundEvents rejects turn/completed stream delta without canonic
   );
 });
 
+test("normalizeInboundEvents rejects stream deltas with mismatched payload and envelope turn ids", () => {
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "item/agentMessage/delta",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-payload",
+      itemId: "m-1",
+      delta: "hello",
+    },
+  });
+
+  assert.throws(
+    () =>
+      normalizeInboundEvents({
+        streamDeltas: [
+          {
+            type: "stream_delta",
+            eventId: "e1",
+            turnId: "turn-envelope",
+            streamId: "stream-1",
+            kind: "item/agentMessage/delta",
+            payloadJson: payload,
+            cursorStart: 0,
+            cursorEnd: 1,
+            createdAt: 10,
+          },
+        ],
+      }),
+    /\[E_SYNC_TURN_ID_MISMATCH\]/,
+  );
+});
+
 test("normalizeInboundEvents fails closed for turn-scoped lifecycle events without payload turn id", () => {
   const malformedTurnCompletedPayload = JSON.stringify({
     jsonrpc: "2.0",
@@ -193,6 +226,39 @@ test("normalizeInboundEvents fails closed for turn-scoped lifecycle events witho
   });
 
   assert.equal(normalized[0]?.turnId, undefined);
+});
+
+test("normalizeInboundEvents rejects lifecycle events with mismatched payload and envelope turn ids", () => {
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "turn/completed",
+    params: {
+      threadId: "thread-1",
+      turn: {
+        id: "turn-payload",
+        items: [],
+        status: "completed",
+        error: null,
+      },
+    },
+  });
+
+  assert.throws(
+    () =>
+      normalizeInboundEvents({
+        streamDeltas: [
+          {
+            type: "lifecycle_event",
+            eventId: "e1",
+            turnId: "turn-envelope",
+            kind: "turn/completed",
+            payloadJson: payload,
+            createdAt: 10,
+          },
+        ],
+      }),
+    /\[E_SYNC_TURN_ID_MISMATCH\]/,
+  );
 });
 
 test("collectTurnSignals tracks started turns and terminal priority by stream", () => {
@@ -274,6 +340,7 @@ test("sessionGuard error parsing and recoverable mapping", () => {
     mapIngestSafeCode("E_SYNC_TURN_ID_REQUIRED_FOR_TURN_EVENT"),
     "TURN_ID_REQUIRED_FOR_TURN_EVENT",
   );
+  assert.equal(mapIngestSafeCode("E_SYNC_TURN_ID_MISMATCH"), "TURN_ID_MISMATCH");
   assert.equal(
     mapIngestSafeCode("E_SYNC_OUT_OF_ORDER"),
     "OUT_OF_ORDER",
@@ -282,5 +349,6 @@ test("sessionGuard error parsing and recoverable mapping", () => {
 
   assert.equal(isRecoverableIngestErrorCode("E_SYNC_SESSION_NOT_FOUND"), true);
   assert.equal(isRecoverableIngestErrorCode("E_SYNC_OUT_OF_ORDER"), false);
+  assert.equal(isRecoverableIngestErrorCode("E_SYNC_TURN_ID_MISMATCH"), false);
   assert.equal(isRecoverableIngestErrorCode(null), false);
 });

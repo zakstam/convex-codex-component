@@ -158,9 +158,9 @@
       "context": "ingest.streamState.streamCheckpointCursorByStreamId.set( event.streamId, Math.max(ingest.streamState.streamCheckpointCursorByStreamId.get(event.streamId) ?? 0, event.cursorEnd), );"
     },
     {
-      "description": "Uses payload turnId when available, otherwise event turnId; can mask inconsistencies between payload and envelope turn identifiers.",
+      "description": "Prefers payload turnId over envelope turnId, but now fail-closes on non-placeholder mismatches to prevent silent turn-id drift.",
       "userApproved": false,
-      "riskLevel": "medium",
+      "riskLevel": "low",
       "id": "FB_a745ef4c8e9d",
       "file": "src/component/ingest/normalize.ts",
       "line": 49,

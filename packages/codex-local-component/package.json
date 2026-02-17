@@ -78,9 +78,11 @@
     "check:mount-imports": "node ./scripts/check-mount-imports.mjs",
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
+    "check:fallback-policy": "node ./scripts/check-fallback-policy.mjs",
+    "check:fallback-policy:write": "node ./scripts/check-fallback-policy.mjs --write-allowlist",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
     "check:api-reference": "node ./scripts/check-api-reference-useful.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference"
+    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run check:fallback-policy && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference"
   },
   "dependencies": {
     "ajv": "^8.17.1",

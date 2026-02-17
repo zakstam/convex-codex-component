@@ -50,6 +50,7 @@ Use one source of truth for implementation steps:
 - Canonical implementation guide: `docs/CANONICAL_INTEGRATION.md`
 - API reference: `docs/API_REFERENCE.md`
 - Example app runbook (setup/checks/env): `docs/EXAMPLE_APPS_RUNBOOK.md`
+- Fallback governance policy: `docs/FALLBACK_POLICY.md`
 
 ## One-shot LLM handoff prompt for external users
 
@@ -125,3 +126,4 @@ The component supports async cascade deletion with job polling:
 - `pnpm --filter @zakstam/codex-local-component run lint`
 - `pnpm --filter @zakstam/codex-local-component run typecheck`
 - `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`
+- `pnpm --filter @zakstam/codex-local-component run check:fallback-policy`

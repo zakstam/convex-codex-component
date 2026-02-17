@@ -419,7 +419,7 @@ export type CreateCodexHostOptions<
   components: Components;
   mutation: (definition: never) => unknown;
   query: (definition: never) => unknown;
-  actorPolicy?: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
+  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
 };
 
 export type CodexHostFacade<MutationWrap = unknown, QueryWrap = unknown> = {
@@ -442,6 +442,20 @@ function aliasDefinitionKeys<T extends Record<string, unknown>>(
   );
 }
 
+function assertValidActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
+  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx> | undefined,
+): asserts actorPolicy is CodexConvexHostActorPolicy<MutationCtx, QueryCtx> {
+  if (!actorPolicy) {
+    throw new Error("createCodexHost requires an explicit actorPolicy.");
+  }
+  const userId = actorPolicy.serverActor.userId;
+  if (typeof userId !== "string" || userId.trim().length === 0) {
+    throw new Error(
+      "createCodexHost requires actorPolicy.serverActor.userId to be a non-empty string.",
+    );
+  }
+}
+
 export function createCodexHost<
   Components extends CodexHostComponentsInput,
   MutationCtx = unknown,
@@ -449,8 +463,8 @@ export function createCodexHost<
 >(
   options: CreateCodexHostOptions<Components, MutationCtx, QueryCtx>,
 ): CodexHostFacade<typeof options.mutation, typeof options.query> {
-  const actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx> =
-    options.actorPolicy ?? { mode: "serverActor", serverActor: {} };
+  const actorPolicy = options.actorPolicy;
+  assertValidActorPolicy(actorPolicy);
 
   // 1. Build raw internal-named slice definitions
   const rawSlice = defineCodexHostSlice<Components>({

@@ -36,7 +36,7 @@ import {
 } from "@zakstam/codex-local-component/host/convex";
 
 export const SERVER_ACTOR: HostActorContext = Object.freeze({
-  ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
+  userId: process.env.ACTOR_USER_ID ?? "server",
 });
 
 const codex = createCodexHost({
@@ -52,6 +52,8 @@ const codex = createCodexHost({
 export const { ensureThread, ensureSession, ingestBatch } = codex.mutations;
 export const { validateHostWiring, threadSnapshotSafe, listThreadMessages } = codex.queries;
 ```
+
+`createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.serverActor.userId` must be a non-empty string.
 
 ## Minimal React Wiring
 

@@ -5,14 +5,14 @@ src/host/convexPreset.ts:369:      const typedDefinition = definition as Runtime
 src/host/convexPreset.ts:381:  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
 src/host/convexPreset.ts:385:      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
 src/host/convexPreset.ts:397:  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
-src/host/convexPreset.ts:494:    mutations: pickedMutations as RuntimeOwnedHostDefinitions["mutations"],
-src/host/convexPreset.ts:495:    queries: pickedQueries as RuntimeOwnedHostDefinitions["queries"],
-src/host/convexPreset.ts:518:  const mutationWrapper = options.mutation as (definition: unknown) => unknown;
-src/host/convexPreset.ts:519:  const queryWrapper = options.query as (definition: unknown) => unknown;
-src/host/convexPreset.ts:526:  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation>;
-src/host/convexPreset.ts:533:  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
-src/host/convexPreset.ts:538:    mutations: publicMutationDefs as RuntimeOwnedHostDefinitions["mutations"],
-src/host/convexPreset.ts:539:    queries: publicQueryDefs as RuntimeOwnedHostDefinitions["queries"],
+src/host/convexPreset.ts:508:    mutations: pickedMutations as RuntimeOwnedHostDefinitions["mutations"],
+src/host/convexPreset.ts:509:    queries: pickedQueries as RuntimeOwnedHostDefinitions["queries"],
+src/host/convexPreset.ts:532:  const mutationWrapper = options.mutation as (definition: unknown) => unknown;
+src/host/convexPreset.ts:533:  const queryWrapper = options.query as (definition: unknown) => unknown;
+src/host/convexPreset.ts:540:  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation>;
+src/host/convexPreset.ts:547:  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
+src/host/convexPreset.ts:552:    mutations: publicMutationDefs as RuntimeOwnedHostDefinitions["mutations"],
+src/host/convexPreset.ts:553:    queries: publicQueryDefs as RuntimeOwnedHostDefinitions["queries"],
 src/react/useCodex.ts:66:    : ({ actor: ctx.actor, threadId } as never);
 src/react/useCodex.ts:69:    : ({ actor: ctx.actor, threadId } as never);
 src/react/CodexProvider.tsx:32:      actor: actor ?? ({} as Record<string, unknown>),

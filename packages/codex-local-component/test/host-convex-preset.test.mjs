@@ -21,10 +21,16 @@ const passthrough = {
   query: (def) => def,
 };
 
+const explicitActorPolicy = {
+  mode: "serverActor",
+  serverActor: { userId: "server-user" },
+};
+
 test("createCodexHost returns deterministic runtime-owned surface with clean names", () => {
   const codex = host.createCodexHost({
     components: createComponentRefs(),
     ...passthrough,
+    actorPolicy: explicitActorPolicy,
   });
 
   // Wrapped output uses clean public names (no ForHooks suffix)
@@ -52,6 +58,7 @@ test("createCodexHost output keys match HOST_SURFACE_MANIFEST keys", () => {
   const codex = host.createCodexHost({
     components: createComponentRefs(),
     ...passthrough,
+    actorPolicy: explicitActorPolicy,
   });
 
   assert.deepEqual(
@@ -68,6 +75,7 @@ test("validateHostWiring reports missing component children as check failures", 
   const codex = host.createCodexHost({
     components: createComponentRefs(),
     ...passthrough,
+    actorPolicy: explicitActorPolicy,
   });
 
   const result = await codex.defs.queries.validateHostWiring.handler(
@@ -98,6 +106,7 @@ test("mutation and query wrappers are called by createCodexHost", () => {
       queryCalls.push(def);
       return { kind: "query", def };
     },
+    actorPolicy: explicitActorPolicy,
   });
 
   // Every mutation key should have been passed through the mutation wrapper
@@ -120,6 +129,7 @@ test("wrapped output has all expected mutation and query keys", () => {
     components: createComponentRefs(),
     mutation: (def) => ({ wrapped: true, def }),
     query: (def) => ({ wrapped: true, def }),
+    actorPolicy: explicitActorPolicy,
   });
 
   assert.deepEqual(
@@ -162,6 +172,7 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
   const codex = host.createCodexHost({
     components: componentsProxy,
     ...passthrough,
+    actorPolicy: explicitActorPolicy,
   });
 
   await assert.doesNotReject(
@@ -185,6 +196,7 @@ test("defs keys and wrapped keys match HOST_SURFACE_MANIFEST", () => {
   const codex = host.createCodexHost({
     components: createComponentRefs(),
     ...passthrough,
+    actorPolicy: explicitActorPolicy,
   });
 
   // defs (escape hatch) keys match manifest
@@ -214,7 +226,7 @@ test("createCodexHost guarded mode applies actor guards to wrapped mutations and
     ...passthrough,
     actorPolicy: {
       mode: "guarded",
-      serverActor: {},
+      serverActor: { userId: "server-user" },
       resolveMutationActor: async (_ctx, incoming) => ({
         userId: `${incoming.userId}-mut`,
       }),
@@ -256,6 +268,49 @@ test("createCodexHost guarded mode applies actor guards to wrapped mutations and
     },
   );
   assert.deepEqual(querySeenActor, { userId: "u1-qry" });
+});
+
+test("createCodexHost throws when serverActor.userId is missing", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: {
+          mode: "serverActor",
+          serverActor: {},
+        },
+      }),
+    /actorPolicy\.serverActor\.userId/,
+  );
+});
+
+test("createCodexHost throws when actorPolicy is omitted", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+      }),
+    /explicit actorPolicy/,
+  );
+});
+
+test("createCodexHost throws when serverActor.userId is blank", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: {
+          mode: "guarded",
+          serverActor: { userId: "   " },
+          resolveMutationActor: (_ctx, incoming) => incoming,
+          resolveQueryActor: (_ctx, incoming) => incoming,
+        },
+      }),
+    /actorPolicy\.serverActor\.userId/,
+  );
 });
 
 test("removed exports are absent from host public surface", () => {

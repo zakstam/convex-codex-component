@@ -6,7 +6,7 @@ import {
 } from "@zakstam/codex-local-component/host/convex";
 
 export const SERVER_ACTOR: HostActorContext = Object.freeze({
-  ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
+  userId: process.env.ACTOR_USER_ID ?? "server",
 });
 
 const codex = createCodexHost({

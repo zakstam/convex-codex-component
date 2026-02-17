@@ -2,7 +2,7 @@ import type { HostActorContext } from "@zakstam/codex-local-component/host/conve
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 export const SERVER_ACTOR: HostActorContext = {
-  ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
+  userId: process.env.ACTOR_USER_ID ?? "server",
 };
 
 const ACTOR_LOCK_TABLE = "tauri_actor_lock";
@@ -38,7 +38,7 @@ function validateBoundUserId(
 }
 
 function toServerActor(userId: string | null | undefined): HostActorContext {
-  return userId ? { userId } : {};
+  return { userId: userId ?? "server" };
 }
 
 export async function requireBoundServerActorForMutation(

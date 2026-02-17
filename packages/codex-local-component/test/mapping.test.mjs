@@ -102,7 +102,7 @@ test("mergeCodexDurableAndStreamMessages prioritizes terminal statuses", () => {
   assert.equal(merged[0].text, "done");
 });
 
-test("mergeCodexDurableAndStreamMessages dedupes by message key fallback", () => {
+test("mergeCodexDurableAndStreamMessages drops durable rows missing messageId", () => {
   const merged = mergeCodexDurableAndStreamMessages(
     [
       {
@@ -128,9 +128,7 @@ test("mergeCodexDurableAndStreamMessages dedupes by message key fallback", () =>
     [],
   );
 
-  assert.equal(merged.length, 1);
-  assert.equal(merged[0].status, "completed");
-  assert.equal(merged[0].text, "ab");
+  assert.equal(merged.length, 0);
 });
 
 test("extractCodexReasoningOverlaySegments aggregates summary and filters raw by default", () => {

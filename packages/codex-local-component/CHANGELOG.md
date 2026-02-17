@@ -1,5 +1,51 @@
 # @zakstam/codex-local-component
 
+## Unreleased
+
+### Major Changes
+
+- BREAKING: Simplify full-feature external Tauri API shape and external host endpoint names.
+  - `createTauriBridgeClient(...)` now returns grouped capabilities instead of flat methods:
+    - `lifecycle.start|stop|getState`
+    - `turns.send|interrupt`
+    - `approvals.respondCommand|respondFileChange|respondToolInput`
+    - `account.read|login|cancelLogin|logout|readRateLimits|respondChatgptAuthTokensRefresh`
+    - `tools.setDisabled`
+  - External `api.chat.*` names used by the Tauri reference app now drop `ForHooks` suffixes while preserving behavior.
+
+  Migration map (old -> new):
+  - `startBridge` -> `lifecycle.start`
+  - `stopBridge` -> `lifecycle.stop`
+  - `getBridgeState` -> `lifecycle.getState`
+  - `sendUserTurn` -> `turns.send`
+  - `interruptTurn` -> `turns.interrupt`
+  - `respondCommandApproval` -> `approvals.respondCommand`
+  - `respondFileChangeApproval` -> `approvals.respondFileChange`
+  - `respondToolUserInput` -> `approvals.respondToolInput`
+  - `readAccount` -> `account.read`
+  - `loginAccount` -> `account.login`
+  - `cancelAccountLogin` -> `account.cancelLogin`
+  - `logoutAccount` -> `account.logout`
+  - `readAccountRateLimits` -> `account.readRateLimits`
+  - `respondChatgptAuthTokensRefresh` -> `account.respondChatgptAuthTokensRefresh`
+  - `setDisabledTools` -> `tools.setDisabled`
+
+  External `api.chat` endpoint map (old -> new):
+  - `listThreadMessagesForHooks` -> `listThreadMessages`
+  - `listPendingServerRequestsForHooks` -> `listPendingServerRequests`
+  - `listTokenUsageForHooks` -> `listTokenUsage`
+  - `upsertPendingServerRequestForHooks` -> `upsertPendingServerRequest`
+  - `resolvePendingServerRequestForHooks` -> `resolvePendingServerRequest`
+  - `acceptTurnSendForHooks` -> `acceptTurnSend`
+  - `failAcceptedTurnSendForHooks` -> `failAcceptedTurnSend`
+  - `upsertTokenUsageForHooks` -> `upsertTokenUsage`
+  - `scheduleThreadDeleteCascadeForHooks` -> `scheduleThreadDeleteCascade`
+  - `scheduleTurnDeleteCascadeForHooks` -> `scheduleTurnDeleteCascade`
+  - `schedulePurgeActorDataForHooks` -> `schedulePurgeActorData`
+  - `cancelScheduledDeletionForHooks` -> `cancelScheduledDeletion`
+  - `forceRunScheduledDeletionForHooks` -> `forceRunScheduledDeletion`
+  - `getDeletionJobStatusForHooks` -> `getDeletionJobStatus`
+
 ## 0.15.1
 
 ### Patch Changes

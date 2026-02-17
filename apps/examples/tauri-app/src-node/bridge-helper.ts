@@ -655,8 +655,8 @@ async function startBridge(payload: StartPayload): Promise<void> {
         const requestedAt = (request as { createdAt?: number }).createdAt;
         await convex.mutation(
           requireDefined(
-            chatApi.upsertPendingServerRequestForHooks,
-            "api.chat.upsertPendingServerRequestForHooks",
+            chatApi.upsertPendingServerRequest,
+            "api.chat.upsertPendingServerRequest",
           ),
           {
             actor: requestActor,
@@ -678,8 +678,8 @@ async function startBridge(payload: StartPayload): Promise<void> {
         }
         await convex.mutation(
           requireDefined(
-            chatApi.resolvePendingServerRequestForHooks,
-            "api.chat.resolvePendingServerRequestForHooks",
+            chatApi.resolvePendingServerRequest,
+            "api.chat.resolvePendingServerRequest",
           ),
           {
             actor,
@@ -697,8 +697,8 @@ async function startBridge(payload: StartPayload): Promise<void> {
         }
         return convex.query(
           requireDefined(
-            chatApi.listPendingServerRequestsForHooks,
-            "api.chat.listPendingServerRequestsForHooks",
+            chatApi.listPendingServerRequests,
+            "api.chat.listPendingServerRequests",
           ),
           {
             actor,
@@ -712,7 +712,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           throw new Error("Convex client not initialized.");
         }
         const acceptResult = await convex.mutation(
-          requireDefined(chatApi.acceptTurnSendForHooks, "api.chat.acceptTurnSendForHooks"),
+          requireDefined(chatApi.acceptTurnSend, "api.chat.acceptTurnSend"),
           {
             actor: turnActor,
             threadId,
@@ -738,7 +738,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           throw new Error("Convex client not initialized.");
         }
         await convex.mutation(
-          requireDefined(chatApi.failAcceptedTurnSendForHooks, "api.chat.failAcceptedTurnSendForHooks"),
+          requireDefined(chatApi.failAcceptedTurnSend, "api.chat.failAcceptedTurnSend"),
           {
             actor: turnActor,
             threadId,
@@ -796,7 +796,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
           throw new Error("Convex client not initialized.");
         }
         await convex.mutation(
-          requireDefined(chatApi.upsertTokenUsageForHooks, "api.chat.upsertTokenUsageForHooks"),
+          requireDefined(chatApi.upsertTokenUsage, "api.chat.upsertTokenUsage"),
           {
             actor: args.actor,
             threadId: args.threadId,

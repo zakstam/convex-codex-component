@@ -227,57 +227,100 @@ export function parseHelperCommand(line: string): HelperCommand {
 
 export type TauriInvoke = <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
-export function createTauriBridgeClient(invoke: TauriInvoke) {
-  return {
-    startBridge(config: StartBridgeConfig): Promise<unknown> {
-      return invoke("start_bridge", { config });
-    },
-    sendUserTurn(text: string): Promise<unknown> {
-      return invoke("send_user_turn", { text });
-    },
-    interruptTurn(): Promise<unknown> {
-      return invoke("interrupt_turn");
-    },
-    respondCommandApproval(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown> {
-      return invoke("respond_command_approval", { config });
-    },
-    respondFileChangeApproval(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown> {
-      return invoke("respond_file_change_approval", { config });
-    },
-    respondToolUserInput(config: { requestId: string | number; answers: Record<string, ToolUserInputAnswer> }): Promise<unknown> {
-      return invoke("respond_tool_user_input", { config });
-    },
-    readAccount(config?: { refreshToken?: boolean }): Promise<unknown> {
-      return invoke("read_account", { config: config ?? {} });
-    },
-    loginAccount(config: { params: ProtocolLoginAccountParams }): Promise<unknown> {
-      return invoke("login_account", { config });
-    },
-    cancelAccountLogin(config: { loginId: string }): Promise<unknown> {
-      return invoke("cancel_account_login", { config });
-    },
-    logoutAccount(): Promise<unknown> {
-      return invoke("logout_account");
-    },
-    readAccountRateLimits(): Promise<unknown> {
-      return invoke("read_account_rate_limits");
-    },
+export type TauriBridgeClient = {
+  lifecycle: {
+    start(config: StartBridgeConfig): Promise<unknown>;
+    stop(): Promise<unknown>;
+    getState(): Promise<BridgeState>;
+  };
+  turns: {
+    send(text: string): Promise<unknown>;
+    interrupt(): Promise<unknown>;
+  };
+  approvals: {
+    respondCommand(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown>;
+    respondFileChange(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown>;
+    respondToolInput(config: { requestId: string | number; answers: Record<string, ToolUserInputAnswer> }): Promise<unknown>;
+  };
+  account: {
+    read(config?: { refreshToken?: boolean }): Promise<unknown>;
+    login(config: { params: ProtocolLoginAccountParams }): Promise<unknown>;
+    cancelLogin(config: { loginId: string }): Promise<unknown>;
+    logout(): Promise<unknown>;
+    readRateLimits(): Promise<unknown>;
     respondChatgptAuthTokensRefresh(config: {
       requestId: string | number;
       accessToken: string;
       chatgptAccountId: string;
       chatgptPlanType?: string | null;
-    }): Promise<unknown> {
-      return invoke("respond_chatgpt_auth_tokens_refresh", { config });
+    }): Promise<unknown>;
+  };
+  tools: {
+    setDisabled(config: { tools: string[] }): Promise<unknown>;
+  };
+};
+
+export function createTauriBridgeClient(invoke: TauriInvoke): TauriBridgeClient {
+  return {
+    lifecycle: {
+      start(config: StartBridgeConfig): Promise<unknown> {
+        return invoke("start_bridge", { config });
+      },
+      stop(): Promise<unknown> {
+        return invoke("stop_bridge");
+      },
+      getState(): Promise<BridgeState> {
+        return invoke("get_bridge_state");
+      },
     },
-    setDisabledTools(config: { tools: string[] }): Promise<unknown> {
-      return invoke("set_disabled_tools", { config });
+    turns: {
+      send(text: string): Promise<unknown> {
+        return invoke("send_user_turn", { text });
+      },
+      interrupt(): Promise<unknown> {
+        return invoke("interrupt_turn");
+      },
     },
-    stopBridge(): Promise<unknown> {
-      return invoke("stop_bridge");
+    approvals: {
+      respondCommand(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown> {
+        return invoke("respond_command_approval", { config });
+      },
+      respondFileChange(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown> {
+        return invoke("respond_file_change_approval", { config });
+      },
+      respondToolInput(config: { requestId: string | number; answers: Record<string, ToolUserInputAnswer> }): Promise<unknown> {
+        return invoke("respond_tool_user_input", { config });
+      },
     },
-    getBridgeState(): Promise<BridgeState> {
-      return invoke("get_bridge_state");
+    account: {
+      read(config?: { refreshToken?: boolean }): Promise<unknown> {
+        return invoke("read_account", { config: config ?? {} });
+      },
+      login(config: { params: ProtocolLoginAccountParams }): Promise<unknown> {
+        return invoke("login_account", { config });
+      },
+      cancelLogin(config: { loginId: string }): Promise<unknown> {
+        return invoke("cancel_account_login", { config });
+      },
+      logout(): Promise<unknown> {
+        return invoke("logout_account");
+      },
+      readRateLimits(): Promise<unknown> {
+        return invoke("read_account_rate_limits");
+      },
+      respondChatgptAuthTokensRefresh(config: {
+        requestId: string | number;
+        accessToken: string;
+        chatgptAccountId: string;
+        chatgptPlanType?: string | null;
+      }): Promise<unknown> {
+        return invoke("respond_chatgpt_auth_tokens_refresh", { config });
+      },
+    },
+    tools: {
+      setDisabled(config: { tools: string[] }): Promise<unknown> {
+        return invoke("set_disabled_tools", { config });
+      },
     },
   };
 }

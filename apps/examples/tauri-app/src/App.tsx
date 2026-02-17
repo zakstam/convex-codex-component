@@ -10,21 +10,7 @@ import {
 } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
-  cancelAccountLogin,
-  getBridgeState,
-  interruptTurn,
-  loginAccount,
-  logoutAccount,
-  readAccount,
-  readAccountRateLimits,
-  respondChatgptAuthTokensRefresh,
-  respondCommandApproval,
-  respondFileChangeApproval,
-  respondToolUserInput,
-  setDisabledTools,
-  sendUserTurn,
-  startBridge,
-  stopBridge,
+  bridge as tauriBridge,
   type ActorContext,
   type BridgeState,
   type LoginAccountParams,
@@ -198,23 +184,23 @@ export default function App() {
 
   const runtimeBridgeControls = useMemo(
     () => ({
-      start: startBridge,
-      stop: stopBridge,
-      getState: getBridgeState,
-      sendTurn: sendUserTurn,
-      interrupt: interruptTurn,
+      start: tauriBridge.lifecycle.start,
+      stop: tauriBridge.lifecycle.stop,
+      getState: tauriBridge.lifecycle.getState,
+      sendTurn: tauriBridge.turns.send,
+      interrupt: tauriBridge.turns.interrupt,
     }),
     [],
   );
   const runtimeBridge = useCodexRuntimeBridge(runtimeBridgeControls);
 
   const accountAuth = useCodexAccountAuth<LoginAccountParams>({
-    readAccount,
-    loginAccount,
-    cancelAccountLogin,
-    logoutAccount,
-    readAccountRateLimits,
-    respondChatgptAuthTokensRefresh,
+    readAccount: tauriBridge.account.read,
+    loginAccount: tauriBridge.account.login,
+    cancelAccountLogin: tauriBridge.account.cancelLogin,
+    logoutAccount: tauriBridge.account.logout,
+    readAccountRateLimits: tauriBridge.account.readRateLimits,
+    respondChatgptAuthTokensRefresh: tauriBridge.account.respondChatgptAuthTokensRefresh,
   });
 
   const startBridgeWithSelection = useCallback(
@@ -241,7 +227,7 @@ export default function App() {
 
   const conversation = useCodexChat({
     messages: {
-      query: requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
+      query: requireDefined(chatApi.listThreadMessages, "api.chat.listThreadMessages"),
       args: threadId && actorReady ? { actor, threadId } : "skip",
       initialNumItems: 30,
       stream: true,
@@ -253,7 +239,7 @@ export default function App() {
     composer: {
       onSend: async (text: string) => {
         try {
-          await sendUserTurn(text);
+          await tauriBridge.turns.send(text);
           setBridge((prev) => ({ ...prev, lastError: null }));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -265,7 +251,7 @@ export default function App() {
           if (transientBridgeFailure) {
             try {
               await startBridgeWithSelection("composer_retry");
-              await sendUserTurn(text);
+              await tauriBridge.turns.send(text);
               setBridge((prev) => ({ ...prev, lastError: null }));
               return;
             } catch (retryError) {
@@ -328,7 +314,7 @@ export default function App() {
   const ingestHealth = conversation.ingestHealth;
 
   const tokenUsage = useCodexTokenUsage(
-    requireDefined(chatApi.listTokenUsageForHooks, "api.chat.listTokenUsageForHooks"),
+    requireDefined(chatApi.listTokenUsage, "api.chat.listTokenUsage"),
     threadId && actorReady ? { actor, threadId } : "skip",
   );
 
@@ -346,30 +332,30 @@ export default function App() {
   }, [tokenUsage]);
 
   const pendingServerRequestsRaw = useQuery(
-    requireDefined(chatApi.listPendingServerRequestsForHooks, "api.chat.listPendingServerRequestsForHooks"),
+    requireDefined(chatApi.listPendingServerRequests, "api.chat.listPendingServerRequests"),
     threadId && actorReady ? { actor, threadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
   const deleteThreadCascadeMutation = useMutation(
-    requireDefined(chatApi.scheduleThreadDeleteCascadeForHooks, "api.chat.scheduleThreadDeleteCascadeForHooks"),
+    requireDefined(chatApi.scheduleThreadDeleteCascade, "api.chat.scheduleThreadDeleteCascade"),
   );
   const deleteTurnCascadeMutation = useMutation(
-    requireDefined(chatApi.scheduleTurnDeleteCascadeForHooks, "api.chat.scheduleTurnDeleteCascadeForHooks"),
+    requireDefined(chatApi.scheduleTurnDeleteCascade, "api.chat.scheduleTurnDeleteCascade"),
   );
   const purgeActorDataMutation = useMutation(
-    requireDefined(chatApi.schedulePurgeActorDataForHooks, "api.chat.schedulePurgeActorDataForHooks"),
+    requireDefined(chatApi.schedulePurgeActorData, "api.chat.schedulePurgeActorData"),
   );
   const cancelScheduledDeletionMutation = useMutation(
-    requireDefined(chatApi.cancelScheduledDeletionForHooks, "api.chat.cancelScheduledDeletionForHooks"),
+    requireDefined(chatApi.cancelScheduledDeletion, "api.chat.cancelScheduledDeletion"),
   );
   const forceRunScheduledDeletionMutation = useMutation(
-    requireDefined(chatApi.forceRunScheduledDeletionForHooks, "api.chat.forceRunScheduledDeletionForHooks"),
+    requireDefined(chatApi.forceRunScheduledDeletion, "api.chat.forceRunScheduledDeletion"),
   );
   const [activeDeletionJobId, setActiveDeletionJobId] = useState<string | null>(null);
   const [activeDeletionLabel, setActiveDeletionLabel] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const deletionStatus = useQuery(
-    requireDefined(chatApi.getDeletionJobStatusForHooks, "api.chat.getDeletionJobStatusForHooks"),
+    requireDefined(chatApi.getDeletionJobStatus, "api.chat.getDeletionJobStatus"),
     activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
   );
   const cleanupThreadState = useCodexThreadState(
@@ -453,7 +439,7 @@ export default function App() {
   const onSetDisabledTools = async (nextTools: string[]) => {
     const normalized = [...new Set(nextTools.filter((tool) => tool.trim().length > 0))].sort();
     try {
-      await setDisabledTools({ tools: normalized });
+      await tauriBridge.tools.setDisabled({ tools: normalized });
       setBridge((current) => ({
         ...current,
         disabledTools: normalized,
@@ -473,9 +459,9 @@ export default function App() {
     setSubmittingRequestKey(key);
     try {
       if (request.method === "item/commandExecution/requestApproval") {
-        await respondCommandApproval({ requestId: request.requestId, decision });
+        await tauriBridge.approvals.respondCommand({ requestId: request.requestId, decision });
       } else {
-        await respondFileChangeApproval({ requestId: request.requestId, decision });
+        await tauriBridge.approvals.respondFileChange({ requestId: request.requestId, decision });
       }
       setBridge((prev) => ({ ...prev, lastError: null }));
       addToast("success", `Approval ${decision === "accept" || decision === "acceptForSession" ? "accepted" : "declined"}`);
@@ -529,7 +515,7 @@ export default function App() {
 
     setSubmittingRequestKey(key);
     try {
-      await respondToolUserInput({ requestId: request.requestId, answers });
+      await tauriBridge.approvals.respondToolInput({ requestId: request.requestId, answers });
       setBridge((prev) => ({ ...prev, lastError: null }));
       addToast("success", "Answers submitted");
       setToolDrafts((prev) => {

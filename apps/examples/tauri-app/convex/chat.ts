@@ -270,10 +270,10 @@ export const resumeThread = query({
 export const ensureSession = mutation(guardedRuntimeOwned.mutations.ensureSession);
 export const ingestEvent = mutation(guardedRuntimeOwned.mutations.ingestEvent);
 export const ingestBatch = mutation(guardedRuntimeOwned.mutations.ingestBatch);
-export const respondApprovalForHooks = mutation(guardedRuntimeOwned.mutations.respondApprovalForHooks);
-export const upsertTokenUsageForHooks = mutation(guardedRuntimeOwned.mutations.upsertTokenUsageForHooks);
+export const respondApproval = mutation(guardedRuntimeOwned.mutations.respondApprovalForHooks);
+export const upsertTokenUsage = mutation(guardedRuntimeOwned.mutations.upsertTokenUsageForHooks);
 
-export const upsertPendingServerRequestForHooks = mutation({
+export const upsertPendingServerRequest = mutation({
   args: {
     actor: vHostActorContext,
     requestId: v.union(v.string(), v.number()),
@@ -307,7 +307,7 @@ export const upsertPendingServerRequestForHooks = mutation({
   },
 });
 
-export const resolvePendingServerRequestForHooks = mutation({
+export const resolvePendingServerRequest = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -328,7 +328,7 @@ export const resolvePendingServerRequestForHooks = mutation({
   },
 });
 
-export const listPendingServerRequestsForHooks = query({
+export const listPendingServerRequests = query({
   args: {
     actor: vHostActorContext,
     threadId: v.optional(v.string()),
@@ -343,9 +343,9 @@ export const listPendingServerRequestsForHooks = query({
   },
 });
 
-export const interruptTurnForHooks = mutation(guardedRuntimeOwned.mutations.interruptTurnForHooks);
+export const interruptTurn = mutation(guardedRuntimeOwned.mutations.interruptTurnForHooks);
 
-export const acceptTurnSendForHooks = mutation({
+export const acceptTurnSend = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -374,7 +374,7 @@ export const acceptTurnSendForHooks = mutation({
   },
 });
 
-export const failAcceptedTurnSendForHooks = mutation({
+export const failAcceptedTurnSend = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -394,7 +394,7 @@ export const failAcceptedTurnSendForHooks = mutation({
   },
 });
 
-export const deleteThreadCascadeForHooks = mutation({
+export const deleteThreadCascade = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -413,7 +413,7 @@ export const deleteThreadCascadeForHooks = mutation({
   },
 });
 
-export const scheduleThreadDeleteCascadeForHooks = mutation({
+export const scheduleThreadDeleteCascade = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -435,7 +435,7 @@ export const scheduleThreadDeleteCascadeForHooks = mutation({
   },
 });
 
-export const deleteTurnCascadeForHooks = mutation({
+export const deleteTurnCascade = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -456,7 +456,7 @@ export const deleteTurnCascadeForHooks = mutation({
   },
 });
 
-export const scheduleTurnDeleteCascadeForHooks = mutation({
+export const scheduleTurnDeleteCascade = mutation({
   args: {
     actor: vHostActorContext,
     threadId: v.string(),
@@ -480,7 +480,7 @@ export const scheduleTurnDeleteCascadeForHooks = mutation({
   },
 });
 
-export const purgeActorDataForHooks = mutation({
+export const purgeActorData = mutation({
   args: {
     actor: vHostActorContext,
     reason: v.optional(v.string()),
@@ -497,7 +497,7 @@ export const purgeActorDataForHooks = mutation({
   },
 });
 
-export const schedulePurgeActorDataForHooks = mutation({
+export const schedulePurgeActorData = mutation({
   args: {
     actor: vHostActorContext,
     reason: v.optional(v.string()),
@@ -517,7 +517,7 @@ export const schedulePurgeActorDataForHooks = mutation({
   },
 });
 
-export const cancelScheduledDeletionForHooks = mutation({
+export const cancelScheduledDeletion = mutation({
   args: {
     actor: vHostActorContext,
     deletionJobId: v.string(),
@@ -533,7 +533,7 @@ export const cancelScheduledDeletionForHooks = mutation({
   },
 });
 
-export const forceRunScheduledDeletionForHooks = mutation({
+export const forceRunScheduledDeletion = mutation({
   args: {
     actor: vHostActorContext,
     deletionJobId: v.string(),
@@ -554,12 +554,12 @@ export const threadSnapshot = query(guardedRuntimeOwned.queries.threadSnapshot);
 export const threadSnapshotSafe = query(guardedRuntimeOwned.queries.threadSnapshotSafe);
 export const persistenceStats = query(guardedRuntimeOwned.queries.persistenceStats);
 export const durableHistoryStats = query(guardedRuntimeOwned.queries.durableHistoryStats);
-export const listThreadMessagesForHooks = query(guardedRuntimeOwned.queries.listThreadMessagesForHooks);
-export const listTurnMessagesForHooks = query(guardedRuntimeOwned.queries.listTurnMessagesForHooks);
-export const listPendingApprovalsForHooks = query(guardedRuntimeOwned.queries.listPendingApprovalsForHooks);
-export const listTokenUsageForHooks = query(guardedRuntimeOwned.queries.listTokenUsageForHooks);
+export const listThreadMessages = query(guardedRuntimeOwned.queries.listThreadMessagesForHooks);
+export const listTurnMessages = query(guardedRuntimeOwned.queries.listTurnMessagesForHooks);
+export const listPendingApprovals = query(guardedRuntimeOwned.queries.listPendingApprovalsForHooks);
+export const listTokenUsage = query(guardedRuntimeOwned.queries.listTokenUsageForHooks);
 
-export const getDeletionJobStatusForHooks = query({
+export const getDeletionJobStatus = query({
   args: {
     actor: vHostActorContext,
     deletionJobId: v.string(),

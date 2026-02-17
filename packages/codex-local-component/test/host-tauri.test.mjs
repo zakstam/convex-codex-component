@@ -47,14 +47,14 @@ test("createTauriBridgeClient wraps invoke with expected payload envelopes", asy
     return { ok: true };
   });
 
-  await client.startBridge({
+  await client.lifecycle.start({
     convexUrl: "https://example.convex.cloud",
     actor: { userId: "demo-user" },
     sessionId: "session-1",
   });
-  await client.sendUserTurn("hello");
-  await client.readAccount();
-  const state = await client.getBridgeState();
+  await client.turns.send("hello");
+  await client.account.read();
+  const state = await client.lifecycle.getState();
 
   assert.equal(state.running, false);
   assert.deepEqual(calls[0], {

@@ -166,21 +166,11 @@ export type UnknownServerResponse = {
   error?: unknown;
 };
 
-export type LegacyEventNotification = {
-  method: `codex/event/${string}`;
-  params: {
-    conversationId: string;
-    msg: EventMsg;
-    id?: string;
-  };
-};
-
 export type ClientOutboundMessage = ClientRequest | ClientNotification;
 export type ServerInboundMessage =
   | ServerNotification
   | ServerRequest
   | CodexResponse
-  | LegacyEventNotification
   | UnknownServerNotification
   | UnknownServerRequest
   | UnknownServerResponse;

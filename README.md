@@ -61,10 +61,8 @@ Integrate `@zakstam/codex-local-component` in this project using only the packag
 
 Use `packages/codex-local-component/README.md` first, then follow only the mapped docs for the task:
 
-- Host wiring: `packages/codex-local-component/docs/HOST_INTEGRATION.md`
-- React integration: `packages/codex-local-component/docs/CLIENT_AND_REACT_HOOKS.md` (if using React)
+- Canonical integration: `packages/codex-local-component/docs/CANONICAL_INTEGRATION.md`
 - API lookup: `packages/codex-local-component/docs/API_REFERENCE.md`
-- Runtime/protocol troubleshooting: `packages/codex-local-component/docs/OPERATIONS_AND_ERRORS.md`
 - Optional runbook/checks: `packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md`
 
 Keep changes minimal and stay in runtime-owned mode.
@@ -107,7 +105,5 @@ pnpm start
 
 - Canonical package onboarding implementation: `packages/codex-local-component/README.md`
 - Package front door: `packages/codex-local-component/README.md`
-- Host details: `packages/codex-local-component/docs/HOST_INTEGRATION.md`
-- Hooks and client contracts: `packages/codex-local-component/docs/CLIENT_AND_REACT_HOOKS.md`
-- Operations and errors: `packages/codex-local-component/docs/OPERATIONS_AND_ERRORS.md`
-- Runtime-owned reference details: `packages/codex-local-component/docs/RUNTIME_OWNED_REFERENCE_HOST.md`
+- Canonical integration: `packages/codex-local-component/docs/CANONICAL_INTEGRATION.md`
+- API reference: `packages/codex-local-component/docs/API_REFERENCE.md`

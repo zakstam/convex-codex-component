@@ -100,35 +100,6 @@ test("normalizeInboundEvents canonicalizes turnId from payload", () => {
   assert.equal(normalized[0].turnId, "turn-real");
 });
 
-test("normalizeInboundEvents rejects codex/event payloads without canonical turn id", () => {
-  const legacyPayload = JSON.stringify({
-    jsonrpc: "2.0",
-    method: "codex/event/task_complete",
-    params: {
-      conversationId: "thread-legacy",
-      id: "0",
-      msg: { type: "task_complete" },
-    },
-  });
-
-  assert.throws(
-    () =>
-      normalizeInboundEvents({
-        streamDeltas: [
-          {
-            type: "lifecycle_event",
-            eventId: "e1",
-            turnId: "0",
-            kind: "codex/event/task_complete",
-            payloadJson: legacyPayload,
-            createdAt: 10,
-          },
-        ],
-      }),
-    /\[E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT\]/,
-  );
-});
-
 test("normalizeInboundEvents prefers payload turn id for stream deltas", () => {
   const payload = JSON.stringify({
     jsonrpc: "2.0",
@@ -304,10 +275,9 @@ test("sessionGuard error parsing and recoverable mapping", () => {
     "TURN_ID_REQUIRED_FOR_TURN_EVENT",
   );
   assert.equal(
-    mapIngestSafeCode("E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT"),
-    "TURN_ID_REQUIRED_FOR_CODEX_EVENT",
+    mapIngestSafeCode("E_SYNC_OUT_OF_ORDER"),
+    "OUT_OF_ORDER",
   );
-  assert.equal(mapIngestSafeCode("E_SYNC_OUT_OF_ORDER"), "OUT_OF_ORDER");
   assert.equal(mapIngestSafeCode("E_WHATEVER"), "UNKNOWN");
 
   assert.equal(isRecoverableIngestErrorCode("E_SYNC_SESSION_NOT_FOUND"), true);

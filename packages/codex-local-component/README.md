@@ -30,40 +30,26 @@ Use one source of truth for implementation steps:
 ## Quickstart Summary
 
 1. Mount component in `convex/convex.config.ts` with `app.use(codexLocal)`.
-2. Define host endpoints directly in `convex/chat.ts` with `defineRuntimeOwnedHostEndpoints(...)`.
+2. Define host endpoints directly in `convex/chat.ts` with `createCodexConvexHost(...)`.
 3. Optionally keep app-specific additions in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
 4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
 
-Thread API recommendation:
-
-- keep a simple default consumer surface (`startThread`, `resumeThread`, thread list)
-- expose advanced identity endpoints (`resolveThreadByExternalId`, `resolveThreadByRuntimeId`, `bindRuntimeThreadId`, `lookupThreadHandle`) only when needed
-- avoid consumer-side mode selection; runtime-owned `ensureThread` is single-path
-
 ## Package Import Paths
 
-- `@zakstam/codex-local-component`
 - `@zakstam/codex-local-component/react`
-- `@zakstam/codex-local-component/react-integration`
-- `@zakstam/codex-local-component/protocol`
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/host/convex`
-- `@zakstam/codex-local-component/host/tauri`
 - `@zakstam/codex-local-component/convex.config`
 
 ## Docs Map
 
 - Human onboarding entrypoint: `./README.md` (this file)
 - Agent execution manifest: `./LLMS.md`
-- Host details (aligned to canonical path): `docs/HOST_INTEGRATION.md`
-- Client and hooks contracts: `docs/CLIENT_AND_REACT_HOOKS.md`
-- API reference (consumer-first quick-start + selected high-value entry points): `docs/API_REFERENCE.md`
-- Operations and errors: `docs/OPERATIONS_AND_ERRORS.md`
+- Canonical implementation guide: `docs/CANONICAL_INTEGRATION.md`
+- API reference: `docs/API_REFERENCE.md`
 - Example app runbook (setup/checks/env): `docs/EXAMPLE_APPS_RUNBOOK.md`
-- Reference matrix: `docs/HOST_PRESET_MATRIX.md`
-- Runtime-owned reference details: `docs/RUNTIME_OWNED_REFERENCE_HOST.md`
 
 ## One-shot LLM handoff prompt for external users
 
@@ -74,10 +60,8 @@ Integrate `@zakstam/codex-local-component` in this project using only this packa
 
 Use this file (`README.md`) first, then follow only the mapped docs for the task:
 
-- Host wiring: `docs/HOST_INTEGRATION.md`
-- React integration: `docs/CLIENT_AND_REACT_HOOKS.md` (if using React)
+- Canonical integration: `docs/CANONICAL_INTEGRATION.md`
 - API lookup: `docs/API_REFERENCE.md`
-- Runtime/production troubleshooting: `docs/OPERATIONS_AND_ERRORS.md`
 - Optional runbook/checks: `docs/EXAMPLE_APPS_RUNBOOK.md`
 
 Keep changes minimal and stay in runtime-owned mode.
@@ -107,7 +91,7 @@ pnpm add @zakstam/codex-local-component convex
 npx convex dev --once
 ```
 
-4. Define host wrappers from `defineRuntimeOwnedHostEndpoints(...)` in `convex/chat.ts`.
+4. Define host wrappers from `createCodexConvexHost(...)` in `convex/chat.ts`.
 
 5. Start runtime-owned host wiring through `@zakstam/codex-local-component/host`.
 

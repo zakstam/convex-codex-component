@@ -45,13 +45,6 @@ export function normalizeInboundEvents(args: {
         `Missing canonical payload turn id for turn lifecycle event kind=${event.kind}`,
       );
     }
-    if (event.kind.startsWith("codex/event/") && !payloadTurnId) {
-      syncError(
-        "E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT",
-        `Missing canonical payload turn id for legacy codex event kind=${event.kind}`,
-      );
-    }
-
     if (event.type === "stream_delta") {
       const resolvedTurnId = payloadTurnId ?? event.turnId;
       const terminalTurnStatus = terminalStatusForEvent(event.kind, event.payloadJson);

@@ -119,29 +119,29 @@ test("classifyMessage rejects thread-scoped messages missing threadId", () => {
   );
 });
 
-test("extractThreadId reads thread.id and fallback conversationId", () => {
+test("extractThreadId reads thread.id and ignores unknown params", () => {
   const fromThread = extractThreadId({
     jsonrpc: "2.0",
     method: "thread/start",
     params: { thread: { id: "thread-2" } },
   });
-  const fromConversation = extractThreadId({
+  const fromUnknown = extractThreadId({
     jsonrpc: "2.0",
     method: "thread/tokenUsage/updated",
-    params: { conversationId: "thread-legacy" },
+    params: { unknown: "thread-ignored" },
   });
   assert.equal(fromThread, "thread-2");
-  assert.equal(fromConversation, "thread-legacy");
+  assert.equal(fromUnknown, undefined);
 });
 
-test("extractTurnId supports legacy codex/event payloads", () => {
+test("extractTurnId ignores unsupported payloads", () => {
   assert.equal(
     extractTurnId({
       jsonrpc: "2.0",
-      method: "codex/event/task_complete",
-      params: { conversationId: "thread-1", msg: { type: "task_complete", turn_id: "legacy-turn" } },
+      method: "unsupported/task_complete",
+      params: { msg: { type: "task_complete", turn_id: "ignored-turn" } },
     }),
-    "legacy-turn",
+    undefined,
   );
 });
 
@@ -327,18 +327,17 @@ test("payload helpers extract reasoning summary/raw deltas", () => {
   });
 });
 
-test("parseWireMessage accepts legacy codex/event envelopes", () => {
-  const legacy = JSON.stringify({
+test("parseWireMessage accepts unknown JSON-RPC server notifications", () => {
+  const unknown = JSON.stringify({
     jsonrpc: "2.0",
-    method: "codex/event/task_complete",
+    method: "unsupported/task_complete",
     params: {
-      conversationId: "thread-legacy",
       msg: { type: "task_complete" },
     },
   });
 
-  const parsed = parseWireMessage(legacy);
-  assert.equal(parsed.method, "codex/event/task_complete");
+  const parsed = parseWireMessage(unknown);
+  assert.equal(parsed.method, "unsupported/task_complete");
 });
 
 test("parseWireMessage rejects invalid json", () => {
@@ -351,8 +350,8 @@ test("parseWireMessage rejects non-codex server message shapes", () => {
       parseWireMessage(
         JSON.stringify({
           jsonrpc: "2.0",
-          method: "codex/event/task_complete",
-          foo: 1,
+          method: "unsupported/task_complete",
+          params: "invalid",
         }),
       ),
     /Message is valid JSON-RPC but not a supported codex server notification\/request\/response shape\./,
@@ -363,29 +362,17 @@ test("assertValidClientMessage rejects malformed outbound message", () => {
   assert.throws(() => assertValidClientMessage({ id: "1", method: "turn/start" }), /Invalid outbound codex client message/);
 });
 
-test("turnIdForPayload ignores legacy params.id fallback for codex/event envelopes", () => {
-  const payloadWithoutTurn = JSON.stringify({
+test("turnIdForPayload returns null for unsupported envelopes", () => {
+  const payload = JSON.stringify({
     jsonrpc: "2.0",
-    method: "codex/event/task_complete",
+    method: "unsupported/task_complete",
     params: {
-      conversationId: "thread-legacy",
       id: "0",
-      msg: { type: "task_complete" },
+      msg: { type: "task_complete", turn_id: "turn-ignored-1" },
     },
   });
 
-  const payloadWithTurn = JSON.stringify({
-    jsonrpc: "2.0",
-    method: "codex/event/task_complete",
-    params: {
-      conversationId: "thread-legacy",
-      id: "0",
-      msg: { type: "task_complete", turn_id: "turn-legacy-1" },
-    },
-  });
-
-  assert.equal(turnIdForPayload("codex/event/task_complete", payloadWithoutTurn), null);
-  assert.equal(turnIdForPayload("codex/event/task_complete", payloadWithTurn), "turn-legacy-1");
+  assert.equal(turnIdForPayload("unsupported/task_complete", payload), null);
 });
 
 test("parseWireMessage accepts unknown modern JSON-RPC server notifications", () => {

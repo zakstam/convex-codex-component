@@ -46,22 +46,22 @@
   - `forceRunScheduledDeletionForHooks` -> `forceRunScheduledDeletion`
   - `getDeletionJobStatusForHooks` -> `getDeletionJobStatus`
 
-## 0.15.1
-
 ### Patch Changes
 
-- 316e5d0: Fix `withServerActor` to preserve the request actor's userId for runtime-owned profiles. Previously, when `serverActor` had no `userId` (the default for runtime-owned endpoints), the request actor was unconditionally replaced with the empty server actor, causing all component data to be scoped under the anonymous user scope. Now the request actor is preserved when the server actor has no `userId`, so preset mutations and queries correctly scope data to the authenticated user.
+- Simplify external consumer integration down to one documented path and align examples/docs to that path.
+  - Add `docs/CANONICAL_INTEGRATION.md` as the single implementation guide.
+  - Remove split legacy docs (`CLIENT_AND_REACT_HOOKS.md`, `HOST_INTEGRATION.md`, `HOST_PRESET_MATRIX.md`, `OPERATIONS_AND_ERRORS.md`, `RUNTIME_OWNED_REFERENCE_HOST.md`).
+  - Update package and example READMEs to route users to canonical integration + API reference only.
+  - Tighten docs checks to enforce the single-path doc contract.
 
-## 0.15.0
+- Remove legacy/backward-compat protocol behavior from runtime/ingest paths.
+  - Drop legacy envelope handling branches in parser/ingest normalization.
+  - Remove legacy ingest-safe error code variants and validator literals from public contracts.
+  - Keep modern external `api.chat.*` names in examples (`acceptTurnSend`, `failAcceptedTurnSend`, etc.) and remove stale symbol references from built helper output.
 
-### Minor Changes
-
-- 87c154d: Improve host integration surface based on external API audit.
-  - Add `lastEventCursor` arg to `ensureSession` preset mutation (was silently hardcoded to 0).
-  - Rename `ensureThread` preset arg from `threadId` to `localThreadId` to match `HostRuntimePersistence` interface.
-  - Export `isTurnNotFound` error classifier from `./host/convex`.
-  - Re-export `upsertTokenUsageForActor`, `listTokenUsageForHooksForActor`, `hasRecoverableIngestErrors` from `./host/convex`.
-  - Export `vManagedServerRequestMethod` and `vServerRequestId` validators from `./host/convex`.
+- Update tests to modern-only expectations and neutral fixture naming.
+  - Replace legacy fixture labels with unsupported-envelope fixtures.
+  - Keep fail-closed behavior checks for unknown/unsupported message shapes.
 
 ## 0.14.1
 

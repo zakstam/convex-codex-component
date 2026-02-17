@@ -308,10 +308,6 @@ export type DefineRuntimeOwnedHostSliceOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
 > = Pick<DefineCodexHostSliceOptions<Components>, "components" | "serverActor">;
 
-export type DefineRuntimeOwnedHostEndpointsOptions<
-  Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-> = DefineRuntimeOwnedHostSliceOptions<Components>;
-
 type HostActorResolver<Ctx = unknown> = (
   ctx: Ctx,
   incomingActor: HostActorContext,
@@ -321,13 +317,41 @@ type RuntimeOwnedDefinitionWithActor<Ctx, Args extends { actor: HostActorContext
   handler: (ctx: Ctx, args: Args) => unknown;
 };
 
-export type DefineGuardedRuntimeOwnedHostEndpointsOptions<
+type DefinitionMap = Record<string, unknown>;
+type WrappedResult<Wrap> = Wrap extends (...args: never[]) => infer Result ? Result : never;
+type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
+  [Key in keyof Defs]: WrappedResult<Wrap>;
+};
+
+export type CodexConvexHostActorPolicy<MutationCtx = unknown, QueryCtx = unknown> =
+  | {
+      mode: "serverActor";
+      serverActor: HostActorContext;
+    }
+  | {
+      mode: "guarded";
+      serverActor: HostActorContext;
+      resolveMutationActor: HostActorResolver<MutationCtx>;
+      resolveQueryActor: HostActorResolver<QueryCtx>;
+    };
+
+export type CreateCodexConvexHostOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
   MutationCtx = unknown,
   QueryCtx = unknown,
-> = DefineRuntimeOwnedHostEndpointsOptions<Components> & {
-  resolveMutationActor: HostActorResolver<MutationCtx>;
-  resolveQueryActor: HostActorResolver<QueryCtx>;
+> = {
+  components: Components;
+  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
+};
+
+export type CodexConvexHostFacade<MutationCtx = unknown, QueryCtx = unknown> = {
+  profile: "runtimeOwned";
+  defs: RuntimeOwnedHostDefinitions;
+  register: <MutationWrap, QueryWrap>(wrap: { mutation: MutationWrap; query: QueryWrap }) => {
+    mutations: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
+    queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
+  };
+  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
 };
 
 export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponentsInput>(
@@ -354,13 +378,7 @@ export function defineRuntimeOwnedHostSlice<Components extends CodexHostComponen
   };
 }
 
-export function defineRuntimeOwnedHostEndpoints<Components extends CodexHostComponentsInput>(
-  options: DefineRuntimeOwnedHostEndpointsOptions<Components>,
-): RuntimeOwnedHostDefinitions {
-  return defineRuntimeOwnedHostSlice(options);
-}
-
-export function guardRuntimeOwnedHostDefinitions<
+function applyActorGuards<
   MutationCtx = unknown,
   QueryCtx = unknown,
 >(
@@ -409,17 +427,51 @@ export function guardRuntimeOwnedHostDefinitions<
   };
 }
 
-export function defineGuardedRuntimeOwnedHostEndpoints<
+export function createCodexConvexHost<
   Components extends CodexHostComponentsInput,
   MutationCtx = unknown,
   QueryCtx = unknown,
 >(
-  options: DefineGuardedRuntimeOwnedHostEndpointsOptions<Components, MutationCtx, QueryCtx>,
-): RuntimeOwnedHostDefinitions {
-  const { resolveMutationActor, resolveQueryActor, ...runtimeOptions } = options;
-  const defs = defineRuntimeOwnedHostEndpoints(runtimeOptions);
-  return guardRuntimeOwnedHostDefinitions<MutationCtx, QueryCtx>(defs, {
-    resolveMutationActor,
-    resolveQueryActor,
+  options: CreateCodexConvexHostOptions<Components, MutationCtx, QueryCtx>,
+): CodexConvexHostFacade<MutationCtx, QueryCtx> {
+  const runtimeDefs = defineRuntimeOwnedHostSlice<Components>({
+    components: options.components,
+    serverActor: options.actorPolicy.serverActor,
   });
+  const defs = options.actorPolicy.mode === "guarded"
+    ? applyActorGuards<MutationCtx, QueryCtx>(runtimeDefs, {
+        resolveMutationActor: options.actorPolicy.resolveMutationActor,
+        resolveQueryActor: options.actorPolicy.resolveQueryActor,
+      })
+    : runtimeDefs;
+
+  return {
+    profile: "runtimeOwned",
+    defs,
+    register: ({ mutation, query }) => {
+      const mutationWrapper = mutation as (
+        definition: RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]],
+      ) => WrappedResult<typeof mutation>;
+      const queryWrapper = query as (
+        definition: RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]],
+      ) => WrappedResult<typeof query>;
+
+      const mutations = Object.fromEntries(
+        Object.entries(defs.mutations).map(([name, definition]) => [
+          name,
+          mutationWrapper(definition as RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]]),
+        ]),
+      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof mutation>;
+
+      const queries = Object.fromEntries(
+        Object.entries(defs.queries).map(([name, definition]) => [
+          name,
+          queryWrapper(definition as RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]]),
+        ]),
+      ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof query>;
+
+      return { mutations, queries };
+    },
+    actorPolicy: options.actorPolicy,
+  };
 }

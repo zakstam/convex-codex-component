@@ -46,19 +46,13 @@ assertIncludes(llms, "## Hard Rule", "LLMS.md");
 
 const canonicalDocs = [
   "README.md",
-  "docs/HOST_INTEGRATION.md",
-  "docs/CLIENT_AND_REACT_HOOKS.md",
-  "docs/OPERATIONS_AND_ERRORS.md",
+  "docs/CANONICAL_INTEGRATION.md",
 ];
 
 for (const relPath of canonicalDocs) {
   const source = readPackageFile(relPath);
   assertIncludes(source, CANONICAL_MARKER, relPath);
 }
-
-const runtimeOwnedDoc = readPackageFile("docs/RUNTIME_OWNED_REFERENCE_HOST.md");
-assertIncludes(runtimeOwnedDoc, CANONICAL_MARKER, "docs/RUNTIME_OWNED_REFERENCE_HOST.md");
-assertIncludes(runtimeOwnedDoc, "../LLMS.md", "docs/RUNTIME_OWNED_REFERENCE_HOST.md");
 
 const linkedDocs = [
   "README.md",

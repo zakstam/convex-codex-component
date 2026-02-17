@@ -53,7 +53,6 @@ export const vIngestSafeResult = v.object({
         v.literal("SESSION_NOT_FOUND"),
         v.literal("SESSION_THREAD_MISMATCH"),
         v.literal("TURN_ID_REQUIRED_FOR_TURN_EVENT"),
-        v.literal("TURN_ID_REQUIRED_FOR_CODEX_EVENT"),
         v.literal("OUT_OF_ORDER"),
         v.literal("REPLAY_GAP"),
         v.literal("UNKNOWN"),
@@ -63,4 +62,3 @@ export const vIngestSafeResult = v.object({
     }),
   ),
 });
-

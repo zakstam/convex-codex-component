@@ -7,7 +7,7 @@ LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
 
 Canonical wiring in this app centers on:
 - `useCodexChat`
-- `useCodexChat` (advanced control path for approval/tool flows via tool policy controls)
+- `useCodexRuntimeBridge`
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
 - helper-defined host wrappers in `convex/chat.ts`
@@ -40,9 +40,9 @@ Canonical consumer implementation path:
 ## Actor Security
 
 - On first launch, the app prompts for a username and persists it in local storage.
-- By default (developer mode), actor lock is disabled and any username can be used.
+- By default, actor lock is disabled and any username can be used.
 - Set `TAURI_ACTOR_LOCK=1` in Convex server env to enable host binding and reject mismatched actor identities.
-- On startup, the app reconciles to existing server-side lock/pin state (`chat.getActorBindingForBootstrap`) before loading guarded thread data.
+- On startup, the app reconciles to existing server-side lock/pin state (`chat.getActorBindingForBootstrap`) before loading thread data.
 - Optional hard pin: set `ACTOR_USER_ID` in Convex server env to pin the accepted actor from startup.
 
 ## Raw Protocol Verification
@@ -89,17 +89,16 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: app-owned guarded public surface (`api.chat.*`) that wraps helper-defined preset endpoints and enforces actor lock
+- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexConvexHost(...)` and actor lock wrappers
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
-- The app uses `defineGuardedRuntimeOwnedHostEndpoints(...)` to centralize actor-lock wrapping for runtime-owned mutations/queries.
+- Runtime-owned host mutations/queries are exported from this single surface.
 
-## Thread API Tiers
+## Thread API
 
-- Default flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
-- Advanced flow: `chat.resolveThreadByExternalId`, `chat.resolveThreadByRuntimeId`, `chat.bindRuntimeThreadId`, and `chat.lookupThreadHandle`.
-- Runtime-owned host `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
+- Thread flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
+- Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
 
-Additional app-owned guarded cleanup endpoints:
+Additional cleanup endpoints:
 
 - `chat.deleteThreadCascade`
 - `chat.scheduleThreadDeleteCascade`

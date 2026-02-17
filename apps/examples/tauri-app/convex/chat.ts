@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
-  defineGuardedRuntimeOwnedHostEndpoints,
+  createCodexConvexHost,
   vHostActorContext,
 } from "@zakstam/codex-local-component/host/convex";
 import { v } from "convex/values";
@@ -13,12 +13,16 @@ import {
 } from "./actorLock";
 export { getActorBindingForBootstrap, listThreadsForPicker } from "./chat.extensions";
 
-const guardedRuntimeOwned = defineGuardedRuntimeOwnedHostEndpoints({
+const codexHost = createCodexConvexHost({
   components,
-  serverActor: SERVER_ACTOR,
-  resolveMutationActor: requireBoundServerActorForMutation,
-  resolveQueryActor: requireBoundServerActorForQuery,
+  actorPolicy: {
+    mode: "guarded",
+    serverActor: SERVER_ACTOR,
+    resolveMutationActor: requireBoundServerActorForMutation,
+    resolveQueryActor: requireBoundServerActorForQuery,
+  },
 });
+const hostDefs = codexHost.defs;
 
 const vThreadHandle = v.object({
   threadId: v.string(),
@@ -267,11 +271,11 @@ export const resumeThread = query({
   },
 });
 
-export const ensureSession = mutation(guardedRuntimeOwned.mutations.ensureSession);
-export const ingestEvent = mutation(guardedRuntimeOwned.mutations.ingestEvent);
-export const ingestBatch = mutation(guardedRuntimeOwned.mutations.ingestBatch);
-export const respondApproval = mutation(guardedRuntimeOwned.mutations.respondApprovalForHooks);
-export const upsertTokenUsage = mutation(guardedRuntimeOwned.mutations.upsertTokenUsageForHooks);
+export const ensureSession = mutation(hostDefs.mutations.ensureSession);
+export const ingestEvent = mutation(hostDefs.mutations.ingestEvent);
+export const ingestBatch = mutation(hostDefs.mutations.ingestBatch);
+export const respondApproval = mutation(hostDefs.mutations.respondApprovalForHooks);
+export const upsertTokenUsage = mutation(hostDefs.mutations.upsertTokenUsageForHooks);
 
 export const upsertPendingServerRequest = mutation({
   args: {
@@ -343,7 +347,7 @@ export const listPendingServerRequests = query({
   },
 });
 
-export const interruptTurn = mutation(guardedRuntimeOwned.mutations.interruptTurnForHooks);
+export const interruptTurn = mutation(hostDefs.mutations.interruptTurnForHooks);
 
 export const acceptTurnSend = mutation({
   args: {
@@ -549,15 +553,15 @@ export const forceRunScheduledDeletion = mutation({
   },
 });
 
-export const validateHostWiring = query(guardedRuntimeOwned.queries.validateHostWiring);
-export const threadSnapshot = query(guardedRuntimeOwned.queries.threadSnapshot);
-export const threadSnapshotSafe = query(guardedRuntimeOwned.queries.threadSnapshotSafe);
-export const persistenceStats = query(guardedRuntimeOwned.queries.persistenceStats);
-export const durableHistoryStats = query(guardedRuntimeOwned.queries.durableHistoryStats);
-export const listThreadMessages = query(guardedRuntimeOwned.queries.listThreadMessagesForHooks);
-export const listTurnMessages = query(guardedRuntimeOwned.queries.listTurnMessagesForHooks);
-export const listPendingApprovals = query(guardedRuntimeOwned.queries.listPendingApprovalsForHooks);
-export const listTokenUsage = query(guardedRuntimeOwned.queries.listTokenUsageForHooks);
+export const validateHostWiring = query(hostDefs.queries.validateHostWiring);
+export const threadSnapshot = query(hostDefs.queries.threadSnapshot);
+export const threadSnapshotSafe = query(hostDefs.queries.threadSnapshotSafe);
+export const persistenceStats = query(hostDefs.queries.persistenceStats);
+export const durableHistoryStats = query(hostDefs.queries.durableHistoryStats);
+export const listThreadMessages = query(hostDefs.queries.listThreadMessagesForHooks);
+export const listTurnMessages = query(hostDefs.queries.listTurnMessagesForHooks);
+export const listPendingApprovals = query(hostDefs.queries.listPendingApprovalsForHooks);
+export const listTokenUsage = query(hostDefs.queries.listTokenUsageForHooks);
 
 export const getDeletionJobStatus = query({
   args: {

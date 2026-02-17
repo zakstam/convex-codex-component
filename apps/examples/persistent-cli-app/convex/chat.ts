@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import {
-  defineRuntimeOwnedHostEndpoints,
+  createCodexConvexHost,
   type HostActorContext,
 } from "@zakstam/codex-local-component/host/convex";
 
@@ -9,10 +9,14 @@ export const SERVER_ACTOR: HostActorContext = Object.freeze({
   ...(process.env.ACTOR_USER_ID ? { userId: process.env.ACTOR_USER_ID } : {}),
 });
 
-const defs = defineRuntimeOwnedHostEndpoints({
+const codexHost = createCodexConvexHost({
   components,
-  serverActor: SERVER_ACTOR,
+  actorPolicy: {
+    mode: "serverActor",
+    serverActor: SERVER_ACTOR,
+  },
 });
+const defs = codexHost.defs;
 
 export const ensureThread = mutation(defs.mutations.ensureThread);
 export const ensureSession = mutation(defs.mutations.ensureSession);

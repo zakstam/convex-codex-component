@@ -1,6 +1,6 @@
 export const HOST_PRESET_DEFINITIONS = [
   {
-    builder: "defineRuntimeOwnedHostEndpoints",
+    builder: "createCodexConvexHost",
     profile: "runtimeOwned",
     ingestMode: "streamOnly",
     intendedHost: "Runtime-owned orchestration",

@@ -56,7 +56,7 @@ test("terminal status mapping works", () => {
     code: "E_TERMINAL_FAILED",
     error: "boom",
   });
-  assert.equal(terminalStatusForEvent("codex/event/turn_aborted", "{}"), null);
+  assert.equal(terminalStatusForEvent("unsupported/turn_aborted", "{}"), null);
   assert.equal(terminalStatusForEvent("other", completedPayload), null);
 });
 

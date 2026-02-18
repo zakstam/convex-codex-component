@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export NPM_CONFIG_PROVENANCE="true"
+
 echo "Publish attempt 1/2: npm trusted publishing (OIDC)."
 if pnpm run release:publish; then
   echo "Publish succeeded with OIDC."

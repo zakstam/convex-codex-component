@@ -48,18 +48,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Validate npm publish auth
         run: |
-          if [ -n "${NPM_TOKEN:-}" ]; then
-            echo "Using NPM_TOKEN for npm publish auth."
-            exit 0
-          fi
-
           if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
             echo "OIDC is available; trusted publishing can be used."
             exit 0
           fi
 
           echo "No npm publish auth available."
-          echo "Provide NPM_TOKEN or configure npm trusted publishing with GitHub OIDC."
+          echo "Configure npm trusted publishing with GitHub OIDC."
           exit 1
       - run: pnpm run release:precheck:ci
       - name: Prepare npm for OIDC trusted publishing
@@ -72,10 +67,9 @@ jobs:
         uses: changesets/action@v1
         with:
           version: pnpm run version-packages
-          publish: bash .github/scripts/publish-with-fallback.sh
+          publish: pnpm run release:publish
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FALLBACK_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"

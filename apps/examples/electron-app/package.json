@@ -1,0 +1,33 @@
+{
+  "name": "codex-local-electron-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:component": "pnpm -C ../../.. run component:build",
+    "prepare:component:watch": "pnpm --filter @zakstam/codex-local-component run build:watch",
+    "dev:convex": "pnpm run prepare:component && convex dev",
+    "dev:convex:once": "pnpm run prepare:component && convex dev --once",
+    "dev:renderer": "vite",
+    "dev:electron": "tsx electron-main/main.ts",
+    "start": "pnpm run prepare:component && concurrently \"pnpm run dev:renderer\" \"pnpm run dev:electron\"",
+    "build": "vite build && tsc -p tsconfig.electron.json",
+    "typecheck": "pnpm run prepare:component && tsc --noEmit"
+  },
+  "dependencies": {
+    "@zakstam/codex-local-component": "workspace:*",
+    "convex": "^1.31.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^35.0.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.5"
+  }
+}

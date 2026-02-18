@@ -38,6 +38,14 @@
     "./host/tauri": {
       "types": "./dist/host/tauri.d.ts",
       "import": "./dist/host/tauri.js"
+    },
+    "./host/bridge": {
+      "types": "./dist/host/bridge.d.ts",
+      "import": "./dist/host/bridge.js"
+    },
+    "./host/electron": {
+      "types": "./dist/host/electron.d.ts",
+      "import": "./dist/host/electron.js"
     }
   },
   "files": [

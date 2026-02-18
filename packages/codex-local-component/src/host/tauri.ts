@@ -1,100 +1,39 @@
-import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/CommandExecutionApprovalDecision.js";
-import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
 import type { LoginAccountParams as ProtocolLoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
-import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
 
-export type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
+// Re-export all shared bridge types, constants, and functions
+export type {
+  ActorContext,
+  BridgeClient,
+  BridgeState,
+  CommandApprovalDecision,
+  HelperCommand,
+  HelperCommandType,
+  LoginAccountParams,
+  StartBridgeConfig,
+  StartPayload,
+  ToolUserInputAnswer,
+} from "./bridge.js";
 
-export type ActorContext = { userId?: string };
+export {
+  HELPER_ACK_BY_TYPE,
+  HELPER_COMMAND_TYPES,
+  parseHelperCommand,
+} from "./bridge.js";
 
-export type BridgeState = {
-  running: boolean;
-  localThreadId: string | null;
-  turnId: string | null;
-  lastErrorCode?: string | null;
-  lastError: string | null;
-  runtimeThreadId?: string | null;
-  disabledTools?: string[];
-  pendingServerRequestCount?: number | null;
-  ingestEnqueuedEventCount?: number | null;
-  ingestSkippedEventCount?: number | null;
-  ingestEnqueuedByKind?: Array<{ kind: string; count: number }> | null;
-  ingestSkippedByKind?: Array<{ kind: string; count: number }> | null;
-};
+// Backward compat: TauriBridgeClient is now an alias for BridgeClient
+export type { BridgeClient as TauriBridgeClient } from "./bridge.js";
 
-export type CommandApprovalDecision = "accept" | "acceptForSession" | "decline" | "cancel";
-export type ToolUserInputAnswer = { answers: string[] };
+import {
+  HELPER_COMMAND_TYPES as _HELPER_COMMAND_TYPES,
+  type BridgeClient,
+  type BridgeState,
+  type CommandApprovalDecision,
+  type HelperCommandType,
+  type StartBridgeConfig,
+  type ToolUserInputAnswer,
+} from "./bridge.js";
 
-export type StartBridgeConfig = {
-  convexUrl: string;
-  actor: ActorContext;
-  sessionId: string;
-  startSource?: string;
-  model?: string;
-  cwd?: string;
-  disabledTools?: string[];
-  deltaThrottleMs?: number;
-  saveStreamDeltas?: boolean;
-  threadStrategy?: "start" | "resume" | "fork";
-  runtimeThreadId?: string;
-  externalThreadId?: string;
-};
-
-export type StartPayload = {
-  convexUrl: string;
-  actor: ActorContext;
-  sessionId: string;
-  model?: string;
-  cwd?: string;
-  disabledTools?: string[];
-  deltaThrottleMs?: number;
-  saveStreamDeltas?: boolean;
-  threadStrategy?: "start" | "resume" | "fork";
-  runtimeThreadId?: string;
-  externalThreadId?: string;
-};
-
-export type HelperCommandType =
-  | "start"
-  | "send_turn"
-  | "interrupt"
-  | "respond_command_approval"
-  | "respond_file_change_approval"
-  | "respond_tool_user_input"
-  | "account_read"
-  | "account_login_start"
-  | "account_login_cancel"
-  | "account_logout"
-  | "account_rate_limits_read"
-  | "respond_chatgpt_auth_tokens_refresh"
-  | "set_disabled_tools"
-  | "stop"
-  | "status";
-
-export type HelperCommand =
-  | { type: "start"; payload: StartPayload }
-  | { type: "send_turn"; payload: { text: string } }
-  | { type: "interrupt" }
-  | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
-  | { type: "respond_file_change_approval"; payload: { requestId: string | number; decision: FileChangeApprovalDecision } }
-  | { type: "respond_tool_user_input"; payload: { requestId: string | number; answers: Record<string, ToolRequestUserInputAnswer> } }
-  | { type: "account_read"; payload: { refreshToken?: boolean } }
-  | { type: "account_login_start"; payload: { params: ProtocolLoginAccountParams } }
-  | { type: "account_login_cancel"; payload: { loginId: string } }
-  | { type: "account_logout"; payload: Record<string, never> }
-  | { type: "account_rate_limits_read"; payload: Record<string, never> }
-  | {
-      type: "respond_chatgpt_auth_tokens_refresh";
-      payload: {
-        requestId: string | number;
-        accessToken: string;
-        chatgptAccountId: string;
-        chatgptPlanType?: string | null;
-      };
-    }
-  | { type: "set_disabled_tools"; payload: { tools: string[] } }
-  | { type: "stop" }
-  | { type: "status" };
+// ── Tauri-specific code ──────────────────────────────────────────
 
 type TauriBridgeCommandDefinition = {
   id: string;
@@ -171,30 +110,6 @@ export const TAURI_BRIDGE_COMMANDS: ReadonlyArray<TauriBridgeCommandDefinition> 
   { id: "helper_status", helperType: "status", ack: true },
 ];
 
-export const HELPER_COMMAND_TYPES = TAURI_BRIDGE_COMMANDS
-  .map((command) => command.helperType)
-  .filter((helperType): helperType is HelperCommandType => typeof helperType === "string");
-
-export const HELPER_ACK_BY_TYPE: Readonly<Record<HelperCommandType, boolean>> = Object.freeze({
-  start: false,
-  send_turn: true,
-  interrupt: true,
-  respond_command_approval: true,
-  respond_file_change_approval: true,
-  respond_tool_user_input: true,
-  account_read: true,
-  account_login_start: true,
-  account_login_cancel: true,
-  account_logout: true,
-  account_rate_limits_read: true,
-  respond_chatgpt_auth_tokens_refresh: true,
-  set_disabled_tools: true,
-  stop: false,
-  status: true,
-});
-
-const HELPER_COMMAND_TYPE_SET = new Set<HelperCommandType>(HELPER_COMMAND_TYPES);
-
 const TAURI_TO_HELPER_COMMAND: Readonly<Record<string, HelperCommandType>> = Object.freeze(
   TAURI_BRIDGE_COMMANDS.reduce<Record<string, HelperCommandType>>((acc, command) => {
     if (typeof command.tauriCommand === "string" && typeof command.helperType === "string") {
@@ -208,59 +123,9 @@ export function helperCommandForTauriCommand(tauriCommand: string): HelperComman
   return TAURI_TO_HELPER_COMMAND[tauriCommand] ?? null;
 }
 
-export function parseHelperCommand(line: string): HelperCommand {
-  const parsed = JSON.parse(line) as { type?: unknown; payload?: unknown };
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("Helper command must be an object.");
-  }
-  if (typeof parsed.type !== "string" || !HELPER_COMMAND_TYPE_SET.has(parsed.type as HelperCommandType)) {
-    throw new Error(`Unsupported helper command: ${String(parsed.type)}`);
-  }
-  if (parsed.type === "interrupt" || parsed.type === "stop" || parsed.type === "status") {
-    return { type: parsed.type } as HelperCommand;
-  }
-  if (!("payload" in parsed)) {
-    throw new Error(`Missing payload for helper command: ${parsed.type}`);
-  }
-  return parsed as HelperCommand;
-}
-
 export type TauriInvoke = <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
-export type TauriBridgeClient = {
-  lifecycle: {
-    start(config: StartBridgeConfig): Promise<unknown>;
-    stop(): Promise<unknown>;
-    getState(): Promise<BridgeState>;
-  };
-  turns: {
-    send(text: string): Promise<unknown>;
-    interrupt(): Promise<unknown>;
-  };
-  approvals: {
-    respondCommand(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown>;
-    respondFileChange(config: { requestId: string | number; decision: CommandApprovalDecision }): Promise<unknown>;
-    respondToolInput(config: { requestId: string | number; answers: Record<string, ToolUserInputAnswer> }): Promise<unknown>;
-  };
-  account: {
-    read(config?: { refreshToken?: boolean }): Promise<unknown>;
-    login(config: { params: ProtocolLoginAccountParams }): Promise<unknown>;
-    cancelLogin(config: { loginId: string }): Promise<unknown>;
-    logout(): Promise<unknown>;
-    readRateLimits(): Promise<unknown>;
-    respondChatgptAuthTokensRefresh(config: {
-      requestId: string | number;
-      accessToken: string;
-      chatgptAccountId: string;
-      chatgptPlanType?: string | null;
-    }): Promise<unknown>;
-  };
-  tools: {
-    setDisabled(config: { tools: string[] }): Promise<unknown>;
-  };
-};
-
-export function createTauriBridgeClient(invoke: TauriInvoke): TauriBridgeClient {
+export function createTauriBridgeClient(invoke: TauriInvoke): BridgeClient {
   return {
     lifecycle: {
       start(config: StartBridgeConfig): Promise<unknown> {
@@ -346,7 +211,8 @@ export function generateTauriArtifacts(): TauriGeneratedArtifacts {
     (command): command is TauriBridgeCommandDefinition & { tauriCommand: string } =>
       typeof command.tauriCommand === "string",
   );
-  const helperCommands = HELPER_COMMAND_TYPES;
+
+  const helperCommandTypes = _HELPER_COMMAND_TYPES;
 
   const rustContractSource = `${[
     "// AUTO-GENERATED FILE. DO NOT EDIT.",
@@ -356,7 +222,7 @@ export function generateTauriArtifacts(): TauriGeneratedArtifacts {
     "];",
     "",
     "pub const HELPER_COMMANDS: &[&str] = &[",
-    ...helperCommands.map((command) => `    \"${command}\",`),
+    ...helperCommandTypes.map((command) => `    \"${command}\",`),
     "];",
     "",
   ].join("\n")}`;

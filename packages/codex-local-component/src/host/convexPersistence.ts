@@ -64,6 +64,16 @@ function mapIngestErrors(errors: IngestBatchError[]): Array<{ code: string; mess
   return errors.map((e) => ({ code: toErrorCode(e.code), message: e.message, recoverable: e.recoverable }));
 }
 
+function maxCursorEnd(deltas: IngestDelta[]): number {
+  let max = 0;
+  for (const delta of deltas) {
+    if (delta.type === "stream_delta" && delta.cursorEnd > max) {
+      max = delta.cursorEnd;
+    }
+  }
+  return max;
+}
+
 export function createConvexPersistence(
   client: ConvexHttpClientLike,
   chatApi: ConvexPersistenceChatApi,
@@ -133,6 +143,7 @@ export function createConvexPersistence(
         actor: args.actor,
         sessionId: args.sessionId,
         threadId: args.threadId,
+        lastEventCursor: args.lastEventCursor,
       }) as Promise<{ sessionId: string; threadId: string; status: "created" | "active" }>;
     },
 
@@ -156,6 +167,7 @@ export function createConvexPersistence(
           actor: args.actor,
           sessionId: nextSessionId,
           threadId: args.threadId,
+          lastEventCursor: maxCursorEnd(args.deltas),
         });
         options?.onSessionRollover?.({
           threadId: args.threadId,

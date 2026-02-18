@@ -84,7 +84,7 @@
       "riskLevel": "default",
       "id": "UC_8e3b4b49ea83",
       "file": "src/host/convexPersistence.ts",
-      "line": 127,
+      "line": 137,
       "col": 9,
       "snippet": "}) as Promise<{ threadId: string; externalThreadId?: string; created: boolean }>;",
       "context": "prev:...(args.cwd ? { cwd: args.cwd } : {}), | next:},"
@@ -93,12 +93,12 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_b79a3ac69397",
+      "id": "UC_191e5f5cb3c0",
       "file": "src/host/convexPersistence.ts",
-      "line": 136,
+      "line": 147,
       "col": 9,
       "snippet": "}) as Promise<{ sessionId: string; threadId: string; status: \"created\" | \"active\" }>;",
-      "context": "prev:threadId: args.threadId, | next:},"
+      "context": "prev:lastEventCursor: args.lastEventCursor, | next:},"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -106,7 +106,7 @@
       "riskLevel": "default",
       "id": "UC_0511ea914b28",
       "file": "src/host/convexPersistence.ts",
-      "line": 141,
+      "line": 152,
       "col": 113,
       "snippet": "client.mutation(chatApi.ingestBatch, toIngestPayload(args.actor, sessionId, args.threadId, args.deltas)) as Promise<{",
       "context": "prev:const runIngest = async (sessionId: string) => | next:status: \"ok\" | \"partial\" | \"session_recovered\" | \"rejected\";"
@@ -117,7 +117,7 @@
       "riskLevel": "default",
       "id": "UC_1753ffab9faf",
       "file": "src/host/convexPersistence.ts",
-      "line": 180,
+      "line": 192,
       "col": 35,
       "snippet": "const requestedAt = (request as { createdAt?: number }).createdAt;",
       "context": "prev:upsertPendingServerRequest: async ({ actor, request }) => { | next:await client.mutation(chatApi.upsertPendingServerRequest, {"
@@ -128,7 +128,7 @@
       "riskLevel": "default",
       "id": "UC_18ee97430829",
       "file": "src/host/convexPersistence.ts",
-      "line": 211,
+      "line": 223,
       "col": 9,
       "snippet": "}) as Promise<HostRuntimePersistence[\"listPendingServerRequests\"] extends (...a: never[]) => infer R ? Awaited<R> : never>;",
       "context": "prev:limit: 100, | next:},"
@@ -139,7 +139,7 @@
       "riskLevel": "default",
       "id": "UC_7ed65984e01e",
       "file": "src/host/convexPersistence.ts",
-      "line": 222,
+      "line": 234,
       "col": 9,
       "snippet": "}) as { dispatchId: string; turnId: string; accepted: true };",
       "context": "prev:...(args.dispatchId ? { dispatchId: args.dispatchId } : {}), | next:const claimToken = randomSessionId();"

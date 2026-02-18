@@ -24,6 +24,7 @@
     "example:tauri:dev:convex": "pnpm --filter codex-local-tauri-example run dev:convex",
     "example:tauri:dev:convex:once": "pnpm --filter codex-local-tauri-example run dev:convex:once",
     "example:tauri:run": "bash -lc 'pnpm run example:tauri:dev:convex & CONVEX_PID=$!; trap \"kill $CONVEX_PID\" EXIT INT TERM; sleep 4; pnpm run example:tauri:start'",
+    "dev:tauri": "pnpm run example:tauri:start",
     "lint": "eslint apps/examples/persistent-cli-app/src apps/examples/persistent-cli-app/convex apps/examples/cli-app/src apps/examples/tauri-app/src apps/examples/tauri-app/convex packages/codex-local-component/src --ext .ts,.tsx",
     "release:precheck:ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",
     "release:precheck": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",

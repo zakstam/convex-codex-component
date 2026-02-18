@@ -1,5 +1,61 @@
 # @zakstam/codex-local-component
 
+## 1.0.0
+
+### Major Changes
+
+- eb002fc: Remove mode-based host thread wiring and adopt a single-path runtime-owned thread contract.
+
+  ### Breaking changes
+  - Remove public host preset `threadMode` configuration.
+  - Runtime-owned `ensureThread` now requires at least one identity (`threadId` or `externalThreadId`).
+  - Update host preset behavior to resolve thread bindings through one deterministic path.
+
+  ### Improvements
+  - Add canonical default-vs-advanced thread API guidance for consumers.
+  - Improve tauri example thread list/linking semantics and remove fragile `unlinked` UI behavior.
+  - Align host docs and references with the single-path thread contract.
+
+### Minor Changes
+
+- dddc03c: External API simplification phase 2:
+  - Actor policy shorthand: accept string or `{ userId }` as `actorPolicy` in `createCodexHost`
+  - Unified `endpoints` property merging mutations and queries for single-destructure export
+  - Expanded surface manifest with server request and turn management endpoints (default enabled)
+  - `createConvexPersistence` factory absorbing session rollover, dispatch queue, and field mapping
+  - Convex-integrated `createCodexHostRuntime` overload accepting `convexUrl + chatApi + userId`
+  - Delta merge optimization in runtime core for consecutive `item/agentMessage/delta` events
+  - Unified `useCodex()` hook composing chat, token usage (auto-detected from context), and threads (opt-in)
+  - Reduced React export surface: 11 hooks internalized, `useCodex` + `useCodexRuntimeBridge` + `useCodexAccountAuth` + `useCodexThreadState` + `useCodexThreads` as primary API
+  - `CodexProvider` auto-threads `listTokenUsage` from api prop
+- f0271ce: Simplify external API: replace `createCodexConvexHost` with `createCodexHost` (register-in-place, clean names, default actor policy). Add `CodexProvider` + `useCodex` hook for React. Remove `react-integration` entry point.
+- 3fea5e3: Add a package-owned Tauri host adapter export at `@zakstam/codex-local-component/host/tauri`.
+
+  This adds typed bridge client wrappers, helper-command parsing/dispatch metadata, and generation utilities for Rust bridge/permission artifacts so consumers no longer need app-local bridge-contract generators.
+
+- dddc03c: useCodex() thread composition:
+  - `threadId` is now optional — when omitted with `threads` config, derived from picker selection
+  - `threadState` (raw snapshot) and `effectiveThreadId` exposed in return value
+  - Hook ordering fixed: threads runs before chat, enabling picker-driven message loading
+  - `useCodexThreads` removed from primary exports (use through `useCodex({ threads })`)
+  - `useCodexThreads` now auto-clears selection when the selected thread is removed from the list (graceful recovery after thread deletion)
+
+### Patch Changes
+
+- d2f23bd: Add MIT license, npm metadata (repository, homepage, bugs, keywords), fix stale CHANGELOG header scope, and wire check:api-reference into CI pipeline.
+- b655226: Improve Tauri example bridge wiring maintainability with a schema-first command contract and generated cross-layer artifacts.
+
+  ### Improvements
+  - Add canonical bridge command contract and generators for Tauri invoke wrappers, helper command typing/parsing, Rust command constants, and Tauri permission files.
+  - Add contract verification scripts/tests and document the workflow in Tauri example docs and runbook.
+  - Keep example app lint and type checks green after migration, including TS lint scope coverage for `src-node` and stricter typing in Convex host wrappers.
+
+- 9c9b4ce: Simplify actor-locked host wiring by adding guarded runtime-owned endpoint helpers.
+  - Add `defineGuardedRuntimeOwnedHostEndpoints(...)` to `@zakstam/codex-local-component/host/convex` so consumers can apply mutation/query actor guards once.
+  - Add `guardRuntimeOwnedHostDefinitions(...)` for applying guard policy to existing runtime-owned definitions.
+  - Update host integration and API reference docs with the guarded wiring path.
+  - Migrate the Tauri example to use the guarded helper and reduce repeated actor-resolution boilerplate in custom endpoints.
+
 ## Unreleased
 
 ### Major Changes

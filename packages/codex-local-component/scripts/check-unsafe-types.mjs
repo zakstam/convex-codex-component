@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -20,6 +20,88 @@ function normalizeForMatch(value) {
   return value.split(path.sep).join("/");
 }
 
+function normalizePathForMatch(absPath, rootDir) {
+  return normalizeForMatch(path.relative(rootDir, absPath));
+}
+
+function isExcluded(relFilePath, excludes) {
+  const normalized = normalizeForMatch(relFilePath);
+  return excludes.some((exclude) => {
+    if (exclude === "**/component/_generated/**") {
+      return normalized.includes("component/_generated/");
+    }
+    if (exclude === "**/protocol/schemas/**") {
+      return normalized.includes("protocol/schemas/");
+    }
+    if (exclude === "**/protocol/schemas/v2/**") {
+      return normalized.includes("protocol/schemas/v2/");
+    }
+    const trimmed = normalizeForMatch(exclude)
+      .replace(/^!\*\*\//, "")
+      .replace(/^\*\*\//, "")
+      .replace(/^!/, "")
+      .replace(/\/\*\*$/g, "");
+    return normalized.includes(trimmed);
+  });
+}
+
+function collectSourceFiles(rootDir, sourceDir, excludes) {
+  const absSourceDir = path.resolve(rootDir, sourceDir);
+  if (!existsSync(absSourceDir) || !statSync(absSourceDir).isDirectory()) {
+    return [];
+  }
+
+  const stack = [absSourceDir];
+  const files = [];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const absPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(absPath);
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+      if (!/\.(tsx?|d\.ts)$/.test(entry.name)) {
+        continue;
+      }
+      const relPath = normalizePathForMatch(absPath, rootDir);
+      if (isExcluded(relPath, excludes)) {
+        continue;
+      }
+      files.push(absPath);
+    }
+  }
+  return files;
+}
+
+function runFallbackSearch({
+  pattern,
+  rootDir,
+  sourceDir,
+  excludes,
+}) {
+  const regex = new RegExp(pattern);
+  const files = collectSourceFiles(rootDir, sourceDir, excludes);
+  const out = [];
+
+  for (const absPath of files) {
+    const relPath = normalizePathForMatch(absPath, rootDir);
+    const lines = readFileSync(absPath, "utf8").split(/\r?\n/);
+    for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
+      const text = lines[lineNumber] ?? "";
+      if (regex.test(text)) {
+        out.push(`${relPath}:${lineNumber + 1}:${text}`);
+      }
+    }
+  }
+
+  return out.join("\n");
+}
+
 function runRg({
   pattern,
   rootDir,
@@ -34,6 +116,14 @@ function runRg({
     cwd: rootDir,
     encoding: "utf8",
   });
+  if (out.error?.code === "ENOENT") {
+    return runFallbackSearch({
+      pattern,
+      rootDir,
+      sourceDir,
+      excludes,
+    }).trim();
+  }
   if (out.status === 0) {
     return (out.stdout ?? "").trim();
   }

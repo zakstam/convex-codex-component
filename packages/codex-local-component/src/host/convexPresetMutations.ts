@@ -207,11 +207,12 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         actor: vHostActorContext,
         sessionId: v.string(),
         threadId: v.string(),
+        lastEventCursor: v.number(),
       },
       returns: vHostEnsureSessionResult,
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; sessionId: string; threadId: string },
+        args: { actor: HostActorContext; sessionId: string; threadId: string; lastEventCursor: number },
       ) => ensureSessionHandler(ctx, component, withServerActor(args, resolveServerActor(args, serverActor))),
     },
     ingestEvent,

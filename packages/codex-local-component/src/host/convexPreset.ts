@@ -20,15 +20,12 @@ import {
   vHostSyncRuntimeOptions,
   type CodexHostComponentsInput,
   type HostActorContext,
+  type HostMutationRunner,
   type HostQueryRunner,
 } from "./convexSlice.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
 import { resolveHostComponentRefs } from "./generatedTypingBoundary.js";
-import {
-  HOST_SURFACE_MANIFEST,
-  HOST_MUTATION_INTERNAL_ALIASES,
-  HOST_QUERY_INTERNAL_ALIASES,
-} from "./surfaceManifest.js";
+import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
 
 export type CodexHostSliceProfile = "runtimeOwned";
 export type CodexHostSliceIngestMode = "streamOnly" | "mixed";
@@ -280,163 +277,129 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
 
 type CodexHostSliceDefinitions = ReturnType<typeof defineCodexHostSlice>;
 
-/**
- * Reverse an alias map: { internalKey: publicKey } -> { publicKey: internalKey }.
- */
-type InvertAliasMap<M extends Record<string, string>> = {
-  [K in keyof M as M[K]]: K;
-};
-
-/**
- * Resolve the internal (slice) key for a given public key.
- * If the public key appears as a value in the alias map, the corresponding
- * map key (the internal name) is returned; otherwise the public key itself
- * is used (identity -- no alias needed).
- */
-type InternalKeyFor<PublicKey extends string, AliasMap extends Record<string, string>> =
-  PublicKey extends AliasMap[keyof AliasMap]
-    ? Extract<keyof InvertAliasMap<AliasMap>, PublicKey> extends infer IK extends string
-      ? IK
-      : PublicKey
-    : PublicKey;
-
-/**
- * Pick definitions from a slice output using public names, mapping each
- * public name back to its internal key via the supplied alias map.
- */
-type PickAliased<
-  SliceDefs,
-  PublicKeys extends string,
-  AliasMap extends Record<string, string>,
-> = {
-  [K in PublicKeys]-?: InternalKeyFor<K, AliasMap> extends keyof SliceDefs
-    ? SliceDefs[InternalKeyFor<K, AliasMap>]
-    : never;
-};
-
 type RuntimeOwnedMutationKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.mutations)[number];
 type RuntimeOwnedQueryKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.queries)[number];
 
+type RuntimeOwnedInternalDefinitions = {
+  profile: "runtimeOwned";
+  mutations: {
+    ensureThread: CodexHostSliceDefinitions["mutations"]["ensureThread"];
+    ensureSession: CodexHostSliceDefinitions["mutations"]["ensureSession"];
+    ingestEvent: CodexHostSliceDefinitions["mutations"]["ingestEvent"];
+    ingestBatch: CodexHostSliceDefinitions["mutations"]["ingestBatch"];
+    respondApprovalForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["respondApprovalForHooks"]>;
+    upsertTokenUsageForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["upsertTokenUsageForHooks"]>;
+    interruptTurnForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["interruptTurnForHooks"]>;
+    upsertPendingServerRequestForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["upsertPendingServerRequestForHooks"]>;
+    resolvePendingServerRequestForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["resolvePendingServerRequestForHooks"]>;
+    acceptTurnSendForHooks: CodexHostSliceDefinitions["mutations"]["acceptTurnSendForHooks"];
+    failAcceptedTurnSendForHooks: CodexHostSliceDefinitions["mutations"]["failAcceptedTurnSendForHooks"];
+  };
+  queries: {
+    validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
+    threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
+    threadSnapshotSafe: CodexHostSliceDefinitions["queries"]["threadSnapshotSafe"];
+    persistenceStats: CodexHostSliceDefinitions["queries"]["persistenceStats"];
+    durableHistoryStats: CodexHostSliceDefinitions["queries"]["durableHistoryStats"];
+    dataHygiene: NonNullable<CodexHostSliceDefinitions["queries"]["dataHygiene"]>;
+    listThreadMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesForHooks"]>;
+    listTurnMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesForHooks"]>;
+    listPendingApprovalsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingApprovalsForHooks"]>;
+    listTokenUsageForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTokenUsageForHooks"]>;
+    listPendingServerRequestsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsForHooks"]>;
+    listThreadReasoningForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadReasoningForHooks"]>;
+  };
+};
+
 export type RuntimeOwnedHostDefinitions = {
   profile: "runtimeOwned";
-  mutations: PickAliased<
-    CodexHostSliceDefinitions["mutations"],
-    RuntimeOwnedMutationKeys,
-    typeof HOST_MUTATION_INTERNAL_ALIASES
-  >;
-  queries: PickAliased<
-    CodexHostSliceDefinitions["queries"],
-    RuntimeOwnedQueryKeys,
-    typeof HOST_QUERY_INTERNAL_ALIASES
-  >;
+  mutations: {
+    ensureThread: RuntimeOwnedInternalDefinitions["mutations"]["ensureThread"];
+    ensureSession: RuntimeOwnedInternalDefinitions["mutations"]["ensureSession"];
+    ingestEvent: RuntimeOwnedInternalDefinitions["mutations"]["ingestEvent"];
+    ingestBatch: RuntimeOwnedInternalDefinitions["mutations"]["ingestBatch"];
+    respondApproval: RuntimeOwnedInternalDefinitions["mutations"]["respondApprovalForHooks"];
+    upsertTokenUsage: RuntimeOwnedInternalDefinitions["mutations"]["upsertTokenUsageForHooks"];
+    interruptTurn: RuntimeOwnedInternalDefinitions["mutations"]["interruptTurnForHooks"];
+    upsertPendingServerRequest: RuntimeOwnedInternalDefinitions["mutations"]["upsertPendingServerRequestForHooks"];
+    resolvePendingServerRequest: RuntimeOwnedInternalDefinitions["mutations"]["resolvePendingServerRequestForHooks"];
+    acceptTurnSend: RuntimeOwnedInternalDefinitions["mutations"]["acceptTurnSendForHooks"];
+    failAcceptedTurnSend: RuntimeOwnedInternalDefinitions["mutations"]["failAcceptedTurnSendForHooks"];
+  };
+  queries: {
+    validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
+    threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
+    threadSnapshotSafe: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotSafe"];
+    persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
+    durableHistoryStats: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStats"];
+    dataHygiene: RuntimeOwnedInternalDefinitions["queries"]["dataHygiene"];
+    listThreadMessages: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesForHooks"];
+    listTurnMessages: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesForHooks"];
+    listPendingApprovals: RuntimeOwnedInternalDefinitions["queries"]["listPendingApprovalsForHooks"];
+    listTokenUsage: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageForHooks"];
+    listPendingServerRequests: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsForHooks"];
+    listThreadReasoning: RuntimeOwnedInternalDefinitions["queries"]["listThreadReasoningForHooks"];
+  };
 };
 
-type HostActorResolver<Ctx = unknown> = (
-  ctx: Ctx,
-  incomingActor: HostActorContext,
-) => Promise<HostActorContext> | HostActorContext;
+type RuntimeOwnedMutationDefinition =
+  RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]];
+type RuntimeOwnedQueryDefinition =
+  RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]];
+type MutationDefinitionWrapper = (definition: RuntimeOwnedMutationDefinition) => unknown;
+type QueryDefinitionWrapper = (definition: RuntimeOwnedQueryDefinition) => unknown;
 
-type RuntimeOwnedDefinitionWithActor<Ctx, Args extends { actor: HostActorContext } = { actor: HostActorContext }> = {
-  handler: (ctx: Ctx, args: Args) => unknown;
-};
+type Assert<T extends true> = T;
+type IsEqual<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends
+  (<T>() => T extends B ? 1 : 2) ? true : false;
+
+type _RuntimeOwnedMutationKeysMatchManifest = Assert<
+  IsEqual<keyof RuntimeOwnedHostDefinitions["mutations"], RuntimeOwnedMutationKeys>
+>;
+type _RuntimeOwnedQueryKeysMatchManifest = Assert<
+  IsEqual<keyof RuntimeOwnedHostDefinitions["queries"], RuntimeOwnedQueryKeys>
+>;
 
 type DefinitionMap = Record<string, unknown>;
-type WrappedResult<Wrap> = Wrap extends (...args: never[]) => infer Result ? Result : never;
+type WrappedResultForDefinition<Wrap, Definition> =
+  Wrap extends (definition: Definition) => infer Result ? Result : unknown;
 type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
-  [Key in keyof Defs]: WrappedResult<Wrap>;
+  [Key in keyof Defs]: WrappedResultForDefinition<Wrap, Defs[Key]>;
 };
 
 export type CodexConvexHostActorPolicyShorthand =
   | string
   | { userId: string };
 
-export type CodexConvexHostActorPolicy<MutationCtx = unknown, QueryCtx = unknown> =
+export type CodexConvexHostActorPolicy =
   | CodexConvexHostActorPolicyShorthand
   | {
       mode: "serverActor";
       serverActor: HostActorContext;
-    }
-  | {
-      mode: "guarded";
-      serverActor: HostActorContext;
-      resolveMutationActor: HostActorResolver<MutationCtx>;
-      resolveQueryActor: HostActorResolver<QueryCtx>;
     };
 
-type NormalizedActorPolicy<MutationCtx = unknown, QueryCtx = unknown> =
-  | {
-      mode: "serverActor";
-      serverActor: HostActorContext;
-    }
-  | {
-      mode: "guarded";
-      serverActor: HostActorContext;
-      resolveMutationActor: HostActorResolver<MutationCtx>;
-      resolveQueryActor: HostActorResolver<QueryCtx>;
-    };
+type NormalizedActorPolicy = {
+  mode: "serverActor";
+  serverActor: HostActorContext;
+};
 
-function normalizeActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
-  policy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx> | undefined,
-): NormalizedActorPolicy<MutationCtx, QueryCtx> | undefined {
+function normalizeActorPolicy(
+  policy: CodexConvexHostActorPolicy | undefined,
+): NormalizedActorPolicy | undefined {
   if (!policy) {
     return undefined;
   }
   if (typeof policy === "string") {
     return { mode: "serverActor", serverActor: { userId: policy } };
   }
-  if (typeof policy === "object" && !("mode" in policy)) {
+  if (!("mode" in policy)) {
     return { mode: "serverActor", serverActor: { userId: policy.userId } };
   }
-  return policy;
-}
-
-function applyActorGuards<
-  MutationCtx = unknown,
-  QueryCtx = unknown,
->(
-  defs: RuntimeOwnedHostDefinitions,
-  guards: {
-    resolveMutationActor: HostActorResolver<MutationCtx>;
-    resolveQueryActor: HostActorResolver<QueryCtx>;
-  },
-): RuntimeOwnedHostDefinitions {
-  const guardedMutations = Object.fromEntries(
-    Object.entries(defs.mutations).map(([name, definition]) => {
-      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-      return [
-        name,
-        {
-          ...typedDefinition,
-          handler: async (ctx: MutationCtx, args: { actor: HostActorContext }) => {
-            const actor = await guards.resolveMutationActor(ctx, args.actor);
-            return typedDefinition.handler(ctx, { ...args, actor });
-          },
-        },
-      ];
-    }),
-  ) as unknown as RuntimeOwnedHostDefinitions["mutations"];
-
-  const guardedQueries = Object.fromEntries(
-    Object.entries(defs.queries).map(([name, definition]) => {
-      const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;
-      return [
-        name,
-        {
-          ...typedDefinition,
-          handler: async (ctx: QueryCtx, args: { actor: HostActorContext }) => {
-            const actor = await guards.resolveQueryActor(ctx, args.actor);
-            return typedDefinition.handler(ctx, { ...args, actor });
-          },
-        },
-      ];
-    }),
-  ) as unknown as RuntimeOwnedHostDefinitions["queries"];
-
-  return {
-    ...defs,
-    mutations: guardedMutations,
-    queries: guardedQueries,
-  };
+  if (policy.mode !== "serverActor") {
+    throw new Error('createCodexHost actorPolicy supports only mode: "serverActor".');
+  }
+  return { mode: "serverActor", serverActor: policy.serverActor };
 }
 
 // ---------------------------------------------------------------------------
@@ -445,16 +408,19 @@ function applyActorGuards<
 
 export type CreateCodexHostOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-  MutationCtx = unknown,
-  QueryCtx = unknown,
+  MutationWrap = unknown,
+  QueryWrap = unknown,
 > = {
   components: Components;
-  mutation: (definition: never) => unknown;
-  query: (definition: never) => unknown;
-  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>;
+  mutation: MutationWrap;
+  query: QueryWrap;
+  actorPolicy: CodexConvexHostActorPolicy;
 };
 
-export type CodexHostFacade<MutationWrap = unknown, QueryWrap = unknown> = {
+export type CodexHostFacade<
+  MutationWrap = unknown,
+  QueryWrap = unknown,
+> = {
   profile: "runtimeOwned";
   mutations: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
   queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
@@ -463,22 +429,54 @@ export type CodexHostFacade<MutationWrap = unknown, QueryWrap = unknown> = {
   defs: RuntimeOwnedHostDefinitions;
 };
 
-/**
- * Rename internal-named definition keys to their clean public aliases.
- * Keys that have no alias are passed through unchanged.
- */
-function aliasDefinitionKeys<T extends Record<string, unknown>>(
-  defs: T,
-  aliases: Record<string, string>,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(defs).map(([key, value]) => [aliases[key] ?? key, value]),
-  );
+function toPublicRuntimeOwnedDefinitions(
+  defs: RuntimeOwnedInternalDefinitions,
+): RuntimeOwnedHostDefinitions {
+  return {
+    profile: defs.profile,
+    mutations: {
+      ensureThread: defs.mutations.ensureThread,
+      ensureSession: defs.mutations.ensureSession,
+      ingestEvent: defs.mutations.ingestEvent,
+      ingestBatch: defs.mutations.ingestBatch,
+      respondApproval: defs.mutations.respondApprovalForHooks,
+      upsertTokenUsage: defs.mutations.upsertTokenUsageForHooks,
+      interruptTurn: defs.mutations.interruptTurnForHooks,
+      upsertPendingServerRequest: defs.mutations.upsertPendingServerRequestForHooks,
+      resolvePendingServerRequest: defs.mutations.resolvePendingServerRequestForHooks,
+      acceptTurnSend: defs.mutations.acceptTurnSendForHooks,
+      failAcceptedTurnSend: defs.mutations.failAcceptedTurnSendForHooks,
+    },
+    queries: {
+      validateHostWiring: defs.queries.validateHostWiring,
+      threadSnapshot: defs.queries.threadSnapshot,
+      threadSnapshotSafe: defs.queries.threadSnapshotSafe,
+      persistenceStats: defs.queries.persistenceStats,
+      durableHistoryStats: defs.queries.durableHistoryStats,
+      dataHygiene: defs.queries.dataHygiene,
+      listThreadMessages: defs.queries.listThreadMessagesForHooks,
+      listTurnMessages: defs.queries.listTurnMessagesForHooks,
+      listPendingApprovals: defs.queries.listPendingApprovalsForHooks,
+      listTokenUsage: defs.queries.listTokenUsageForHooks,
+      listPendingServerRequests: defs.queries.listPendingServerRequestsForHooks,
+      listThreadReasoning: defs.queries.listThreadReasoningForHooks,
+    },
+  };
 }
 
-function assertValidNormalizedActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
-  actorPolicy: NormalizedActorPolicy<MutationCtx, QueryCtx> | undefined,
-): asserts actorPolicy is NormalizedActorPolicy<MutationCtx, QueryCtx> {
+function requireHostDefinition<Definition>(
+  definition: Definition | undefined,
+  key: string,
+): Definition {
+  if (definition === undefined) {
+    throw new Error(`Missing required host definition: ${key}`);
+  }
+  return definition;
+}
+
+function assertValidNormalizedActorPolicy(
+  actorPolicy: NormalizedActorPolicy | undefined,
+): asserts actorPolicy is NormalizedActorPolicy {
   if (!actorPolicy) {
     throw new Error("createCodexHost requires an explicit actorPolicy.");
   }
@@ -490,15 +488,35 @@ function assertValidNormalizedActorPolicy<MutationCtx = unknown, QueryCtx = unkn
   }
 }
 
+function assertMutationWrapper(
+  wrapper: unknown,
+): asserts wrapper is MutationDefinitionWrapper {
+  if (typeof wrapper !== "function") {
+    throw new Error("createCodexHost requires mutation to be a function.");
+  }
+}
+
+function assertQueryWrapper(
+  wrapper: unknown,
+): asserts wrapper is QueryDefinitionWrapper {
+  if (typeof wrapper !== "function") {
+    throw new Error("createCodexHost requires query to be a function.");
+  }
+}
+
 export function createCodexHost<
   Components extends CodexHostComponentsInput,
-  MutationCtx = unknown,
-  QueryCtx = unknown,
+  MutationWrap = unknown,
+  QueryWrap = unknown,
 >(
-  options: CreateCodexHostOptions<Components, MutationCtx, QueryCtx>,
-): CodexHostFacade<typeof options.mutation, typeof options.query> {
+  options: CreateCodexHostOptions<Components, MutationWrap, QueryWrap>,
+): CodexHostFacade<MutationWrap, QueryWrap> {
   const actorPolicy = normalizeActorPolicy(options.actorPolicy);
   assertValidNormalizedActorPolicy(actorPolicy);
+  const mutationWrap = options.mutation;
+  const queryWrap = options.query;
+  assertMutationWrapper(mutationWrap);
+  assertQueryWrapper(queryWrap);
 
   // 1. Build raw internal-named slice definitions
   const rawSlice = defineCodexHostSlice<Components>({
@@ -516,84 +534,79 @@ export function createCodexHost<
     },
   });
 
-  // Pick only the manifest-required keys from the raw slice (using internal names).
-  // We need to collect them before aliasing because the slice uses internal names.
-  const internalMutationKeys = HOST_SURFACE_MANIFEST.runtimeOwned.mutations.map(
-    (publicKey) => {
-      // Find the internal key that maps to this public key, or use the public key itself
-      const internalKey =
-        Object.entries(HOST_MUTATION_INTERNAL_ALIASES).find(
-          ([, pub]) => pub === publicKey,
-        )?.[0] ?? publicKey;
-      return internalKey;
-    },
-  );
-  const internalQueryKeys = HOST_SURFACE_MANIFEST.runtimeOwned.queries.map(
-    (publicKey) => {
-      const internalKey =
-        Object.entries(HOST_QUERY_INTERNAL_ALIASES).find(
-          ([, pub]) => pub === publicKey,
-        )?.[0] ?? publicKey;
-      return internalKey;
-    },
-  );
-
-  const pickedMutations = pickRequiredKeysFromRecord(rawSlice.mutations, internalMutationKeys);
-  const pickedQueries = pickRequiredKeysFromRecord(rawSlice.queries, internalQueryKeys);
-
-  const internalDefs: RuntimeOwnedHostDefinitions = {
+  const internalDefs: RuntimeOwnedInternalDefinitions = {
     profile: "runtimeOwned",
-    mutations: pickedMutations as RuntimeOwnedHostDefinitions["mutations"],
-    queries: pickedQueries as RuntimeOwnedHostDefinitions["queries"],
+    mutations: {
+      ensureThread: rawSlice.mutations.ensureThread,
+      ensureSession: rawSlice.mutations.ensureSession,
+      ingestEvent: rawSlice.mutations.ingestEvent,
+      ingestBatch: rawSlice.mutations.ingestBatch,
+      respondApprovalForHooks: requireHostDefinition(rawSlice.mutations.respondApprovalForHooks, "respondApprovalForHooks"),
+      upsertTokenUsageForHooks: requireHostDefinition(rawSlice.mutations.upsertTokenUsageForHooks, "upsertTokenUsageForHooks"),
+      interruptTurnForHooks: requireHostDefinition(rawSlice.mutations.interruptTurnForHooks, "interruptTurnForHooks"),
+      upsertPendingServerRequestForHooks: requireHostDefinition(rawSlice.mutations.upsertPendingServerRequestForHooks, "upsertPendingServerRequestForHooks"),
+      resolvePendingServerRequestForHooks: requireHostDefinition(rawSlice.mutations.resolvePendingServerRequestForHooks, "resolvePendingServerRequestForHooks"),
+      acceptTurnSendForHooks: rawSlice.mutations.acceptTurnSendForHooks,
+      failAcceptedTurnSendForHooks: rawSlice.mutations.failAcceptedTurnSendForHooks,
+    },
+    queries: {
+      validateHostWiring: rawSlice.queries.validateHostWiring,
+      threadSnapshot: rawSlice.queries.threadSnapshot,
+      threadSnapshotSafe: rawSlice.queries.threadSnapshotSafe,
+      persistenceStats: rawSlice.queries.persistenceStats,
+      durableHistoryStats: rawSlice.queries.durableHistoryStats,
+      dataHygiene: requireHostDefinition(rawSlice.queries.dataHygiene, "dataHygiene"),
+      listThreadMessagesForHooks: requireHostDefinition(rawSlice.queries.listThreadMessagesForHooks, "listThreadMessagesForHooks"),
+      listTurnMessagesForHooks: requireHostDefinition(rawSlice.queries.listTurnMessagesForHooks, "listTurnMessagesForHooks"),
+      listPendingApprovalsForHooks: requireHostDefinition(rawSlice.queries.listPendingApprovalsForHooks, "listPendingApprovalsForHooks"),
+      listTokenUsageForHooks: requireHostDefinition(rawSlice.queries.listTokenUsageForHooks, "listTokenUsageForHooks"),
+      listPendingServerRequestsForHooks: requireHostDefinition(rawSlice.queries.listPendingServerRequestsForHooks, "listPendingServerRequestsForHooks"),
+      listThreadReasoningForHooks: requireHostDefinition(rawSlice.queries.listThreadReasoningForHooks, "listThreadReasoningForHooks"),
+    },
   };
 
-  // 2. Optionally apply actor guards (still internal-named)
-  const guardedDefs =
-    actorPolicy.mode === "guarded"
-      ? applyActorGuards<MutationCtx, QueryCtx>(internalDefs, {
-          resolveMutationActor: actorPolicy.resolveMutationActor,
-          resolveQueryActor: actorPolicy.resolveQueryActor,
-        })
-      : internalDefs;
+  // 2. Convert internal names to clean public names
+  const publicDefs = toPublicRuntimeOwnedDefinitions(internalDefs);
 
-  // 3. Alias internal names to clean public names
-  const publicMutationDefs = aliasDefinitionKeys(
-    guardedDefs.mutations,
-    HOST_MUTATION_INTERNAL_ALIASES,
-  );
-  const publicQueryDefs = aliasDefinitionKeys(
-    guardedDefs.queries,
-    HOST_QUERY_INTERNAL_ALIASES,
-  );
+  // 3. Wrap each definition with the supplied mutation/query constructors
+  const wrappedMutations = {
+    ensureThread: mutationWrap(publicDefs.mutations.ensureThread),
+    ensureSession: mutationWrap(publicDefs.mutations.ensureSession),
+    ingestEvent: mutationWrap(publicDefs.mutations.ingestEvent),
+    ingestBatch: mutationWrap(publicDefs.mutations.ingestBatch),
+    respondApproval: mutationWrap(publicDefs.mutations.respondApproval),
+    upsertTokenUsage: mutationWrap(publicDefs.mutations.upsertTokenUsage),
+    interruptTurn: mutationWrap(publicDefs.mutations.interruptTurn),
+    upsertPendingServerRequest: mutationWrap(
+      publicDefs.mutations.upsertPendingServerRequest,
+    ),
+    resolvePendingServerRequest: mutationWrap(
+      publicDefs.mutations.resolvePendingServerRequest,
+    ),
+    acceptTurnSend: mutationWrap(publicDefs.mutations.acceptTurnSend),
+    failAcceptedTurnSend: mutationWrap(
+      publicDefs.mutations.failAcceptedTurnSend,
+    ),
+  } as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
 
-  // 4. Wrap each definition with the supplied mutation/query constructors
-  const mutationWrapper = options.mutation as (definition: unknown) => unknown;
-  const queryWrapper = options.query as (definition: unknown) => unknown;
-
-  const wrappedMutations = Object.fromEntries(
-    Object.entries(publicMutationDefs).map(([name, definition]) => [
-      name,
-      mutationWrapper(definition),
-    ]),
-  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation>;
-
-  const wrappedQueries = Object.fromEntries(
-    Object.entries(publicQueryDefs).map(([name, definition]) => [
-      name,
-      queryWrapper(definition),
-    ]),
-  ) as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
-
-  // Build the public-named defs for the escape hatch (unwrapped but aliased)
-  const publicDefs: RuntimeOwnedHostDefinitions = {
-    profile: "runtimeOwned",
-    mutations: publicMutationDefs as RuntimeOwnedHostDefinitions["mutations"],
-    queries: publicQueryDefs as RuntimeOwnedHostDefinitions["queries"],
-  };
+  const wrappedQueries = {
+    validateHostWiring: queryWrap(publicDefs.queries.validateHostWiring),
+    threadSnapshot: queryWrap(publicDefs.queries.threadSnapshot),
+    threadSnapshotSafe: queryWrap(publicDefs.queries.threadSnapshotSafe),
+    persistenceStats: queryWrap(publicDefs.queries.persistenceStats),
+    durableHistoryStats: queryWrap(publicDefs.queries.durableHistoryStats),
+    dataHygiene: queryWrap(publicDefs.queries.dataHygiene),
+    listThreadMessages: queryWrap(publicDefs.queries.listThreadMessages),
+    listTurnMessages: queryWrap(publicDefs.queries.listTurnMessages),
+    listPendingApprovals: queryWrap(publicDefs.queries.listPendingApprovals),
+    listTokenUsage: queryWrap(publicDefs.queries.listTokenUsage),
+    listPendingServerRequests: queryWrap(publicDefs.queries.listPendingServerRequests),
+    listThreadReasoning: queryWrap(publicDefs.queries.listThreadReasoning),
+  } as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
 
   const endpoints = { ...wrappedMutations, ...wrappedQueries } as
-    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation> &
-    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
+    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap> &
+    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
 
   return {
     profile: "runtimeOwned",
@@ -602,22 +615,4 @@ export function createCodexHost<
     endpoints,
     defs: publicDefs,
   };
-}
-
-/**
- * Pick required keys from a record, throwing on missing keys.
- */
-function pickRequiredKeysFromRecord<T extends Record<string, unknown>>(
-  source: T,
-  keys: string[],
-): Record<string, unknown> {
-  return Object.fromEntries(
-    keys.map((key) => {
-      const value = source[key];
-      if (value === undefined || value === null) {
-        throw new Error(`Missing required host surface key: ${String(key)}`);
-      }
-      return [key, value];
-    }),
-  );
 }

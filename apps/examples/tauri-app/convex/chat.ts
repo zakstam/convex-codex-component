@@ -18,10 +18,8 @@ const codex = createCodexHost({
   mutation,
   query,
   actorPolicy: {
-    mode: "guarded",
+    mode: "serverActor",
     serverActor: SERVER_ACTOR,
-    resolveMutationActor: requireBoundServerActorForMutation,
-    resolveQueryActor: requireBoundServerActorForQuery,
   },
 });
 
@@ -139,6 +137,36 @@ async function runQueryWithBoundActor(
     actor: serverActor,
     ...args,
   });
+}
+
+function withBoundMutationActor<Def extends { handler: (ctx: MutationCtx, args: any) => Promise<any> | any }>(
+  definition: Def,
+): Def {
+  return {
+    ...definition,
+    handler: async (ctx: MutationCtx, args: Parameters<Def["handler"]>[1]) => {
+      const actor = await requireBoundServerActorForMutation(
+        ctx,
+        (args as { actor: { userId?: string } }).actor,
+      );
+      return definition.handler(ctx, { ...args, actor });
+    },
+  } as Def;
+}
+
+function withBoundQueryActor<Def extends { handler: (ctx: QueryCtx, args: any) => Promise<any> | any }>(
+  definition: Def,
+): Def {
+  return {
+    ...definition,
+    handler: async (ctx: QueryCtx, args: Parameters<Def["handler"]>[1]) => {
+      const actor = await requireBoundServerActorForQuery(
+        ctx,
+        (args as { actor: { userId?: string } }).actor,
+      );
+      return definition.handler(ctx, { ...args, actor });
+    },
+  } as Def;
 }
 
 export const ensureThread = mutation({
@@ -272,18 +300,27 @@ export const resumeThread = query({
   },
 });
 
-export const {
-  // mutations
-  ensureSession, ingestEvent, ingestBatch,
-  respondApproval, upsertTokenUsage, interruptTurn,
-  upsertPendingServerRequest, resolvePendingServerRequest,
-  acceptTurnSend, failAcceptedTurnSend,
-  // queries
-  validateHostWiring, threadSnapshot, threadSnapshotSafe,
-  persistenceStats, durableHistoryStats, listThreadMessages,
-  listTurnMessages, listPendingApprovals, listTokenUsage,
-  listPendingServerRequests,
-} = codex.endpoints;
+export const ensureSession = mutation(withBoundMutationActor(codex.defs.mutations.ensureSession));
+export const ingestEvent = mutation(withBoundMutationActor(codex.defs.mutations.ingestEvent));
+export const ingestBatch = mutation(withBoundMutationActor(codex.defs.mutations.ingestBatch));
+export const respondApproval = mutation(withBoundMutationActor(codex.defs.mutations.respondApproval));
+export const upsertTokenUsage = mutation(withBoundMutationActor(codex.defs.mutations.upsertTokenUsage));
+export const interruptTurn = mutation(withBoundMutationActor(codex.defs.mutations.interruptTurn));
+export const upsertPendingServerRequest = mutation(withBoundMutationActor(codex.defs.mutations.upsertPendingServerRequest));
+export const resolvePendingServerRequest = mutation(withBoundMutationActor(codex.defs.mutations.resolvePendingServerRequest));
+export const acceptTurnSend = mutation(withBoundMutationActor(codex.defs.mutations.acceptTurnSend));
+export const failAcceptedTurnSend = mutation(withBoundMutationActor(codex.defs.mutations.failAcceptedTurnSend));
+
+export const validateHostWiring = query(withBoundQueryActor(codex.defs.queries.validateHostWiring));
+export const threadSnapshot = query(withBoundQueryActor(codex.defs.queries.threadSnapshot));
+export const threadSnapshotSafe = query(withBoundQueryActor(codex.defs.queries.threadSnapshotSafe));
+export const persistenceStats = query(withBoundQueryActor(codex.defs.queries.persistenceStats));
+export const durableHistoryStats = query(withBoundQueryActor(codex.defs.queries.durableHistoryStats));
+export const listThreadMessages = query(withBoundQueryActor(codex.defs.queries.listThreadMessages));
+export const listTurnMessages = query(withBoundQueryActor(codex.defs.queries.listTurnMessages));
+export const listPendingApprovals = query(withBoundQueryActor(codex.defs.queries.listPendingApprovals));
+export const listTokenUsage = query(withBoundQueryActor(codex.defs.queries.listTokenUsage));
+export const listPendingServerRequests = query(withBoundQueryActor(codex.defs.queries.listPendingServerRequests));
 
 export const deleteThreadCascade = mutation({
   args: {

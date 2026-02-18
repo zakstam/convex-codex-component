@@ -220,54 +220,19 @@ test("defs keys and wrapped keys match HOST_SURFACE_MANIFEST", () => {
   );
 });
 
-test("createCodexHost guarded mode applies actor guards to wrapped mutations and queries", async () => {
-  const codex = host.createCodexHost({
-    components: createComponentRefs(),
-    ...passthrough,
-    actorPolicy: {
-      mode: "guarded",
-      serverActor: { userId: "server-user" },
-      resolveMutationActor: async (_ctx, incoming) => ({
-        userId: `${incoming.userId}-mut`,
+test("createCodexHost rejects unsupported actorPolicy modes", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: {
+          mode: "guarded",
+          serverActor: { userId: "server-user" },
+        },
       }),
-      resolveQueryActor: async (_ctx, incoming) => ({
-        userId: `${incoming.userId}-qry`,
-      }),
-    },
-  });
-
-  // Mutations should have guarded actors
-  let mutationSeenActor = null;
-  await codex.defs.mutations.ensureSession.handler(
-    {
-      runMutation: async (_ref, args) => {
-        mutationSeenActor = args.actor;
-        return { threadId: "t1", created: true, externalThreadId: "t1" };
-      },
-    },
-    {
-      actor: { userId: "u1" },
-      sessionId: "s1",
-      threadId: "t1",
-    },
+    /supports only mode: "serverActor"/,
   );
-  assert.deepEqual(mutationSeenActor, { userId: "u1-mut" });
-
-  // Queries should have guarded actors
-  let querySeenActor = null;
-  await codex.defs.queries.threadSnapshot.handler(
-    {
-      runQuery: async (_ref, args) => {
-        querySeenActor = args.actor;
-        return null;
-      },
-    },
-    {
-      actor: { userId: "u1" },
-      threadId: "t1",
-    },
-  );
-  assert.deepEqual(querySeenActor, { userId: "u1-qry" });
 });
 
 test("createCodexHost throws when serverActor.userId is missing", () => {
@@ -303,10 +268,8 @@ test("createCodexHost throws when serverActor.userId is blank", () => {
         components: createComponentRefs(),
         ...passthrough,
         actorPolicy: {
-          mode: "guarded",
+          mode: "serverActor",
           serverActor: { userId: "   " },
-          resolveMutationActor: (_ctx, incoming) => incoming,
-          resolveQueryActor: (_ctx, incoming) => incoming,
         },
       }),
     /actorPolicy\.serverActor\.userId/,

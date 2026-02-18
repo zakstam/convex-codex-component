@@ -124,6 +124,17 @@ function runRg({
       excludes,
     }).trim();
   }
+  if (
+    out.status === 127 &&
+    (out.stderr ?? "").includes("not found")
+  ) {
+    return runFallbackSearch({
+      pattern,
+      rootDir,
+      sourceDir,
+      excludes,
+    }).trim();
+  }
   if (out.status === 0) {
     return (out.stdout ?? "").trim();
   }

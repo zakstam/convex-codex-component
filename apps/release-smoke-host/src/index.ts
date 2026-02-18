@@ -16,7 +16,7 @@ import type {
   ClientNotification,
   ClientRequest,
 } from "@zakstam/codex-local-component/protocol";
-import { api } from "../convex/_generated/api.js";
+import { api } from "../convex/_generated/api";
 
 type IngestDelta = {
   eventId: string;

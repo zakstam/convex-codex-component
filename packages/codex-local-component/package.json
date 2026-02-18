@@ -1,6 +1,6 @@
 {
   "name": "@zakstam/codex-local-component",
-  "version": "0.14.1",
+  "version": "1.0.0",
   "description": "Integrate with one prompt: install this package, open `README.md` then follow mapped docs (`docs/CANONICAL_INTEGRATION.md`, `docs/API_REFERENCE.md`) and validate with `npx convex dev --once`, `pnpm run dev:convex:once`, `pnpm run typecheck`.",
   "license": "MIT",
   "type": "module",
@@ -56,7 +56,16 @@
   "bugs": {
     "url": "https://github.com/zakstam/convex-codex-component/issues"
   },
-  "keywords": ["convex", "codex", "openai", "llm", "ai", "component", "realtime", "chat"],
+  "keywords": [
+    "convex",
+    "codex",
+    "openai",
+    "llm",
+    "ai",
+    "component",
+    "realtime",
+    "chat"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

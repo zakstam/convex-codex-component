@@ -1,5 +1,15 @@
 # @zakstam/codex-local-component
 
+## 0.18.0
+
+### Minor Changes
+
+- 009ab9c: Harden external integration contracts by removing `createCodexHost` actor-policy shorthand and requiring explicit `{ mode: "serverActor", serverActor: { userId } }`.
+
+  Align examples with generated-type boundary discipline by switching persistent CLI host calls to generated `api.chat.*` references and removing app-side reads of component-owned `codex_*` tables in the Tauri example host surface.
+
+  Update canonical docs to clarify explicit actor policy requirements and shorthand rejection.
+
 ## 0.17.0
 
 ### Minor Changes

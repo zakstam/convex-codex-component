@@ -70,7 +70,7 @@ export function useCodexThreads<
     // and direct array shapes.
     const items: unknown[] | undefined = Array.isArray(listed)
       ? listed
-      : listed && typeof listed === "object" && "threads" in (listed as object)
+      : listed && typeof listed === "object" && "threads" in listed
         ? ((listed as Record<string, unknown>).threads as unknown[] | undefined)
         : undefined;
 
@@ -80,7 +80,7 @@ export function useCodexThreads<
       (item) =>
         !!item &&
         typeof item === "object" &&
-        "threadId" in (item as object) &&
+        "threadId" in item &&
         (item as { threadId: unknown }).threadId === selectedThreadId,
     );
 

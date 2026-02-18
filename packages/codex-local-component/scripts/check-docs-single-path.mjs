@@ -59,8 +59,6 @@ const linkedDocs = [
   "apps/examples/cli-app/README.md",
   "apps/examples/persistent-cli-app/README.md",
   "apps/examples/tauri-app/README.md",
-  "apps/release-smoke-host/README.md",
-  "apps/release-smoke-host/convex/README.md",
 ];
 
 for (const relPath of linkedDocs) {

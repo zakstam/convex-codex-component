@@ -172,7 +172,7 @@
       "riskLevel": "default",
       "id": "UC_4ed27c54f9e9",
       "file": "src/host/convexPreset.ts",
-      "line": 398,
+      "line": 401,
       "col": 41,
       "snippet": "const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;",
       "context": "prev:Object.entries(defs.mutations).map(([name, definition]) => { | next:return ["
@@ -183,7 +183,7 @@
       "riskLevel": "default",
       "id": "UC_d26406877097",
       "file": "src/host/convexPreset.ts",
-      "line": 410,
+      "line": 413,
       "col": 4,
       "snippet": ") as unknown as RuntimeOwnedHostDefinitions[\"mutations\"];",
       "context": "prev:}), | next:const guardedQueries = Object.fromEntries("
@@ -194,7 +194,7 @@
       "riskLevel": "default",
       "id": "UC_6f07d956c6e7",
       "file": "src/host/convexPreset.ts",
-      "line": 414,
+      "line": 417,
       "col": 41,
       "snippet": "const typedDefinition = definition as RuntimeOwnedDefinitionWithActor<unknown>;",
       "context": "prev:Object.entries(defs.queries).map(([name, definition]) => { | next:return ["
@@ -205,7 +205,7 @@
       "riskLevel": "default",
       "id": "UC_82b61d560f27",
       "file": "src/host/convexPreset.ts",
-      "line": 426,
+      "line": 429,
       "col": 4,
       "snippet": ") as unknown as RuntimeOwnedHostDefinitions[\"queries\"];",
       "context": "prev:}), | next:return {"
@@ -216,7 +216,7 @@
       "riskLevel": "default",
       "id": "UC_376526d89bdb",
       "file": "src/host/convexPreset.ts",
-      "line": 539,
+      "line": 542,
       "col": 31,
       "snippet": "mutations: pickedMutations as RuntimeOwnedHostDefinitions[\"mutations\"],",
       "context": "prev:profile: \"runtimeOwned\", | next:queries: pickedQueries as RuntimeOwnedHostDefinitions[\"queries\"],"
@@ -227,7 +227,7 @@
       "riskLevel": "default",
       "id": "UC_01d798dcf7c8",
       "file": "src/host/convexPreset.ts",
-      "line": 540,
+      "line": 543,
       "col": 27,
       "snippet": "queries: pickedQueries as RuntimeOwnedHostDefinitions[\"queries\"],",
       "context": "prev:mutations: pickedMutations as RuntimeOwnedHostDefinitions[\"mutations\"], | next:};"
@@ -238,7 +238,7 @@
       "riskLevel": "default",
       "id": "UC_79b8ee5b86af",
       "file": "src/host/convexPreset.ts",
-      "line": 563,
+      "line": 566,
       "col": 43,
       "snippet": "const mutationWrapper = options.mutation as (definition: unknown) => unknown;",
       "context": "prev:// 4. Wrap each definition with the supplied mutation/query constructors | next:const queryWrapper = options.query as (definition: unknown) => unknown;"
@@ -249,7 +249,7 @@
       "riskLevel": "default",
       "id": "UC_740448ecda27",
       "file": "src/host/convexPreset.ts",
-      "line": 564,
+      "line": 567,
       "col": 37,
       "snippet": "const queryWrapper = options.query as (definition: unknown) => unknown;",
       "context": "prev:const mutationWrapper = options.mutation as (definition: unknown) => unknown; | next:const wrappedMutations = Object.fromEntries("
@@ -260,7 +260,7 @@
       "riskLevel": "default",
       "id": "UC_42544996781a",
       "file": "src/host/convexPreset.ts",
-      "line": 571,
+      "line": 574,
       "col": 4,
       "snippet": ") as WrappedDefinitionMap<RuntimeOwnedHostDefinitions[\"mutations\"], typeof options.mutation>;",
       "context": "prev:]), | next:const wrappedQueries = Object.fromEntries("
@@ -271,7 +271,7 @@
       "riskLevel": "default",
       "id": "UC_3403f94def4b",
       "file": "src/host/convexPreset.ts",
-      "line": 578,
+      "line": 581,
       "col": 4,
       "snippet": ") as WrappedDefinitionMap<RuntimeOwnedHostDefinitions[\"queries\"], typeof options.query>;",
       "context": "prev:]), | next:// Build the public-named defs for the escape hatch (unwrapped but aliased)"
@@ -282,7 +282,7 @@
       "riskLevel": "default",
       "id": "UC_051e1cbbf76b",
       "file": "src/host/convexPreset.ts",
-      "line": 583,
+      "line": 586,
       "col": 34,
       "snippet": "mutations: publicMutationDefs as RuntimeOwnedHostDefinitions[\"mutations\"],",
       "context": "prev:profile: \"runtimeOwned\", | next:queries: publicQueryDefs as RuntimeOwnedHostDefinitions[\"queries\"],"
@@ -293,7 +293,7 @@
       "riskLevel": "default",
       "id": "UC_1fa1e4b8ed05",
       "file": "src/host/convexPreset.ts",
-      "line": 584,
+      "line": 587,
       "col": 29,
       "snippet": "queries: publicQueryDefs as RuntimeOwnedHostDefinitions[\"queries\"],",
       "context": "prev:mutations: publicMutationDefs as RuntimeOwnedHostDefinitions[\"mutations\"], | next:};"
@@ -418,17 +418,6 @@
       "col": 21,
       "snippet": "const obj = parsed as Record<string, unknown>;",
       "context": "prev:if (typeof parsed !== \"object\" || parsed === null || !(\"method\" in parsed)) return null; | next:if (obj.method !== \"item/agentMessage/delta\") return null;"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_5eb57f922e25",
-      "file": "src/host/runtimeCoreHandlers.ts",
-      "line": 200,
-      "col": 31,
-      "snippet": "return { delta: params.delta as string, parsed: obj };",
-      "context": "prev:if (!params || typeof params.delta !== \"string\") return null; | next:}"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -731,17 +720,6 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_c407afe7abfa",
-      "file": "src/react/useCodex.ts",
-      "line": 156,
-      "col": 27,
-      "snippet": "ctx.threadSnapshotSafe as CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,",
-      "context": "prev:const threadStateRaw = useCodexThreadState( | next:shouldSkip"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
       "id": "UC_d0342f55c65e",
       "file": "src/react/useCodex.ts",
       "line": 159,
@@ -797,17 +775,6 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_c59a40539f57",
-      "file": "src/react/useCodex.ts",
-      "line": 187,
-      "col": 35,
-      "snippet": "threadState: (threadStateRaw as CodexThreadActivityThreadState | undefined) ?? null,",
-      "context": "prev:threads: threadsConfig ? threadsResult : null, | next:effectiveThreadId,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
       "id": "UC_de3a2572b320",
       "file": "src/react/useCodexMessages.ts",
       "line": 15,
@@ -830,45 +797,23 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_f107f68caeeb",
-      "file": "src/react/useCodexThreads.ts",
-      "line": 73,
-      "col": 69,
-      "snippet": ": listed && typeof listed === \"object\" && \"threads\" in (listed as object)",
-      "context": "prev:? listed | next:? ((listed as Record<string, unknown>).threads as unknown[] | undefined)"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_2fc913fb7f5b",
+      "id": "UC_a685d2655a30",
       "file": "src/react/useCodexThreads.ts",
       "line": 74,
       "col": 19,
       "snippet": "? ((listed as Record<string, unknown>).threads as unknown[] | undefined)",
-      "context": "prev:: listed && typeof listed === \"object\" && \"threads\" in (listed as object) | next:: undefined;"
+      "context": "prev:: listed && typeof listed === \"object\" && \"threads\" in listed | next:: undefined;"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_176b7fcb62af",
-      "file": "src/react/useCodexThreads.ts",
-      "line": 83,
-      "col": 28,
-      "snippet": "\"threadId\" in (item as object) &&",
-      "context": "prev:typeof item === \"object\" && | next:(item as { threadId: unknown }).threadId === selectedThreadId,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_be344c9f773f",
+      "id": "UC_5c78cfc26b1b",
       "file": "src/react/useCodexThreads.ts",
       "line": 84,
       "col": 14,
       "snippet": "(item as { threadId: unknown }).threadId === selectedThreadId,",
-      "context": "prev:\"threadId\" in (item as object) && | next:);"
+      "context": "prev:\"threadId\" in item && | next:);"
     }
   ]
 }

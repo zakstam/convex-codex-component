@@ -29,7 +29,6 @@ import type {
   ServerRequest,
   SetDefaultModelResponse,
   UserInfoResponse,
-  EventMsg,
 } from "./schemas/index.js";
 import type {
   AppsListResponse,

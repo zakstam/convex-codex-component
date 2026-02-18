@@ -197,7 +197,7 @@ function readAssistantDeltaPayload(payloadJson: string): { delta: string; parsed
   if (obj.method !== "item/agentMessage/delta") return null;
   const params = asObject(obj.params);
   if (!params || typeof params.delta !== "string") return null;
-  return { delta: params.delta as string, parsed: obj };
+  return { delta: params.delta, parsed: obj };
 }
 
 function mergeAssistantDeltaPair(first: IngestDelta, second: IngestDelta): IngestDelta | null {

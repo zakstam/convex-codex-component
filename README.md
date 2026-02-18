@@ -33,7 +33,6 @@ Canonical default: runtime-owned host integration.
 - `apps/examples/cli-app`: local CLI bridge demo
 - `apps/examples/persistent-cli-app`: persistent Convex host example
 - `apps/examples/tauri-app`: desktop example
-- `apps/release-smoke-host`: tarball consumer smoke host
 
 ## Install
 
@@ -70,7 +69,6 @@ Validate with:
 
 - `npx convex dev --once`
 - `pnpm run dev:convex:once` (or app equivalent)
-- `pnpm run wiring:smoke` (if available)
 - `pnpm run typecheck`
 
 If a prerequisite is missing for an app, ask for package-specific assumptions before continuing.
@@ -91,14 +89,6 @@ pnpm start
 ```bash
 cd apps/examples/tauri-app
 pnpm run dev
-```
-
-- Release smoke host:
-
-```bash
-cd apps/release-smoke-host
-pnpm run dev:convex
-pnpm start
 ```
 
 ## Docs

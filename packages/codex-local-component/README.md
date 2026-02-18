@@ -70,7 +70,6 @@ Validate with:
 
 - `npx convex dev --once`
 - `pnpm run dev:convex:once` (or app equivalent)
-- `pnpm run wiring:smoke` (if available)
 - `pnpm run typecheck`
 
 If a prerequisite is missing for an app, ask for package-specific assumptions before continuing.
@@ -102,7 +101,6 @@ npx convex dev --once
 
 ```bash
 pnpm run dev:convex:once
-pnpm run wiring:smoke
 pnpm run lint
 pnpm run typecheck
 ```

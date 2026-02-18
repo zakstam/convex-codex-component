@@ -99,22 +99,6 @@ importers:
         specifier: ^6.0.5
         version: 6.4.1(@types/node@22.19.10)(tsx@4.21.0)
 
-  apps/release-smoke-host:
-    dependencies:
-      convex:
-        specifier: ^1.31.7
-        version: 1.31.7(react@19.2.4)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.13.1
-        version: 22.19.10
-      tsx:
-        specifier: ^4.20.3
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
   packages/codex-local-component:
     dependencies:
       ajv:

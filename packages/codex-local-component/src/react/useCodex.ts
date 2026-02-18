@@ -153,7 +153,7 @@ export function useCodex<
   // with the internal useCodexConversationController call — zero extra
   // network cost.
   const threadStateRaw = useCodexThreadState(
-    ctx.threadSnapshotSafe as CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+    ctx.threadSnapshotSafe,
     shouldSkip
       ? "skip"
       : ({ actor: ctx.actor, threadId: effectiveThreadId } as never),
@@ -184,7 +184,7 @@ export function useCodex<
       ...chat,
       tokenUsage,
       threads: threadsConfig ? threadsResult : null,
-      threadState: (threadStateRaw as CodexThreadActivityThreadState | undefined) ?? null,
+      threadState: threadStateRaw ?? null,
       effectiveThreadId,
     }),
     [chat, tokenUsage, threadsConfig, threadsResult, threadStateRaw, effectiveThreadId],

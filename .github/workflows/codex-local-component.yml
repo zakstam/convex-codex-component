@@ -42,4 +42,3 @@ jobs:
       - run: pnpm --filter @convex-dev/codex-local-component run ci
       - run: pnpm --filter codex-local-cli-example run typecheck
       - run: pnpm --filter codex-local-persistent-cli-example run typecheck
-      - run: pnpm --filter codex-local-release-smoke-host run typecheck

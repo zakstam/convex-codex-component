@@ -5,7 +5,6 @@ const root = process.cwd();
 
 const requiredConvexImports = [
   join(root, "../../apps/examples/persistent-cli-app/convex/convex.config.ts"),
-  join(root, "../../apps/release-smoke-host/convex/convex.config.ts"),
 ];
 
 for (const file of requiredConvexImports) {

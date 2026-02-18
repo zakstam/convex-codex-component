@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import type { FunctionReference } from "convex/server";
 import { resolveConvexUrl } from "./smoke-env.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -18,6 +18,23 @@ function hasRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null;
 }
 
+function queryRef(path: string): FunctionReference<"query"> {
+  return path as unknown as FunctionReference<"query">;
+}
+
+function mutationRef(path: string): FunctionReference<"mutation"> {
+  return path as unknown as FunctionReference<"mutation">;
+}
+
+const chatFns = {
+  ensureThread: mutationRef("chat.ensureThread"),
+  ensureSession: mutationRef("chat.ensureSession"),
+  ingestEvent: mutationRef("chat.ingestEvent"),
+  threadSnapshot: queryRef("chat.threadSnapshot"),
+  persistenceStats: queryRef("chat.persistenceStats"),
+  dataHygiene: queryRef("chat.dataHygiene"),
+} as const;
+
 async function main(): Promise<void> {
   const convexUrl = resolveConvexUrl();
   assert.ok(convexUrl, "Missing Convex URL. Run `pnpm run dev:convex:once` first.");
@@ -32,14 +49,14 @@ async function main(): Promise<void> {
   const streamId = `contract-smoke-stream-${suffix}`;
   const sessionId = randomUUID();
 
-  const thread = await convex.mutation(api.chat.ensureThread, {
+  const thread = await convex.mutation(chatFns.ensureThread, {
     actor,
     localThreadId: threadId,
   });
   assert.ok(hasRecord(thread));
   assert.equal(thread.threadId, threadId);
 
-  const heartbeat = await convex.mutation(api.chat.ensureSession, {
+  const heartbeat = await convex.mutation(chatFns.ensureSession, {
     actor,
     sessionId,
     threadId,
@@ -53,7 +70,7 @@ async function main(): Promise<void> {
     "Expected ensureSession status to be created|active",
   );
 
-  const pushed = await convex.mutation(api.chat.ingestEvent, {
+  const pushed = await convex.mutation(chatFns.ingestEvent, {
     actor,
     sessionId,
     threadId,
@@ -79,7 +96,7 @@ async function main(): Promise<void> {
   assert.ok(acked);
   assert.equal(acked.ackCursorEnd, 1);
 
-  const snapshot = await convex.query(api.chat.threadSnapshot, {
+  const snapshot = await convex.query(chatFns.threadSnapshot, {
     actor,
     threadId,
   });
@@ -96,7 +113,7 @@ async function main(): Promise<void> {
   assert.ok(isNumber(stateStream.latestCursor));
   assert.ok(isNumber(stateStream.deltaCount));
 
-  const stats = await convex.query(api.chat.persistenceStats, {
+  const stats = await convex.query(chatFns.persistenceStats, {
     actor,
     threadId,
   });
@@ -105,7 +122,7 @@ async function main(): Promise<void> {
   assert.ok(isNumber(stats.deltaCount));
   assert.ok(Array.isArray(stats.latestCursorByStream));
 
-  const hygiene = await convex.query(api.chat.dataHygiene, {
+  const hygiene = await convex.query(chatFns.dataHygiene, {
     actor,
     threadId,
   });

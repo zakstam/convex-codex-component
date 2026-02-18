@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
+import type { FunctionReference } from "convex/server";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
 import { resolveConvexUrl } from "../../shared/resolveConvexUrl.js";
@@ -16,7 +17,6 @@ import type {
   ClientNotification,
   ClientRequest,
 } from "@zakstam/codex-local-component/protocol";
-import { api } from "../convex/_generated/api";
 
 type IngestDelta = {
   eventId: string;
@@ -52,6 +52,22 @@ const actor = {
 
 const convex = new ConvexHttpClient(convexUrl);
 const sessionId = randomUUID();
+
+function queryRef(path: string): FunctionReference<"query"> {
+  return path as unknown as FunctionReference<"query">;
+}
+
+function mutationRef(path: string): FunctionReference<"mutation"> {
+  return path as unknown as FunctionReference<"mutation">;
+}
+
+const chatFns = {
+  ingestBatch: mutationRef("chat.ingestBatch"),
+  persistenceStats: queryRef("chat.persistenceStats"),
+  ensureThread: mutationRef("chat.ensureThread"),
+  ensureSession: mutationRef("chat.ensureSession"),
+  threadSnapshot: queryRef("chat.threadSnapshot"),
+} as const;
 
 let nextId = 1;
 let threadId: string | null = null;
@@ -132,7 +148,7 @@ async function flushQueue(): Promise<void> {
       if (!first) {
         return;
       }
-      await convex.mutation(api.chat.ingestBatch, {
+      await convex.mutation(chatFns.ingestBatch, {
         actor,
         sessionId,
         threadId: first.threadId,
@@ -246,7 +262,7 @@ async function logPersistenceStats(): Promise<void> {
   if (!threadId) {
     return;
   }
-  const stats = await convex.query(api.chat.persistenceStats, {
+  const stats = await convex.query(chatFns.persistenceStats, {
     actor,
     threadId,
   });
@@ -292,7 +308,7 @@ function toIngestDelta(event: NormalizedEvent): IngestDelta | null {
 async function handleEvent(event: NormalizedEvent): Promise<void> {
   if (threadId === null) {
     threadId = event.threadId;
-    await convex.mutation(api.chat.ensureThread, {
+    await convex.mutation(chatFns.ensureThread, {
       actor,
       localThreadId: threadId,
       ...(model !== null ? { model } : {}),
@@ -467,7 +483,7 @@ async function startFlow(): Promise<void> {
 
   await waitForThreadStart();
   if (threadId) {
-    await convex.mutation(api.chat.ensureSession, {
+    await convex.mutation(chatFns.ensureSession, {
       actor,
       sessionId,
       threadId,
@@ -516,11 +532,11 @@ async function runRepl(): Promise<void> {
         console.log("state> no thread yet");
         continue;
       }
-      const state = await convex.query(api.chat.threadSnapshot, {
+      const state = await convex.query(chatFns.threadSnapshot, {
         actor,
         threadId,
       });
-      const stats = await convex.query(api.chat.persistenceStats, {
+      const stats = await convex.query(chatFns.persistenceStats, {
         actor,
         threadId,
       });

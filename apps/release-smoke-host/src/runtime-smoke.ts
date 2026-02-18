@@ -1,8 +1,25 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import type { FunctionReference } from "convex/server";
 import { resolveConvexUrl } from "./smoke-env.js";
+
+function queryRef(path: string): FunctionReference<"query"> {
+  return path as unknown as FunctionReference<"query">;
+}
+
+function mutationRef(path: string): FunctionReference<"mutation"> {
+  return path as unknown as FunctionReference<"mutation">;
+}
+
+const chatFns = {
+  ensureThread: mutationRef("chat.ensureThread"),
+  ensureSession: mutationRef("chat.ensureSession"),
+  ingestBatch: mutationRef("chat.ingestBatch"),
+  persistenceStats: queryRef("chat.persistenceStats"),
+  threadSnapshot: queryRef("chat.threadSnapshot"),
+  dataHygiene: queryRef("chat.dataHygiene"),
+} as const;
 
 async function main(): Promise<void> {
   const convexUrl = resolveConvexUrl();
@@ -19,20 +36,20 @@ async function main(): Promise<void> {
   const sessionId = randomUUID();
   const now = Date.now();
 
-  await convex.mutation(api.chat.ensureThread, {
+  await convex.mutation(chatFns.ensureThread, {
     actor,
     localThreadId: threadId,
     model: "runtime-smoke-model",
     cwd: process.cwd(),
   });
-  await convex.mutation(api.chat.ensureSession, {
+  await convex.mutation(chatFns.ensureSession, {
     actor,
     sessionId,
     threadId,
     lastEventCursor: 0,
   });
 
-  const pushed = await convex.mutation(api.chat.ingestBatch, {
+  const pushed = await convex.mutation(chatFns.ingestBatch, {
     actor,
     sessionId,
     threadId,
@@ -72,7 +89,7 @@ async function main(): Promise<void> {
   );
   assert.equal(acked?.ackCursorEnd, 2, "Expected stream checkpoint to advance to 2");
 
-  const stats = await convex.query(api.chat.persistenceStats, {
+  const stats = await convex.query(chatFns.persistenceStats, {
     actor,
     threadId,
   });
@@ -80,7 +97,7 @@ async function main(): Promise<void> {
   assert.equal(stats.deltaCount, 2, "Expected exactly two persisted lifecycle deltas");
   assert.deepEqual(stats.latestCursorByStream, [{ streamId, cursor: 2 }]);
 
-  const snapshot = await convex.query(api.chat.threadSnapshot, {
+  const snapshot = await convex.query(chatFns.threadSnapshot, {
     actor,
     threadId,
   });
@@ -101,7 +118,7 @@ async function main(): Promise<void> {
   assert.equal(matching.latestCursor, 2);
   assert.equal(matching.deltaCount, 2);
 
-  const hygiene = await convex.query(api.chat.dataHygiene, {
+  const hygiene = await convex.query(chatFns.dataHygiene, {
     actor,
     threadId,
   });

@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReference } from "convex/server";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 export type CodexThreadsListQuery<
@@ -58,6 +58,42 @@ export function useCodexThreads<
     }
   }, []);
 
+  // ── Stale selection guard ────────────────────────────────────────────
+  // When the selected thread is deleted, the list query updates reactively
+  // but selectedThreadId state is stale. Convex's useQuery throws server
+  // errors during render, so we must validate BEFORE the return value
+  // reaches useCodex (which would subscribe to listThreadMessages).
+  const validatedSelectedThreadId = useMemo(() => {
+    if (!selectedThreadId || listed === undefined) return selectedThreadId;
+
+    // Extract thread items — supports { threads: [...] } (standard shape)
+    // and direct array shapes.
+    const items: unknown[] | undefined = Array.isArray(listed)
+      ? listed
+      : listed && typeof listed === "object" && "threads" in (listed as object)
+        ? ((listed as Record<string, unknown>).threads as unknown[] | undefined)
+        : undefined;
+
+    if (!items) return selectedThreadId;
+
+    const found = items.some(
+      (item) =>
+        !!item &&
+        typeof item === "object" &&
+        "threadId" in (item as object) &&
+        (item as { threadId: unknown }).threadId === selectedThreadId,
+    );
+
+    return found ? selectedThreadId : null;
+  }, [selectedThreadId, listed]);
+
+  // Clean up stale state after the render-time guard prevents the crash
+  useEffect(() => {
+    if (selectedThreadId && validatedSelectedThreadId === null) {
+      setSelectedThreadId(null);
+    }
+  }, [selectedThreadId, validatedSelectedThreadId]);
+
   const create = useCallback(
     async (args?: Record<string, unknown>) => {
       const createThread = config.controls?.createThread;
@@ -98,7 +134,7 @@ export function useCodexThreads<
   return useMemo(
     () => ({
       threads: listed,
-      selectedThreadId,
+      selectedThreadId: validatedSelectedThreadId,
       setSelectedThreadId,
       busyAction,
       isBusy: busyAction !== null,
@@ -107,6 +143,6 @@ export function useCodexThreads<
       resolve,
       resume,
     }),
-    [busyAction, create, error, listed, resolve, resume, selectedThreadId],
+    [busyAction, create, error, listed, resolve, resume, validatedSelectedThreadId],
   );
 }

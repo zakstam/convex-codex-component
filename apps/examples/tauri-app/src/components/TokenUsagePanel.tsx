@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CodexTokenUsage, CodexTokenUsageBreakdown } from "@zakstam/codex-local-component/react";
 
 type Props = {
-  tokenUsage: CodexTokenUsage;
+  tokenUsage: CodexTokenUsage | null;
 };
 
 function formatTokens(n: number): string {
@@ -42,7 +42,7 @@ function BreakdownFields({ breakdown, label }: { breakdown: CodexTokenUsageBreak
 export function TokenUsagePanel({ tokenUsage }: Props) {
   const [expandedTurnId, setExpandedTurnId] = useState<string | null>(null);
 
-  if (tokenUsage.status === "loading") {
+  if (!tokenUsage || tokenUsage.status === "loading") {
     return (
       <section className="panel card" aria-label="Token usage">
         <h2>Token Usage</h2>

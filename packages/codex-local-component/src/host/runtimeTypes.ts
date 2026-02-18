@@ -57,8 +57,8 @@ export class CodexHostRuntimeError extends Error {
 }
 
 export type HostRuntimeStartArgs = {
-  actor: ActorContext;
-  sessionId: string;
+  actor?: ActorContext;
+  sessionId?: string;
   externalThreadId?: string;
   runtimeThreadId?: string;
   threadStrategy?: "start" | "resume" | "fork";

@@ -10,6 +10,7 @@ export type CodexContextValue = {
   listThreadMessages: CodexMessagesQuery<unknown>;
   threadSnapshotSafe: CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>;
   listPendingServerRequests?: unknown;
+  listTokenUsage?: unknown;
   defaultInitialNumItems: number;
   defaultStream: boolean;
 };

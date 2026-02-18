@@ -189,8 +189,43 @@ function toIngestDelta(ctx: HandlerCtx, event: NormalizedEvent, ptid: string): I
   return { type: "stream_delta", eventId: event.eventId, kind: event.kind, payloadJson: rp, cursorStart: event.cursorStart, cursorEnd: event.cursorEnd, createdAt: event.createdAt, threadId: ptid, turnId: resolved, streamId: rsid };
 }
 
+function readAssistantDeltaPayload(payloadJson: string): { delta: string; parsed: Record<string, unknown> } | null {
+  let parsed: unknown;
+  try { parsed = JSON.parse(payloadJson); } catch { return null; }
+  if (typeof parsed !== "object" || parsed === null || !("method" in parsed)) return null;
+  const obj = parsed as Record<string, unknown>;
+  if (obj.method !== "item/agentMessage/delta") return null;
+  const params = asObject(obj.params);
+  if (!params || typeof params.delta !== "string") return null;
+  return { delta: params.delta as string, parsed: obj };
+}
+
+function mergeAssistantDeltaPair(first: IngestDelta, second: IngestDelta): IngestDelta | null {
+  if (
+    first.type !== "stream_delta" || second.type !== "stream_delta" ||
+    first.kind !== "item/agentMessage/delta" || second.kind !== "item/agentMessage/delta" ||
+    first.threadId !== second.threadId || first.turnId !== second.turnId ||
+    first.streamId !== second.streamId || first.cursorEnd !== second.cursorStart
+  ) return null;
+  const fp = readAssistantDeltaPayload(first.payloadJson);
+  const sp = readAssistantDeltaPayload(second.payloadJson);
+  if (!fp || !sp) return null;
+  const merged = { ...fp.parsed, params: { ...(asObject(fp.parsed.params) ?? {}), delta: `${fp.delta}${sp.delta}` } };
+  return { ...first, eventId: second.eventId, payloadJson: JSON.stringify(merged), cursorEnd: second.cursorEnd, createdAt: second.createdAt };
+}
+
 async function enqueueIngestDelta(ctx: HandlerCtx, delta: IngestDelta, forceFlush: boolean): Promise<void> {
-  ctx.ingestQueue.push(delta);
+  const tail = ctx.ingestQueue[ctx.ingestQueue.length - 1];
+  if (tail) {
+    const merged = mergeAssistantDeltaPair(tail, delta);
+    if (merged) {
+      ctx.ingestQueue[ctx.ingestQueue.length - 1] = merged;
+    } else {
+      ctx.ingestQueue.push(delta);
+    }
+  } else {
+    ctx.ingestQueue.push(delta);
+  }
   if (forceFlush || ctx.ingestQueue.length >= MAX_BATCH_SIZE) { await flushQueue(ctx); return; }
   if (!ctx.flushTimer) {
     ctx.setFlushTimer(setTimeout(() => { ctx.setFlushTimer(null); void flushQueue(ctx).catch((error) => { const reason = error instanceof Error ? error.message : String(error); const coded = ctx.runtimeError("E_RUNTIME_INGEST_FLUSH_FAILED", `Deferred ingest flush failed: ${reason}`); ctx.handlers?.onProtocolError?.({ message: coded.message, line: "[runtime:flushTimer]" }); }); }, ctx.turnInFlight ? ctx.ingestFlushMs : IDLE_INGEST_FLUSH_MS));

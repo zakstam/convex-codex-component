@@ -6,6 +6,7 @@ export {
   createCodexHostRuntime,
   CodexHostRuntimeError,
   type CodexHostRuntime,
+  type CreateCodexHostRuntimeArgs,
   type HostRuntimeErrorCode,
   type HostRuntimeHandlers,
   type HostRuntimePersistence,
@@ -24,6 +25,13 @@ export {
 
 // Non-Convex ingest recovery
 export { hasRecoverableIngestErrors, type HostIngestErrorLike } from "./ingestRecovery.js";
+
+// Convex-integrated persistence adapter factory
+export {
+  createConvexPersistence,
+  type ConvexPersistenceChatApi,
+  type ConvexPersistenceOptions,
+} from "./convexPersistence.js";
 
 // Non-Convex: additional convexSlice exports only available at host level
 export {

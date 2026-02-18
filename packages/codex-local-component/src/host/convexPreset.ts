@@ -346,7 +346,12 @@ type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
   [Key in keyof Defs]: WrappedResult<Wrap>;
 };
 
+export type CodexConvexHostActorPolicyShorthand =
+  | string
+  | { userId: string };
+
 export type CodexConvexHostActorPolicy<MutationCtx = unknown, QueryCtx = unknown> =
+  | CodexConvexHostActorPolicyShorthand
   | {
       mode: "serverActor";
       serverActor: HostActorContext;
@@ -357,6 +362,30 @@ export type CodexConvexHostActorPolicy<MutationCtx = unknown, QueryCtx = unknown
       resolveMutationActor: HostActorResolver<MutationCtx>;
       resolveQueryActor: HostActorResolver<QueryCtx>;
     };
+
+type NormalizedActorPolicy<MutationCtx = unknown, QueryCtx = unknown> =
+  | {
+      mode: "serverActor";
+      serverActor: HostActorContext;
+    }
+  | {
+      mode: "guarded";
+      serverActor: HostActorContext;
+      resolveMutationActor: HostActorResolver<MutationCtx>;
+      resolveQueryActor: HostActorResolver<QueryCtx>;
+    };
+
+function normalizeActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
+  policy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>,
+): NormalizedActorPolicy<MutationCtx, QueryCtx> {
+  if (typeof policy === "string") {
+    return { mode: "serverActor", serverActor: { userId: policy } };
+  }
+  if (!("mode" in policy)) {
+    return { mode: "serverActor", serverActor: { userId: policy.userId } };
+  }
+  return policy;
+}
 
 function applyActorGuards<
   MutationCtx = unknown,
@@ -426,6 +455,8 @@ export type CodexHostFacade<MutationWrap = unknown, QueryWrap = unknown> = {
   profile: "runtimeOwned";
   mutations: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
   queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
+  endpoints: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap> &
+    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
   defs: RuntimeOwnedHostDefinitions;
 };
 
@@ -442,9 +473,9 @@ function aliasDefinitionKeys<T extends Record<string, unknown>>(
   );
 }
 
-function assertValidActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
-  actorPolicy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx> | undefined,
-): asserts actorPolicy is CodexConvexHostActorPolicy<MutationCtx, QueryCtx> {
+function assertValidNormalizedActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
+  actorPolicy: NormalizedActorPolicy<MutationCtx, QueryCtx> | undefined,
+): asserts actorPolicy is NormalizedActorPolicy<MutationCtx, QueryCtx> {
   if (!actorPolicy) {
     throw new Error("createCodexHost requires an explicit actorPolicy.");
   }
@@ -463,8 +494,8 @@ export function createCodexHost<
 >(
   options: CreateCodexHostOptions<Components, MutationCtx, QueryCtx>,
 ): CodexHostFacade<typeof options.mutation, typeof options.query> {
-  const actorPolicy = options.actorPolicy;
-  assertValidActorPolicy(actorPolicy);
+  const actorPolicy = normalizeActorPolicy(options.actorPolicy);
+  assertValidNormalizedActorPolicy(actorPolicy);
 
   // 1. Build raw internal-named slice definitions
   const rawSlice = defineCodexHostSlice<Components>({
@@ -475,8 +506,8 @@ export function createCodexHost<
     features: {
       hooks: true,
       approvals: true,
-      serverRequests: false,
-      reasoning: false,
+      serverRequests: true,
+      reasoning: true,
       hygiene: true,
       tokenUsage: true,
     },
@@ -557,10 +588,15 @@ export function createCodexHost<
     queries: publicQueryDefs as RuntimeOwnedHostDefinitions["queries"],
   };
 
+  const endpoints = { ...wrappedMutations, ...wrappedQueries } as
+    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], typeof options.mutation> &
+    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], typeof options.query>;
+
   return {
     profile: "runtimeOwned",
     mutations: wrappedMutations,
     queries: wrappedQueries,
+    endpoints,
     defs: publicDefs,
   };
 }

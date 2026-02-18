@@ -1,8 +1,9 @@
 import { ConvexHttpClient } from "convex/browser";
 import {
   createCodexHostRuntime,
-  hasRecoverableIngestErrors,
+  createConvexPersistence,
   type CodexHostRuntime,
+  type ConvexPersistenceChatApi,
 } from "@zakstam/codex-local-component/host";
 import {
   HELPER_ACK_BY_TYPE,
@@ -80,13 +81,6 @@ function emit(event: HelperEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
-function toErrorCode(value: unknown): string {
-  if (typeof value !== "string") {
-    return "UNKNOWN";
-  }
-  return value;
-}
-
 function formatWiringValidationFailure(result: unknown): string {
   if (typeof result !== "object" || result === null) {
     return "Host wiring validation failed: unexpected result shape.";
@@ -113,48 +107,12 @@ function formatWiringValidationFailure(result: unknown): string {
   return `Host wiring validation failed: ${detail}`;
 }
 
-type IngestBatchError = {
-  code: unknown;
-  message: string;
-  recoverable: boolean;
-};
-
-function mapIngestErrors(errors: IngestBatchError[]): Array<{
-  code: string;
-  message: string;
-  recoverable: boolean;
-}> {
-  return errors.map((ingestError: IngestBatchError) => ({
-    code: toErrorCode(ingestError.code),
-    message: ingestError.message,
-    recoverable: ingestError.recoverable,
-  }));
-}
-
-function mapIngestErrorCodes(errors: IngestBatchError[]): Array<{
-  code: string;
-  message: string;
-}> {
-  return errors.map((ingestError: IngestBatchError) => ({
-    code: toErrorCode(ingestError.code),
-    message: ingestError.message,
-  }));
-}
-
-type RuntimeDispatchQueueEntry = {
-  dispatchId: string;
-  claimToken: string;
-  turnId: string;
-  inputText: string;
-  idempotencyKey: string;
-};
 
 let runtime: CodexHostRuntime | null = null;
 let convex: ConvexHttpClient | null = null;
 let actor: ActorContext | null = null;
 let activeSessionId: string | null = null;
 let runtimeThreadId: string | null = null;
-const runtimeDispatchQueues = new Map<string, RuntimeDispatchQueueEntry[]>();
 let startRuntimeOptions: {
   saveStreamDeltas: boolean;
   maxDeltasPerStreamRead: number;
@@ -166,15 +124,6 @@ let startRuntimeOptions: {
   maxDeltasPerRequestRead: 1000,
   finishedStreamDeleteDelayMs: 300000,
 };
-
-function getDispatchQueue(threadId: string): RuntimeDispatchQueueEntry[] {
-  let queue = runtimeDispatchQueues.get(threadId);
-  if (!queue) {
-    queue = [];
-    runtimeDispatchQueues.set(threadId, queue);
-  }
-  return queue;
-}
 
 let bridgeState: {
   running: boolean;
@@ -527,295 +476,24 @@ async function startBridge(payload: StartPayload): Promise<void> {
     bridge: {
       cwd: payload.cwd ?? process.cwd(),
     },
-    persistence: {
-      ensureThread: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        if (!args.localThreadId) {
-          throw new Error("ensureThread requires localThreadId.");
-        }
-        return convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
-          actor: args.actor,
-          localThreadId: args.localThreadId,
-          ...(args.externalThreadId ? { externalThreadId: args.externalThreadId } : {}),
-          ...(args.model ? { model: args.model } : {}),
-          ...(args.cwd ? { cwd: args.cwd } : {}),
-        });
+    persistence: createConvexPersistence(
+      convex,
+      chatApi as unknown as ConvexPersistenceChatApi,
+      {
+        runtimeOptions: startRuntimeOptions,
+        onSessionRollover: ({ threadId, errors }) => {
+          emit({
+            type: "global",
+            payload: {
+              kind: "sync/session_rolled_over",
+              reason: "recoverable_rejected_status",
+              threadId,
+              errors,
+            },
+          });
+        },
       },
-      ensureSession: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        return convex.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-          actor: args.actor,
-          sessionId: args.sessionId,
-          threadId: args.threadId,
-          lastEventCursor: args.lastEventCursor,
-        });
-      },
-      ingestSafe: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        const client = convex;
-
-        const toIngestPayload = (sessionIdOverride: string) => ({
-          actor: args.actor,
-          sessionId: sessionIdOverride,
-          threadId: args.threadId,
-          deltas: args.deltas.map((delta) =>
-            delta.type === "stream_delta"
-              ? {
-                  type: "stream_delta" as const,
-                  eventId: delta.eventId,
-                  turnId: delta.turnId,
-                  streamId: delta.streamId,
-                  kind: delta.kind,
-                  payloadJson: delta.payloadJson,
-                  cursorStart: delta.cursorStart,
-                  cursorEnd: delta.cursorEnd,
-                  createdAt: delta.createdAt,
-                }
-              : {
-                  type: "lifecycle_event" as const,
-                  eventId: delta.eventId,
-                  ...(delta.turnId ? { turnId: delta.turnId } : {}),
-                  kind: delta.kind,
-                  payloadJson: delta.payloadJson,
-                  createdAt: delta.createdAt,
-                },
-          ),
-          runtime: startRuntimeOptions,
-        });
-
-        const runIngest = async (sessionIdOverride: string) =>
-          client.mutation(requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"), toIngestPayload(sessionIdOverride));
-
-        try {
-          const initialResult = await runIngest(args.sessionId);
-          if (initialResult.status !== "rejected") {
-            return {
-              status: initialResult.status,
-              errors: mapIngestErrors(initialResult.errors as IngestBatchError[]),
-            };
-          }
-
-          const initialErrors = initialResult.errors as IngestBatchError[];
-          // Recoverability is contract-owned by ingestSafe errors[].recoverable.
-          const hasRecoverableRejection = hasRecoverableIngestErrors(initialErrors);
-          if (hasRecoverableRejection && activeSessionId && actor) {
-            const nextSessionId = randomSessionId();
-            activeSessionId = nextSessionId;
-            await client.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-              actor,
-              sessionId: nextSessionId,
-              threadId: args.threadId,
-              lastEventCursor: 0,
-            });
-
-            emit({
-              type: "global",
-              payload: {
-                kind: "sync/session_rolled_over",
-                reason: "recoverable_rejected_status",
-                threadId: args.threadId,
-                errors: mapIngestErrorCodes(initialErrors),
-              },
-            });
-
-            const retriedResult = await runIngest(nextSessionId);
-            if (retriedResult.status === "rejected") {
-              return {
-                status: "partial",
-                errors: mapIngestErrors(retriedResult.errors as IngestBatchError[]).map((error) => ({
-                  ...error,
-                  recoverable: true,
-                })),
-              };
-            }
-            return {
-              status: retriedResult.status,
-              errors: mapIngestErrors(retriedResult.errors as IngestBatchError[]),
-            };
-          }
-
-          return {
-            status: initialResult.status,
-            errors: mapIngestErrors(initialErrors),
-          };
-        } catch (error) {
-          throw error;
-        }
-      },
-      upsertPendingServerRequest: async ({ actor: requestActor, request }) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        const requestedAt = (request as { createdAt?: number }).createdAt;
-        await convex.mutation(
-          requireDefined(
-            chatApi.upsertPendingServerRequest,
-            "api.chat.upsertPendingServerRequest",
-          ),
-          {
-            actor: requestActor,
-            requestId: request.requestId,
-            threadId: request.threadId,
-            turnId: request.turnId,
-            itemId: request.itemId,
-            method: request.method,
-            payloadJson: request.payloadJson,
-            ...(request.reason ? { reason: request.reason } : {}),
-            ...(request.questions ? { questionsJson: JSON.stringify(request.questions) } : {}),
-            ...(typeof requestedAt === "number" ? { requestedAt } : {}),
-          },
-        );
-      },
-      resolvePendingServerRequest: async ({ threadId, requestId, status, resolvedAt, responseJson }) => {
-        if (!convex || !actor) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(
-            chatApi.resolvePendingServerRequest,
-            "api.chat.resolvePendingServerRequest",
-          ),
-          {
-            actor,
-            threadId,
-            requestId,
-            status,
-            resolvedAt,
-            ...(responseJson ? { responseJson } : {}),
-          },
-        );
-      },
-      listPendingServerRequests: async ({ threadId }) => {
-        if (!convex || !actor) {
-          return [];
-        }
-        return convex.query(
-          requireDefined(
-            chatApi.listPendingServerRequests,
-            "api.chat.listPendingServerRequests",
-          ),
-          {
-            actor,
-            ...(threadId ? { threadId } : {}),
-            limit: 100,
-          },
-        );
-      },
-      acceptTurnSend: async ({ actor: turnActor, threadId, dispatchId, turnId, idempotencyKey, inputText }) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        const acceptResult = await convex.mutation(
-          requireDefined(chatApi.acceptTurnSend, "api.chat.acceptTurnSend"),
-          {
-            actor: turnActor,
-            threadId,
-            turnId,
-            inputText,
-            idempotencyKey,
-            ...(dispatchId ? { dispatchId } : {}),
-          },
-        );
-        const claimToken = randomSessionId();
-        const queue = getDispatchQueue(threadId);
-        queue.push({
-          dispatchId: acceptResult.dispatchId,
-          claimToken,
-          turnId: acceptResult.turnId,
-          inputText,
-          idempotencyKey,
-        });
-        return acceptResult;
-      },
-      failAcceptedTurnSend: async ({ actor: turnActor, threadId, turnId, dispatchId, reason, code }) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.failAcceptedTurnSend, "api.chat.failAcceptedTurnSend"),
-          {
-            actor: turnActor,
-            threadId,
-            turnId,
-            dispatchId,
-            reason,
-            ...(code ? { code } : {}),
-          },
-        );
-      },
-      claimNextTurnDispatch: async ({ threadId, claimOwner }) => {
-        const queue = getDispatchQueue(threadId);
-        const entry = queue.shift();
-        if (!entry) {
-          void claimOwner;
-          return null;
-        }
-        return {
-          dispatchId: entry.dispatchId,
-          turnId: entry.turnId,
-          idempotencyKey: entry.idempotencyKey,
-          inputText: entry.inputText,
-          claimToken: entry.claimToken,
-          leaseExpiresAt: Date.now() + 60_000,
-          attemptCount: 1,
-        };
-      },
-      markTurnDispatchStarted: async ({ threadId, dispatchId, claimToken, runtimeThreadId: dispatchedRuntimeThreadId, runtimeTurnId }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-        void dispatchedRuntimeThreadId;
-        void runtimeTurnId;
-      },
-      markTurnDispatchCompleted: async ({ threadId, dispatchId, claimToken }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-      },
-      markTurnDispatchFailed: async ({ threadId, dispatchId, claimToken, code, reason }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-        void code;
-        void reason;
-      },
-      cancelTurnDispatch: async ({ threadId, dispatchId, claimToken, reason }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-        void reason;
-      },
-      upsertTokenUsage: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.upsertTokenUsage, "api.chat.upsertTokenUsage"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            turnId: args.turnId,
-            totalTokens: args.totalTokens,
-            inputTokens: args.inputTokens,
-            cachedInputTokens: args.cachedInputTokens,
-            outputTokens: args.outputTokens,
-            reasoningOutputTokens: args.reasoningOutputTokens,
-            lastTotalTokens: args.lastTotalTokens,
-            lastInputTokens: args.lastInputTokens,
-            lastCachedInputTokens: args.lastCachedInputTokens,
-            lastOutputTokens: args.lastOutputTokens,
-            lastReasoningOutputTokens: args.lastReasoningOutputTokens,
-            ...(args.modelContextWindow != null ? { modelContextWindow: args.modelContextWindow } : {}),
-          },
-        );
-      },
-    },
+    ),
     handlers: {
       onState: (state) => {
         emitState({

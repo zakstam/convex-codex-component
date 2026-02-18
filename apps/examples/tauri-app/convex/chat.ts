@@ -272,129 +272,18 @@ export const resumeThread = query({
   },
 });
 
-export const { ensureSession, ingestEvent, ingestBatch,
-  respondApproval, upsertTokenUsage } = codex.mutations;
-
-export const upsertPendingServerRequest = mutation({
-  args: {
-    actor: vHostActorContext,
-    requestId: v.union(v.string(), v.number()),
-    threadId: v.string(),
-    turnId: v.string(),
-    itemId: v.string(),
-    method: v.union(
-      v.literal("item/commandExecution/requestApproval"),
-      v.literal("item/fileChange/requestApproval"),
-      v.literal("item/tool/requestUserInput"),
-      v.literal("item/tool/call"),
-    ),
-    payloadJson: v.string(),
-    reason: v.optional(v.string()),
-    questionsJson: v.optional(v.string()),
-    requestedAt: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    return runMutationWithBoundActor(ctx, args.actor, components.codexLocal.serverRequests.upsertPending, {
-      requestId: args.requestId,
-      threadId: args.threadId,
-      turnId: args.turnId,
-      itemId: args.itemId,
-      method: args.method,
-      payloadJson: args.payloadJson,
-      ...(args.reason ? { reason: args.reason } : {}),
-      ...(args.questionsJson ? { questionsJson: args.questionsJson } : {}),
-      requestedAt: args.requestedAt ?? Date.now(),
-    });
-  },
-});
-
-export const resolvePendingServerRequest = mutation({
-  args: {
-    actor: vHostActorContext,
-    threadId: v.string(),
-    requestId: v.union(v.string(), v.number()),
-    status: v.union(v.literal("answered"), v.literal("expired")),
-    resolvedAt: v.number(),
-    responseJson: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    return runMutationWithBoundActor(ctx, args.actor, components.codexLocal.serverRequests.resolve, {
-      threadId: args.threadId,
-      requestId: args.requestId,
-      status: args.status,
-      resolvedAt: args.resolvedAt,
-      ...(args.responseJson ? { responseJson: args.responseJson } : {}),
-    });
-  },
-});
-
-export const listPendingServerRequests = query({
-  args: {
-    actor: vHostActorContext,
-    threadId: v.optional(v.string()),
-    limit: v.optional(v.number()),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    return runQueryWithBoundActor(ctx, args.actor, components.codexLocal.serverRequests.listPending, {
-      ...(args.threadId ? { threadId: args.threadId } : {}),
-      ...(args.limit !== undefined ? { limit: args.limit } : {}),
-    });
-  },
-});
-
-export const { interruptTurn } = codex.mutations;
-
-export const acceptTurnSend = mutation({
-  args: {
-    actor: vHostActorContext,
-    threadId: v.string(),
-    turnId: v.string(),
-    idempotencyKey: v.string(),
-    inputText: v.string(),
-    dispatchId: v.optional(v.string()),
-  },
-  returns: v.object({
-    dispatchId: v.string(),
-    turnId: v.string(),
-    accepted: v.literal(true),
-  }),
-  handler: async (ctx, args) => {
-    await runMutationWithBoundActor(ctx, args.actor, components.codexLocal.turns.start, {
-      threadId: args.threadId,
-      turnId: args.turnId,
-      idempotencyKey: args.idempotencyKey,
-      input: [{ type: "text", text: args.inputText }],
-    });
-    return {
-      dispatchId: args.dispatchId ?? args.turnId,
-      turnId: args.turnId,
-      accepted: true as const,
-    } as const;
-  },
-});
-
-export const failAcceptedTurnSend = mutation({
-  args: {
-    actor: vHostActorContext,
-    threadId: v.string(),
-    turnId: v.string(),
-    dispatchId: v.optional(v.string()),
-    code: v.optional(v.string()),
-    reason: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await runMutationWithBoundActor(ctx, args.actor, components.codexLocal.turns.interrupt, {
-      threadId: args.threadId,
-      turnId: args.turnId,
-      reason: args.code ? `[${args.code}] ${args.reason}` : args.reason,
-    });
-    return null;
-  },
-});
+export const {
+  // mutations
+  ensureSession, ingestEvent, ingestBatch,
+  respondApproval, upsertTokenUsage, interruptTurn,
+  upsertPendingServerRequest, resolvePendingServerRequest,
+  acceptTurnSend, failAcceptedTurnSend,
+  // queries
+  validateHostWiring, threadSnapshot, threadSnapshotSafe,
+  persistenceStats, durableHistoryStats, listThreadMessages,
+  listTurnMessages, listPendingApprovals, listTokenUsage,
+  listPendingServerRequests,
+} = codex.endpoints;
 
 export const deleteThreadCascade = mutation({
   args: {
@@ -550,10 +439,6 @@ export const forceRunScheduledDeletion = mutation({
     });
   },
 });
-
-export const { validateHostWiring, threadSnapshot, threadSnapshotSafe,
-  persistenceStats, durableHistoryStats, listThreadMessages,
-  listTurnMessages, listPendingApprovals, listTokenUsage } = codex.queries;
 
 export const getDeletionJobStatus = query({
   args: {

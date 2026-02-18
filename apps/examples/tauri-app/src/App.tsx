@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   CodexProvider,
@@ -6,8 +6,6 @@ import {
   useCodexAccountAuth,
   useCodexRuntimeBridge,
   useCodexThreadState,
-  useCodexThreads,
-  useCodexTokenUsage,
 } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
@@ -187,25 +185,6 @@ function AppContent({
     );
   }, [actorUserId, addToast, onActorChange, preferredBoundUserId]);
 
-  const threadId = bridge.localThreadId;
-  const threads = useCodexThreads({
-    list: {
-      query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
-      args: actorReady ? { actor, limit: 25 } : "skip",
-    },
-    initialSelectedThreadId: "",
-  });
-  const selectedThreadId = threads.selectedThreadId ?? "";
-  const pickerThreads = useMemo(
-    () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
-    [threads.threads],
-  );
-  const selectedRuntimeThreadId = useMemo(
-    () => pickerThreads.find((thread) => thread.threadId === selectedThreadId)?.runtimeThreadId ?? "",
-    [pickerThreads, selectedThreadId],
-  );
-  const cleanupThreadId = bridge.localThreadId ?? (selectedThreadId || null);
-
   const runtimeBridgeControls = useMemo(
     () => ({
       start: tauriBridge.lifecycle.start,
@@ -227,9 +206,13 @@ function AppContent({
     respondChatgptAuthTokensRefresh: tauriBridge.account.respondChatgptAuthTokensRefresh,
   });
 
+  // Ref breaks the circular dependency: startBridgeWithSelection → selectedRuntimeThreadId
+  // → conversation.threads → useCodex() → composer.onSend → startBridgeWithSelection
+  const selectedRuntimeThreadIdRef = useRef("");
+
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry") => {
-      const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
+      const resumeThreadId = selectedRuntimeThreadIdRef.current.trim() || undefined;
       if (!actorReady) {
         throw new Error("Actor identity is still synchronizing. Please retry in a moment.");
       }
@@ -246,12 +229,19 @@ function AppContent({
         ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
       });
     },
-    [actor, actorReady, bridge.disabledTools, runtimeBridge, selectedRuntimeThreadId],
+    [actor, actorReady, bridge.disabledTools, runtimeBridge],
   );
 
   const conversation = useCodex({
-    threadId,
+    // threadId omitted — derived from threads.selectedThreadId
     actorReady,
+    threads: {
+      list: {
+        query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
+        args: actorReady ? { actor, limit: 25 } : "skip",
+      },
+      initialSelectedThreadId: "",
+    },
     composer: {
       onSend: async (text: string) => {
         try {
@@ -291,6 +281,28 @@ function AppContent({
     },
   });
 
+  // ── Derive picker values from composed threads ──────────────────────
+  const threads = conversation.threads!;
+  const selectedThreadId = threads.selectedThreadId ?? "";
+  const pickerThreads = useMemo(
+    () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
+    [threads.threads],
+  );
+  const selectedRuntimeThreadId = useMemo(
+    () => pickerThreads.find((t) => t.threadId === selectedThreadId)?.runtimeThreadId ?? "",
+    [pickerThreads, selectedThreadId],
+  );
+  selectedRuntimeThreadIdRef.current = selectedRuntimeThreadId;
+
+  // Sync bridge-created threads into the picker selection
+  useEffect(() => {
+    if (bridge.localThreadId && conversation.threads) {
+      conversation.threads.setSelectedThreadId(bridge.localThreadId);
+    }
+  }, [bridge.localThreadId, conversation.threads]);
+
+  const cleanupThreadId = conversation.effectiveThreadId || null;
+
   const messages = conversation.messages;
   const displayMessages = useMemo(
     () => messages.results.filter((message) => message.sourceItemType !== "reasoning"),
@@ -322,21 +334,14 @@ function AppContent({
     return latest;
   }, [messages.results]);
 
-  const threadState = useCodexThreadState(
-    requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
-    threadId && actorReady ? { actor, threadId } : "skip",
-  );
+  const threadState = conversation.threadState;
   const threadActivity = conversation.activity;
   const ingestHealth = conversation.ingestHealth;
-
-  const tokenUsage = useCodexTokenUsage(
-    requireDefined(chatApi.listTokenUsage, "api.chat.listTokenUsage"),
-    threadId && actorReady ? { actor, threadId } : "skip",
-  );
+  const tokenUsage = conversation.tokenUsage;
 
   const tokenByTurnId = useMemo(() => {
     const map = new Map<string, { totalTokens: number; inputTokens: number; outputTokens: number }>();
-    if (tokenUsage.status !== "ready") return map;
+    if (!tokenUsage || tokenUsage.status !== "ready") return map;
     for (const turn of tokenUsage.turns) {
       map.set(turn.turnId, {
         totalTokens: turn.last.totalTokens,
@@ -349,7 +354,7 @@ function AppContent({
 
   const pendingServerRequestsRaw = useQuery(
     requireDefined(chatApi.listPendingServerRequests, "api.chat.listPendingServerRequests"),
-    threadId && actorReady ? { actor, threadId, limit: 50 } : "skip",
+    conversation.effectiveThreadId && actorReady ? { actor, threadId: conversation.effectiveThreadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
   const deleteThreadCascadeMutation = useMutation(

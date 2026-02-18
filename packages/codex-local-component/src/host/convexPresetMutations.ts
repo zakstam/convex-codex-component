@@ -21,8 +21,7 @@ import {
   vHostLifecycleInboundEvent,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
-  vManagedServerRequestMethod,
-  vServerRequestId,
+  vHostTurnInput,
   type CodexHostComponentRefs,
   type HostActorContext,
   type HostMutationRunner,
@@ -38,11 +37,7 @@ type MutationBuilderArgs = {
 };
 
 function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
-  // When the server actor has no userId (runtime-owned profiles), preserve the
-  // request actor so data is scoped to the authenticated user rather than the
-  // anonymous scope.
-  const actor = serverActor.userId ? serverActor : { ...serverActor, ...args.actor };
-  return { ...args, actor };
+  return { ...args, actor: serverActor };
 }
 
 function resolveServerActor(
@@ -58,7 +53,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
   const ensureThread = {
     args: {
       actor: vHostActorContext,
-      localThreadId: v.optional(v.string()),
+      threadId: v.optional(v.string()),
       externalThreadId: v.optional(v.string()),
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
@@ -70,22 +65,15 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
-      localThreadId?: string;
+      threadId?: string;
       externalThreadId?: string;
       model?: string;
       cwd?: string;
     }) => {
-      if (!args.localThreadId && !args.externalThreadId) {
-        throw new Error("ensureThread requires localThreadId or externalThreadId.");
+      if (!args.threadId && !args.externalThreadId) {
+        throw new Error("ensureThread requires threadId or externalThreadId.");
       }
-      return ensureThreadByResolve(
-        ctx,
-        component,
-        withServerActor(
-          { ...args, threadId: args.localThreadId },
-          resolveServerActor(args, serverActor),
-        ),
-      );
+      return ensureThreadByResolve(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
     },
   };
 
@@ -220,12 +208,11 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         actor: vHostActorContext,
         sessionId: v.string(),
         threadId: v.string(),
-        lastEventCursor: v.number(),
       },
       returns: vHostEnsureSessionResult,
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; sessionId: string; threadId: string; lastEventCursor: number },
+        args: { actor: HostActorContext; sessionId: string; threadId: string },
       ) => ensureSessionHandler(ctx, component, withServerActor(args, resolveServerActor(args, serverActor))),
     },
     ingestEvent,
@@ -254,11 +241,16 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           upsertPendingServerRequestForHooks: {
             args: {
               actor: vHostActorContext,
-              requestId: vServerRequestId,
+              requestId: v.union(v.string(), v.number()),
               threadId: v.string(),
               turnId: v.string(),
               itemId: v.string(),
-              method: vManagedServerRequestMethod,
+              method: v.union(
+                v.literal("item/commandExecution/requestApproval"),
+                v.literal("item/fileChange/requestApproval"),
+                v.literal("item/tool/requestUserInput"),
+                v.literal("item/tool/call"),
+              ),
               payloadJson: v.string(),
               reason: v.optional(v.string()),
               questionsJson: v.optional(v.string()),
@@ -290,7 +282,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             args: {
               actor: vHostActorContext,
               threadId: v.string(),
-              requestId: vServerRequestId,
+              requestId: v.union(v.string(), v.number()),
               status: v.union(v.literal("answered"), v.literal("expired")),
               resolvedAt: v.number(),
               responseJson: v.optional(v.string()),
@@ -384,5 +376,76 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           },
         }
       : {}),
+    acceptTurnSendForHooks: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        turnId: v.string(),
+        idempotencyKey: v.string(),
+        inputText: v.string(),
+        dispatchId: v.optional(v.string()),
+      },
+      returns: v.object({
+        dispatchId: v.string(),
+        turnId: v.string(),
+        accepted: v.literal(true),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+          turnId: string;
+          idempotencyKey: string;
+          inputText: string;
+          dispatchId?: string;
+        },
+      ) => {
+        const resolvedActor = resolveServerActor(args, serverActor);
+        await ctx.runMutation(component.turns.start, {
+          actor: resolvedActor,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          idempotencyKey: args.idempotencyKey,
+          input: [{ type: "text", text: args.inputText }],
+        });
+        return {
+          dispatchId: args.dispatchId ?? args.turnId,
+          turnId: args.turnId,
+          accepted: true as const,
+        };
+      },
+    },
+    failAcceptedTurnSendForHooks: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        turnId: v.string(),
+        dispatchId: v.optional(v.string()),
+        code: v.optional(v.string()),
+        reason: v.string(),
+      },
+      returns: v.null(),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+          turnId: string;
+          dispatchId?: string;
+          code?: string;
+          reason: string;
+        },
+      ) => {
+        const resolvedActor = resolveServerActor(args, serverActor);
+        await ctx.runMutation(component.turns.interrupt, {
+          actor: resolvedActor,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          reason: args.code ? `[${args.code}] ${args.reason}` : args.reason,
+        });
+        return null;
+      },
+    },
   };
 }

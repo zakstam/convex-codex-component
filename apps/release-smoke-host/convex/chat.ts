@@ -1,28 +1,17 @@
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import {
-  createCodexHost,
-  type HostActorContext,
-} from "@zakstam/codex-local-component/host/convex";
-
-export const SERVER_ACTOR: HostActorContext = Object.freeze({
-  userId: process.env.ACTOR_USER_ID ?? "server",
-});
+import { createCodexHost } from "@zakstam/codex-local-component/host/convex";
 
 const codex = createCodexHost({
   components,
   mutation,
   query,
-  actorPolicy: {
-    mode: "serverActor",
-    serverActor: SERVER_ACTOR,
-  },
+  actorPolicy: process.env.ACTOR_USER_ID ?? "server",
 });
 
 export const { ensureThread, ensureSession, ingestEvent, ingestBatch,
-  respondApproval, upsertTokenUsage, interruptTurn } = codex.mutations;
-
-export const { validateHostWiring, threadSnapshot, threadSnapshotSafe,
+  respondApproval, upsertTokenUsage, interruptTurn,
+  validateHostWiring, threadSnapshot, threadSnapshotSafe,
   persistenceStats, durableHistoryStats, dataHygiene,
   listThreadMessages, listTurnMessages, listPendingApprovals,
-  listTokenUsage } = codex.queries;
+  listTokenUsage } = codex.endpoints;

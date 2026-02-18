@@ -1,10 +1,7 @@
-import type { CodexIngestHealth, CodexThreadActivity } from "@zakstam/codex-local-component/react";
+import type { CodexIngestHealth, CodexThreadActivity, CodexThreadActivityThreadState } from "@zakstam/codex-local-component/react";
 
 type Props = {
-  threadState:
-    | { recentMessages: unknown[]; streamStats: unknown[] }
-    | null
-    | undefined;
+  threadState: CodexThreadActivityThreadState | null | undefined;
   threadActivity: CodexThreadActivity;
   ingestHealth: CodexIngestHealth;
   runtimeLog: Array<{ id: string; line: string }>;
@@ -26,12 +23,12 @@ export function EventLog({ threadState, threadActivity, ingestHealth, runtimeLog
         <div className="bridge-field">
           <span className="bridge-field-label">Messages</span>
           <span className="code">
-            {threadState?.recentMessages.length ?? 0}
+            {threadState?.recentMessages?.length ?? 0}
           </span>
         </div>
         <div className="bridge-field">
           <span className="bridge-field-label">Streams</span>
-          <span className="code">{threadState?.streamStats.length ?? 0}</span>
+          <span className="code">{threadState?.streamStats?.length ?? 0}</span>
         </div>
         <div className="bridge-field">
           <span className="bridge-field-label">Active Turn</span>

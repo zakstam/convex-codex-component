@@ -176,6 +176,7 @@ type CodexThreadsResolveComponent = {
 
 type CodexTurnsComponent = {
   turns: {
+    start: FunctionReference<"mutation", "public" | "internal">;
     interrupt: FunctionReference<"mutation", "public" | "internal">;
   };
 };

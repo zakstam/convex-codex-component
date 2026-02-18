@@ -139,32 +139,38 @@ async function runQueryWithBoundActor(
   });
 }
 
-function withBoundMutationActor<Def extends { handler: (ctx: MutationCtx, args: any) => Promise<any> | any }>(
+function withBoundMutationActor<
+  Def extends { handler: (ctx: MutationCtx, args: any) => Promise<any> | any },
+>(
   definition: Def,
 ): Def {
+  type Args = Parameters<Def["handler"]>[1];
   return {
     ...definition,
-    handler: async (ctx: MutationCtx, args: Parameters<Def["handler"]>[1]) => {
+    handler: async (ctx: MutationCtx, args: Args) => {
       const actor = await requireBoundServerActorForMutation(
         ctx,
         (args as { actor: { userId?: string } }).actor,
       );
-      return definition.handler(ctx, { ...args, actor });
+      return definition.handler(ctx, { ...(args as object), actor } as Args);
     },
   } as Def;
 }
 
-function withBoundQueryActor<Def extends { handler: (ctx: QueryCtx, args: any) => Promise<any> | any }>(
+function withBoundQueryActor<
+  Def extends { handler: (ctx: QueryCtx, args: any) => Promise<any> | any },
+>(
   definition: Def,
 ): Def {
+  type Args = Parameters<Def["handler"]>[1];
   return {
     ...definition,
-    handler: async (ctx: QueryCtx, args: Parameters<Def["handler"]>[1]) => {
+    handler: async (ctx: QueryCtx, args: Args) => {
       const actor = await requireBoundServerActorForQuery(
         ctx,
         (args as { actor: { userId?: string } }).actor,
       );
-      return definition.handler(ctx, { ...args, actor });
+      return definition.handler(ctx, { ...(args as object), actor } as Args);
     },
   } as Def;
 }

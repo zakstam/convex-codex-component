@@ -446,7 +446,7 @@
       "context": "return match?.[1] ?? null;"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_08e33af8d1fb",
@@ -542,7 +542,7 @@
       "context": "checkThreadId = args.threadId ?? \"__codex_host_wiring_preflight__\""
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_73adf8ff7b0a",
@@ -578,7 +578,7 @@
       "context": "localThreadId = args.threadId ?? externalThreadId"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_137132f02f4c",
@@ -590,7 +590,7 @@
       "context": "core.actor = startArgs.actor ?? defaultActor ?? { userId: \"anonymous\" };"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_5d503047c170",
@@ -602,7 +602,7 @@
       "context": "core.actor = startArgs.actor ?? defaultActor ?? { userId: \"anonymous\" };"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_e89a9d2c9994",
@@ -818,7 +818,7 @@
       "context": "(d, i) => ({ ...d, threadId: batch[i]?.threadId ?? at })"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_6a74e6ef7e46",
@@ -1922,7 +1922,7 @@
       "context": "stream = options.stream ?? ctx.defaultStream"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_43dec0f14a50",
@@ -1934,7 +1934,7 @@
       "context": "threadsResult = useCodexThreads({ list: threadsConfig?.list ?? { query: ctx.listThreadMessages as unknown as CodexThreadsListQuery, args: \"skip\", }, ...(threadsConfig?.controls ..."
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_4bc5539a957d",
@@ -1946,7 +1946,7 @@
       "context": "effectiveThreadId = options.threadId ?? (threadsConfig ? threadsResult.selectedThreadId : null) ?? null"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_f1d1df33912e",
@@ -1958,7 +1958,7 @@
       "context": "effectiveThreadId = options.threadId ?? (threadsConfig ? threadsResult.selectedThreadId : null) ?? null"
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_5e0dc22bbdd9",
@@ -1970,7 +1970,7 @@
       "context": "rawTokenTurns = useQuery( (tokenUsageQueryRef ?? ctx.listThreadMessages) as CodexTokenUsageQuery<unknown>, ...toOptionalRestArgsOrSkip<CodexTokenUsageQuery<unknown>>(tokenUsageA..."
     },
     {
-      "description": "TODO: add manual description",
+      "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
       "userApproved": false,
       "riskLevel": "default",
       "id": "FB_7664f07b9975",

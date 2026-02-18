@@ -23,8 +23,6 @@ import type {
   NewConversationResponse,
   RemoveConversationSubscriptionResponse,
   ResumeConversationResponse,
-  SendUserMessageResponse,
-  SendUserTurnResponse,
   ServerNotification,
   ServerRequest,
   SetDefaultModelResponse,
@@ -116,8 +114,6 @@ export type GeneratedResponsePayload =
   | RemoveConversationSubscriptionResponse
   | ResumeConversationResponse
   | ReviewStartResponse
-  | SendUserMessageResponse
-  | SendUserTurnResponse
   | SetDefaultModelResponse
   | SkillsConfigWriteResponse
   | SkillsListResponse

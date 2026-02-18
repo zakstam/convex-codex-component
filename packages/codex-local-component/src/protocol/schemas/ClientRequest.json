@@ -1051,54 +1051,6 @@
         "method": {
           "type": "string",
           "enum": [
-            "sendUserMessage"
-          ],
-          "title": "SendUserMessageRequestMethod"
-        },
-        "params": {
-          "$ref": "#/definitions/SendUserMessageParams"
-        }
-      },
-      "title": "SendUserMessageRequest"
-    },
-    {
-      "type": "object",
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/definitions/RequestId"
-        },
-        "method": {
-          "type": "string",
-          "enum": [
-            "sendUserTurn"
-          ],
-          "title": "SendUserTurnRequestMethod"
-        },
-        "params": {
-          "$ref": "#/definitions/SendUserTurnParams"
-        }
-      },
-      "title": "SendUserTurnRequest"
-    },
-    {
-      "type": "object",
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/definitions/RequestId"
-        },
-        "method": {
-          "type": "string",
-          "enum": [
             "interruptConversation"
           ],
           "title": "InterruptConversationRequestMethod"
@@ -3667,75 +3619,6 @@
           "title": "WorkspaceWriteSandboxPolicy2"
         }
       ]
-    },
-    "SendUserMessageParams": {
-      "type": "object",
-      "required": [
-        "conversationId",
-        "items"
-      ],
-      "properties": {
-        "conversationId": {
-          "$ref": "#/definitions/ThreadId"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InputItem"
-          }
-        }
-      }
-    },
-    "SendUserTurnParams": {
-      "type": "object",
-      "required": [
-        "approvalPolicy",
-        "conversationId",
-        "cwd",
-        "items",
-        "model",
-        "sandboxPolicy",
-        "summary"
-      ],
-      "properties": {
-        "approvalPolicy": {
-          "$ref": "#/definitions/AskForApproval2"
-        },
-        "conversationId": {
-          "$ref": "#/definitions/ThreadId"
-        },
-        "cwd": {
-          "type": "string"
-        },
-        "effort": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ReasoningEffort"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InputItem"
-          }
-        },
-        "model": {
-          "type": "string"
-        },
-        "outputSchema": {
-          "description": "Optional JSON Schema used to constrain the final assistant message for this turn."
-        },
-        "sandboxPolicy": {
-          "$ref": "#/definitions/SandboxPolicy2"
-        },
-        "summary": {
-          "$ref": "#/definitions/ReasoningSummary"
-        }
-      }
     },
     "SetDefaultModelParams": {
       "type": "object",

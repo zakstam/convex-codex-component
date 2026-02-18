@@ -20,7 +20,6 @@ import {
   vHostSyncRuntimeOptions,
   type CodexHostComponentsInput,
   type HostActorContext,
-  type HostMutationRunner,
   type HostQueryRunner,
 } from "./convexSlice.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";

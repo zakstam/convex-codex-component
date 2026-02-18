@@ -15,6 +15,8 @@ export {
   buildThreadRollbackRequest,
   buildTurnStartRequest,
   buildTurnStartTextRequest,
+  buildTurnSteerRequest,
+  buildTurnSteerTextRequest,
   buildTurnInterruptRequest,
   buildAccountReadRequest,
   buildAccountLoginStartRequest,

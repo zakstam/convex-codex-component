@@ -140,7 +140,7 @@ async function runQueryWithBoundActor(
 }
 
 function withBoundMutationActor<
-  Def extends { handler: (ctx: MutationCtx, args: any) => Promise<any> | any },
+  Def extends { handler: (ctx: MutationCtx, args: unknown) => Promise<unknown> | unknown },
 >(
   definition: Def,
 ): Def {
@@ -158,7 +158,7 @@ function withBoundMutationActor<
 }
 
 function withBoundQueryActor<
-  Def extends { handler: (ctx: QueryCtx, args: any) => Promise<any> | any },
+  Def extends { handler: (ctx: QueryCtx, args: unknown) => Promise<unknown> | unknown },
 >(
   definition: Def,
 ): Def {

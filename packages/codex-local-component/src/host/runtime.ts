@@ -25,7 +25,9 @@ import {
   buildThreadUnarchiveRequest,
   buildToolRequestUserInputResponse,
   buildTurnInterruptRequest,
+  buildTurnSteerTextRequest,
 } from "../app-server/client.js";
+import clientPackage from "../../package.json" with { type: "json" };
 import { CodexLocalBridge, type BridgeConfig } from "../local-adapter/bridge.js";
 import { randomSessionId } from "./runtimeHelpers.js";
 import { createRuntimeCore } from "./runtimeCore.js";
@@ -135,7 +137,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       : new CodexLocalBridge(bridgeConfig, bridgeHandlers);
     core.bridge.start();
 
-    core.sendMessage(buildInitializeRequestWithCapabilities(core.requestIdFn(), { name: "codex_local_host_runtime", title: "Codex Local Host Runtime", version: "0.1.0" }, { experimentalApi: Array.isArray(startArgs.dynamicTools) && startArgs.dynamicTools.length > 0 }), "initialize");
+    core.sendMessage(buildInitializeRequestWithCapabilities(core.requestIdFn(), { name: "codex_local_host_runtime", title: "Codex Local Host Runtime", version: clientPackage.version }, { experimentalApi: Array.isArray(startArgs.dynamicTools) && startArgs.dynamicTools.length > 0 }), "initialize");
     core.sendMessage(buildInitializedNotification());
     const strategy = startArgs.threadStrategy ?? "start";
     if ((strategy === "resume" || strategy === "fork") && !startArgs.runtimeThreadId) throw new Error(`runtimeThreadId is required when threadStrategy="${strategy}".`);
@@ -170,7 +172,32 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     return accepted;
   };
 
-  // TODO(turn/steer): Route steer payloads through app-server `turn/steer` instead of forcing new turns.
+  const steerTurn: CodexHostRuntime["steerTurn"] = async (text, options) => {
+    if (!core.bridge) throw new Error("Bridge/thread not ready. Start runtime first.");
+    if (!core.turnInFlight || core.turnSettled) {
+      throw new Error("Cannot steer turn because no turn is currently in flight.");
+    }
+    const activeTurnId = core.turnId;
+    if (!activeTurnId) throw new Error("Cannot steer turn before active turn id is known.");
+    let expectedTurnId = activeTurnId;
+    if (options && options.expectedTurnId !== undefined && options.expectedTurnId !== null) {
+      expectedTurnId = options.expectedTurnId;
+    }
+    if (expectedTurnId !== activeTurnId) {
+      throw new Error(`Cannot steer turn ${expectedTurnId}; active turn is ${activeTurnId}.`);
+    }
+    let threadId = core.runtimeThreadId;
+    if (threadId === undefined || threadId === null) {
+      threadId = core.threadId;
+    }
+    if (!threadId) throw new Error("Cannot steer turn before thread id is available.");
+    await core.ensureThreadBinding(threadId);
+    core.sendMessage(buildTurnSteerTextRequest(core.requestIdFn(), {
+      threadId,
+      expectedTurnId: activeTurnId,
+      text,
+    }), "turn/steer");
+  };
 
   const interrupt = () => {
     if (!core.bridge || !core.runtimeThreadId) return;
@@ -242,7 +269,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   };
 
   return {
-    start, stop, sendTurn, interrupt,
+    start, stop, sendTurn, steerTurn, interrupt,
     resumeThread, forkThread, archiveThread, unarchiveThread, rollbackThread,
     readThread, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
     readAccountRateLimits, listThreads, listLoadedThreads,

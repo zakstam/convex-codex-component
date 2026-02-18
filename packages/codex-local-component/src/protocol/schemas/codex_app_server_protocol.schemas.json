@@ -681,79 +681,6 @@
         }
       }
     },
-    "SendUserMessageParams": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SendUserMessageParams",
-      "type": "object",
-      "required": [
-        "conversationId",
-        "items"
-      ],
-      "properties": {
-        "conversationId": {
-          "$ref": "#/definitions/ThreadId"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InputItem"
-          }
-        }
-      }
-    },
-    "SendUserTurnParams": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SendUserTurnParams",
-      "type": "object",
-      "required": [
-        "approvalPolicy",
-        "conversationId",
-        "cwd",
-        "items",
-        "model",
-        "sandboxPolicy",
-        "summary"
-      ],
-      "properties": {
-        "approvalPolicy": {
-          "$ref": "#/definitions/AskForApproval"
-        },
-        "conversationId": {
-          "$ref": "#/definitions/ThreadId"
-        },
-        "cwd": {
-          "type": "string"
-        },
-        "effort": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ReasoningEffort"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InputItem"
-          }
-        },
-        "model": {
-          "type": "string"
-        },
-        "outputSchema": {
-          "description": "Optional JSON Schema used to constrain the final assistant message for this turn."
-        },
-        "sandboxPolicy": {
-          "$ref": "#/definitions/SandboxPolicy"
-        },
-        "summary": {
-          "$ref": "#/definitions/ReasoningSummary"
-        }
-      }
-    },
     "SetDefaultModelParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SetDefaultModelParams",
@@ -1859,54 +1786,6 @@
             }
           },
           "title": "ArchiveConversationRequest"
-        },
-        {
-          "type": "object",
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/RequestId"
-            },
-            "method": {
-              "type": "string",
-              "enum": [
-                "sendUserMessage"
-              ],
-              "title": "SendUserMessageRequestMethod"
-            },
-            "params": {
-              "$ref": "#/definitions/SendUserMessageParams"
-            }
-          },
-          "title": "SendUserMessageRequest"
-        },
-        {
-          "type": "object",
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/RequestId"
-            },
-            "method": {
-              "type": "string",
-              "enum": [
-                "sendUserTurn"
-              ],
-              "title": "SendUserTurnRequestMethod"
-            },
-            "params": {
-              "$ref": "#/definitions/SendUserTurnParams"
-            }
-          },
-          "title": "SendUserTurnRequest"
         },
         {
           "type": "object",
@@ -15575,16 +15454,6 @@
     "ArchiveConversationResponse": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ArchiveConversationResponse",
-      "type": "object"
-    },
-    "SendUserMessageResponse": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SendUserMessageResponse",
-      "type": "object"
-    },
-    "SendUserTurnResponse": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SendUserTurnResponse",
       "type": "object"
     },
     "InterruptConversationResponse": {

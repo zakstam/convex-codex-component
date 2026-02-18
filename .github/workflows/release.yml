@@ -24,7 +24,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          registry-url: https://registry.npmjs.org
 
       - name: Use npm 11 for trusted publishing
         run: |
@@ -63,13 +62,19 @@ jobs:
           echo "Provide NPM_TOKEN or configure npm trusted publishing with GitHub OIDC."
           exit 1
       - run: pnpm run release:precheck:ci
+      - name: Prepare npm for OIDC trusted publishing
+        run: |
+          rm -f .npmrc "$HOME/.npmrc"
+          npm config set registry https://registry.npmjs.org/
+          npm config delete always-auth || true
 
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
           version: pnpm run version-packages
-          publish: pnpm run release:publish
+          publish: bash .github/scripts/publish-with-fallback.sh
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

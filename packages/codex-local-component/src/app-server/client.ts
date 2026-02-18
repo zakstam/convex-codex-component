@@ -25,6 +25,7 @@ import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequ
 import type { ToolRequestUserInputResponse } from "../protocol/schemas/v2/ToolRequestUserInputResponse.js";
 import type { TurnInterruptParams } from "../protocol/schemas/v2/TurnInterruptParams.js";
 import type { TurnStartParams } from "../protocol/schemas/v2/TurnStartParams.js";
+import type { TurnSteerParams } from "../protocol/schemas/v2/TurnSteerParams.js";
 import type { RequestId } from "../protocol/schemas/RequestId.js";
 import type { ClientServerRequestResponse } from "../protocol/outbound.js";
 
@@ -164,7 +165,13 @@ export function buildTurnStartRequest(
   return buildClientRequest("turn/start", id, params);
 }
 
-// TODO(turn/steer): Add `buildTurnSteerRequest` once host/runtime adopts mid-turn steering.
+export function buildTurnSteerRequest(
+  id: number,
+  params: TurnSteerParams,
+): RequestFor<"turn/steer"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("turn/steer", id, params);
+}
 
 export function buildTurnStartTextRequest(
   id: number,
@@ -172,6 +179,17 @@ export function buildTurnStartTextRequest(
 ): RequestFor<"turn/start"> {
   return buildTurnStartRequest(id, {
     threadId: args.threadId,
+    input: [{ type: "text", text: args.text, text_elements: [] }],
+  });
+}
+
+export function buildTurnSteerTextRequest(
+  id: number,
+  args: { threadId: string; expectedTurnId: string; text: string },
+): RequestFor<"turn/steer"> {
+  return buildTurnSteerRequest(id, {
+    threadId: args.threadId,
+    expectedTurnId: args.expectedTurnId,
     input: [{ type: "text", text: args.text, text_elements: [] }],
   });
 }

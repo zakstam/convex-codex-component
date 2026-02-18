@@ -215,6 +215,7 @@ export type CodexHostRuntime = {
   start: (args: HostRuntimeStartArgs) => Promise<void>;
   stop: () => Promise<void>;
   sendTurn: (text: string) => Promise<{ turnId: string; accepted: true }>;
+  steerTurn: (text: string, options?: { expectedTurnId?: string }) => Promise<void>;
   interrupt: () => void;
   resumeThread: (
     runtimeThreadId: string,

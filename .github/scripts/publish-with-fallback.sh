@@ -9,12 +9,15 @@ npm config set registry https://registry.npmjs.org/
 npm config delete always-auth || true
 
 echo "Publish attempt 1/2: npm trusted publishing (OIDC)."
-if pnpm run release:publish; then
+set +e
+pnpm run release:publish
+oidc_exit=$?
+set -e
+
+if [ "${oidc_exit}" -eq 0 ]; then
   echo "Publish succeeded with OIDC."
   exit 0
 fi
-
-oidc_exit=$?
 
 if [ -z "${FALLBACK_NPM_TOKEN:-}" ]; then
   echo "::error::OIDC publish failed and FALLBACK_NPM_TOKEN is not configured."

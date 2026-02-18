@@ -1,5 +1,5 @@
-import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api.js";
 import type { Id } from "./_generated/dataModel.js";
 import { internalMutation, internalQuery } from "./_generated/server.js";
 import type { MutationCtx } from "./_generated/server.js";
@@ -73,16 +73,17 @@ export const timeoutStream = internalMutation({
     if (!stream || stream.state.kind !== "streaming") {
       return null;
     }
+    const error = args.reason !== undefined ? args.reason : "stream timeout";
 
     await ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("turnsInternal:reconcileTerminalArtifacts"),
+      internal.turnsInternal.reconcileTerminalArtifacts,
       {
         userScope: args.userScope,
         threadId: String(stream.threadId),
         turnId: String(stream.turnId),
         status: "interrupted",
-        error: args.reason ?? "stream timeout",
+        error,
       },
     );
 
@@ -128,7 +129,7 @@ export const cleanupFinishedStream = internalMutation({
     if (hasMore) {
       await ctx.scheduler.runAfter(
         0,
-        makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
+        internal.streams.cleanupFinishedStream,
         {
           userScope: args.userScope,
           streamId: args.streamId,
@@ -148,7 +149,7 @@ export const cleanupFinishedStream = internalMutation({
     if (remaining.length > 0) {
       await ctx.scheduler.runAfter(
         0,
-        makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
+        internal.streams.cleanupFinishedStream,
         {
           userScope: args.userScope,
           streamId: args.streamId,
@@ -212,7 +213,7 @@ export const cleanupExpiredDeltas = internalMutation({
     if (hasMore) {
       await ctx.scheduler.runAfter(
         0,
-        makeFunctionReference<"mutation">("streams:cleanupExpiredDeltas"),
+        internal.streams.cleanupExpiredDeltas,
         {
           nowMs: args.nowMs,
           batchSize,

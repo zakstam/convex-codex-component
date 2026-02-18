@@ -1,5 +1,5 @@
-import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api.js";
 import { mutation } from "./_generated/server.js";
 import { vActorContext, vThreadInputItem, vTurnOptions } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
@@ -22,6 +22,10 @@ export const start = mutation({
     options: v.optional(vTurnOptions),
     idempotencyKey: v.string(),
   },
+  returns: v.object({
+    turnId: v.string(),
+    accepted: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const { threadRef } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
 
@@ -69,16 +73,17 @@ export const interrupt = mutation({
   handler: async (ctx, args) => {
     await requireThreadForActor(ctx, args.actor, args.threadId);
     await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
+    const error = args.reason !== undefined ? args.reason : "interrupted";
 
     await ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("turnsInternal:reconcileTerminalArtifacts"),
+      internal.turnsInternal.reconcileTerminalArtifacts,
       {
         userScope: userScopeFromActor(args.actor),
         threadId: args.threadId,
         turnId: args.turnId,
         status: "interrupted",
-        error: args.reason ?? "interrupted",
+        error,
       },
     );
 
@@ -122,7 +127,7 @@ export const deleteCascade = mutation({
 
     await ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope,
         deletionJobId,
@@ -158,7 +163,7 @@ export const scheduleDeleteCascade = mutation({
     const scheduledFor = ts + delayMs;
     const scheduledFnId = await ctx.scheduler.runAfter(
       delayMs,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope,
         deletionJobId,

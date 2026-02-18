@@ -3,7 +3,6 @@ import type {
   FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { Doc } from "../component/_generated/dataModel.js";
 import type { ComponentApi } from "../component/_generated/component.js";
 
 export type GenericQueryRef = FunctionReference<
@@ -39,7 +38,20 @@ export type CodexActorContext = FunctionArgs<
   ComponentApi["threads"]["getState"]
 >["actor"];
 
-export type CodexMessageDoc = Doc<"codex_messages">;
+export type CodexMessageDoc = {
+  messageId: string;
+  turnId: string;
+  role: "user" | "assistant" | "system" | "tool";
+  status: "streaming" | "completed" | "failed" | "interrupted";
+  sourceItemType: string;
+  text: string;
+  orderInTurn: number;
+  payloadJson: string;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+};
 
 export type CodexUIMessage = {
   messageId: string;

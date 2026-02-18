@@ -23,6 +23,14 @@
       "types": "./dist/component/convex.config.d.ts",
       "import": "./dist/component/convex.config.js"
     },
+    "./_generated/component.js": {
+      "types": "./dist/component/_generated/component.d.ts",
+      "import": "./dist/component/_generated/component.js"
+    },
+    "./test": {
+      "types": "./dist/test.d.ts",
+      "import": "./dist/test.js"
+    },
     "./protocol": {
       "types": "./dist/protocol/index.d.ts",
       "import": "./dist/protocol/index.js"
@@ -79,6 +87,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
+    "codegen:component": "convex codegen --component-dir ./src/component",
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "lint": "eslint . --ext .ts,.tsx",
@@ -94,7 +103,8 @@
     "check:fallback-policy:write": "node ./scripts/check-fallback-policy.mjs --write-allowlist",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
     "check:api-reference": "node ./scripts/check-api-reference-useful.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run check:fallback-policy && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference"
+    "check:component-function-validators": "node ./scripts/check-component-function-validators.mjs",
+    "ci": "pnpm run typecheck && pnpm run check:component-function-validators && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run check:fallback-policy && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference"
   },
   "dependencies": {
     "ajv": "^8.17.1",

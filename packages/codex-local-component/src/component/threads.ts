@@ -1,5 +1,6 @@
-import { makeFunctionReference, paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api.js";
 import { mutation, query } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
@@ -16,6 +17,27 @@ import {
 import { vThreadState, vDeletionJobStatus } from "./threadValidators.js";
 import { touchThread, getDeletionJobForActor } from "./threadHelpers.js";
 
+const vThreadHandle = v.object({
+  threadId: v.string(),
+});
+
+const vResumeResult = v.object({
+  threadId: v.string(),
+  status: v.literal("active"),
+});
+
+const vThreadListResult = v.object({
+  page: v.array(
+    v.object({
+      threadId: v.string(),
+      status: v.union(v.literal("active"), v.literal("archived"), v.literal("failed")),
+      updatedAt: v.number(),
+    }),
+  ),
+  isDone: v.boolean(),
+  continueCursor: v.string(),
+});
+
 export const create = mutation({
   args: {
     actor: vActorContext,
@@ -25,6 +47,7 @@ export const create = mutation({
     personality: v.optional(v.string()),
     localThreadId: v.optional(v.string()),
   },
+  returns: vThreadHandle,
   handler: async (ctx, args) => {
     const touched = await touchThread(ctx, args);
     return { threadId: touched.threadId };
@@ -188,9 +211,10 @@ export const resume = mutation({
     actor: vActorContext,
     threadId: v.string(),
   },
+  returns: vResumeResult,
   handler: async (ctx, args) => {
     const thread = await requireThreadForActor(ctx, args.actor, args.threadId);
-    return { threadId: String(thread.threadId), status: "active" };
+    return { threadId: String(thread.threadId), status: "active" as const };
   },
 });
 
@@ -225,7 +249,7 @@ export const deleteCascade = mutation({
 
     await ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope,
         deletionJobId,
@@ -258,7 +282,7 @@ export const scheduleDeleteCascade = mutation({
     const scheduledFor = ts + delayMs;
     const scheduledFnId = await ctx.scheduler.runAfter(
       delayMs,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope,
         deletionJobId,
@@ -313,7 +337,7 @@ export const purgeActorData = mutation({
 
     await ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope,
         deletionJobId,
@@ -344,7 +368,7 @@ export const schedulePurgeActorData = mutation({
     const scheduledFor = ts + delayMs;
     const scheduledFnId = await ctx.scheduler.runAfter(
       delayMs,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope,
         deletionJobId,
@@ -440,7 +464,7 @@ export const forceRunScheduledDeletion = mutation({
     });
     await ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
+      internal.sessions.runDeletionJobChunk,
       {
         userScope: String(job.userScope),
         deletionJobId: String(job.deletionJobId),
@@ -494,6 +518,7 @@ export const list = query({
     actor: vActorContext,
     paginationOpts: paginationOptsValidator,
   },
+  returns: vThreadListResult,
   handler: async (ctx, args) => {
     const cursor = decodeKeysetCursor<{ updatedAt: number; threadId: string }>(
       args.paginationOpts.cursor,
@@ -527,7 +552,7 @@ export const list = query({
       ...result,
       page: result.page.map((thread) => ({
         threadId: String(thread.threadId),
-        status: String(thread.status),
+        status: thread.status,
         updatedAt: Number(thread.updatedAt),
       })),
     };

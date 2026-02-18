@@ -1,5 +1,5 @@
-import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api.js";
 import { internalMutation } from "./_generated/server.js";
 import { setStreamStatState } from "./streamStats.js";
 import { now } from "./utils.js";
@@ -112,7 +112,7 @@ export const reconcileTerminalArtifacts = internalMutation({
 
       const cleanupFnId = await ctx.scheduler.runAfter(
         DEFAULT_FINISHED_STREAM_DELETE_DELAY_MS,
-        makeFunctionReference<"mutation">("streams:cleanupFinishedStream"),
+        internal.streams.cleanupFinishedStream,
         {
           userScope: args.userScope,
           streamId: String(stream.streamId),

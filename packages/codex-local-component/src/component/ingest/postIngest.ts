@@ -1,9 +1,9 @@
-import { makeFunctionReference } from "convex/server";
 import {
   CLEANUP_SWEEP_MIN_INTERVAL_MS,
   HEARTBEAT_WRITE_MIN_INTERVAL_MS,
   STALE_SWEEP_MIN_INTERVAL_MS,
 } from "../syncRuntime.js";
+import { internal } from "../_generated/api.js";
 import { now } from "../utils.js";
 import type { SessionIngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
@@ -36,7 +36,7 @@ export async function schedulePostIngestMaintenance(
   if (nowMs - ingest.session.lastHeartbeatAt >= STALE_SWEEP_MIN_INTERVAL_MS) {
     await ingest.ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("sessions:timeoutStaleSessions"),
+      internal.sessions.timeoutStaleSessions,
       {
         userScope: userScopeFromActor(ingest.args.actor),
         staleBeforeMs: nowMs - 1000 * 60 * 3,
@@ -47,7 +47,7 @@ export async function schedulePostIngestMaintenance(
   if (ingest.progress.persistedAnyEvent && nowMs - ingest.session.lastHeartbeatAt >= CLEANUP_SWEEP_MIN_INTERVAL_MS) {
     await ingest.ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("streams:cleanupExpiredDeltas"),
+      internal.streams.cleanupExpiredDeltas,
       {
         nowMs,
         batchSize: 1000,

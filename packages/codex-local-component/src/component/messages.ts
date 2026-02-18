@@ -7,12 +7,34 @@ import { userScopeFromActor } from "./scope.js";
 import { requireThreadForActor, requireTurnForActor } from "./utils.js";
 import { isThreadMissing } from "../errors.js";
 
+const vMessage = v.object({
+  messageId: v.string(),
+  turnId: v.string(),
+  role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("tool")),
+  status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
+  text: v.string(),
+  sourceItemType: v.string(),
+  orderInTurn: v.number(),
+  payloadJson: v.string(),
+  error: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  completedAt: v.optional(v.number()),
+});
+
+const vMessageListResult = v.object({
+  page: v.array(vMessage),
+  isDone: v.boolean(),
+  continueCursor: v.string(),
+});
+
 export const listByThread = query({
   args: {
     actor: vActorContext,
     threadId: v.string(),
     paginationOpts: paginationOptsValidator,
   },
+  returns: vMessageListResult,
   handler: async (ctx, args) => {
     try {
       await requireThreadForActor(ctx, args.actor, args.threadId);
@@ -83,22 +105,7 @@ export const getByTurn = query({
     threadId: v.string(),
     turnId: v.string(),
   },
-  returns: v.array(
-    v.object({
-      messageId: v.string(),
-      turnId: v.string(),
-      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("tool")),
-      status: v.union(v.literal("streaming"), v.literal("completed"), v.literal("failed"), v.literal("interrupted")),
-      text: v.string(),
-      sourceItemType: v.string(),
-      orderInTurn: v.number(),
-      payloadJson: v.string(),
-      error: v.optional(v.string()),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      completedAt: v.optional(v.number()),
-    }),
-  ),
+  returns: v.array(vMessage),
   handler: async (ctx, args) => {
     await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
 

@@ -139,38 +139,36 @@ async function runQueryWithBoundActor(
   });
 }
 
-function withBoundMutationActor<
-  Def extends { handler: (ctx: MutationCtx, args: unknown) => Promise<unknown> | unknown },
->(
-  definition: Def,
-): Def {
-  type Args = Parameters<Def["handler"]>[1];
+type BoundActorArgs = {
+  actor: { userId?: string };
+};
+
+type BoundMutationDefinition = {
+  handler: (ctx: MutationCtx, args: BoundActorArgs) => Promise<unknown> | unknown;
+};
+
+type BoundQueryDefinition = {
+  handler: (ctx: QueryCtx, args: BoundActorArgs) => Promise<unknown> | unknown;
+};
+
+function withBoundMutationActor<Def>(definition: Def): Def {
+  const wrapped = definition as Def & BoundMutationDefinition;
   return {
-    ...definition,
-    handler: async (ctx: MutationCtx, args: Args) => {
-      const actor = await requireBoundServerActorForMutation(
-        ctx,
-        (args as { actor: { userId?: string } }).actor,
-      );
-      return definition.handler(ctx, { ...(args as object), actor } as Args);
+    ...(wrapped as object),
+    handler: async (ctx: MutationCtx, args: BoundActorArgs) => {
+      const actor = await requireBoundServerActorForMutation(ctx, args.actor);
+      return wrapped.handler(ctx, { ...(args as object), actor });
     },
   } as Def;
 }
 
-function withBoundQueryActor<
-  Def extends { handler: (ctx: QueryCtx, args: unknown) => Promise<unknown> | unknown },
->(
-  definition: Def,
-): Def {
-  type Args = Parameters<Def["handler"]>[1];
+function withBoundQueryActor<Def>(definition: Def): Def {
+  const wrapped = definition as Def & BoundQueryDefinition;
   return {
-    ...definition,
-    handler: async (ctx: QueryCtx, args: Args) => {
-      const actor = await requireBoundServerActorForQuery(
-        ctx,
-        (args as { actor: { userId?: string } }).actor,
-      );
-      return definition.handler(ctx, { ...(args as object), actor } as Args);
+    ...(wrapped as object),
+    handler: async (ctx: QueryCtx, args: BoundActorArgs) => {
+      const actor = await requireBoundServerActorForQuery(ctx, args.actor);
+      return wrapped.handler(ctx, { ...(args as object), actor });
     },
   } as Def;
 }

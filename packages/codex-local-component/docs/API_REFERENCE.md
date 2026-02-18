@@ -15,6 +15,8 @@ Use this path in order:
 - `@zakstam/codex-local-component/host/convex`
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/react`
+- `@zakstam/codex-local-component/_generated/component.js`
+- `@zakstam/codex-local-component/test`
 
 ## Canonical Host API
 
@@ -46,4 +48,5 @@ From `@zakstam/codex-local-component/react`:
 - `createCodexHost` requires explicit `actorPolicy`.
 - `actorPolicy.serverActor.userId` must be a non-empty string.
 - Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
+- `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

@@ -1,8 +1,5 @@
-import { makeFunctionReference } from "convex/server";
-import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel.js";
 import type { MutationCtx } from "./_generated/server.js";
-import { internalMutation } from "./_generated/server.js";
 import { now } from "./utils.js";
 import { runBatchForTarget } from "./deletionCascade.js";
 import { parseDeletedCountsToRecord, mergeDeletedCounts } from "./deletionUtils.js";
@@ -31,29 +28,23 @@ async function loadDeletionJob(args: {
 
 async function scheduleNextChunk(args: {
   ctx: MutationCtx;
+  schedule: (args: { userScope: string; deletionJobId: string; batchSize: number }) => Promise<void>;
   userScope: string;
   deletionJobId: string;
   batchSize: number;
 }): Promise<void> {
-  await args.ctx.scheduler.runAfter(
-    0,
-    makeFunctionReference<"mutation">("deletionInternal:runDeletionJobChunk"),
-    {
-      userScope: args.userScope,
-      deletionJobId: args.deletionJobId,
-      batchSize: args.batchSize,
-    },
-  );
+  await args.schedule({
+    userScope: args.userScope,
+    deletionJobId: args.deletionJobId,
+    batchSize: args.batchSize,
+  });
 }
 
-export const runDeletionJobChunk = internalMutation({
-  args: {
-    userScope: v.string(),
-    deletionJobId: v.string(),
-    batchSize: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+export async function runDeletionJobChunkHandler(
+  ctx: MutationCtx,
+  args: { userScope: string; deletionJobId: string; batchSize?: number },
+  schedule: (args: { userScope: string; deletionJobId: string; batchSize: number }) => Promise<void>,
+): Promise<null> {
     let job = await loadDeletionJob({
       ctx,
       userScope: args.userScope,
@@ -128,6 +119,7 @@ export const runDeletionJobChunk = internalMutation({
 
       await scheduleNextChunk({
         ctx,
+        schedule,
         userScope: args.userScope,
         deletionJobId: args.deletionJobId,
         batchSize,
@@ -144,5 +136,4 @@ export const runDeletionJobChunk = internalMutation({
       });
       return null;
     }
-  },
-});
+}

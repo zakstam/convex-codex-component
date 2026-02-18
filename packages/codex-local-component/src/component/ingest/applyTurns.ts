@@ -1,4 +1,4 @@
-import { makeFunctionReference } from "convex/server";
+import { internal } from "../_generated/api.js";
 import { pickHigherPriorityTerminalStatus } from "../syncHelpers.js";
 import { authzError, now, requireTurnForActor } from "../utils.js";
 import type { NormalizedInboundEvent, TurnIngestContext } from "./types.js";
@@ -78,7 +78,7 @@ export async function finalizeTurns(ingest: TurnIngestContext): Promise<void> {
   for (const [turnId, terminal] of ingest.collected.terminalTurns) {
     await ingest.ctx.scheduler.runAfter(
       0,
-      makeFunctionReference<"mutation">("turnsInternal:reconcileTerminalArtifacts"),
+      internal.turnsInternal.reconcileTerminalArtifacts,
       {
         userScope: userScopeFromActor(ingest.args.actor),
         threadId: ingest.args.threadId,

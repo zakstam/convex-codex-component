@@ -4,6 +4,22 @@ import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { now, requireThreadForActor, requireThreadRefForActor } from "./utils.js";
 
+const vTokenUsageBreakdown = v.object({
+  totalTokens: v.number(),
+  inputTokens: v.number(),
+  cachedInputTokens: v.number(),
+  outputTokens: v.number(),
+  reasoningOutputTokens: v.number(),
+});
+
+const vTokenUsageByTurn = v.object({
+  turnId: v.string(),
+  total: vTokenUsageBreakdown,
+  last: vTokenUsageBreakdown,
+  modelContextWindow: v.optional(v.number()),
+  updatedAt: v.number(),
+});
+
 export const upsert = mutation({
   args: {
     actor: vActorContext,
@@ -104,6 +120,7 @@ export const listByThread = query({
     actor: vActorContext,
     threadId: v.string(),
   },
+  returns: v.array(vTokenUsageByTurn),
   handler: async (ctx, args) => {
     await requireThreadForActor(ctx, args.actor, args.threadId);
 

@@ -66,7 +66,18 @@ export declare const components: {
           };
           threadId?: string;
         },
-        any
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            createdAt: number;
+            itemId: string;
+            kind: string;
+            reason?: string;
+            threadId: string;
+            turnId: string;
+          }>;
+        }
       >;
       respond: FunctionReference<
         "mutation",
@@ -116,7 +127,24 @@ export declare const components: {
           };
           threadId: string;
         },
-        any
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            completedAt?: number;
+            createdAt: number;
+            error?: string;
+            messageId: string;
+            orderInTurn: number;
+            payloadJson: string;
+            role: "user" | "assistant" | "system" | "tool";
+            sourceItemType: string;
+            status: "streaming" | "completed" | "failed" | "interrupted";
+            text: string;
+            turnId: string;
+            updatedAt: number;
+          }>;
+        }
       >;
     };
     reasoning: {
@@ -136,7 +164,24 @@ export declare const components: {
           };
           threadId: string;
         },
-        any
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            channel: "summary" | "raw";
+            contentIndex?: number;
+            createdAt: number;
+            cursorEnd: number;
+            cursorStart: number;
+            eventId: string;
+            itemId: string;
+            segmentId: string;
+            segmentType: "textDelta" | "sectionBreak";
+            summaryIndex?: number;
+            text: string;
+            turnId: string;
+          }>;
+        }
       >;
     };
     serverRequests: {
@@ -144,7 +189,32 @@ export declare const components: {
         "query",
         "internal",
         { actor: { userId?: string }; limit?: number; threadId?: string },
-        any
+        Array<{
+          createdAt: number;
+          itemId: string;
+          method:
+            | "item/commandExecution/requestApproval"
+            | "item/fileChange/requestApproval"
+            | "item/tool/requestUserInput"
+            | "item/tool/call";
+          payloadJson: string;
+          questions?: Array<{
+            header: string;
+            id: string;
+            isOther: boolean;
+            isSecret: boolean;
+            options: null | Array<{ description: string; label: string }>;
+            question: string;
+          }>;
+          reason?: string;
+          requestId: string | number;
+          resolvedAt?: number;
+          responseJson?: string;
+          status: "pending" | "answered" | "expired";
+          threadId: string;
+          turnId: string;
+          updatedAt: number;
+        }>
       >;
       resolve: FunctionReference<
         "mutation",
@@ -307,7 +377,7 @@ export declare const components: {
         "query",
         "internal",
         { actor: { userId?: string }; threadId: string },
-        any
+        Array<{ cursor: number; streamId: string }>
       >;
       replay: FunctionReference<
         "query",
@@ -325,7 +395,29 @@ export declare const components: {
           streamCursorsById: Array<{ cursor: number; streamId: string }>;
           threadId: string;
         },
-        any
+        {
+          deltas: Array<{
+            cursorEnd: number;
+            cursorStart: number;
+            kind: string;
+            payloadJson: string;
+            streamId: string;
+          }>;
+          nextCheckpoints: Array<{ cursor: number; streamId: string }>;
+          snapshots: Array<{
+            itemId: string;
+            itemType: string;
+            payloadJson: string;
+            status: string;
+          }>;
+          streamWindows: Array<{
+            serverCursorEnd: number;
+            serverCursorStart: number;
+            status: "ok" | "rebased" | "stale";
+            streamId: string;
+          }>;
+          streams: Array<{ state: string; streamId: string }>;
+        }
       >;
       resumeReplay: FunctionReference<
         "query",
@@ -344,7 +436,21 @@ export declare const components: {
           threadId: string;
           turnId: string;
         },
-        any
+        {
+          deltas: Array<{
+            cursorEnd: number;
+            cursorStart: number;
+            kind: string;
+            payloadJson: string;
+          }>;
+          nextCursor: number;
+          streamWindow: {
+            serverCursorEnd: number;
+            serverCursorStart: number;
+            status: "ok" | "rebased" | "stale";
+            streamId: string;
+          };
+        }
       >;
       upsertCheckpoint: FunctionReference<
         "mutation",
@@ -376,7 +482,7 @@ export declare const components: {
           personality?: string;
           threadId: string;
         },
-        any
+        { threadId: string }
       >;
       deleteCascade: FunctionReference<
         "mutation",
@@ -500,7 +606,15 @@ export declare const components: {
             numItems: number;
           };
         },
-        any
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            status: "active" | "archived" | "failed";
+            threadId: string;
+            updatedAt: number;
+          }>;
+        }
       >;
       purgeActorData: FunctionReference<
         "mutation",
@@ -531,7 +645,7 @@ export declare const components: {
         "mutation",
         "internal",
         { actor: { userId?: string }; threadId: string },
-        any
+        { status: "active"; threadId: string }
       >;
       scheduleDeleteCascade: FunctionReference<
         "mutation",
@@ -562,7 +676,25 @@ export declare const components: {
         "query",
         "internal",
         { actor: { userId?: string }; threadId: string },
-        any
+        Array<{
+          last: {
+            cachedInputTokens: number;
+            inputTokens: number;
+            outputTokens: number;
+            reasoningOutputTokens: number;
+            totalTokens: number;
+          };
+          modelContextWindow?: number;
+          total: {
+            cachedInputTokens: number;
+            inputTokens: number;
+            outputTokens: number;
+            reasoningOutputTokens: number;
+            totalTokens: number;
+          };
+          turnId: string;
+          updatedAt: number;
+        }>
       >;
       upsert: FunctionReference<
         "mutation",
@@ -646,7 +778,7 @@ export declare const components: {
           threadId: string;
           turnId: string;
         },
-        any
+        { accepted: boolean; turnId: string }
       >;
     };
   };

@@ -6,12 +6,28 @@ import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { authzError, now, requireThreadForActor } from "./utils.js";
 
+const vPendingApproval = v.object({
+  threadId: v.string(),
+  turnId: v.string(),
+  itemId: v.string(),
+  kind: v.string(),
+  reason: v.optional(v.string()),
+  createdAt: v.number(),
+});
+
+const vPendingApprovalListResult = v.object({
+  page: v.array(vPendingApproval),
+  isDone: v.boolean(),
+  continueCursor: v.string(),
+});
+
 export const listPending = query({
   args: {
     actor: vActorContext,
     threadId: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
+  returns: vPendingApprovalListResult,
   handler: async (ctx, args) => {
     if (args.threadId) {
       await requireThreadForActor(ctx, args.actor, args.threadId);
@@ -88,7 +104,7 @@ export const listPending = query({
         turnId: String(approval.turnId),
         itemId: String(approval.itemId),
         kind: String(approval.kind),
-        reason: approval.reason ? String(approval.reason) : undefined,
+        ...(approval.reason ? { reason: String(approval.reason) } : {}),
         createdAt: Number(approval.createdAt),
       })),
     };

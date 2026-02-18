@@ -1,5 +1,7 @@
+import { internal } from "./_generated/api.js";
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server.js";
+import { runDeletionJobChunkHandler } from "./deletionInternal.js";
 import { now } from "./utils.js";
 
 export const timeoutStaleSessions = internalMutation({
@@ -34,4 +36,17 @@ export const timeoutStaleSessions = internalMutation({
 
     return { timedOut };
   },
+});
+
+export const runDeletionJobChunk = internalMutation({
+  args: {
+    userScope: v.string(),
+    deletionJobId: v.string(),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    runDeletionJobChunkHandler(ctx, args, async (nextArgs) => {
+      await ctx.scheduler.runAfter(0, internal.sessions.runDeletionJobChunk, nextArgs);
+    }),
 });

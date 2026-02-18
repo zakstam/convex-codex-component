@@ -12,7 +12,10 @@ import { listCheckpointsHandler, replayHandler, resumeReplayHandler } from "./sy
 import {
   vIngestResult,
   vIngestSafeResult,
+  vListCheckpointsResult,
   vLifecycleEvent,
+  vReplayResult,
+  vResumeReplayResult,
   vStreamInboundEvent,
 } from "./validators/syncValidators.js";
 
@@ -50,6 +53,7 @@ export const replay = query({
     streamCursorsById: v.array(v.object({ streamId: v.string(), cursor: v.number() })),
     runtime: v.optional(vSyncRuntimeOptions),
   },
+  returns: vReplayResult,
   handler: replayHandler,
 });
 
@@ -58,6 +62,7 @@ export const listCheckpoints = query({
     actor: vActorContext,
     threadId: v.string(),
   },
+  returns: vListCheckpointsResult,
   handler: listCheckpointsHandler,
 });
 
@@ -106,5 +111,6 @@ export const resumeReplay = query({
     fromCursor: v.number(),
     runtime: v.optional(vSyncRuntimeOptions),
   },
+  returns: vResumeReplayResult,
   handler: resumeReplayHandler,
 });

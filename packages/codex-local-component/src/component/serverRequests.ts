@@ -18,6 +18,36 @@ const vManagedServerRequestMethod = v.union(
   v.literal("item/tool/call"),
 );
 
+const vToolRequestUserInputOption = v.object({
+  label: v.string(),
+  description: v.string(),
+});
+
+const vToolRequestUserInputQuestion = v.object({
+  id: v.string(),
+  header: v.string(),
+  question: v.string(),
+  isOther: v.boolean(),
+  isSecret: v.boolean(),
+  options: v.union(v.null(), v.array(vToolRequestUserInputOption)),
+});
+
+const vPendingServerRequest = v.object({
+  requestId: v.union(v.string(), v.number()),
+  method: vManagedServerRequestMethod,
+  threadId: v.string(),
+  turnId: v.string(),
+  itemId: v.string(),
+  payloadJson: v.string(),
+  status: v.union(v.literal("pending"), v.literal("answered"), v.literal("expired")),
+  reason: v.optional(v.string()),
+  questions: v.optional(v.array(vToolRequestUserInputQuestion)),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  resolvedAt: v.optional(v.number()),
+  responseJson: v.optional(v.string()),
+});
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -65,10 +95,7 @@ function fromRequestStorageId(args: {
   return args.requestIdText;
 }
 
-function parseQuestionsJson(questionsJson: string | undefined): ToolRequestUserInputQuestion[] | undefined {
-  if (!questionsJson) {
-    return undefined;
-  }
+function parseQuestionsJson(questionsJson: string): ToolRequestUserInputQuestion[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(questionsJson);
@@ -216,6 +243,7 @@ export const listPending = query({
     threadId: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.array(vPendingServerRequest),
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit ?? 100));
 

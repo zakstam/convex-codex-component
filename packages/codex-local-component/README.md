@@ -42,6 +42,8 @@ Use one source of truth for implementation steps:
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/host/convex`
 - `@zakstam/codex-local-component/convex.config`
+- `@zakstam/codex-local-component/_generated/component.js`
+- `@zakstam/codex-local-component/test`
 
 ## Docs Map
 
@@ -121,7 +123,14 @@ The component supports async cascade deletion with job polling:
 
 ## Type Safety Checks
 
+- `pnpm --filter @zakstam/codex-local-component run codegen:component`
 - `pnpm --filter @zakstam/codex-local-component run lint`
 - `pnpm --filter @zakstam/codex-local-component run typecheck`
 - `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`
 - `pnpm --filter @zakstam/codex-local-component run check:fallback-policy`
+- `pnpm --filter @zakstam/codex-local-component run check:component-function-validators`
+
+## Component Authoring Exports
+
+- `@zakstam/codex-local-component/_generated/component.js`: generated `ComponentApi` type entrypoint for app-side typing.
+- `@zakstam/codex-local-component/test`: test helper export (`register`) plus `schema` for component test registration.

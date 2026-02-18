@@ -6,6 +6,27 @@ import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
 import { requireThreadForActor } from "./utils.js";
 
+const vReasoningSegment = v.object({
+  segmentId: v.string(),
+  eventId: v.string(),
+  turnId: v.string(),
+  itemId: v.string(),
+  channel: v.union(v.literal("summary"), v.literal("raw")),
+  segmentType: v.union(v.literal("textDelta"), v.literal("sectionBreak")),
+  text: v.string(),
+  summaryIndex: v.optional(v.number()),
+  contentIndex: v.optional(v.number()),
+  cursorStart: v.number(),
+  cursorEnd: v.number(),
+  createdAt: v.number(),
+});
+
+const vReasoningListResult = v.object({
+  page: v.array(vReasoningSegment),
+  isDone: v.boolean(),
+  continueCursor: v.string(),
+});
+
 export const listByThread = query({
   args: {
     actor: vActorContext,
@@ -13,6 +34,7 @@ export const listByThread = query({
     paginationOpts: paginationOptsValidator,
     includeRaw: v.optional(v.boolean()),
   },
+  returns: vReasoningListResult,
   handler: async (ctx, args) => {
     await requireThreadForActor(ctx, args.actor, args.threadId);
 

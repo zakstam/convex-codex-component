@@ -1,3 +1,4 @@
+---
 "@zakstam/codex-local-component": minor
 ---
 

@@ -23,12 +23,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "24"
           registry-url: https://registry.npmjs.org
 
       - name: Use npm 11 for trusted publishing
         run: |
-          npm install -g npm@^11
+          npm install -g npm@^11.5.1
           npm --version
 
       - uses: pnpm/action-setup@v4
@@ -62,24 +62,6 @@ jobs:
           echo "No npm publish auth available."
           echo "Provide NPM_TOKEN or configure npm trusted publishing with GitHub OIDC."
           exit 1
-      - name: Print OIDC claims for npm audience
-        if: ${{ env.NPM_TOKEN == '' }}
-        run: |
-          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-            echo "OIDC request variables are not available in this job."
-            exit 1
-          fi
-
-          OIDC_URL="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org"
-          OIDC_RESPONSE="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${OIDC_URL}")"
-          OIDC_TOKEN="$(node -e 'const payload=JSON.parse(process.argv[1]); process.stdout.write(payload.value || "");' "${OIDC_RESPONSE}")"
-
-          if [ -z "${OIDC_TOKEN}" ]; then
-            echo "Failed to retrieve OIDC token value for npm audience."
-            exit 1
-          fi
-
-          node -e 'const token=process.argv[1]; const payload=JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8")); const keys=["iss","sub","aud","repository","repository_owner","workflow","workflow_ref","job_workflow_ref","ref","environment"]; const out={}; for (const key of keys) if (payload[key] !== undefined) out[key]=payload[key]; console.log(JSON.stringify(out, null, 2));' "${OIDC_TOKEN}"
       - run: pnpm run release:precheck:ci
 
       - name: Create release PR or publish

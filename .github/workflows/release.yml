@@ -43,6 +43,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm run release:precheck:ci
+      - name: Validate npm publish auth
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "Using NPM_TOKEN for npm publish auth."
+            exit 0
+          fi
+
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "OIDC is available; trusted publishing can be used."
+            exit 0
+          fi
+
+          echo "No npm publish auth available."
+          echo "Provide NPM_TOKEN or configure npm trusted publishing with GitHub OIDC."
+          exit 1
 
       - name: Create release PR or publish
         uses: changesets/action@v1

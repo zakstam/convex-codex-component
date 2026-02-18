@@ -32,8 +32,39 @@ const vThreadHandle = v.object({
   linkState: v.union(v.literal("linked"), v.literal("runtime_only"), v.literal("persisted_only")),
 });
 
-function resolveUserScope(actor: { userId?: string }): string {
-  return actor.userId?.trim() ? actor.userId.trim() : "__anonymous__";
+type ThreadSummary = {
+  threadId: string;
+  status: "active" | "archived" | "failed";
+  updatedAt: number;
+};
+
+async function loadThreadSummaryByThreadId(
+  ctx: MutationCtx | QueryCtx,
+  serverActor: { userId?: string },
+  threadId: string,
+): Promise<ThreadSummary | null> {
+  let cursor: string | null = null;
+  while (true) {
+    const listed = await ctx.runQuery(components.codexLocal.threads.list, {
+      actor: serverActor,
+      paginationOpts: {
+        numItems: 100,
+        cursor,
+      },
+    }) as {
+      page: ThreadSummary[];
+      isDone: boolean;
+      continueCursor: string;
+    };
+    const match = listed.page.find((thread: ThreadSummary) => thread.threadId === threadId);
+    if (match) {
+      return match;
+    }
+    if (listed.isDone) {
+      return null;
+    }
+    cursor = listed.continueCursor;
+  }
 }
 
 async function loadThreadHandleByThreadId(
@@ -41,28 +72,21 @@ async function loadThreadHandleByThreadId(
   serverActor: { userId?: string },
   threadId: string,
 ) {
-  const threadRecord = await ctx.db
-    .query("codex_threads")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userScope"), resolveUserScope(serverActor)),
-        q.eq(q.field("threadId"), threadId),
-      ),
-    )
-    .first();
-  if (!threadRecord) {
+  const threadSummary = await loadThreadSummaryByThreadId(ctx, serverActor, threadId);
+  if (!threadSummary) {
     return null;
   }
+
   const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
     actor: serverActor,
     threadId,
   });
   const externalThreadId = mapping?.externalThreadId;
-  const runtimeThreadId = externalThreadId ?? threadRecord.localThreadId;
+  const runtimeThreadId = externalThreadId ?? threadId;
   return {
     threadId,
-    status: String(threadRecord.status) as "active" | "archived" | "failed",
-    updatedAt: Number(threadRecord.updatedAt),
+    status: threadSummary.status,
+    updatedAt: threadSummary.updatedAt,
     ...(externalThreadId ? { externalThreadId } : {}),
     ...(runtimeThreadId ? { runtimeThreadId } : {}),
     linkState: externalThreadId ? ("linked" as const) : ("persisted_only" as const),

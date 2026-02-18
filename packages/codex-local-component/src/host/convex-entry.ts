@@ -1,7 +1,6 @@
 export {
   createCodexHost,
   type CodexConvexHostActorPolicy,
-  type CodexConvexHostActorPolicyShorthand,
   type CodexHostFacade,
   type CodexHostSliceFeatures,
   type CodexHostSliceIngestMode,

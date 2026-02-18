@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
-import type { FunctionReference } from "convex/server";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
+import { api } from "../convex/_generated/api.js";
 import { resolveConvexUrl } from "../../../shared/resolveConvexUrl.js";
 import {
   extractAssistantDelta,
@@ -259,22 +259,14 @@ const syncRuntimeOptions = {
 
 const convex = new ConvexHttpClient(convexUrl);
 
-function queryRef(path: string): FunctionReference<"query"> {
-  return path as unknown as FunctionReference<"query">;
-}
-
-function mutationRef(path: string): FunctionReference<"mutation"> {
-  return path as unknown as FunctionReference<"mutation">;
-}
-
 const chatFns = {
-  validateHostWiring: queryRef("chat.validateHostWiring"),
-  ensureThread: mutationRef("chat.ensureThread"),
-  ensureSession: mutationRef("chat.ensureSession"),
-  ingestBatch: mutationRef("chat.ingestBatch"),
-  persistenceStats: queryRef("chat.persistenceStats"),
-  durableHistoryStats: queryRef("chat.durableHistoryStats"),
-  threadSnapshot: queryRef("chat.threadSnapshot"),
+  validateHostWiring: api.chat.validateHostWiring,
+  ensureThread: api.chat.ensureThread,
+  ensureSession: api.chat.ensureSession,
+  ingestBatch: api.chat.ingestBatch,
+  persistenceStats: api.chat.persistenceStats,
+  durableHistoryStats: api.chat.durableHistoryStats,
+  threadSnapshot: api.chat.threadSnapshot,
 } as const;
 
 async function assertHostWiring(): Promise<void> {

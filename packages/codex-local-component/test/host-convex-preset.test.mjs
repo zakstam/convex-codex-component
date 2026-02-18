@@ -261,6 +261,30 @@ test("createCodexHost throws when actorPolicy is omitted", () => {
   );
 });
 
+test("createCodexHost rejects string actorPolicy shorthand", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: "server-user",
+      }),
+    /explicit actorPolicy object/,
+  );
+});
+
+test("createCodexHost rejects object actorPolicy shorthand", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: { userId: "server-user" },
+      }),
+    /explicit actorPolicy object/,
+  );
+});
+
 test("createCodexHost throws when serverActor.userId is blank", () => {
   assert.throws(
     () =>

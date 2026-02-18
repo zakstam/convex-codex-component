@@ -33,7 +33,6 @@ export const listThreadsForPicker = query({
       status: string;
       updatedAt: number;
     }>;
-    const userScope = serverActor.userId?.trim() ? serverActor.userId.trim() : "__anonymous__";
 
     const rows = await Promise.all(
       page.map(async (thread) => {
@@ -42,18 +41,8 @@ export const listThreadsForPicker = query({
           threadId: thread.threadId,
         });
 
-        const threadRecord = await ctx.db
-          .query("codex_threads")
-          .filter((q) =>
-            q.and(
-              q.eq(q.field("userScope"), userScope),
-              q.eq(q.field("threadId"), thread.threadId),
-            ),
-          )
-          .first();
-
         const externalThreadId = mapping?.externalThreadId ?? null;
-        const runtimeThreadId = externalThreadId ?? threadRecord?.localThreadId ?? null;
+        const runtimeThreadId = externalThreadId ?? thread.threadId;
         return {
           threadId: thread.threadId,
           status: thread.status,

@@ -6,7 +6,12 @@ const codex = createCodexHost({
   components,
   mutation,
   query,
-  actorPolicy: process.env.ACTOR_USER_ID ?? "server",
+  actorPolicy: {
+    mode: "serverActor",
+    serverActor: {
+      userId: process.env.ACTOR_USER_ID ?? "server",
+    },
+  },
 });
 
 export const { ensureThread, ensureSession, ingestEvent, ingestBatch,

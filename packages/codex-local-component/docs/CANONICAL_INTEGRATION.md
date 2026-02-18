@@ -53,7 +53,7 @@ export const { ensureThread, ensureSession, ingestBatch } = codex.mutations;
 export const { validateHostWiring, threadSnapshotSafe, listThreadMessages } = codex.queries;
 ```
 
-`createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.serverActor.userId` must be a non-empty string.
+`createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.serverActor.userId` must be a non-empty string. Shorthand forms like `"server"` or `{ userId: "server" }` are not supported.
 
 ## Minimal React Wiring
 

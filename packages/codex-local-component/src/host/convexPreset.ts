@@ -367,16 +367,11 @@ type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
   [Key in keyof Defs]: WrappedResultForDefinition<Wrap, Defs[Key]>;
 };
 
-export type CodexConvexHostActorPolicyShorthand =
-  | string
-  | { userId: string };
-
 export type CodexConvexHostActorPolicy =
-  | CodexConvexHostActorPolicyShorthand
-  | {
-      mode: "serverActor";
-      serverActor: HostActorContext;
-    };
+  {
+    mode: "serverActor";
+    serverActor: HostActorContext;
+  };
 
 type NormalizedActorPolicy = {
   mode: "serverActor";
@@ -389,11 +384,10 @@ function normalizeActorPolicy(
   if (!policy) {
     return undefined;
   }
-  if (typeof policy === "string") {
-    return { mode: "serverActor", serverActor: { userId: policy } };
-  }
-  if (!("mode" in policy)) {
-    return { mode: "serverActor", serverActor: { userId: policy.userId } };
+  if (typeof policy !== "object" || policy === null || !("mode" in policy)) {
+    throw new Error(
+      'createCodexHost requires an explicit actorPolicy object: { mode: "serverActor", serverActor: { userId: string } }.',
+    );
   }
   if (policy.mode !== "serverActor") {
     throw new Error('createCodexHost actorPolicy supports only mode: "serverActor".');

@@ -47,6 +47,7 @@ From `@zakstam/codex-local-component/react`:
 - `createCodexHost` is the only documented host-wiring entrypoint.
 - `createCodexHost` requires explicit `actorPolicy`.
 - `actorPolicy.serverActor.userId` must be a non-empty string.
+- `createCodexHost` rejects shorthand `actorPolicy` inputs (`"server"` or `{ userId: "server" }`).
 - Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

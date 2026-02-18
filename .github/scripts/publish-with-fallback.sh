@@ -3,6 +3,12 @@ set -euo pipefail
 
 export NPM_CONFIG_PROVENANCE="true"
 
+if [ -n "${FALLBACK_NPM_TOKEN:-}" ]; then
+  echo "Fallback token configured: yes"
+else
+  echo "Fallback token configured: no"
+fi
+
 # Keep OIDC publish clean by removing any pre-existing npm auth config.
 rm -f "$HOME/.npmrc" .npmrc
 npm config set registry https://registry.npmjs.org/

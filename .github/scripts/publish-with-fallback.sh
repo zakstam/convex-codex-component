@@ -21,7 +21,10 @@ npm config delete always-auth || true
 
 echo "Publish attempt 1/2: npm trusted publishing (OIDC)."
 oidc_exit=0
-npx changeset publish || oidc_exit=$?
+(
+  cd packages/codex-local-component
+  npm publish --provenance --access public
+) || oidc_exit=$?
 
 if [ "${oidc_exit}" -eq 0 ]; then
   echo "Publish succeeded with OIDC."
@@ -42,4 +45,7 @@ printf "//registry.npmjs.org/:_authToken=%s\n" "$FALLBACK_NPM_TOKEN" > "$HOME/.n
 npm config set registry https://registry.npmjs.org/
 
 echo "Publish attempt 2/2: NPM_TOKEN fallback."
-npx changeset publish
+(
+  cd packages/codex-local-component
+  npm publish --provenance --access public
+)

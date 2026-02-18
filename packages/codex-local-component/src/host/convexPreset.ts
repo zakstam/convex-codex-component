@@ -376,12 +376,15 @@ type NormalizedActorPolicy<MutationCtx = unknown, QueryCtx = unknown> =
     };
 
 function normalizeActorPolicy<MutationCtx = unknown, QueryCtx = unknown>(
-  policy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx>,
-): NormalizedActorPolicy<MutationCtx, QueryCtx> {
+  policy: CodexConvexHostActorPolicy<MutationCtx, QueryCtx> | undefined,
+): NormalizedActorPolicy<MutationCtx, QueryCtx> | undefined {
+  if (!policy) {
+    return undefined;
+  }
   if (typeof policy === "string") {
     return { mode: "serverActor", serverActor: { userId: policy } };
   }
-  if (!("mode" in policy)) {
+  if (typeof policy === "object" && !("mode" in policy)) {
     return { mode: "serverActor", serverActor: { userId: policy.userId } };
   }
   return policy;

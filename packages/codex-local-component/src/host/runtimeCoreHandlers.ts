@@ -191,7 +191,7 @@ function toIngestDelta(ctx: HandlerCtx, event: NormalizedEvent, ptid: string): I
 
 function readAssistantDeltaPayload(payloadJson: string): { delta: string; parsed: Record<string, unknown> } | null {
   let parsed: unknown;
-  try { parsed = JSON.parse(payloadJson); } catch { return null; }
+  try { parsed = JSON.parse(payloadJson); } catch (_error) { return null; }
   if (typeof parsed !== "object" || parsed === null || !("method" in parsed)) return null;
   const obj = parsed as Record<string, unknown>;
   if (obj.method !== "item/agentMessage/delta") return null;

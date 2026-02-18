@@ -77,6 +77,7 @@
     "coverage": "pnpm run build && NODE_V8_COVERAGE=coverage node --test --experimental-test-coverage test/*.test.mjs",
     "check:mount-imports": "node ./scripts/check-mount-imports.mjs",
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
+    "check:unsafe-types:write": "node ./scripts/check-unsafe-types.mjs --write-allowlist",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
     "check:fallback-policy": "node ./scripts/check-fallback-policy.mjs",
     "check:fallback-policy:write": "node ./scripts/check-fallback-policy.mjs --write-allowlist",

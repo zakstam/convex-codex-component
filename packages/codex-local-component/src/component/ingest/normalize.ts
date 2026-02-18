@@ -36,6 +36,19 @@ export function normalizeInboundEvents(args: {
 
   return sorted.map((event) => {
     const payloadTurnId = parseTurnIdForEvent(event.kind, event.payloadJson);
+    const incomingTurnId = event.turnId;
+    const incomingIsPlaceholder = incomingTurnId === "0";
+    if (
+      payloadTurnId &&
+      incomingTurnId &&
+      !incomingIsPlaceholder &&
+      payloadTurnId !== incomingTurnId
+    ) {
+      syncError(
+        "E_SYNC_TURN_ID_MISMATCH",
+        `Mismatched turn id for kind=${event.kind}: payloadTurnId=${payloadTurnId} incomingTurnId=${incomingTurnId}`,
+      );
+    }
     const requiresCanonicalTurnFromPayload =
       event.type === "stream_delta" &&
       (event.kind === "turn/started" || event.kind === "turn/completed");
@@ -45,13 +58,6 @@ export function normalizeInboundEvents(args: {
         `Missing canonical payload turn id for turn lifecycle event kind=${event.kind}`,
       );
     }
-    if (event.kind.startsWith("codex/event/") && !payloadTurnId) {
-      syncError(
-        "E_SYNC_TURN_ID_REQUIRED_FOR_CODEX_EVENT",
-        `Missing canonical payload turn id for legacy codex event kind=${event.kind}`,
-      );
-    }
-
     if (event.type === "stream_delta") {
       const resolvedTurnId = payloadTurnId ?? event.turnId;
       const terminalTurnStatus = terminalStatusForEvent(event.kind, event.payloadJson);

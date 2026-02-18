@@ -6,9 +6,9 @@ const isWindows = process.platform === "win32";
 const SHUTDOWN_GRACE_MS = 1200;
 
 const commands = [
+  ["pnpm", ["run", "prepare:component"]],
   ["pnpm", ["run", "prepare:tauri-assets"]],
   ["pnpm", ["run", "build:node"]],
-  ["pnpm", ["run", "prepare:component"]],
 ];
 
 for (const [cmd, args] of commands) {

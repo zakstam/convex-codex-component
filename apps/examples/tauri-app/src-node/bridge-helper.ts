@@ -1,9 +1,17 @@
 import { ConvexHttpClient } from "convex/browser";
 import {
   createCodexHostRuntime,
-  hasRecoverableIngestErrors,
+  createConvexPersistence,
   type CodexHostRuntime,
+  type ConvexPersistenceChatApi,
 } from "@zakstam/codex-local-component/host";
+import {
+  HELPER_ACK_BY_TYPE,
+  parseHelperCommand,
+  type ActorContext,
+  type HelperCommand,
+  type StartPayload,
+} from "@zakstam/codex-local-component/host/tauri";
 import type {
   ServerInboundMessage,
   v2,
@@ -20,47 +28,6 @@ type ToolRequestUserInputAnswer = v2.ToolRequestUserInputAnswer;
 type DynamicToolSpec = v2.DynamicToolSpec;
 type DynamicToolCallOutputContentItem = v2.DynamicToolCallOutputContentItem;
 type LoginAccountParams = v2.LoginAccountParams;
-
-type ActorContext = { userId?: string };
-type StartPayload = {
-  convexUrl: string;
-  actor: ActorContext;
-  sessionId: string;
-  model?: string;
-  cwd?: string;
-  disabledTools?: string[];
-  deltaThrottleMs?: number;
-  saveStreamDeltas?: boolean;
-  threadStrategy?: "start" | "resume" | "fork";
-  runtimeThreadId?: string;
-  externalThreadId?: string;
-};
-
-type HelperCommand =
-  | { type: "start"; payload: StartPayload }
-  | { type: "send_turn"; payload: { text: string } }
-  // TODO(turn/steer): add `steer_turn` command once runtime exposes `steerTurn(...)`.
-  | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
-  | { type: "respond_file_change_approval"; payload: { requestId: string | number; decision: FileChangeApprovalDecision } }
-  | { type: "respond_tool_user_input"; payload: { requestId: string | number; answers: Record<string, ToolRequestUserInputAnswer> } }
-  | { type: "account_read"; payload: { refreshToken?: boolean } }
-  | { type: "account_login_start"; payload: { params: LoginAccountParams } }
-  | { type: "account_login_cancel"; payload: { loginId: string } }
-  | { type: "account_logout"; payload: Record<string, never> }
-  | { type: "account_rate_limits_read"; payload: Record<string, never> }
-  | {
-      type: "respond_chatgpt_auth_tokens_refresh";
-      payload: {
-        requestId: string | number;
-        accessToken: string;
-        chatgptAccountId: string;
-        chatgptPlanType?: string | null;
-      };
-    }
-  | { type: "set_disabled_tools"; payload: { tools: string[] } }
-  | { type: "interrupt" }
-  | { type: "stop" }
-  | { type: "status" };
 
 type HelperEvent =
   | {
@@ -114,13 +81,6 @@ function emit(event: HelperEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
-function toErrorCode(value: unknown): string {
-  if (typeof value !== "string") {
-    return "UNKNOWN";
-  }
-  return value;
-}
-
 function formatWiringValidationFailure(result: unknown): string {
   if (typeof result !== "object" || result === null) {
     return "Host wiring validation failed: unexpected result shape.";
@@ -147,48 +107,12 @@ function formatWiringValidationFailure(result: unknown): string {
   return `Host wiring validation failed: ${detail}`;
 }
 
-type IngestBatchError = {
-  code: unknown;
-  message: string;
-  recoverable: boolean;
-};
-
-function mapIngestErrors(errors: IngestBatchError[]): Array<{
-  code: string;
-  message: string;
-  recoverable: boolean;
-}> {
-  return errors.map((ingestError: IngestBatchError) => ({
-    code: toErrorCode(ingestError.code),
-    message: ingestError.message,
-    recoverable: ingestError.recoverable,
-  }));
-}
-
-function mapIngestErrorCodes(errors: IngestBatchError[]): Array<{
-  code: string;
-  message: string;
-}> {
-  return errors.map((ingestError: IngestBatchError) => ({
-    code: toErrorCode(ingestError.code),
-    message: ingestError.message,
-  }));
-}
-
-type RuntimeDispatchQueueEntry = {
-  dispatchId: string;
-  claimToken: string;
-  turnId: string;
-  inputText: string;
-  idempotencyKey: string;
-};
 
 let runtime: CodexHostRuntime | null = null;
 let convex: ConvexHttpClient | null = null;
 let actor: ActorContext | null = null;
 let activeSessionId: string | null = null;
 let runtimeThreadId: string | null = null;
-const runtimeDispatchQueues = new Map<string, RuntimeDispatchQueueEntry[]>();
 let startRuntimeOptions: {
   saveStreamDeltas: boolean;
   maxDeltasPerStreamRead: number;
@@ -200,15 +124,6 @@ let startRuntimeOptions: {
   maxDeltasPerRequestRead: 1000,
   finishedStreamDeleteDelayMs: 300000,
 };
-
-function getDispatchQueue(threadId: string): RuntimeDispatchQueueEntry[] {
-  let queue = runtimeDispatchQueues.get(threadId);
-  if (!queue) {
-    queue = [];
-    runtimeDispatchQueues.set(threadId, queue);
-  }
-  return queue;
-}
 
 let bridgeState: {
   running: boolean;
@@ -561,295 +476,24 @@ async function startBridge(payload: StartPayload): Promise<void> {
     bridge: {
       cwd: payload.cwd ?? process.cwd(),
     },
-    persistence: {
-      ensureThread: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        if (!args.localThreadId) {
-          throw new Error("ensureThread requires localThreadId in runtime-owned create mode.");
-        }
-        return convex.mutation(requireDefined(chatApi.ensureThread, "api.chat.ensureThread"), {
-          actor: args.actor,
-          localThreadId: args.localThreadId,
-          ...(args.externalThreadId ? { externalThreadId: args.externalThreadId } : {}),
-          ...(args.model ? { model: args.model } : {}),
-          ...(args.cwd ? { cwd: args.cwd } : {}),
-        });
+    persistence: createConvexPersistence(
+      convex,
+      chatApi as unknown as ConvexPersistenceChatApi,
+      {
+        runtimeOptions: startRuntimeOptions,
+        onSessionRollover: ({ threadId, errors }) => {
+          emit({
+            type: "global",
+            payload: {
+              kind: "sync/session_rolled_over",
+              reason: "recoverable_rejected_status",
+              threadId,
+              errors,
+            },
+          });
+        },
       },
-      ensureSession: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        return convex.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-          actor: args.actor,
-          sessionId: args.sessionId,
-          threadId: args.threadId,
-          lastEventCursor: args.lastEventCursor,
-        });
-      },
-      ingestSafe: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        const client = convex;
-
-        const toIngestPayload = (sessionIdOverride: string) => ({
-          actor: args.actor,
-          sessionId: sessionIdOverride,
-          threadId: args.threadId,
-          deltas: args.deltas.map((delta) =>
-            delta.type === "stream_delta"
-              ? {
-                  type: "stream_delta" as const,
-                  eventId: delta.eventId,
-                  turnId: delta.turnId,
-                  streamId: delta.streamId,
-                  kind: delta.kind,
-                  payloadJson: delta.payloadJson,
-                  cursorStart: delta.cursorStart,
-                  cursorEnd: delta.cursorEnd,
-                  createdAt: delta.createdAt,
-                }
-              : {
-                  type: "lifecycle_event" as const,
-                  eventId: delta.eventId,
-                  ...(delta.turnId ? { turnId: delta.turnId } : {}),
-                  kind: delta.kind,
-                  payloadJson: delta.payloadJson,
-                  createdAt: delta.createdAt,
-                },
-          ),
-          runtime: startRuntimeOptions,
-        });
-
-        const runIngest = async (sessionIdOverride: string) =>
-          client.mutation(requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"), toIngestPayload(sessionIdOverride));
-
-        try {
-          const initialResult = await runIngest(args.sessionId);
-          if (initialResult.status !== "rejected") {
-            return {
-              status: initialResult.status,
-              errors: mapIngestErrors(initialResult.errors as IngestBatchError[]),
-            };
-          }
-
-          const initialErrors = initialResult.errors as IngestBatchError[];
-          // Recoverability is contract-owned by ingestSafe errors[].recoverable.
-          const hasRecoverableRejection = hasRecoverableIngestErrors(initialErrors);
-          if (hasRecoverableRejection && activeSessionId && actor) {
-            const nextSessionId = randomSessionId();
-            activeSessionId = nextSessionId;
-            await client.mutation(requireDefined(chatApi.ensureSession, "api.chat.ensureSession"), {
-              actor,
-              sessionId: nextSessionId,
-              threadId: args.threadId,
-              lastEventCursor: 0,
-            });
-
-            emit({
-              type: "global",
-              payload: {
-                kind: "sync/session_rolled_over",
-                reason: "recoverable_rejected_status",
-                threadId: args.threadId,
-                errors: mapIngestErrorCodes(initialErrors),
-              },
-            });
-
-            const retriedResult = await runIngest(nextSessionId);
-            if (retriedResult.status === "rejected") {
-              return {
-                status: "partial",
-                errors: mapIngestErrors(retriedResult.errors as IngestBatchError[]).map((error) => ({
-                  ...error,
-                  recoverable: true,
-                })),
-              };
-            }
-            return {
-              status: retriedResult.status,
-              errors: mapIngestErrors(retriedResult.errors as IngestBatchError[]),
-            };
-          }
-
-          return {
-            status: initialResult.status,
-            errors: mapIngestErrors(initialErrors),
-          };
-        } catch (error) {
-          throw error;
-        }
-      },
-      upsertPendingServerRequest: async ({ actor: requestActor, request }) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        const requestedAt = (request as { createdAt?: number }).createdAt;
-        await convex.mutation(
-          requireDefined(
-            chatApi.upsertPendingServerRequestForHooks,
-            "api.chat.upsertPendingServerRequestForHooks",
-          ),
-          {
-            actor: requestActor,
-            requestId: request.requestId,
-            threadId: request.threadId,
-            turnId: request.turnId,
-            itemId: request.itemId,
-            method: request.method,
-            payloadJson: request.payloadJson,
-            ...(request.reason ? { reason: request.reason } : {}),
-            ...(request.questions ? { questionsJson: JSON.stringify(request.questions) } : {}),
-            ...(typeof requestedAt === "number" ? { requestedAt } : {}),
-          },
-        );
-      },
-      resolvePendingServerRequest: async ({ threadId, requestId, status, resolvedAt, responseJson }) => {
-        if (!convex || !actor) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(
-            chatApi.resolvePendingServerRequestForHooks,
-            "api.chat.resolvePendingServerRequestForHooks",
-          ),
-          {
-            actor,
-            threadId,
-            requestId,
-            status,
-            resolvedAt,
-            ...(responseJson ? { responseJson } : {}),
-          },
-        );
-      },
-      listPendingServerRequests: async ({ threadId }) => {
-        if (!convex || !actor) {
-          return [];
-        }
-        return convex.query(
-          requireDefined(
-            chatApi.listPendingServerRequestsForHooks,
-            "api.chat.listPendingServerRequestsForHooks",
-          ),
-          {
-            actor,
-            ...(threadId ? { threadId } : {}),
-            limit: 100,
-          },
-        );
-      },
-      acceptTurnSend: async ({ actor: turnActor, threadId, dispatchId, turnId, idempotencyKey, inputText }) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        const acceptResult = await convex.mutation(
-          requireDefined(chatApi.acceptTurnSendForHooks, "api.chat.acceptTurnSendForHooks"),
-          {
-            actor: turnActor,
-            threadId,
-            turnId,
-            inputText,
-            idempotencyKey,
-            ...(dispatchId ? { dispatchId } : {}),
-          },
-        );
-        const claimToken = randomSessionId();
-        const queue = getDispatchQueue(threadId);
-        queue.push({
-          dispatchId: acceptResult.dispatchId,
-          claimToken,
-          turnId: acceptResult.turnId,
-          inputText,
-          idempotencyKey,
-        });
-        return acceptResult;
-      },
-      failAcceptedTurnSend: async ({ actor: turnActor, threadId, turnId, dispatchId, reason, code }) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.failAcceptedTurnSendForHooks, "api.chat.failAcceptedTurnSendForHooks"),
-          {
-            actor: turnActor,
-            threadId,
-            turnId,
-            dispatchId,
-            reason,
-            ...(code ? { code } : {}),
-          },
-        );
-      },
-      claimNextTurnDispatch: async ({ threadId, claimOwner }) => {
-        const queue = getDispatchQueue(threadId);
-        const entry = queue.shift();
-        if (!entry) {
-          void claimOwner;
-          return null;
-        }
-        return {
-          dispatchId: entry.dispatchId,
-          turnId: entry.turnId,
-          idempotencyKey: entry.idempotencyKey,
-          inputText: entry.inputText,
-          claimToken: entry.claimToken,
-          leaseExpiresAt: Date.now() + 60_000,
-          attemptCount: 1,
-        };
-      },
-      markTurnDispatchStarted: async ({ threadId, dispatchId, claimToken, runtimeThreadId: dispatchedRuntimeThreadId, runtimeTurnId }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-        void dispatchedRuntimeThreadId;
-        void runtimeTurnId;
-      },
-      markTurnDispatchCompleted: async ({ threadId, dispatchId, claimToken }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-      },
-      markTurnDispatchFailed: async ({ threadId, dispatchId, claimToken, code, reason }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-        void code;
-        void reason;
-      },
-      cancelTurnDispatch: async ({ threadId, dispatchId, claimToken, reason }) => {
-        void threadId;
-        void dispatchId;
-        void claimToken;
-        void reason;
-      },
-      upsertTokenUsage: async (args) => {
-        if (!convex) {
-          throw new Error("Convex client not initialized.");
-        }
-        await convex.mutation(
-          requireDefined(chatApi.upsertTokenUsageForHooks, "api.chat.upsertTokenUsageForHooks"),
-          {
-            actor: args.actor,
-            threadId: args.threadId,
-            turnId: args.turnId,
-            totalTokens: args.totalTokens,
-            inputTokens: args.inputTokens,
-            cachedInputTokens: args.cachedInputTokens,
-            outputTokens: args.outputTokens,
-            reasoningOutputTokens: args.reasoningOutputTokens,
-            lastTotalTokens: args.lastTotalTokens,
-            lastInputTokens: args.lastInputTokens,
-            lastCachedInputTokens: args.lastCachedInputTokens,
-            lastOutputTokens: args.lastOutputTokens,
-            lastReasoningOutputTokens: args.lastReasoningOutputTokens,
-            ...(args.modelContextWindow != null ? { modelContextWindow: args.modelContextWindow } : {}),
-          },
-        );
-      },
-    },
+    ),
     handlers: {
       onState: (state) => {
         emitState({
@@ -1099,67 +743,36 @@ function gracefulShutdown(reason: string, opts?: { exitCode?: number; emitAckCom
 }
 
 async function handle(command: HelperCommand): Promise<void> {
-  switch (command.type) {
-    case "start":
-      await startBridge(command.payload);
-      return;
-    case "send_turn":
-      await sendTurn(command.payload.text);
-      emit({ type: "ack", payload: { command: "send_turn" } });
-      return;
-    case "respond_command_approval":
-      await respondCommandApproval(command.payload.requestId, command.payload.decision);
-      emit({ type: "ack", payload: { command: "respond_command_approval" } });
-      return;
-    case "respond_file_change_approval":
-      await respondFileChangeApproval(command.payload.requestId, command.payload.decision);
-      emit({ type: "ack", payload: { command: "respond_file_change_approval" } });
-      return;
-    case "respond_tool_user_input":
-      await respondToolUserInput(command.payload.requestId, command.payload.answers);
-      emit({ type: "ack", payload: { command: "respond_tool_user_input" } });
-      return;
-    case "account_read":
-      await readAccount(command.payload.refreshToken);
-      emit({ type: "ack", payload: { command: "account_read" } });
-      return;
-    case "account_login_start":
-      await loginAccount(command.payload.params);
-      emit({ type: "ack", payload: { command: "account_login_start" } });
-      return;
-    case "account_login_cancel":
-      await cancelAccountLogin(command.payload.loginId);
-      emit({ type: "ack", payload: { command: "account_login_cancel" } });
-      return;
-    case "account_logout":
-      await logoutAccount();
-      emit({ type: "ack", payload: { command: "account_logout" } });
-      return;
-    case "account_rate_limits_read":
-      await readAccountRateLimits();
-      emit({ type: "ack", payload: { command: "account_rate_limits_read" } });
-      return;
-    case "respond_chatgpt_auth_tokens_refresh":
-      await respondChatgptAuthTokensRefresh(command.payload);
-      emit({ type: "ack", payload: { command: "respond_chatgpt_auth_tokens_refresh" } });
-      return;
-    case "set_disabled_tools":
-      await setDisabledTools(command.payload.tools);
-      emit({ type: "ack", payload: { command: "set_disabled_tools" } });
-      return;
-    case "interrupt":
-      interruptCurrentTurn();
-      emit({ type: "ack", payload: { command: "interrupt" } });
-      return;
-    case "stop":
-      await gracefulShutdown("stop", { emitAckCommand: "stop" });
-      return;
-    case "status":
-      emitState();
-      emit({ type: "ack", payload: { command: "status" } });
-      return;
-    default:
-      break;
+  const handlers: {
+    [K in HelperCommand["type"]]: (input: Extract<HelperCommand, { type: K }>) => Promise<void> | void;
+  } = {
+    start: (input) => startBridge(input.payload),
+    send_turn: (input) => sendTurn(input.payload.text),
+    respond_command_approval: (input) =>
+      respondCommandApproval(input.payload.requestId, input.payload.decision),
+    respond_file_change_approval: (input) =>
+      respondFileChangeApproval(input.payload.requestId, input.payload.decision),
+    respond_tool_user_input: (input) =>
+      respondToolUserInput(input.payload.requestId, input.payload.answers),
+    account_read: (input) => readAccount(input.payload.refreshToken),
+    account_login_start: (input) => loginAccount(input.payload.params),
+    account_login_cancel: (input) => cancelAccountLogin(input.payload.loginId),
+    account_logout: () => logoutAccount(),
+    account_rate_limits_read: () => readAccountRateLimits(),
+    respond_chatgpt_auth_tokens_refresh: (input) => respondChatgptAuthTokensRefresh(input.payload),
+    set_disabled_tools: async (input) => {
+      await setDisabledTools(input.payload.tools);
+    },
+    interrupt: () => interruptCurrentTurn(),
+    stop: () => gracefulShutdown("stop", { emitAckCommand: "stop" }),
+    status: () => emitState(),
+  };
+
+  const handler = handlers[command.type] as (input: HelperCommand) => Promise<void> | void;
+  await handler(command);
+
+  if (HELPER_ACK_BY_TYPE[command.type]) {
+    emit({ type: "ack", payload: { command: command.type } });
   }
 }
 
@@ -1178,7 +791,7 @@ process.stdin.on("data", (chunk) => {
       continue;
     }
     try {
-      const command = JSON.parse(line) as HelperCommand;
+      const command = parseHelperCommand(line);
       void handle(command).catch((error) => {
         emit({ type: "error", payload: { message: error instanceof Error ? error.message : String(error) } });
       });

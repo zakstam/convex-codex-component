@@ -281,9 +281,6 @@ export function extractThreadId(message: ServerInboundMessage): string | undefin
   ) {
     return params.thread.id;
   }
-  if (typeof params.conversationId === "string") {
-    return params.conversationId;
-  }
   return undefined;
 }
 
@@ -301,22 +298,6 @@ export function classifyMessage(message: ServerInboundMessage): ClassifiedMessag
 
 export function extractTurnId(message: ServerInboundMessage): string | undefined {
   if (!("method" in message)) {
-    return undefined;
-  }
-  if (message.method.startsWith("codex/event/")) {
-    const params = isMessageRecord(message.params)
-      ? (message.params as Record<string, unknown>)
-      : null;
-    if (!params || !isMessageRecord(params.msg)) {
-      return undefined;
-    }
-    const msg = params.msg;
-    if (typeof msg.turn_id === "string") {
-      return msg.turn_id;
-    }
-    if (typeof msg.turnId === "string") {
-      return msg.turnId;
-    }
     return undefined;
   }
   const params = isMessageRecord(message.params)

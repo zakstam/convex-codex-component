@@ -1,7 +1,13 @@
 mod bridge_process;
+mod bridge_contract_generated;
+mod bridge_dispatch_generated;
+include!("bridge_invoke_handlers_generated.rs");
 
 use bridge_process::{AppBridgeState, BridgeRuntime};
+use bridge_contract_generated::{BRIDGE_COMMANDS, HELPER_COMMANDS};
+use bridge_dispatch_generated::HELPER_FORWARD_TAURI_COMMANDS;
 use serde::Deserialize;
+use serde_json::json;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, RunEvent, State, WindowEvent};
@@ -30,53 +36,6 @@ struct StartBridgeConfig {
     thread_strategy: Option<String>,
     runtime_thread_id: Option<String>,
     external_thread_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RespondApprovalConfig {
-    request_id: serde_json::Value,
-    decision: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RespondToolUserInputConfig {
-    request_id: serde_json::Value,
-    answers: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ReadAccountConfig {
-    refresh_token: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LoginAccountConfig {
-    params: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CancelAccountLoginConfig {
-    login_id: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RespondChatgptAuthTokensRefreshConfig {
-    request_id: serde_json::Value,
-    access_token: String,
-    chatgpt_account_id: String,
-    chatgpt_plan_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SetDisabledToolsConfig {
-    tools: Vec<String>,
 }
 
 #[tauri::command]
@@ -169,78 +128,72 @@ async fn send_user_turn(
     state: State<'_, AppBridgeState>,
     text: String,
 ) -> Result<(), String> {
-    state.runtime.send_turn(app, text).await
+    state
+        .runtime
+        .forward_tauri_json_command(app, "send_user_turn", json!({ "text": text }))
+        .await
 }
 
 #[tauri::command]
 async fn interrupt_turn(app: tauri::AppHandle, state: State<'_, AppBridgeState>) -> Result<(), String> {
-    state.runtime.interrupt(app).await
+    state
+        .runtime
+        .forward_tauri_json_command(app, "interrupt_turn", json!({}))
+        .await
 }
 
 #[tauri::command]
 async fn respond_command_approval(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: RespondApprovalConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state
-        .runtime
-        .respond_command_approval(app, config.request_id, config.decision)
-        .await
+    state.runtime.forward_tauri_json_command(app, "respond_command_approval", config).await
 }
 
 #[tauri::command]
 async fn respond_file_change_approval(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: RespondApprovalConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state
-        .runtime
-        .respond_file_change_approval(app, config.request_id, config.decision)
-        .await
+    state.runtime.forward_tauri_json_command(app, "respond_file_change_approval", config).await
 }
 
 #[tauri::command]
 async fn respond_tool_user_input(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: RespondToolUserInputConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state
-        .runtime
-        .respond_tool_user_input(app, config.request_id, config.answers)
-        .await
+    state.runtime.forward_tauri_json_command(app, "respond_tool_user_input", config).await
 }
 
 #[tauri::command]
 async fn read_account(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: ReadAccountConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state.runtime.read_account(app, config.refresh_token).await
+    state.runtime.forward_tauri_json_command(app, "read_account", config).await
 }
 
 #[tauri::command]
 async fn login_account(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: LoginAccountConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state.runtime.login_account(app, config.params).await
+    state.runtime.forward_tauri_json_command(app, "login_account", config).await
 }
 
 #[tauri::command]
 async fn cancel_account_login(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: CancelAccountLoginConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state
-        .runtime
-        .cancel_account_login(app, config.login_id)
-        .await
+    state.runtime.forward_tauri_json_command(app, "cancel_account_login", config).await
 }
 
 #[tauri::command]
@@ -248,7 +201,10 @@ async fn logout_account(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
 ) -> Result<(), String> {
-    state.runtime.logout_account(app).await
+    state
+        .runtime
+        .forward_tauri_json_command(app, "logout_account", json!({}))
+        .await
 }
 
 #[tauri::command]
@@ -256,25 +212,19 @@ async fn read_account_rate_limits(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
 ) -> Result<(), String> {
-    state.runtime.read_account_rate_limits(app).await
+    state
+        .runtime
+        .forward_tauri_json_command(app, "read_account_rate_limits", json!({}))
+        .await
 }
 
 #[tauri::command]
 async fn respond_chatgpt_auth_tokens_refresh(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: RespondChatgptAuthTokensRefreshConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state
-        .runtime
-        .respond_chatgpt_auth_tokens_refresh(
-            app,
-            config.request_id,
-            config.access_token,
-            config.chatgpt_account_id,
-            config.chatgpt_plan_type,
-        )
-        .await
+    state.runtime.forward_tauri_json_command(app, "respond_chatgpt_auth_tokens_refresh", config).await
 }
 
 #[tauri::command]
@@ -291,37 +241,21 @@ async fn get_bridge_state(state: State<'_, AppBridgeState>) -> Result<bridge_pro
 async fn set_disabled_tools(
     app: tauri::AppHandle,
     state: State<'_, AppBridgeState>,
-    config: SetDisabledToolsConfig,
+    config: serde_json::Value,
 ) -> Result<(), String> {
-    state
-        .runtime
-        .set_disabled_tools(app, config.tools)
-        .await
+    state.runtime.forward_tauri_json_command(app, "set_disabled_tools", config).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    debug_assert_eq!(BRIDGE_COMMANDS.len(), 15);
+    debug_assert!(!HELPER_COMMANDS.is_empty());
+    debug_assert!(!HELPER_FORWARD_TAURI_COMMANDS.is_empty());
     let app = tauri::Builder::default()
         .manage(AppBridgeState {
             runtime: BridgeRuntime::default(),
         })
-        .invoke_handler(tauri::generate_handler![
-            start_bridge,
-            send_user_turn,
-            interrupt_turn,
-            respond_command_approval,
-            respond_file_change_approval,
-            respond_tool_user_input,
-            read_account,
-            login_account,
-            cancel_account_login,
-            logout_account,
-            read_account_rate_limits,
-            respond_chatgpt_auth_tokens_refresh,
-            stop_bridge,
-            get_bridge_state,
-            set_disabled_tools
-        ])
+        .invoke_handler(bridge_generate_handler!())
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 

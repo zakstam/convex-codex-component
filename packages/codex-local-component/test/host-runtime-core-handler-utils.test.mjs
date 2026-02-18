@@ -207,7 +207,7 @@ test("parseManagedServerRequestFromEvent validates item/tool/requestUserInput qu
   assert.equal(request?.questions?.length, 1);
 });
 
-test("rewritePayloadTurnId rewrites ids in stream event and legacy envelopes", () => {
+test("rewritePayloadTurnId rewrites ids in stream events and leaves unsupported envelopes unchanged", () => {
   const rewrittenTurn = rewritePayloadTurnId({
     kind: "turn/started",
     payloadJson: JSON.stringify({
@@ -223,13 +223,12 @@ test("rewritePayloadTurnId rewrites ids in stream event and legacy envelopes", (
   });
   assert.match(rewrittenTurn, /"id":"persisted-turn"/);
 
-  const rewrittenLegacy = rewritePayloadTurnId({
-    kind: "codex/event/task_complete",
+  const unchangedUnsupported = rewritePayloadTurnId({
+    kind: "unsupported/task_complete",
     payloadJson: JSON.stringify({
       jsonrpc: "2.0",
-      method: "codex/event/task_complete",
+      method: "unsupported/task_complete",
       params: {
-        conversationId: "thread-1",
         msg: {
           turnId: "runtime-turn",
         },
@@ -238,7 +237,7 @@ test("rewritePayloadTurnId rewrites ids in stream event and legacy envelopes", (
     runtimeTurnId: "runtime-turn",
     persistedTurnId: "persisted-turn",
   });
-  assert.match(rewrittenLegacy, /"turnId":"persisted-turn"/);
+  assert.match(unchangedUnsupported, /"turnId":"runtime-turn"/);
 
   const unchanged = rewritePayloadTurnId({
     kind: "item/fileChange/outputDelta",

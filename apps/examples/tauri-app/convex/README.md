@@ -11,8 +11,13 @@ Canonical consumer implementation guidance is in:
 - `convex.config.ts`: mounts `codexLocal`
 - `actorLock.ts`: app-owned actor binding and server-side identity guard
 - `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`) using actor lock
-- `chat.ts`: stable guarded host surface (exports public `api.chat.*`) built from `defineRuntimeOwnedHostEndpoints(...)`
-  - includes guarded deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
+- `chat.ts`: stable host surface (exports public `api.chat.*`) built from `createCodexHost(...)`
+  - includes deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
+
+## Thread API
+
+- Thread flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
+- Runtime-owned `ensureThread` uses one resolve path and requires `threadId` or `externalThreadId`.
 
 ## Actor Lock
 

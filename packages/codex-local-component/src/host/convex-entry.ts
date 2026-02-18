@@ -1,18 +1,18 @@
 export {
-  defineRuntimeOwnedHostEndpoints,
-  defineRuntimeOwnedHostSlice,
+  createCodexHost,
+  type CodexConvexHostActorPolicy,
+  type CodexConvexHostActorPolicyShorthand,
+  type CodexHostFacade,
   type CodexHostSliceFeatures,
   type CodexHostSliceIngestMode,
   type CodexHostSliceProfile,
-  type CodexHostSliceThreadMode,
-  type DefineRuntimeOwnedHostEndpointsOptions,
-  type DefineRuntimeOwnedHostSliceOptions,
+  type CreateCodexHostOptions,
   type RuntimeOwnedHostDefinitions,
 } from "./convexPreset.js";
-export { wrapHostDefinitions } from "./wrapDefinitions.js";
 export {
-  HOST_PRESET_DEFINITIONS,
   HOST_SURFACE_MANIFEST,
+  HOST_MUTATION_INTERNAL_ALIASES,
+  HOST_QUERY_INTERNAL_ALIASES,
   type HostSurfaceProfile,
   type HostSurfaceMutationKey,
   type HostSurfaceQueryKey,

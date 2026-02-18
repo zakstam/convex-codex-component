@@ -1,7 +1,8 @@
 {
   "name": "@zakstam/codex-local-component",
-  "version": "0.15.1",
-  "description": "Integrate with one prompt: install this package, open `README.md` then follow mapped docs (`docs/HOST_INTEGRATION.md`, `docs/CLIENT_AND_REACT_HOOKS.md`, `docs/API_REFERENCE.md`, `docs/OPERATIONS_AND_ERRORS.md`) and validate with `npx convex dev --once`, `pnpm run dev:convex:once`, `pnpm run wiring:smoke`, `pnpm run typecheck`.",
+  "version": "0.14.1",
+  "description": "Integrate with one prompt: install this package, open `README.md` then follow mapped docs (`docs/CANONICAL_INTEGRATION.md`, `docs/API_REFERENCE.md`) and validate with `npx convex dev --once`, `pnpm run dev:convex:once`, `pnpm run typecheck`.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,10 +14,6 @@
     "./react": {
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.js"
-    },
-    "./react-integration": {
-      "types": "./dist/react-integration/index.d.ts",
-      "import": "./dist/react-integration/index.js"
     },
     "./convex.config": {
       "types": "./dist/component/convex.config.d.ts",
@@ -37,21 +34,36 @@
     "./host/convex": {
       "types": "./dist/host/convex-entry.d.ts",
       "import": "./dist/host/convex-entry.js"
+    },
+    "./host/tauri": {
+      "types": "./dist/host/tauri.d.ts",
+      "import": "./dist/host/tauri.js"
     }
   },
   "files": [
     "dist",
     "README.md",
     "LLMS.md",
+    "LICENSE",
     "docs"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zakstam/convex-codex-component.git",
+    "directory": "packages/codex-local-component"
+  },
+  "homepage": "https://github.com/zakstam/convex-codex-component#readme",
+  "bugs": {
+    "url": "https://github.com/zakstam/convex-codex-component/issues"
+  },
+  "keywords": ["convex", "codex", "openai", "llm", "ai", "component", "realtime", "chat"],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
   "codex": {
     "onboarding": {
-      "prompt": "Integrate `@zakstam/codex-local-component` in this project using only this package's docs.\n\nUse this file (`README.md`) first, then follow only the mapped docs for the task:\n\n- Host wiring: `docs/HOST_INTEGRATION.md`\n- React integration: `docs/CLIENT_AND_REACT_HOOKS.md` (if using React)\n- API lookup: `docs/API_REFERENCE.md`\n- Runtime/protocol troubleshooting: `docs/OPERATIONS_AND_ERRORS.md`\n- Optional runbook/checks: `docs/EXAMPLE_APPS_RUNBOOK.md`\n\nKeep changes minimal and stay in runtime-owned mode.\nValidate with:\n\n- `npx convex dev --once`\n- `pnpm run dev:convex:once` (or app equivalent)\n- `pnpm run wiring:smoke` (if available)\n- `pnpm run typecheck`\n\nIf a prerequisite is missing for an app, ask for package-specific assumptions before continuing."
+      "prompt": "Integrate `@zakstam/codex-local-component` in this project using only this package's docs.\n\nUse this file (`README.md`) first, then follow only the mapped docs for the task:\n\n- Canonical integration: `docs/CANONICAL_INTEGRATION.md`\n- API lookup: `docs/API_REFERENCE.md`\n- Optional runbook/checks: `docs/EXAMPLE_APPS_RUNBOOK.md`\n\nKeep changes minimal and stay in runtime-owned mode.\nValidate with:\n\n- `npx convex dev --once`\n- `pnpm run dev:convex:once` (or app equivalent)\n- `pnpm run typecheck`\n\nIf a prerequisite is missing for an app, ask for package-specific assumptions before continuing."
     }
   },
   "scripts": {
@@ -65,10 +77,13 @@
     "coverage": "pnpm run build && NODE_V8_COVERAGE=coverage node --test --experimental-test-coverage test/*.test.mjs",
     "check:mount-imports": "node ./scripts/check-mount-imports.mjs",
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
+    "check:unsafe-types:write": "node ./scripts/check-unsafe-types.mjs --write-allowlist",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
+    "check:fallback-policy": "node ./scripts/check-fallback-policy.mjs",
+    "check:fallback-policy:write": "node ./scripts/check-fallback-policy.mjs --write-allowlist",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
     "check:api-reference": "node ./scripts/check-api-reference-useful.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path"
+    "ci": "pnpm run typecheck && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run check:fallback-policy && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference"
   },
   "dependencies": {
     "ajv": "^8.17.1",

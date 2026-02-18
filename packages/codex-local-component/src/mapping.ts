@@ -72,11 +72,10 @@ function overlayKey(turnId: string, messageId: string): string {
   return `${turnId}:${messageId}`;
 }
 
-function durableKey(message: CodexDurableMessageLike): string {
-  if (message.messageId) {
-    return overlayKey(message.turnId, message.messageId);
-  }
-  return `${message.turnId}:order:${message.orderInTurn}`;
+function hasCanonicalMessageId(message: CodexDurableMessageLike): message is CodexDurableMessageLike & {
+  messageId: string;
+} {
+  return typeof message.messageId === "string" && message.messageId.trim().length > 0;
 }
 
 export type CodexOverlayMessage = OverlayMessage;
@@ -370,8 +369,11 @@ function sortChronological(a: CodexUIMessage, b: CodexUIMessage): number {
 }
 
 export function toCodexUIMessage(message: CodexDurableMessageLike): CodexUIMessage {
+  if (!hasCanonicalMessageId(message)) {
+    throw new Error("toCodexUIMessage requires durable messageId.");
+  }
   return {
-    messageId: message.messageId ?? `${message.turnId}:${message.orderInTurn}`,
+    messageId: message.messageId,
     turnId: message.turnId,
     role: message.role,
     status: message.status,
@@ -393,9 +395,11 @@ export function mergeCodexDurableAndStreamMessages(
   const mergedByKey = new Map<string, CodexUIMessage>();
 
   for (const durable of durableMessages) {
-    const key = durableKey(durable);
-    const overlay =
-      durable.messageId ? overlayByKey.get(overlayKey(durable.turnId, durable.messageId)) : undefined;
+    if (!hasCanonicalMessageId(durable)) {
+      continue;
+    }
+    const key = overlayKey(durable.turnId, durable.messageId);
+    const overlay = overlayByKey.get(key);
 
     const next = toCodexUIMessage(durable);
     if (overlay && durable.status === "streaming") {

@@ -29,6 +29,7 @@ import {
 import { CodexLocalBridge, type BridgeConfig } from "../local-adapter/bridge.js";
 import { randomSessionId } from "./runtimeHelpers.js";
 import { createRuntimeCore } from "./runtimeCore.js";
+import { createConvexPersistence, type ConvexPersistenceChatApi, type ConvexPersistenceOptions } from "./convexPersistence.js";
 import type {
   HostRuntimePersistence,
   HostRuntimeHandlers,
@@ -49,22 +50,57 @@ export {
   type HostRuntimeStartArgs,
   type HostRuntimeState,
 } from "./runtimeTypes.js";
+export type { ConvexPersistenceChatApi, ConvexPersistenceOptions } from "./convexPersistence.js";
 
-export function createCodexHostRuntime(args: {
+type ManualPersistenceArgs = {
   bridge?: BridgeConfig;
   bridgeFactory?: (config: BridgeConfig, handlers: RuntimeBridgeHandlers) => RuntimeBridge;
   persistence: HostRuntimePersistence;
   handlers?: HostRuntimeHandlers;
-}): CodexHostRuntime {
+};
+
+type ConvexIntegratedArgs = {
+  bridge?: BridgeConfig;
+  bridgeFactory?: (config: BridgeConfig, handlers: RuntimeBridgeHandlers) => RuntimeBridge;
+  convexUrl: string;
+  chatApi: ConvexPersistenceChatApi;
+  userId: string;
+  persistenceOptions?: ConvexPersistenceOptions;
+  handlers?: HostRuntimeHandlers;
+};
+
+export type CreateCodexHostRuntimeArgs = ManualPersistenceArgs | ConvexIntegratedArgs;
+
+function isConvexIntegrated(args: CreateCodexHostRuntimeArgs): args is ConvexIntegratedArgs {
+  return "convexUrl" in args && "chatApi" in args && "userId" in args;
+}
+
+export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexHostRuntime {
+  let persistence: HostRuntimePersistence;
+  let defaultActor: { userId: string } | null = null;
+  let defaultSessionId: string | null = null;
+
+  if (isConvexIntegrated(args)) {
+    const { ConvexHttpClient } = require("convex/browser") as { ConvexHttpClient: new (url: string) => { mutation: (...a: unknown[]) => Promise<unknown>; query: (...a: unknown[]) => Promise<unknown> } };
+    const client = new ConvexHttpClient(args.convexUrl);
+    const adapter = createConvexPersistence(client, args.chatApi, args.persistenceOptions);
+    persistence = adapter;
+    defaultActor = { userId: args.userId };
+    defaultSessionId = randomSessionId();
+  } else {
+    persistence = args.persistence;
+  }
+
   const core = createRuntimeCore({
-    persistence: args.persistence,
+    persistence,
     ...(args.handlers ? { handlers: args.handlers } : {}),
   });
 
   const start = async (startArgs: HostRuntimeStartArgs): Promise<void> => {
     if (core.bridge) { core.emitState(); return; }
-    core.actor = startArgs.actor;
-    core.sessionId = startArgs.sessionId ? `${startArgs.sessionId}-${randomSessionId()}` : randomSessionId();
+    core.actor = startArgs.actor ?? defaultActor ?? { userId: "anonymous" };
+    const rawSessionId = startArgs.sessionId ?? defaultSessionId;
+    core.sessionId = rawSessionId ? `${rawSessionId}-${randomSessionId()}` : randomSessionId();
     core.externalThreadId = startArgs.externalThreadId ?? null;
     core.startupModel = startArgs.model;
     core.startupCwd = startArgs.cwd;

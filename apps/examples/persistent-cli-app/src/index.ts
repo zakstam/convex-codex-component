@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
+import type { FunctionReference } from "convex/server";
 import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
 import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
 import { resolveConvexUrl } from "../../../shared/resolveConvexUrl.js";
@@ -16,7 +17,6 @@ import type {
   NormalizedEvent,
   ServerNotification,
 } from "@zakstam/codex-local-component/protocol";
-import { api } from "../convex/_generated/api.js";
 
 type IngestDelta = {
   eventId: string;
@@ -258,29 +258,23 @@ const syncRuntimeOptions = {
 };
 
 const convex = new ConvexHttpClient(convexUrl);
-const chatApi = (() => {
-  const moduleApi = api.chat;
-  if (!moduleApi) {
-    throw new Error("Generated chat API is unavailable");
-  }
-  return moduleApi;
-})();
 
-function requireDefined<T>(value: T | undefined, name: string): T {
-  if (value === undefined) {
-    throw new Error(`Required API ref missing: ${name}`);
-  }
-  return value;
+function queryRef(path: string): FunctionReference<"query"> {
+  return path as unknown as FunctionReference<"query">;
+}
+
+function mutationRef(path: string): FunctionReference<"mutation"> {
+  return path as unknown as FunctionReference<"mutation">;
 }
 
 const chatFns = {
-  validateHostWiring: requireDefined(chatApi.validateHostWiring, "chat.validateHostWiring"),
-  ensureThread: requireDefined(chatApi.ensureThread, "chat.ensureThread"),
-  ensureSession: requireDefined(chatApi.ensureSession, "chat.ensureSession"),
-  ingestBatch: requireDefined(chatApi.ingestBatch, "chat.ingestBatch"),
-  persistenceStats: requireDefined(chatApi.persistenceStats, "chat.persistenceStats"),
-  durableHistoryStats: requireDefined(chatApi.durableHistoryStats, "chat.durableHistoryStats"),
-  threadSnapshot: requireDefined(chatApi.threadSnapshot, "chat.threadSnapshot"),
+  validateHostWiring: queryRef("chat.validateHostWiring"),
+  ensureThread: mutationRef("chat.ensureThread"),
+  ensureSession: mutationRef("chat.ensureSession"),
+  ingestBatch: mutationRef("chat.ingestBatch"),
+  persistenceStats: queryRef("chat.persistenceStats"),
+  durableHistoryStats: queryRef("chat.durableHistoryStats"),
+  threadSnapshot: queryRef("chat.threadSnapshot"),
 } as const;
 
 async function assertHostWiring(): Promise<void> {

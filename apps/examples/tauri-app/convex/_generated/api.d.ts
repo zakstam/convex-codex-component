@@ -287,7 +287,7 @@ export declare const components: {
               | "SESSION_NOT_FOUND"
               | "SESSION_THREAD_MISMATCH"
               | "TURN_ID_REQUIRED_FOR_TURN_EVENT"
-              | "TURN_ID_REQUIRED_FOR_CODEX_EVENT"
+              | "TURN_ID_MISMATCH"
               | "OUT_OF_ORDER"
               | "REPLAY_GAP"
               | "UNKNOWN";

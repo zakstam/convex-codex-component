@@ -1,30 +1,33 @@
 # LLMS: Canonical Consumer Integration (Single Path)
 
-This file is the automation path for canonical integration decisions.
-
+This file is the automation path for integration.
 Canonical default: runtime-owned host integration.
-
-Official recommendation: use React hooks as the primary consumer integration surface.
-
-Canonical API map (consumer-first): `docs/API_REFERENCE.md`.
-
-## Task-to-doc routing
-
-- Integration task: `docs/HOST_INTEGRATION.md` (then `docs/CLIENT_AND_REACT_HOOKS.md` for React consumers).
-- Setup task: `docs/EXAMPLE_APPS_RUNBOOK.md`.
-- Error task: `docs/OPERATIONS_AND_ERRORS.md`.
-- Preset/task policy: `docs/HOST_PRESET_MATRIX.md`, `docs/RUNTIME_OWNED_REFERENCE_HOST.md`.
-
-## Actor scope contract
-
-- Actor payload is `actor: { userId?: string }`.
-- `userId` is optional.
-- Present `userId` scopes to that user.
-- Missing `userId` scopes to anonymous-only rows.
-- Do not send tenant or device identifiers.
 
 ## Hard Rule
 
-- Follow this file as the only default implementation strategy.
-- Use runtime-owned host wrappers defined by `defineRuntimeOwnedHostEndpoints(...)`.
-- Always use app-generated Convex types from `./_generated/api` and `./_generated/server`.
+Use this sequence only:
+
+1. Mount the component with `@zakstam/codex-local-component/convex.config`.
+2. Define host endpoints with `createCodexHost(...)`.
+3. Start runtime with `createCodexHostRuntime(...)`.
+4. Build UI with `@zakstam/codex-local-component/react` hooks.
+
+Do not use alternative host builder paths in docs.
+
+## Actor Scope Contract
+
+- Actor payload is `actor: { userId?: string }`.
+- Present `userId` scopes to that user.
+- Missing `userId` scopes to anonymous-only rows.
+
+## Thread Contract
+
+- Runtime-owned `ensureThread` is single-path.
+- Provide `threadId` or `externalThreadId`.
+- Do not implement mode branching.
+
+## Task-to-doc routing
+
+- Canonical integration: `docs/CANONICAL_INTEGRATION.md`
+- API map: `docs/API_REFERENCE.md`
+- Run/check commands: `docs/EXAMPLE_APPS_RUNBOOK.md`

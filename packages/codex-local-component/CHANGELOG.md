@@ -1,25 +1,77 @@
-# @convex-dev/codex-local-component
+# @zakstam/codex-local-component
 
-## 0.15.1
+## Unreleased
+
+### Major Changes
+
+- BREAKING: Simplify full-feature external Tauri API shape and external host endpoint names.
+  - `createTauriBridgeClient(...)` now returns grouped capabilities instead of flat methods:
+    - `lifecycle.start|stop|getState`
+    - `turns.send|interrupt`
+    - `approvals.respondCommand|respondFileChange|respondToolInput`
+    - `account.read|login|cancelLogin|logout|readRateLimits|respondChatgptAuthTokensRefresh`
+    - `tools.setDisabled`
+  - External `api.chat.*` names used by the Tauri reference app now drop `ForHooks` suffixes while preserving behavior.
+
+  Migration map (old -> new):
+  - `startBridge` -> `lifecycle.start`
+  - `stopBridge` -> `lifecycle.stop`
+  - `getBridgeState` -> `lifecycle.getState`
+  - `sendUserTurn` -> `turns.send`
+  - `interruptTurn` -> `turns.interrupt`
+  - `respondCommandApproval` -> `approvals.respondCommand`
+  - `respondFileChangeApproval` -> `approvals.respondFileChange`
+  - `respondToolUserInput` -> `approvals.respondToolInput`
+  - `readAccount` -> `account.read`
+  - `loginAccount` -> `account.login`
+  - `cancelAccountLogin` -> `account.cancelLogin`
+  - `logoutAccount` -> `account.logout`
+  - `readAccountRateLimits` -> `account.readRateLimits`
+  - `respondChatgptAuthTokensRefresh` -> `account.respondChatgptAuthTokensRefresh`
+  - `setDisabledTools` -> `tools.setDisabled`
+
+  External `api.chat` endpoint map (old -> new):
+  - `listThreadMessagesForHooks` -> `listThreadMessages`
+  - `listPendingServerRequestsForHooks` -> `listPendingServerRequests`
+  - `listTokenUsageForHooks` -> `listTokenUsage`
+  - `upsertPendingServerRequestForHooks` -> `upsertPendingServerRequest`
+  - `resolvePendingServerRequestForHooks` -> `resolvePendingServerRequest`
+  - `acceptTurnSendForHooks` -> `acceptTurnSend`
+  - `failAcceptedTurnSendForHooks` -> `failAcceptedTurnSend`
+  - `upsertTokenUsageForHooks` -> `upsertTokenUsage`
+  - `scheduleThreadDeleteCascadeForHooks` -> `scheduleThreadDeleteCascade`
+  - `scheduleTurnDeleteCascadeForHooks` -> `scheduleTurnDeleteCascade`
+  - `schedulePurgeActorDataForHooks` -> `schedulePurgeActorData`
+  - `cancelScheduledDeletionForHooks` -> `cancelScheduledDeletion`
+  - `forceRunScheduledDeletionForHooks` -> `forceRunScheduledDeletion`
+  - `getDeletionJobStatusForHooks` -> `getDeletionJobStatus`
 
 ### Patch Changes
 
-- 316e5d0: Fix `withServerActor` to preserve the request actor's userId for runtime-owned profiles. Previously, when `serverActor` had no `userId` (the default for runtime-owned endpoints), the request actor was unconditionally replaced with the empty server actor, causing all component data to be scoped under the anonymous user scope. Now the request actor is preserved when the server actor has no `userId`, so preset mutations and queries correctly scope data to the authenticated user.
+- Simplify external consumer integration down to one documented path and align examples/docs to that path.
+  - Add `docs/CANONICAL_INTEGRATION.md` as the single implementation guide.
+  - Remove split legacy docs (`CLIENT_AND_REACT_HOOKS.md`, `HOST_INTEGRATION.md`, `HOST_PRESET_MATRIX.md`, `OPERATIONS_AND_ERRORS.md`, `RUNTIME_OWNED_REFERENCE_HOST.md`).
+  - Update package and example READMEs to route users to canonical integration + API reference only.
+  - Tighten docs checks to enforce the single-path doc contract.
 
-## 0.15.0
+- Remove legacy/backward-compat protocol behavior from runtime/ingest paths.
+  - Drop legacy envelope handling branches in parser/ingest normalization.
+  - Remove legacy ingest-safe error code variants and validator literals from public contracts.
+  - Keep modern external `api.chat.*` names in examples (`acceptTurnSend`, `failAcceptedTurnSend`, etc.) and remove stale symbol references from built helper output.
 
-### Minor Changes
-
-- 87c154d: Improve host integration surface based on external API audit.
-  - Add `lastEventCursor` arg to `ensureSession` preset mutation (was silently hardcoded to 0).
-  - Rename `ensureThread` preset arg from `threadId` to `localThreadId` to match `HostRuntimePersistence` interface.
-  - Export `isTurnNotFound` error classifier from `./host/convex`.
-  - Re-export `upsertTokenUsageForActor`, `listTokenUsageForHooksForActor`, `hasRecoverableIngestErrors` from `./host/convex`.
-  - Export `vManagedServerRequestMethod` and `vServerRequestId` validators from `./host/convex`.
+- Update tests to modern-only expectations and neutral fixture naming.
+  - Replace legacy fixture labels with unsupported-envelope fixtures.
+  - Keep fail-closed behavior checks for unknown/unsupported message shapes.
 
 ## 0.14.1
 
 ### Patch Changes
+
+- 7c0a0d1: Simplify actor-locked host wiring for external consumers.
+  - Simplify actor-locked host wiring toward app-owned actor wrappers around static `createCodexHost(...).defs` endpoints.
+  - Keep `createCodexHost` focused on static server-actor definitions and move actor-lock behavior to consumer endpoint boundaries.
+  - Update host integration docs and API reference for serverActor-only host policy and app-level actor resolution.
+  - Keep the Tauri example `convex/chat.ts` actor lock at the app boundary while preserving canonical endpoint exports.
 
 - fabdc3a: Refactor across component source, config, and example apps.
   - Extract shared deletion utilities (UUID generation, delay clamping, deleted-counts parsing) into `deletionUtils.ts`, removing 3 sets of duplicated functions from `threads.ts`, `turns.ts`, and `deletionInternal.ts`.
@@ -43,8 +95,8 @@
 ### Patch Changes
 
 - 761ec1a: Refactor component internals and example hosts to reduce duplication and tighten architecture boundaries.
-  - Align Convex dependency baseline to `^1.31.7` for the published component package and release smoke host.
-  - Deduplicate CLI/smoke host protocol parsing and notification/response guards via `apps/shared/protocolPayload.ts`.
+  - Align Convex dependency baseline to `^1.31.7` for the published component package and release verification host.
+  - Deduplicate CLI/verification host protocol parsing and notification/response guards via `apps/shared/protocolPayload.ts`.
   - Deduplicate Convex URL resolution in example hosts via `apps/shared/resolveConvexUrl.ts`.
   - Simplify approvals pending-list query construction by centralizing shared pagination state.
   - Consolidate deletion batch execution flow with shared batch-step runner logic.
@@ -151,7 +203,7 @@
 
 - 8769211: Adopt helper-first host wiring for consumers so host endpoints are defined directly in `convex/chat.ts` using `defineRuntimeOwnedHostEndpoints` / `defineDispatchManagedHostEndpoints`.
 
-  This removes consumer dependency on generated `chat.generated.ts` surfaces and updates examples, smoke host wiring, docs, and scripts to use the direct helper workflow.
+  This removes consumer dependency on generated `chat.generated.ts` surfaces and updates examples, verification host wiring, docs, and scripts to use the direct helper workflow.
 
 ## 0.11.0
 
@@ -186,7 +238,7 @@
 ### Patch Changes
 
 - 6418730: Document that `@zakstam/codex-local-component` is now in alpha and ready for active testing (still not production ready), and update release safety allowlists so CI prechecks stay green after recent refactors.
-- 198fa00: Fix host surface generation for dispatch-managed Tauri consumers by preserving app-owned `convex/chat.ts` entry modules and requiring a deterministic `actor.userId` fallback in generated wiring smoke scripts.
+- 198fa00: Fix host surface generation for dispatch-managed Tauri consumers by preserving app-owned `convex/chat.ts` entry modules and requiring a deterministic `actor.userId` fallback in generated wiring verification scripts.
 - c7836e6: Enforce Convex reference integrity across persisted Codex state tables by adding canonical `v.id(...)` relationships (thread/turn/stream refs), wiring write paths to populate and validate those refs, and keeping cascade delete behavior as the default cleanup model.
 
   Also canonicalize runtime turn ids before side-channel persistence and add bounded retry behavior for pending server request writes that race ahead of turn persistence.
@@ -202,7 +254,7 @@
 - bba191a: Fix turn-id canonicalization for ingest and legacy envelopes:
   - Ignore legacy `codex/event/*` envelope `params.id` when extracting turn ids (accept only explicit `msg.turn_id` / `msg.turnId`).
   - During ingest normalization, prefer payload-derived turn ids and fail closed when lifecycle payloads do not carry a canonical turn id, so synthetic turn `"0"` cannot be materialized.
-  - Add a release-smoke package freshness check that fails if an installed package still contains legacy `params.id` turn-id fallback logic.
+  - Add a release-verification package freshness check that fails if an installed package still contains legacy `params.id` turn-id fallback logic.
 - bba191a: Add bridge-level raw app-server ingress logging behind `CODEX_BRIDGE_RAW_LOG` (`all` or `turns`) so hosts can verify exact pre-parse protocol lines.
 
   Also harden runtime turn-id mapping so runtime-emitted ids can be remapped to persisted claimed turn ids before ingest persistence.
@@ -300,7 +352,7 @@
 
 ### Major Changes
 
-- Refactor actor scoping contract from required `tenantId/userId/deviceId` to optional `userId` only (`actor: { userId?: string }`) across component, host runtime, generated surfaces, examples, and smoke apps.
+- Refactor actor scoping contract from required `tenantId/userId/deviceId` to optional `userId` only (`actor: { userId?: string }`) across component, host runtime, generated surfaces, examples, and verification apps.
   - Enforce user-scope normalization internally so identified users are isolated to their own rows and omitted `userId` is isolated to anonymous-only rows.
   - Remove tenant/device scoping fields, filters, and related schema/index usage from component query/auth/session/checkpoint paths.
   - Remove ingest-safe `SESSION_DEVICE_MISMATCH` handling and device-mismatch session guard logic.
@@ -315,7 +367,7 @@
 
 - 5badeb0: Introduce manifest-driven host surface generation and canonical single-path integration docs.
   - Generate host `convex/chat.generated.ts` wrappers from a canonical preset manifest and keep app-owned endpoints in `chat.extensions.ts`.
-  - Add host surface generation/check tooling (`host:generate`, `host:check`) and shared wiring smoke checks across example and smoke hosts.
+  - Add host surface generation/check tooling (`host:generate`, `host:check`) and shared wiring verification checks across example and verification hosts.
   - Add host preset matrix generation + snapshot/contract tests for key parity across runtime-owned and dispatch-managed surfaces.
   - Standardize docs around a single canonical consumer strategy in `LLMS.md` (runtime-owned default) with explicit advanced appendix boundaries.
   - Add docs drift guardrail (`check:docs:single-path`) and include canonical docs files in package publish contents.
@@ -332,7 +384,7 @@
   - Add explicit runtime dispatch error codes for mode conflicts, invalid claims, in-flight turn conflicts, and missing mode.
   - Add `normalizeInboundDeltas(...)` host helper and apply canonical inbound normalization before strict ingest.
   - Add unified dispatch observability projection helpers (queue + claim + runtime + turn + correlation IDs).
-  - Extend dispatch state with `claimToken` and update smoke/example wrappers to the explicit ownership contract.
+  - Extend dispatch state with `claimToken` and update verification/example wrappers to the explicit ownership contract.
   - Add runtime-mode coverage in host/runtime and host/wrapper tests.
   - Publish separate reference docs for runtime-owned and dispatch-managed modes.
 
@@ -343,7 +395,7 @@
 - 92ed5a0: Refactor host helper APIs to remove implicit trusted-actor behavior and make actor injection explicit in host apps.
   - Rename host helper exports from `*WithTrustedActor` to `*ForActor`.
   - Remove `trustedActorFromEnv` export from host helper surfaces.
-  - Update example and smoke host wrappers to pass an explicit server actor for trusted execution paths.
+  - Update example and verification host wrappers to pass an explicit server actor for trusted execution paths.
   - Fix server-request upsert/resolve matching by keying on `requestIdType + requestIdText` and add the corresponding schema index.
   - Update host slice tests to match renamed helper APIs.
   - Harden TypeScript safety across host/client/react/protocol paths by removing explicit `any` usage and tightening generic boundaries.
@@ -355,7 +407,7 @@
   - Introduce persisted dispatch lifecycle state (`queued | claimed | started | completed | failed | cancelled`) and lease reclaim behavior to eliminate silent "accepted but never executed" gaps.
   - Update host runtime to use enqueue-first turn send flow with claim-loop dispatching and explicit dispatch state transitions on start, completion, and failure.
   - Remove synthetic scheduled turn execution startup path that assumed ownership before runtime confirmation.
-  - Add host/client wrapper exports for dispatch operations and migrate example/smoke wrappers to dispatch-based send paths.
+  - Add host/client wrapper exports for dispatch operations and migrate example/verification wrappers to dispatch-based send paths.
   - Extend thread state diagnostics with dispatch visibility and update integration/operations/react docs for the canonical dispatch contract.
 
 ## 0.4.0
@@ -388,11 +440,11 @@
 
   Add targeted ingest pipeline tests for normalization, turn signal collection, and ingest-safe error classification.
 
-- 78b7fc7: Add shared host Convex wrapper primitives and validators to reduce duplicated `convex/chat.ts` logic across example/smoke apps.
+- 78b7fc7: Add shared host Convex wrapper primitives and validators to reduce duplicated `convex/chat.ts` logic across example/verification apps.
 
   Add a Node-safe host entrypoint (`@zakstam/codex-local-component/host/convex`) so Convex server files can import host helpers without pulling Node runtime bridge code into Convex bundling.
 
-  Migrate example/smoke host wrapper files and docs to the shared Convex host helpers and the new Convex-safe import path.
+  Migrate example/verification host wrapper files and docs to the shared Convex host helpers and the new Convex-safe import path.
 
 - 403437a: Adjust command-execution durable message text to store the command string rather than aggregated command output.
 
@@ -446,7 +498,7 @@
 
 ### Patch Changes
 
-- 0966382: Migrate package scope from `@convex-dev/codex-local-component` to `@zakstam/codex-local-component` and update all consumer imports, docs, and release smoke checks.
+- 0966382: Migrate package scope from `@convex-dev/codex-local-component` to `@zakstam/codex-local-component` and update all consumer imports, docs, and release verification checks.
 
   Add explicit npm publish configuration for public scoped publishing.
 
@@ -456,4 +508,4 @@
 
 - 1638598: Fix package release integrity by including required generated component files, resolving strict TypeScript status-priority typing in message mapping, and using a CI-safe test glob in package test scripts.
 - 806e57f: Initial release of `@convex-dev/codex-local-component` with local Codex bridge,
-  Convex component APIs, typed client/react helpers, and release smoke host coverage.
+  Convex component APIs, typed client/react helpers, and release verification host coverage.

@@ -3,7 +3,6 @@ import { query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { vHostActorContext } from "@zakstam/codex-local-component/host/convex";
 import {
-  SERVER_ACTOR,
   readActorBindingForBootstrap,
   requireBoundServerActorForQuery,
 } from "./actorLock";
@@ -19,10 +18,10 @@ export const listThreadsForPicker = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireBoundServerActorForQuery(ctx, args.actor);
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
 
     const listed = await ctx.runQuery(components.codexLocal.threads.list, {
-      actor: SERVER_ACTOR,
+      actor: serverActor,
       paginationOpts: {
         numItems: Math.max(1, Math.floor(args.limit ?? 25)),
         cursor: null,
@@ -34,18 +33,34 @@ export const listThreadsForPicker = query({
       status: string;
       updatedAt: number;
     }>;
+    const userScope = serverActor.userId?.trim() ? serverActor.userId.trim() : "__anonymous__";
 
     const rows = await Promise.all(
       page.map(async (thread) => {
         const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
-          actor: SERVER_ACTOR,
+          actor: serverActor,
           threadId: thread.threadId,
         });
+
+        const threadRecord = await ctx.db
+          .query("codex_threads")
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("userScope"), userScope),
+              q.eq(q.field("threadId"), thread.threadId),
+            ),
+          )
+          .first();
+
+        const externalThreadId = mapping?.externalThreadId ?? null;
+        const runtimeThreadId = externalThreadId ?? threadRecord?.localThreadId ?? null;
         return {
           threadId: thread.threadId,
           status: thread.status,
           updatedAt: thread.updatedAt,
-          runtimeThreadId: mapping?.externalThreadId ?? null,
+          externalThreadId,
+          runtimeThreadId,
+          linkState: externalThreadId ? "linked" : "persisted_only",
         };
       }),
     );

@@ -213,20 +213,6 @@ export function rewritePayloadTurnId(args: {
   if (!message) {
     return payloadJson;
   }
-  if (kind.startsWith("codex/event/")) {
-    const params = asObject(message.params);
-    const msg = params ? asObject(params.msg) : null;
-    if (!msg) {
-      return payloadJson;
-    }
-    if (typeof msg.turn_id === "string") {
-      msg.turn_id = persistedTurnId;
-    }
-    if (typeof msg.turnId === "string") {
-      msg.turnId = persistedTurnId;
-    }
-    return JSON.stringify(parsed);
-  }
   const params = asObject(message.params);
   if (!params) {
     return payloadJson;
@@ -241,10 +227,6 @@ export function rewritePayloadTurnId(args: {
   }
   if (typeof params.turnId === "string") {
     params.turnId = persistedTurnId;
-    return JSON.stringify(parsed);
-  }
-  if (typeof params.turn_id === "string") {
-    params.turn_id = persistedTurnId;
     return JSON.stringify(parsed);
   }
   return payloadJson;

@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 
 type Thread = {
   threadId: string;
+  externalThreadId?: string | null;
   runtimeThreadId?: string | null;
+  linkState?: "linked" | "runtime_only" | "persisted_only";
   status: string;
   createdAt?: number;
 };
@@ -40,8 +42,7 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredThreads = threads.filter((t) => !!t.runtimeThreadId);
-  const selectedThread = filteredThreads.find((t) => t.threadId === selected);
+  const selectedThread = threads.find((t) => t.threadId === selected);
   const displayLabel = selectedThread
     ? `${selectedThread.threadId.slice(0, 12)}... • ${selectedThread.status}`
     : "New thread";
@@ -80,7 +81,7 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
             <span className="status-dot stopped" aria-hidden="true" />
             <span>Start a new thread</span>
           </button>
-          {filteredThreads.map((thread) => (
+          {threads.map((thread) => (
             <button
               key={thread.threadId}
               className={`thread-picker-option ${thread.threadId === selected ? "active" : ""}`}

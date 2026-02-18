@@ -8,7 +8,6 @@ const docsPath = resolve(packageRoot, "docs/API_REFERENCE.md");
 const sectionMap = {
   ".": "index.d.ts",
   "react": "react/index.d.ts",
-  "react-integration": "react-integration/index.d.ts",
   host: "host/index.d.ts",
   "host/convex": "host/convex-entry.d.ts",
   protocol: "protocol/index.d.ts",

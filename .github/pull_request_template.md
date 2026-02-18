@@ -13,6 +13,6 @@
 
 - [ ] No unsafe type assertions (`as`) were introduced in host app runtime/wrapper paths
 - [ ] No new `any` usage was introduced in host app runtime/wrapper paths
-- [ ] Wrapper contracts are covered by smoke checks (shape and behavior)
+- [ ] Wrapper contracts are covered by verification checks (shape and behavior)
 - [ ] Lifecycle changes include cleanup paths and invariant checks
 - [ ] Scope is forward-looking only (no legacy shims/back-compat layers added)

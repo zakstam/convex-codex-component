@@ -5,7 +5,6 @@
 import { v } from "convex/values";
 import {
   ensureSession as ensureSessionHandler,
-  ensureThreadByCreate,
   ensureThreadByResolve,
   ingestBatchMixed,
   ingestBatchStreamOnly,
@@ -22,38 +21,38 @@ import {
   vHostLifecycleInboundEvent,
   vHostStreamInboundEvent,
   vHostSyncRuntimeOptions,
-  vManagedServerRequestMethod,
-  vServerRequestId,
   type CodexHostComponentRefs,
   type HostActorContext,
   type HostMutationRunner,
   type HostQueryRunner,
 } from "./convexSlice.js";
-import type { CodexHostSliceFeatures, CodexHostSliceIngestMode, CodexHostSliceThreadMode } from "./convexPreset.js";
+import type { CodexHostSliceFeatures, CodexHostSliceIngestMode } from "./convexPreset.js";
 
 type MutationBuilderArgs = {
   component: CodexHostComponentRefs;
   serverActor: HostActorContext;
   ingestMode: CodexHostSliceIngestMode;
-  threadMode: CodexHostSliceThreadMode;
   features: Required<CodexHostSliceFeatures>;
 };
 
 function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
-  // When the server actor has no userId (runtime-owned profiles), preserve the
-  // request actor so data is scoped to the authenticated user rather than the
-  // anonymous scope.
-  const actor = serverActor.userId ? serverActor : { ...serverActor, ...args.actor };
-  return { ...args, actor };
+  return { ...args, actor: serverActor };
+}
+
+function resolveServerActor(
+  args: { actor: HostActorContext },
+  fallback: HostActorContext,
+): HostActorContext {
+  return args.actor.userId === undefined ? fallback : args.actor;
 }
 
 export function buildPresetMutations(opts: MutationBuilderArgs) {
-  const { component, serverActor, ingestMode, threadMode, features } = opts;
+  const { component, serverActor, ingestMode, features } = opts;
 
   const ensureThread = {
     args: {
       actor: vHostActorContext,
-      localThreadId: v.optional(v.string()),
+      threadId: v.optional(v.string()),
       externalThreadId: v.optional(v.string()),
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
@@ -65,18 +64,15 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
-      localThreadId?: string;
+      threadId?: string;
       externalThreadId?: string;
       model?: string;
       cwd?: string;
     }) => {
-      if (threadMode === "resolve") {
-        return ensureThreadByResolve(ctx, component, withServerActor(args, serverActor));
+      if (!args.threadId && !args.externalThreadId) {
+        throw new Error("ensureThread requires threadId or externalThreadId.");
       }
-      if (!args.localThreadId) {
-        throw new Error("ensureThread requires localThreadId when threadMode=create");
-      }
-      return ensureThreadByCreate(ctx, component, withServerActor({ ...args, threadId: args.localThreadId }, serverActor));
+      return ensureThreadByResolve(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
     },
   };
 
@@ -117,12 +113,16 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       },
     ) => {
       if (ingestMode === "mixed") {
-        return ingestEventMixed(ctx, component, withServerActor(args, serverActor));
+        return ingestEventMixed(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
       }
       if (args.event.type === "lifecycle_event") {
         throw new Error("ingestEvent(streamOnly) does not accept lifecycle events");
       }
-      return ingestEventStreamOnly(ctx, component, withServerActor({ ...args, event: args.event }, serverActor));
+      return ingestEventStreamOnly(
+        ctx,
+        component,
+        withServerActor({ ...args, event: args.event }, resolveServerActor(args, serverActor)),
+      );
     },
   };
 
@@ -173,7 +173,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       },
     ) => {
       if (ingestMode === "mixed") {
-        return ingestBatchMixed(ctx, component, withServerActor(args, serverActor));
+        return ingestBatchMixed(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
       }
       const hasLifecycle = args.deltas.some((delta) => delta.type === "lifecycle_event");
       if (hasLifecycle) {
@@ -192,7 +192,11 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           cursorEnd: delta.cursorEnd,
           createdAt: delta.createdAt,
         }));
-      return ingestBatchStreamOnly(ctx, component, withServerActor({ ...args, deltas: streamDeltas }, serverActor));
+      return ingestBatchStreamOnly(
+        ctx,
+        component,
+        withServerActor({ ...args, deltas: streamDeltas }, resolveServerActor(args, serverActor)),
+      );
     },
   };
 
@@ -209,7 +213,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; sessionId: string; threadId: string; lastEventCursor: number },
-      ) => ensureSessionHandler(ctx, component, withServerActor(args, serverActor)),
+      ) => ensureSessionHandler(ctx, component, withServerActor(args, resolveServerActor(args, serverActor))),
     },
     ingestEvent,
     ingestBatch,
@@ -227,7 +231,8 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             handler: async (
               ctx: HostMutationRunner & HostQueryRunner,
               args: { actor: HostActorContext; threadId: string; turnId: string; itemId: string; decision: "accepted" | "declined" },
-            ) => respondApprovalForHooksForActor(ctx, component, withServerActor(args, serverActor)),
+            ) =>
+              respondApprovalForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, serverActor))),
           },
         }
       : {}),
@@ -236,11 +241,16 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           upsertPendingServerRequestForHooks: {
             args: {
               actor: vHostActorContext,
-              requestId: vServerRequestId,
+              requestId: v.union(v.string(), v.number()),
               threadId: v.string(),
               turnId: v.string(),
               itemId: v.string(),
-              method: vManagedServerRequestMethod,
+              method: v.union(
+                v.literal("item/commandExecution/requestApproval"),
+                v.literal("item/fileChange/requestApproval"),
+                v.literal("item/tool/requestUserInput"),
+                v.literal("item/tool/call"),
+              ),
               payloadJson: v.string(),
               reason: v.optional(v.string()),
               questionsJson: v.optional(v.string()),
@@ -261,13 +271,18 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
                 questionsJson?: string;
                 requestedAt: number;
               },
-            ) => upsertPendingServerRequestForHooksForActor(ctx, component, withServerActor(args, serverActor)),
+            ) =>
+              upsertPendingServerRequestForHooksForActor(
+                ctx,
+                component,
+                withServerActor(args, resolveServerActor(args, serverActor)),
+              ),
           },
           resolvePendingServerRequestForHooks: {
             args: {
               actor: vHostActorContext,
               threadId: v.string(),
-              requestId: vServerRequestId,
+              requestId: v.union(v.string(), v.number()),
               status: v.union(v.literal("answered"), v.literal("expired")),
               resolvedAt: v.number(),
               responseJson: v.optional(v.string()),
@@ -283,7 +298,12 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
                 resolvedAt: number;
                 responseJson?: string;
               },
-            ) => resolvePendingServerRequestForHooksForActor(ctx, component, withServerActor(args, serverActor)),
+            ) =>
+              resolvePendingServerRequestForHooksForActor(
+                ctx,
+                component,
+                withServerActor(args, resolveServerActor(args, serverActor)),
+              ),
           },
         }
       : {}),
@@ -300,7 +320,12 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             handler: async (
               ctx: HostMutationRunner & HostQueryRunner,
               args: { actor: HostActorContext; threadId: string; turnId: string; reason?: string },
-            ) => interruptTurnForHooksForActor(ctx, component, withServerActor(args, serverActor)),
+            ) =>
+              interruptTurnForHooksForActor(
+                ctx,
+                component,
+                withServerActor(args, resolveServerActor(args, serverActor)),
+              ),
           },
         }
       : {}),
@@ -342,9 +367,85 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
                 lastReasoningOutputTokens: number;
                 modelContextWindow?: number;
               },
-            ) => upsertTokenUsageForActor(ctx, component, withServerActor(args, serverActor)),
+            ) =>
+              upsertTokenUsageForActor(
+                ctx,
+                component,
+                withServerActor(args, resolveServerActor(args, serverActor)),
+              ),
           },
         }
       : {}),
+    acceptTurnSendForHooks: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        turnId: v.string(),
+        idempotencyKey: v.string(),
+        inputText: v.string(),
+        dispatchId: v.optional(v.string()),
+      },
+      returns: v.object({
+        dispatchId: v.string(),
+        turnId: v.string(),
+        accepted: v.literal(true),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+          turnId: string;
+          idempotencyKey: string;
+          inputText: string;
+          dispatchId?: string;
+        },
+      ) => {
+        const resolvedActor = resolveServerActor(args, serverActor);
+        await ctx.runMutation(component.turns.start, {
+          actor: resolvedActor,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          idempotencyKey: args.idempotencyKey,
+          input: [{ type: "text", text: args.inputText }],
+        });
+        return {
+          dispatchId: args.dispatchId ?? args.turnId,
+          turnId: args.turnId,
+          accepted: true as const,
+        };
+      },
+    },
+    failAcceptedTurnSendForHooks: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        turnId: v.string(),
+        dispatchId: v.optional(v.string()),
+        code: v.optional(v.string()),
+        reason: v.string(),
+      },
+      returns: v.null(),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+          turnId: string;
+          dispatchId?: string;
+          code?: string;
+          reason: string;
+        },
+      ) => {
+        const resolvedActor = resolveServerActor(args, serverActor);
+        await ctx.runMutation(component.turns.interrupt, {
+          actor: resolvedActor,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          reason: args.code ? `[${args.code}] ${args.reason}` : args.reason,
+        });
+        return null;
+      },
+    },
   };
 }

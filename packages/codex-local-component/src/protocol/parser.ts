@@ -1,7 +1,6 @@
 import Ajv from "ajv";
 import clientNotificationSchema from "./schemas/ClientNotification.json" with { type: "json" };
 import clientRequestSchema from "./schemas/ClientRequest.json" with { type: "json" };
-import eventMsgSchema from "./schemas/EventMsg.json" with { type: "json" };
 import jsonRpcMessageSchema from "./schemas/JSONRPCMessage.json" with { type: "json" };
 import jsonRpcResponseSchema from "./schemas/JSONRPCResponse.json" with { type: "json" };
 import commandExecutionRequestApprovalResponseSchema from "./schemas/CommandExecutionRequestApprovalResponse.json" with { type: "json" };
@@ -10,10 +9,7 @@ import fileChangeRequestApprovalResponseSchema from "./schemas/FileChangeRequest
 import serverNotificationSchema from "./schemas/ServerNotification.json" with { type: "json" };
 import serverRequestSchema from "./schemas/ServerRequest.json" with { type: "json" };
 import toolRequestUserInputResponseSchema from "./schemas/ToolRequestUserInputResponse.json" with { type: "json" };
-import type {
-  LegacyEventNotification,
-  ServerInboundMessage,
-} from "./generated.js";
+import type { ServerInboundMessage } from "./generated.js";
 import type { ClientOutboundWireMessage } from "./outbound.js";
 
 type AjvError = {
@@ -53,7 +49,6 @@ const validateCommandExecutionRequestApprovalResponse = ajv.compile(commandExecu
 const validateDynamicToolCallResponse = ajv.compile(dynamicToolCallResponseSchema);
 const validateFileChangeRequestApprovalResponse = ajv.compile(fileChangeRequestApprovalResponseSchema);
 const validateToolRequestUserInputResponse = ajv.compile(toolRequestUserInputResponseSchema);
-const validateEventMsg = ajv.compile(eventMsgSchema);
 
 function formatAjvErrors(errors: AjvError[] | null | undefined): string {
   if (!errors || errors.length === 0) {
@@ -86,7 +81,6 @@ function isServerInboundMessage(value: unknown): value is ServerInboundMessage {
     isSchemaMatch(validateServerNotification, value) ||
     isSchemaMatch(validateServerRequest, value) ||
     isSchemaMatch(validateJsonRpcResponse, value) ||
-    isLegacyEventNotificationValue(value) ||
     isUnknownServerResponse(value) ||
     isUnknownServerNotification(value) ||
     isUnknownServerRequest(value)
@@ -181,9 +175,6 @@ function isUnknownServerNotification(value: unknown): value is ServerInboundMess
   if (typeof record.method !== "string") {
     return false;
   }
-  if (record.method.startsWith("codex/event/")) {
-    return false;
-  }
   if ("params" in record && (typeof record.params !== "object" || record.params === null)) {
     return false;
   }
@@ -199,9 +190,6 @@ function isUnknownServerRequest(value: unknown): value is ServerInboundMessage {
     return false;
   }
   if (typeof record.method !== "string") {
-    return false;
-  }
-  if (record.method.startsWith("codex/event/")) {
     return false;
   }
   if ("params" in record && (typeof record.params !== "object" || record.params === null)) {
@@ -228,22 +216,4 @@ function isUnknownServerResponse(value: unknown): value is ServerInboundMessage 
     return false;
   }
   return true;
-}
-
-function isLegacyEventNotificationValue(value: unknown): value is LegacyEventNotification {
-  const record = asObject(value);
-  if (!record) {
-    return false;
-  }
-  if (typeof record.method !== "string" || !record.method.startsWith("codex/event/")) {
-    return false;
-  }
-  const params = asObject(record.params);
-  if (!params) {
-    return false;
-  }
-  if (typeof params.conversationId !== "string") {
-    return false;
-  }
-  return validateEventMsg(params.msg);
 }

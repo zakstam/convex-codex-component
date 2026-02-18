@@ -1,30 +1,15 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
+  CodexProvider,
+  useCodex,
   useCodexAccountAuth,
-  useCodexChat,
   useCodexRuntimeBridge,
   useCodexThreadState,
-  useCodexThreads,
-  useCodexTokenUsage,
 } from "@zakstam/codex-local-component/react";
 import { api } from "../convex/_generated/api";
 import {
-  cancelAccountLogin,
-  getBridgeState,
-  interruptTurn,
-  loginAccount,
-  logoutAccount,
-  readAccount,
-  readAccountRateLimits,
-  respondChatgptAuthTokensRefresh,
-  respondCommandApproval,
-  respondFileChangeApproval,
-  respondToolUserInput,
-  setDisabledTools,
-  sendUserTurn,
-  startBridge,
-  stopBridge,
+  bridge as tauriBridge,
   type ActorContext,
   type BridgeState,
   type LoginAccountParams,
@@ -93,7 +78,9 @@ type PendingServerRequest = {
 
 type PickerThread = {
   threadId: string;
+  externalThreadId?: string | null;
   runtimeThreadId?: string | null;
+  linkState?: "linked" | "runtime_only" | "persisted_only";
   status: string;
   createdAt?: number;
 };
@@ -113,6 +100,42 @@ const chatApi = requireDefined(api.chat, "api.chat");
 
 export default function App() {
   const [actorUserId, setActorUserId] = useState<string>(() => resolveActorUserId());
+  const actorBinding = useQuery(
+    requireDefined(chatApi.getActorBindingForBootstrap, "api.chat.getActorBindingForBootstrap"),
+  );
+  const preferredBoundUserId = actorBinding?.lockEnabled
+    ? actorBinding.pinnedUserId?.trim() || actorBinding.boundUserId?.trim() || null
+    : actorBinding?.pinnedUserId?.trim() || null;
+  const actorReady = actorBinding !== undefined && (!preferredBoundUserId || preferredBoundUserId === actorUserId);
+  const actor: ActorContext = useMemo(
+    () => ({ userId: actorUserId }),
+    [actorUserId],
+  );
+
+  return (
+    <CodexProvider api={chatApi} actor={actor}>
+      <AppContent
+        actor={actor}
+        actorReady={actorReady}
+        preferredBoundUserId={preferredBoundUserId}
+        onActorChange={setActorUserId}
+      />
+    </CodexProvider>
+  );
+}
+
+function AppContent({
+  actor,
+  actorReady,
+  preferredBoundUserId,
+  onActorChange,
+}: {
+  actor: ActorContext;
+  actorReady: boolean;
+  preferredBoundUserId: string | null;
+  onActorChange: (userId: string) => void;
+}) {
+  const actorUserId = actor.userId ?? "";
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
     localThreadId: null,
@@ -146,26 +169,13 @@ export default function App() {
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
-  const actorBinding = useQuery(
-    requireDefined(chatApi.getActorBindingForBootstrap, "api.chat.getActorBindingForBootstrap"),
-  );
-  const preferredBoundUserId = actorBinding?.lockEnabled
-    ? actorBinding.pinnedUserId?.trim() || actorBinding.boundUserId?.trim() || null
-    : actorBinding?.pinnedUserId?.trim() || null;
-  const actorReady = actorBinding !== undefined && (!preferredBoundUserId || preferredBoundUserId === actorUserId);
-  const actor: ActorContext = useMemo(
-    () => ({
-      userId: actorUserId,
-    }),
-    [actorUserId],
-  );
 
   useEffect(() => {
     const preferredUserId = preferredBoundUserId;
     if (!preferredUserId || preferredUserId === actorUserId) {
       return;
     }
-    setActorUserId(preferredUserId);
+    onActorChange(preferredUserId);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(ACTOR_STORAGE_KEY, preferredUserId);
     }
@@ -173,51 +183,36 @@ export default function App() {
       "info",
       `Using bound host username "${preferredUserId}" to match Convex actor lock.`,
     );
-  }, [actorUserId, addToast, preferredBoundUserId]);
-
-  const threadId = bridge.localThreadId;
-  const threads = useCodexThreads({
-    list: {
-      query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
-      args: actorReady ? { actor, limit: 25 } : "skip",
-    },
-    initialSelectedThreadId: "",
-  });
-  const selectedThreadId = threads.selectedThreadId ?? "";
-  const pickerThreads = useMemo(
-    () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
-    [threads.threads],
-  );
-  const selectedRuntimeThreadId = useMemo(
-    () => pickerThreads.find((thread) => thread.threadId === selectedThreadId)?.runtimeThreadId ?? "",
-    [pickerThreads, selectedThreadId],
-  );
-  const cleanupThreadId = bridge.localThreadId ?? (selectedThreadId || null);
+  }, [actorUserId, addToast, onActorChange, preferredBoundUserId]);
 
   const runtimeBridgeControls = useMemo(
     () => ({
-      start: startBridge,
-      stop: stopBridge,
-      getState: getBridgeState,
-      sendTurn: sendUserTurn,
-      interrupt: interruptTurn,
+      start: tauriBridge.lifecycle.start,
+      stop: tauriBridge.lifecycle.stop,
+      getState: tauriBridge.lifecycle.getState,
+      sendTurn: tauriBridge.turns.send,
+      interrupt: tauriBridge.turns.interrupt,
     }),
     [],
   );
   const runtimeBridge = useCodexRuntimeBridge(runtimeBridgeControls);
 
   const accountAuth = useCodexAccountAuth<LoginAccountParams>({
-    readAccount,
-    loginAccount,
-    cancelAccountLogin,
-    logoutAccount,
-    readAccountRateLimits,
-    respondChatgptAuthTokensRefresh,
+    readAccount: tauriBridge.account.read,
+    loginAccount: tauriBridge.account.login,
+    cancelAccountLogin: tauriBridge.account.cancelLogin,
+    logoutAccount: tauriBridge.account.logout,
+    readAccountRateLimits: tauriBridge.account.readRateLimits,
+    respondChatgptAuthTokensRefresh: tauriBridge.account.respondChatgptAuthTokensRefresh,
   });
+
+  // Ref breaks the circular dependency: startBridgeWithSelection → selectedRuntimeThreadId
+  // → conversation.threads → useCodex() → composer.onSend → startBridgeWithSelection
+  const selectedRuntimeThreadIdRef = useRef("");
 
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry") => {
-      const resumeThreadId = selectedRuntimeThreadId.trim() || undefined;
+      const resumeThreadId = selectedRuntimeThreadIdRef.current.trim() || undefined;
       if (!actorReady) {
         throw new Error("Actor identity is still synchronizing. Please retry in a moment.");
       }
@@ -234,24 +229,23 @@ export default function App() {
         ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
       });
     },
-    [actor, actorReady, bridge.disabledTools, runtimeBridge, selectedRuntimeThreadId],
+    [actor, actorReady, bridge.disabledTools, runtimeBridge],
   );
 
-  const conversation = useCodexChat({
-    messages: {
-      query: requireDefined(chatApi.listThreadMessagesForHooks, "api.chat.listThreadMessagesForHooks"),
-      args: threadId && actorReady ? { actor, threadId } : "skip",
-      initialNumItems: 30,
-      stream: true,
-    },
-    threadState: {
-      query: requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
-      args: threadId && actorReady ? { actor, threadId } : "skip",
+  const conversation = useCodex({
+    // threadId omitted — derived from threads.selectedThreadId
+    actorReady,
+    threads: {
+      list: {
+        query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
+        args: actorReady ? { actor, limit: 25 } : "skip",
+      },
+      initialSelectedThreadId: "",
     },
     composer: {
       onSend: async (text: string) => {
         try {
-          await sendUserTurn(text);
+          await tauriBridge.turns.send(text);
           setBridge((prev) => ({ ...prev, lastError: null }));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -263,7 +257,7 @@ export default function App() {
           if (transientBridgeFailure) {
             try {
               await startBridgeWithSelection("composer_retry");
-              await sendUserTurn(text);
+              await tauriBridge.turns.send(text);
               setBridge((prev) => ({ ...prev, lastError: null }));
               return;
             } catch (retryError) {
@@ -286,6 +280,28 @@ export default function App() {
       },
     },
   });
+
+  // ── Derive picker values from composed threads ──────────────────────
+  const threads = conversation.threads!;
+  const selectedThreadId = threads.selectedThreadId ?? "";
+  const pickerThreads = useMemo(
+    () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
+    [threads.threads],
+  );
+  const selectedRuntimeThreadId = useMemo(
+    () => pickerThreads.find((t) => t.threadId === selectedThreadId)?.runtimeThreadId ?? "",
+    [pickerThreads, selectedThreadId],
+  );
+  selectedRuntimeThreadIdRef.current = selectedRuntimeThreadId;
+
+  // Sync bridge-created threads into the picker selection
+  useEffect(() => {
+    if (bridge.localThreadId && conversation.threads) {
+      conversation.threads.setSelectedThreadId(bridge.localThreadId);
+    }
+  }, [bridge.localThreadId, conversation.threads]);
+
+  const cleanupThreadId = conversation.effectiveThreadId || null;
 
   const messages = conversation.messages;
   const displayMessages = useMemo(
@@ -318,21 +334,14 @@ export default function App() {
     return latest;
   }, [messages.results]);
 
-  const threadState = useCodexThreadState(
-    requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
-    threadId && actorReady ? { actor, threadId } : "skip",
-  );
+  const threadState = conversation.threadState;
   const threadActivity = conversation.activity;
   const ingestHealth = conversation.ingestHealth;
-
-  const tokenUsage = useCodexTokenUsage(
-    requireDefined(chatApi.listTokenUsageForHooks, "api.chat.listTokenUsageForHooks"),
-    threadId && actorReady ? { actor, threadId } : "skip",
-  );
+  const tokenUsage = conversation.tokenUsage;
 
   const tokenByTurnId = useMemo(() => {
     const map = new Map<string, { totalTokens: number; inputTokens: number; outputTokens: number }>();
-    if (tokenUsage.status !== "ready") return map;
+    if (!tokenUsage || tokenUsage.status !== "ready") return map;
     for (const turn of tokenUsage.turns) {
       map.set(turn.turnId, {
         totalTokens: turn.last.totalTokens,
@@ -344,30 +353,30 @@ export default function App() {
   }, [tokenUsage]);
 
   const pendingServerRequestsRaw = useQuery(
-    requireDefined(chatApi.listPendingServerRequestsForHooks, "api.chat.listPendingServerRequestsForHooks"),
-    threadId && actorReady ? { actor, threadId, limit: 50 } : "skip",
+    requireDefined(chatApi.listPendingServerRequests, "api.chat.listPendingServerRequests"),
+    conversation.effectiveThreadId && actorReady ? { actor, threadId: conversation.effectiveThreadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
   const deleteThreadCascadeMutation = useMutation(
-    requireDefined(chatApi.scheduleThreadDeleteCascadeForHooks, "api.chat.scheduleThreadDeleteCascadeForHooks"),
+    requireDefined(chatApi.scheduleThreadDeleteCascade, "api.chat.scheduleThreadDeleteCascade"),
   );
   const deleteTurnCascadeMutation = useMutation(
-    requireDefined(chatApi.scheduleTurnDeleteCascadeForHooks, "api.chat.scheduleTurnDeleteCascadeForHooks"),
+    requireDefined(chatApi.scheduleTurnDeleteCascade, "api.chat.scheduleTurnDeleteCascade"),
   );
   const purgeActorDataMutation = useMutation(
-    requireDefined(chatApi.schedulePurgeActorDataForHooks, "api.chat.schedulePurgeActorDataForHooks"),
+    requireDefined(chatApi.schedulePurgeActorData, "api.chat.schedulePurgeActorData"),
   );
   const cancelScheduledDeletionMutation = useMutation(
-    requireDefined(chatApi.cancelScheduledDeletionForHooks, "api.chat.cancelScheduledDeletionForHooks"),
+    requireDefined(chatApi.cancelScheduledDeletion, "api.chat.cancelScheduledDeletion"),
   );
   const forceRunScheduledDeletionMutation = useMutation(
-    requireDefined(chatApi.forceRunScheduledDeletionForHooks, "api.chat.forceRunScheduledDeletionForHooks"),
+    requireDefined(chatApi.forceRunScheduledDeletion, "api.chat.forceRunScheduledDeletion"),
   );
   const [activeDeletionJobId, setActiveDeletionJobId] = useState<string | null>(null);
   const [activeDeletionLabel, setActiveDeletionLabel] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const deletionStatus = useQuery(
-    requireDefined(chatApi.getDeletionJobStatusForHooks, "api.chat.getDeletionJobStatusForHooks"),
+    requireDefined(chatApi.getDeletionJobStatus, "api.chat.getDeletionJobStatus"),
     activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
   );
   const cleanupThreadState = useCodexThreadState(
@@ -451,7 +460,7 @@ export default function App() {
   const onSetDisabledTools = async (nextTools: string[]) => {
     const normalized = [...new Set(nextTools.filter((tool) => tool.trim().length > 0))].sort();
     try {
-      await setDisabledTools({ tools: normalized });
+      await tauriBridge.tools.setDisabled({ tools: normalized });
       setBridge((current) => ({
         ...current,
         disabledTools: normalized,
@@ -471,9 +480,9 @@ export default function App() {
     setSubmittingRequestKey(key);
     try {
       if (request.method === "item/commandExecution/requestApproval") {
-        await respondCommandApproval({ requestId: request.requestId, decision });
+        await tauriBridge.approvals.respondCommand({ requestId: request.requestId, decision });
       } else {
-        await respondFileChangeApproval({ requestId: request.requestId, decision });
+        await tauriBridge.approvals.respondFileChange({ requestId: request.requestId, decision });
       }
       setBridge((prev) => ({ ...prev, lastError: null }));
       addToast("success", `Approval ${decision === "accept" || decision === "acceptForSession" ? "accepted" : "declined"}`);
@@ -527,7 +536,7 @@ export default function App() {
 
     setSubmittingRequestKey(key);
     try {
-      await respondToolUserInput({ requestId: request.requestId, answers });
+      await tauriBridge.approvals.respondToolInput({ requestId: request.requestId, answers });
       setBridge((prev) => ({ ...prev, lastError: null }));
       addToast("success", "Answers submitted");
       setToolDrafts((prev) => {
@@ -788,6 +797,9 @@ export default function App() {
       <section className="panel chat">
         <Header
           bridge={bridge}
+          actorUserId={actorUserId}
+          actorReady={actorReady}
+          preferredBoundUserId={preferredBoundUserId}
           onStart={onStartBridge}
           onStop={() => void runtimeBridge.stop()}
           onInterrupt={() => void conversation.interrupt()}

@@ -80,13 +80,12 @@ test("extractTurnId reads modern turn and item shapes", () => {
   );
 });
 
-test("extractTurnId ignores legacy codex/event params.id fallback", () => {
+test("extractTurnId ignores unsupported payload envelopes", () => {
   assert.equal(
     extractTurnId({
       jsonrpc: "2.0",
-      method: "codex/event/task_complete",
+      method: "unsupported/task_complete",
       params: {
-        conversationId: "thread-legacy",
         id: "0",
         msg: { type: "task_complete" },
       },
@@ -97,14 +96,13 @@ test("extractTurnId ignores legacy codex/event params.id fallback", () => {
   assert.equal(
     extractTurnId({
       jsonrpc: "2.0",
-      method: "codex/event/task_complete",
+      method: "unsupported/task_complete",
       params: {
-        conversationId: "thread-legacy",
         id: "0",
-        msg: { type: "task_complete", turn_id: "turn-legacy-1" },
+        msg: { type: "task_complete", turn_id: "turn-ignored-1" },
       },
     }),
-    "turn-legacy-1",
+    undefined,
   );
 });
 
@@ -145,13 +143,13 @@ test("classifyMessage rejects thread-scoped messages missing threadId", () => {
   );
 });
 
-test("classifyMessage ignores legacy conversationId fields", () => {
+test("classifyMessage ignores unsupported conversationId fields", () => {
   const message = {
     jsonrpc: "2.0",
     method: "turn/completed",
     params: {
       threadId: "thread-modern-id",
-      conversationId: "thread-legacy-id",
+      conversationId: "thread-ignored-id",
       turn: {
         id: "turn-10",
         items: [],

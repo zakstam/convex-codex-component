@@ -4,6 +4,22 @@
   "description": "Default desktop capability",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-start-bridge",
+    "allow-send-user-turn",
+    "allow-interrupt-turn",
+    "allow-respond-command-approval",
+    "allow-respond-file-change-approval",
+    "allow-respond-tool-user-input",
+    "allow-read-account",
+    "allow-login-account",
+    "allow-cancel-account-login",
+    "allow-logout-account",
+    "allow-read-account-rate-limits",
+    "allow-respond-chatgpt-auth-tokens-refresh",
+    "allow-stop-bridge",
+    "allow-get-bridge-state",
+    "allow-set-disabled-tools"
   ]
 }

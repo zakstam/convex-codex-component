@@ -18,13 +18,12 @@ export default [
   },
   {
     files: [
-      "apps/release-smoke-host/src/**/*.{ts,tsx}",
-      "apps/release-smoke-host/convex/**/*.{ts,tsx}",
       "apps/examples/persistent-cli-app/src/**/*.{ts,tsx}",
       "apps/examples/persistent-cli-app/convex/**/*.{ts,tsx}",
       "apps/examples/cli-app/src/**/*.{ts,tsx}",
       "apps/examples/cli-app/convex/**/*.{ts,tsx}",
       "apps/examples/tauri-app/src/**/*.{ts,tsx}",
+      "apps/examples/tauri-app/src-node/**/*.{ts,tsx}",
       "apps/examples/tauri-app/convex/**/*.{ts,tsx}",
       "packages/codex-local-component/src/**/*.{ts,tsx}",
     ],

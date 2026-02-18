@@ -85,7 +85,6 @@ export const vHostIngestSafeResult = v.object({
         v.literal("SESSION_NOT_FOUND"),
         v.literal("SESSION_THREAD_MISMATCH"),
         v.literal("TURN_ID_REQUIRED_FOR_TURN_EVENT"),
-        v.literal("TURN_ID_REQUIRED_FOR_CODEX_EVENT"),
         v.literal("OUT_OF_ORDER"),
         v.literal("REPLAY_GAP"),
         v.literal("UNKNOWN"),
@@ -177,6 +176,7 @@ type CodexThreadsResolveComponent = {
 
 type CodexTurnsComponent = {
   turns: {
+    start: FunctionReference<"mutation", "public" | "internal">;
     interrupt: FunctionReference<"mutation", "public" | "internal">;
   };
 };
@@ -265,6 +265,7 @@ type EnsureThreadCreateArgs = {
 
 type EnsureThreadResolveArgs = {
   actor: HostActorContext;
+  threadId?: string;
   externalThreadId?: string;
   model?: string;
   cwd?: string;
@@ -455,10 +456,12 @@ export async function ensureThreadByResolve<
   component: Component,
   args: EnsureThreadResolveArgs,
 ): Promise<FunctionReturnType<Component["threads"]["resolve"]>> {
+  const externalThreadId = args.externalThreadId ?? args.threadId;
+  const localThreadId = args.threadId ?? externalThreadId;
   return ctx.runMutation(component.threads.resolve, {
     actor: args.actor,
-    ...(args.externalThreadId !== undefined ? { externalThreadId: args.externalThreadId } : {}),
-    ...(args.externalThreadId !== undefined ? { localThreadId: args.externalThreadId } : {}),
+    ...(externalThreadId !== undefined ? { externalThreadId } : {}),
+    ...(localThreadId !== undefined ? { localThreadId } : {}),
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
   });

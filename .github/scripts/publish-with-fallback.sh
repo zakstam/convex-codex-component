@@ -8,6 +8,11 @@ if [ -n "${FALLBACK_NPM_TOKEN:-}" ]; then
 else
   echo "Fallback token configured: no"
 fi
+if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+  echo "OIDC env available in publish script: yes"
+else
+  echo "OIDC env available in publish script: no"
+fi
 
 # Keep OIDC publish clean by removing any pre-existing npm auth config.
 rm -f "$HOME/.npmrc" .npmrc
@@ -15,10 +20,8 @@ npm config set registry https://registry.npmjs.org/
 npm config delete always-auth || true
 
 echo "Publish attempt 1/2: npm trusted publishing (OIDC)."
-set +e
-pnpm run release:publish
-oidc_exit=$?
-set -e
+oidc_exit=0
+npx changeset publish || oidc_exit=$?
 
 if [ "${oidc_exit}" -eq 0 ]; then
   echo "Publish succeeded with OIDC."
@@ -39,4 +42,4 @@ printf "//registry.npmjs.org/:_authToken=%s\n" "$FALLBACK_NPM_TOKEN" > "$HOME/.n
 npm config set registry https://registry.npmjs.org/
 
 echo "Publish attempt 2/2: NPM_TOKEN fallback."
-pnpm run release:publish
+npx changeset publish

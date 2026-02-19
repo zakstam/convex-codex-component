@@ -47,13 +47,25 @@ const codex = createCodexHost({
     mode: "serverActor",
     serverActor: SERVER_ACTOR,
   },
+  actorResolver: {
+    mutation: async (ctx, actor) => requireBoundActorForMutation(ctx, actor),
+    query: async (ctx, actor) => requireBoundActorForQuery(ctx, actor),
+  },
 });
 
-export const { ensureThread, ensureSession, ingestBatch } = codex.mutations;
-export const { validateHostWiring, threadSnapshotSafe, listThreadMessages } = codex.queries;
+export const ensureThread = mutation(codex.defs.mutations.ensureThread);
+export const ensureSession = mutation(codex.defs.mutations.ensureSession);
+export const ingestBatch = mutation(codex.defs.mutations.ingestBatch);
+export const validateHostWiring = query(codex.defs.queries.validateHostWiring);
+export const threadSnapshotSafe = query(codex.defs.queries.threadSnapshotSafe);
+export const listThreadMessages = query(codex.defs.queries.listThreadMessages);
 ```
 
 `createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.serverActor.userId` must be a non-empty string. Shorthand forms like `"server"` or `{ userId: "server" }` are not supported.
+
+`actorResolver` is optional. When present, it runs before every host mutation/query handler and replaces `args.actor` with the resolved actor. This is the canonical way to enforce actor binding without per-endpoint wrapper boilerplate.
+
+For Convex `api.chat.*` generated typing, export host endpoints via `mutation(...)` / `query(...)` with `codex.defs.*`.
 
 ## Minimal React Wiring
 

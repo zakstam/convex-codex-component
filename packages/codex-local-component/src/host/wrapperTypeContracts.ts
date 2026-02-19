@@ -1,5 +1,6 @@
 import type {
   CodexHostFacade,
+  CodexHostActorResolver,
   CreateCodexHostOptions,
   RuntimeOwnedHostDefinitions,
 } from "./convexPreset.js";
@@ -56,6 +57,7 @@ declare const validMutationWrap: MutationWrap;
 declare const validQueryWrap: QueryWrap;
 declare const invalidMutationWrap: (definition: { nope: true }) => { nope: true };
 declare const invalidQueryWrap: (definition: { nope: true }) => { nope: true };
+declare const actorResolver: CodexHostActorResolver;
 
 const _ValidCreateOptionsValue: CreateCodexHostOptions<
   CodexHostComponentsInput,
@@ -66,6 +68,7 @@ const _ValidCreateOptionsValue: CreateCodexHostOptions<
   mutation: validMutationWrap,
   query: validQueryWrap,
   actorPolicy,
+  actorResolver,
 };
 
 const _InvalidMutationWrapperRejected: CreateCodexHostOptions<

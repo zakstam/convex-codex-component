@@ -7,7 +7,7 @@
       "riskLevel": "default",
       "id": "UC_0da31f32eecc",
       "file": "src/app-server/client.ts",
-      "line": 56,
+      "line": 57,
       "col": 32,
       "snippet": "return { method, id, params } as RequestFor<M>;",
       "context": "prev:): RequestFor<M> { | next:}"
@@ -62,7 +62,7 @@
       "riskLevel": "default",
       "id": "UC_fa6f7396a01b",
       "file": "src/component/threads.ts",
-      "line": 580,
+      "line": 605,
       "col": 55,
       "snippet": "const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };",
       "context": "prev:try { | next:if (typeof parsed.streamId === \"string\") {"
@@ -73,7 +73,7 @@
       "riskLevel": "default",
       "id": "UC_588e7c71b337",
       "file": "src/component/tokenUsage.ts",
-      "line": 35,
+      "line": 51,
       "col": 57,
       "snippet": "// (for example runtime placeholder turn ids). Treat as best-effort.",
       "context": "prev:// Token usage can arrive before the persisted turn record is available | next:if (!turn) {"
@@ -150,7 +150,7 @@
       "riskLevel": "default",
       "id": "UC_af358165669f",
       "file": "src/host/convexPreset.ts",
-      "line": 590,
+      "line": 830,
       "col": 4,
       "snippet": "} as WrappedDefinitionMap<RuntimeOwnedHostDefinitions[\"mutations\"], MutationWrap>;",
       "context": "prev:), | next:const wrappedQueries = {"
@@ -159,12 +159,12 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_429102cf09d9",
+      "id": "UC_026edd9d95ba",
       "file": "src/host/convexPreset.ts",
-      "line": 605,
+      "line": 845,
       "col": 4,
       "snippet": "} as WrappedDefinitionMap<RuntimeOwnedHostDefinitions[\"queries\"], QueryWrap>;",
-      "context": "prev:listThreadReasoning: queryWrap(publicDefs.queries.listThreadReasoning), | next:const endpoints = { ...wrappedMutations, ...wrappedQueries } as"
+      "context": "prev:listThreadReasoning: queryWrap(resolvedDefs.queries.listThreadReasoning), | next:const endpoints = { ...wrappedMutations, ...wrappedQueries } as"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -227,7 +227,7 @@
       "riskLevel": "default",
       "id": "UC_3184e187a07a",
       "file": "src/host/runtime.ts",
-      "line": 84,
+      "line": 86,
       "col": 59,
       "snippet": "const { ConvexHttpClient } = require(\"convex/browser\") as { ConvexHttpClient: new (url: string) => { mutation: (...a: unknown[]) => Promise<unknown>; query: (...a: unknown[]) => Promise<unknown> } };",
       "context": "prev:if (isConvexIntegrated(args)) { | next:const client = new ConvexHttpClient(args.convexUrl);"

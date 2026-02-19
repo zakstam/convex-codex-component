@@ -1,5 +1,6 @@
 export {
   createCodexHost,
+  type CodexHostActorResolver,
   type CodexConvexHostActorPolicy,
   type CodexHostFacade,
   type CodexHostSliceFeatures,

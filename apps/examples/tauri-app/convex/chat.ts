@@ -21,6 +21,12 @@ const codex = createCodexHost({
     mode: "serverActor",
     serverActor: SERVER_ACTOR,
   },
+  actorResolver: {
+    mutation: async (ctx, actor) =>
+      requireBoundServerActorForMutation(ctx as MutationCtx, actor),
+    query: async (ctx, actor) =>
+      requireBoundServerActorForQuery(ctx as QueryCtx, actor),
+  },
 });
 
 const vThreadHandle = v.object({
@@ -163,75 +169,6 @@ async function runQueryWithBoundActor(
   });
 }
 
-type ActorBoundArgs = {
-  actor: { userId?: string };
-};
-
-type HostDefinitionWithActor = {
-  args?: unknown;
-  returns?: unknown;
-  handler: (...args: any[]) => unknown;
-};
-
-type DefinitionContext<Definition extends HostDefinitionWithActor> =
-  Parameters<Definition["handler"]>[0];
-
-type DefinitionArgs<Definition extends HostDefinitionWithActor> =
-  Parameters<Definition["handler"]>[1] & ActorBoundArgs;
-
-type DefinitionResult<Definition extends HostDefinitionWithActor> =
-  ReturnType<Definition["handler"]>;
-
-function withBoundMutationActor<Definition extends HostDefinitionWithActor>(
-  definition: Definition,
-): Definition {
-  const wrappedHandler = async (
-    ctx: DefinitionContext<Definition>,
-    args: DefinitionArgs<Definition>,
-  ): Promise<Awaited<DefinitionResult<Definition>>> => {
-    const actor = await requireBoundServerActorForMutation(
-      ctx as MutationCtx,
-      args.actor,
-    );
-    const nextArgs = {
-      ...args,
-      actor,
-    } as DefinitionArgs<Definition>;
-    const result = definition.handler(ctx, nextArgs);
-    return result as Awaited<DefinitionResult<Definition>>;
-  };
-
-  return {
-    ...definition,
-    handler: wrappedHandler as Definition["handler"],
-  };
-}
-
-function withBoundQueryActor<Definition extends HostDefinitionWithActor>(
-  definition: Definition,
-): Definition {
-  const wrappedHandler = async (
-    ctx: DefinitionContext<Definition>,
-    args: DefinitionArgs<Definition>,
-  ): Promise<Awaited<DefinitionResult<Definition>>> => {
-    const actor = await requireBoundServerActorForQuery(
-      ctx as QueryCtx,
-      args.actor,
-    );
-    const nextArgs = {
-      ...args,
-      actor,
-    } as DefinitionArgs<Definition>;
-    const result = definition.handler(ctx, nextArgs);
-    return result as Awaited<DefinitionResult<Definition>>;
-  };
-
-  return {
-    ...definition,
-    handler: wrappedHandler as Definition["handler"],
-  };
-}
-
 export const ensureThread = mutation({
   args: {
     actor: vHostActorContext,
@@ -363,67 +300,27 @@ export const resumeThread = query({
   },
 });
 
-export const ensureSession = mutation(
-  withBoundMutationActor(codex.defs.mutations.ensureSession),
-);
-export const ingestEvent = mutation(
-  withBoundMutationActor(codex.defs.mutations.ingestEvent),
-);
-export const ingestBatch = mutation(
-  withBoundMutationActor(codex.defs.mutations.ingestBatch),
-);
-export const respondApproval = mutation(
-  withBoundMutationActor(codex.defs.mutations.respondApproval),
-);
-export const upsertTokenUsage = mutation(
-  withBoundMutationActor(codex.defs.mutations.upsertTokenUsage),
-);
-export const interruptTurn = mutation(
-  withBoundMutationActor(codex.defs.mutations.interruptTurn),
-);
-export const upsertPendingServerRequest = mutation(
-  withBoundMutationActor(codex.defs.mutations.upsertPendingServerRequest),
-);
-export const resolvePendingServerRequest = mutation(
-  withBoundMutationActor(codex.defs.mutations.resolvePendingServerRequest),
-);
-export const acceptTurnSend = mutation(
-  withBoundMutationActor(codex.defs.mutations.acceptTurnSend),
-);
-export const failAcceptedTurnSend = mutation(
-  withBoundMutationActor(codex.defs.mutations.failAcceptedTurnSend),
-);
+export const ensureSession = mutation(codex.defs.mutations.ensureSession);
+export const ingestEvent = mutation(codex.defs.mutations.ingestEvent);
+export const ingestBatch = mutation(codex.defs.mutations.ingestBatch);
+export const respondApproval = mutation(codex.defs.mutations.respondApproval);
+export const upsertTokenUsage = mutation(codex.defs.mutations.upsertTokenUsage);
+export const interruptTurn = mutation(codex.defs.mutations.interruptTurn);
+export const upsertPendingServerRequest = mutation(codex.defs.mutations.upsertPendingServerRequest);
+export const resolvePendingServerRequest = mutation(codex.defs.mutations.resolvePendingServerRequest);
+export const acceptTurnSend = mutation(codex.defs.mutations.acceptTurnSend);
+export const failAcceptedTurnSend = mutation(codex.defs.mutations.failAcceptedTurnSend);
 
-export const validateHostWiring = query(
-  withBoundQueryActor(codex.defs.queries.validateHostWiring),
-);
-export const threadSnapshot = query(
-  withBoundQueryActor(codex.defs.queries.threadSnapshot),
-);
-export const threadSnapshotSafe = query(
-  withBoundQueryActor(codex.defs.queries.threadSnapshotSafe),
-);
-export const persistenceStats = query(
-  withBoundQueryActor(codex.defs.queries.persistenceStats),
-);
-export const durableHistoryStats = query(
-  withBoundQueryActor(codex.defs.queries.durableHistoryStats),
-);
-export const listThreadMessages = query(
-  withBoundQueryActor(codex.defs.queries.listThreadMessages),
-);
-export const listTurnMessages = query(
-  withBoundQueryActor(codex.defs.queries.listTurnMessages),
-);
-export const listPendingApprovals = query(
-  withBoundQueryActor(codex.defs.queries.listPendingApprovals),
-);
-export const listTokenUsage = query(
-  withBoundQueryActor(codex.defs.queries.listTokenUsage),
-);
-export const listPendingServerRequests = query(
-  withBoundQueryActor(codex.defs.queries.listPendingServerRequests),
-);
+export const validateHostWiring = query(codex.defs.queries.validateHostWiring);
+export const threadSnapshot = query(codex.defs.queries.threadSnapshot);
+export const threadSnapshotSafe = query(codex.defs.queries.threadSnapshotSafe);
+export const persistenceStats = query(codex.defs.queries.persistenceStats);
+export const durableHistoryStats = query(codex.defs.queries.durableHistoryStats);
+export const listThreadMessages = query(codex.defs.queries.listThreadMessages);
+export const listTurnMessages = query(codex.defs.queries.listTurnMessages);
+export const listPendingApprovals = query(codex.defs.queries.listPendingApprovals);
+export const listTokenUsage = query(codex.defs.queries.listTokenUsage);
+export const listPendingServerRequests = query(codex.defs.queries.listPendingServerRequests);
 
 export const deleteThreadCascade = mutation({
   args: {

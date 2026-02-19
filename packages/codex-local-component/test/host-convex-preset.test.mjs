@@ -124,6 +124,70 @@ test("mutation and query wrappers are called by createCodexHost", () => {
   assert.ok(typeof codex.queries.threadSnapshot.def.handler === "function");
 });
 
+test("actorResolver.mutation replaces actor before mutation handlers run", async () => {
+  const resolverCalls = [];
+  const mutationCalls = [];
+
+  const codex = host.createCodexHost({
+    components: createComponentRefs(),
+    ...passthrough,
+    actorPolicy: explicitActorPolicy,
+    actorResolver: {
+      mutation: async (_ctx, actor) => {
+        resolverCalls.push(actor);
+        return { userId: `bound:${actor.userId ?? "anonymous"}` };
+      },
+    },
+  });
+
+  await codex.defs.mutations.ensureThread.handler(
+    {
+      runMutation: async (_ref, args) => {
+        mutationCalls.push(args);
+        return { threadId: args.threadId, externalThreadId: undefined };
+      },
+    },
+    { actor: { userId: "client-user" }, threadId: "thread-1" },
+  );
+
+  assert.equal(resolverCalls.length, 1);
+  assert.equal(resolverCalls[0].userId, "client-user");
+  assert.equal(mutationCalls.length, 1);
+  assert.equal(mutationCalls[0].actor.userId, "bound:client-user");
+});
+
+test("actorResolver.query replaces actor before query handlers run", async () => {
+  const resolverCalls = [];
+  const queryCalls = [];
+
+  const codex = host.createCodexHost({
+    components: createComponentRefs(),
+    ...passthrough,
+    actorPolicy: explicitActorPolicy,
+    actorResolver: {
+      query: async (_ctx, actor) => {
+        resolverCalls.push(actor);
+        return { userId: `bound:${actor.userId ?? "anonymous"}` };
+      },
+    },
+  });
+
+  await codex.defs.queries.listPendingServerRequests.handler(
+    {
+      runQuery: async (_ref, args) => {
+        queryCalls.push(args);
+        return [];
+      },
+    },
+    { actor: { userId: "client-user" }, threadId: "thread-1", limit: 10 },
+  );
+
+  assert.equal(resolverCalls.length, 1);
+  assert.equal(resolverCalls[0].userId, "client-user");
+  assert.equal(queryCalls.length, 1);
+  assert.equal(queryCalls[0].actor.userId, "bound:client-user");
+});
+
 test("wrapped output has all expected mutation and query keys", () => {
   const codex = host.createCodexHost({
     components: createComponentRefs(),

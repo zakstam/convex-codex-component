@@ -125,16 +125,12 @@ export function createConvexPersistence(
 
   const persistence: HostRuntimePersistence = {
     ensureThread: async (args) => {
-      if (!args.localThreadId) {
-        throw new Error("ensureThread requires localThreadId.");
-      }
       return client.mutation(chatApi.ensureThread, {
         actor: args.actor,
-        threadId: args.localThreadId,
-        ...(args.externalThreadId ? { externalThreadId: args.externalThreadId } : {}),
+        threadId: args.threadId,
         ...(args.model ? { model: args.model } : {}),
         ...(args.cwd ? { cwd: args.cwd } : {}),
-      }) as Promise<{ threadId: string; externalThreadId?: string; created: boolean }>;
+      }) as Promise<{ threadId: string; created?: boolean }>;
     },
 
     ensureSession: async (args) => {

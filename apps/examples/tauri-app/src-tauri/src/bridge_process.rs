@@ -28,8 +28,7 @@ pub struct HelperStartPayload {
     pub delta_throttle_ms: Option<u64>,
     pub save_stream_deltas: Option<bool>,
     pub thread_strategy: Option<String>,
-    pub runtime_thread_id: Option<String>,
-    pub external_thread_id: Option<String>,
+    pub thread_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -40,7 +39,6 @@ pub struct BridgeStateSnapshot {
     pub turn_id: Option<String>,
     pub last_error_code: Option<String>,
     pub last_error: Option<String>,
-    pub runtime_thread_id: Option<String>,
     pub disabled_tools: Vec<String>,
     pub pending_server_request_count: Option<u64>,
     pub ingest_enqueued_event_count: Option<u64>,
@@ -191,7 +189,6 @@ impl BridgeRuntime {
                 "running": false,
                 "localThreadId": null,
                 "turnId": null,
-                "runtimeThreadId": null,
                 "pendingServerRequestCount": 0,
                 "ingestEnqueuedEventCount": 0,
                 "ingestSkippedEventCount": 0,
@@ -260,7 +257,6 @@ impl BridgeRuntime {
             snapshot.running = false;
             snapshot.local_thread_id = None;
             snapshot.turn_id = None;
-            snapshot.runtime_thread_id = None;
             snapshot.pending_server_request_count = Some(0);
             snapshot.ingest_enqueued_event_count = Some(0);
             snapshot.ingest_skipped_event_count = Some(0);
@@ -281,7 +277,6 @@ impl BridgeRuntime {
                 "running": false,
                 "localThreadId": null,
                 "turnId": null,
-                "runtimeThreadId": null,
                 "pendingServerRequestCount": 0,
                 "ingestEnqueuedEventCount": 0,
                 "ingestSkippedEventCount": 0,

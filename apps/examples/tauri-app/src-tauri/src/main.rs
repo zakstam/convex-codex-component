@@ -34,8 +34,7 @@ struct StartBridgeConfig {
     delta_throttle_ms: Option<u64>,
     save_stream_deltas: Option<bool>,
     thread_strategy: Option<String>,
-    runtime_thread_id: Option<String>,
-    external_thread_id: Option<String>,
+    thread_id: Option<String>,
 }
 
 #[tauri::command]
@@ -60,12 +59,10 @@ async fn start_bridge(
             "tsMs": now_unix_ms(),
             "source": source,
             "runningBefore": snapshot_before.running,
-            "runtimeThreadIdBefore": snapshot_before.runtime_thread_id,
             "localThreadIdBefore": snapshot_before.local_thread_id,
             "turnIdBefore": snapshot_before.turn_id,
             "threadStrategy": config.thread_strategy,
-            "runtimeThreadIdArg": config.runtime_thread_id,
-            "externalThreadIdArg": config.external_thread_id,
+            "threadIdArg": config.thread_id,
         }),
     );
 
@@ -83,8 +80,7 @@ async fn start_bridge(
                 delta_throttle_ms: config.delta_throttle_ms,
                 save_stream_deltas: config.save_stream_deltas,
                 thread_strategy: config.thread_strategy,
-                runtime_thread_id: config.runtime_thread_id,
-                external_thread_id: config.external_thread_id,
+                thread_id: config.thread_id,
             },
         )
         .await;

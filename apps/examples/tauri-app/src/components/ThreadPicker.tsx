@@ -2,11 +2,8 @@ import { useState, useRef, useEffect } from "react";
 
 type Thread = {
   threadId: string;
-  externalThreadId?: string | null;
-  runtimeThreadId?: string | null;
-  linkState?: "linked" | "runtime_only" | "persisted_only";
   status: string;
-  createdAt?: number;
+  updatedAt?: number;
 };
 
 type Props = {
@@ -102,9 +99,9 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
               <span className={`status-badge ${thread.status}`}>
                 {thread.status}
               </span>
-              {thread.createdAt && (
+              {thread.updatedAt && (
                 <span className="thread-option-time">
-                  {formatRelativeTime(thread.createdAt)}
+                  {formatRelativeTime(thread.updatedAt)}
                 </span>
               )}
             </button>

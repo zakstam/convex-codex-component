@@ -15,12 +15,17 @@ Canonical default used here: runtime-owned host integration.
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: helper-defined host endpoints via `createCodexHost(...)`
+- `convex/chat.ts`: generated host shim using `defineCodexHostDefinitions(...)`
 - `convex/chat.extensions.ts`: optional app-specific additions
 
 Thread contract note:
 
 - runtime-owned `ensureThread` is single-path (no mode branching)
-- provide `threadId` or `externalThreadId` when resolving thread context
+- provide `threadId` when resolving thread context
+
+Host shim workflow:
+
+- `pnpm run sync:host-shim`
+- `pnpm run check:host-shim`
 
 Create and export environment before starting the app as documented in the shared runbook.

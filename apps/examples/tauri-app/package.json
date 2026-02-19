@@ -6,6 +6,8 @@
     "prepare:component": "pnpm -C ../../.. run component:build",
     "prepare:component:watch": "pnpm --filter @zakstam/codex-local-component run build:watch",
     "prepare:tauri-assets": "node ./scripts/prepare-tauri-assets.mjs",
+    "sync:host-shim": "pnpm run prepare:component && node ./scripts/sync-host-shim.mjs",
+    "check:host-shim": "pnpm run prepare:component && node ./scripts/sync-host-shim.mjs --check",
     "check:generated:convex": "node ./scripts/check-generated-convex.mjs",
     "build:node": "esbuild src-node/bridge-helper.ts --bundle --platform=node --format=esm --outfile=dist-node/bridge-helper.js",
     "build:node:watch": "esbuild src-node/bridge-helper.ts --bundle --platform=node --format=esm --outfile=dist-node/bridge-helper.js --watch",
@@ -18,25 +20,25 @@
     "build": "pnpm run build:tauri",
     "build:tauri": "pnpm run prepare:component && pnpm run prepare:tauri-assets && pnpm run build:node && tauri build --bundles deb,rpm",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "pnpm run prepare:component && pnpm run check:generated:convex && tsc --noEmit",
-    "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:generated:convex && tsc --noEmit",
+    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && pnpm run check:generated:convex && tsc --noEmit",
+    "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:host-shim && pnpm run check:generated:convex && tsc --noEmit",
     "tauri:check": "pnpm run prepare:component && pnpm run prepare:tauri-assets && (cd src-tauri && cargo check)"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/api": "^2.10.1",
     "@zakstam/codex-local-component": "workspace:*",
-    "convex": "^1.31.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "convex": "^1.32.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.2.5",
-    "@types/node": "^22.13.1",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "@vitejs/plugin-react": "^4.3.4",
-    "esbuild": "^0.25.10",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.5"
+    "@tauri-apps/cli": "^2.10.0",
+    "@types/node": "^22.19.11",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1"
   }
 }

@@ -38,7 +38,6 @@ type HelperEvent =
         turnId: string | null;
         lastErrorCode: string | null;
         lastError: string | null;
-        runtimeThreadId: string | null;
         pendingServerRequestCount: number;
         ingestEnqueuedEventCount: number;
         ingestSkippedEventCount: number;
@@ -202,7 +201,6 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       turnId: bridgeState.turnId,
       lastErrorCode: bridgeState.lastErrorCode,
       lastError: bridgeState.lastError,
-      runtimeThreadId,
       pendingServerRequestCount: bridgeState.pendingServerRequestCount,
       ingestEnqueuedEventCount: bridgeState.ingestEnqueuedEventCount,
       ingestSkippedEventCount: bridgeState.ingestSkippedEventCount,
@@ -332,6 +330,18 @@ async function executeDynamicToolCall(
   };
 }
 
+async function resolveRuntimeThreadIdForLocalThread(
+  client: ConvexHttpClient,
+  actor: ActorContext,
+  threadId: string,
+): Promise<string> {
+  const result = await client.query(
+    requireDefined(chatApi.resolveThreadHandleForStart, "api.chat.resolveThreadHandleForStart"),
+    { actor, threadId },
+  ) as { threadHandleId: string };
+  return result.threadHandleId;
+}
+
 async function setDisabledTools(tools: string[]): Promise<string[]> {
   const normalized = normalizeDisabledTools(tools).filter((tool) => DYNAMIC_TOOL_NAMES.has(tool));
   const unknown = tools
@@ -349,12 +359,13 @@ async function setDisabledTools(tools: string[]): Promise<string[]> {
   };
   emitState();
   if (runtime && latestStartPayload) {
-    const strategy = runtimeThreadId ? "resume" : latestStartPayload.threadStrategy ?? "start";
+    const restartThreadId = bridgeState.localThreadId ?? latestStartPayload.threadId;
+    const strategy = restartThreadId ? "resume" : latestStartPayload.threadStrategy ?? "start";
     const restartPayload: StartPayload = {
       ...latestStartPayload,
       disabledTools: normalized,
       threadStrategy: strategy,
-      ...(runtimeThreadId ? { runtimeThreadId } : {}),
+      ...(restartThreadId ? { threadId: restartThreadId } : {}),
     };
     await stopCurrentBridge();
     await startBridge(restartPayload);
@@ -454,7 +465,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
   convex = new ConvexHttpClient(payload.convexUrl);
   actor = payload.actor;
   activeSessionId = payload.sessionId ? `${payload.sessionId}-${randomSessionId()}` : randomSessionId();
-  runtimeThreadId = payload.runtimeThreadId ?? null;
+  runtimeThreadId = null;
 
   const wiringValidation = await convex.query(
     requireDefined(chatApi.validateHostWiring, "api.chat.validateHostWiring"),
@@ -572,14 +583,27 @@ async function startBridge(payload: StartPayload): Promise<void> {
   });
 
   try {
+    const threadStrategy = payload.threadStrategy ?? (payload.threadId ? "resume" : "start");
+    let runtimeThreadIdForStart: string | undefined;
+    if (threadStrategy === "resume" || threadStrategy === "fork") {
+      const requestedThreadId = payload.threadId?.trim();
+      if (!requestedThreadId) {
+        throw new Error(`threadId is required when threadStrategy="${threadStrategy}".`);
+      }
+      runtimeThreadIdForStart = await resolveRuntimeThreadIdForLocalThread(
+        convex,
+        payload.actor,
+        requestedThreadId,
+      );
+    }
+
     const enabledDynamicTools = resolveEnabledDynamicTools(normalizedPayload.disabledTools);
     await runtime.start({
       actor: payload.actor,
       sessionId: activeSessionId,
       dynamicTools: enabledDynamicTools,
-      ...(payload.externalThreadId ? { externalThreadId: payload.externalThreadId } : {}),
-      ...(payload.runtimeThreadId ? { runtimeThreadId: payload.runtimeThreadId } : {}),
-      ...(payload.threadStrategy ? { threadStrategy: payload.threadStrategy } : {}),
+      ...(runtimeThreadIdForStart ? { runtimeThreadId: runtimeThreadIdForStart } : {}),
+      threadStrategy,
       ...(payload.model ? { model: payload.model } : {}),
       ...(payload.cwd ? { cwd: payload.cwd } : {}),
       ...(payload.deltaThrottleMs ? { ingestFlushMs: payload.deltaThrottleMs } : {}),

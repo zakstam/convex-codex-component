@@ -33,10 +33,6 @@ export function BridgeStatus({ bridge }: Props) {
           <span className="code">{bridge.localThreadId ?? "—"}</span>
         </div>
         <div className="bridge-field">
-          <span className="bridge-field-label">Runtime Thread</span>
-          <span className="code">{bridge.runtimeThreadId ?? "—"}</span>
-        </div>
-        <div className="bridge-field">
           <span className="bridge-field-label">Pending</span>
           <span className="code">{bridge.pendingServerRequestCount ?? 0}</span>
         </div>

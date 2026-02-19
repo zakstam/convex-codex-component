@@ -10,14 +10,15 @@ Canonical consumer implementation guidance is in:
 
 - `convex.config.ts`: mounts `codexLocal`
 - `actorLock.ts`: app-owned actor binding and server-side identity guard
-- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`) using actor lock
-- `chat.ts`: stable host surface (exports public `api.chat.*`) built from `createCodexHost(...)`
+- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`, `resolveThreadHandleForStart`) using actor lock
+- `chat.ts`: generated host shim (exports public `api.chat.*`) built from `defineCodexHostDefinitions(...)`
   - includes deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
 
 ## Thread API
 
-- Thread flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
-- Runtime-owned `ensureThread` uses one resolve path and requires `threadId` or `externalThreadId`.
+- Thread picker flow: `chat.listThreadsForPicker`.
+- Picker query returns persisted thread metadata only (`threadId`, status, timestamps).
+- Runtime-owned `ensureThread` uses one resolve path and requires `threadId`.
 
 ## Actor Lock
 
@@ -30,8 +31,9 @@ Canonical consumer implementation guidance is in:
 From `apps/examples/tauri-app`:
 
 ```bash
+pnpm run sync:host-shim
 pnpm run dev:convex
 pnpm run dev:convex:once
-pnpm run check:wiring:convex
+pnpm run check:host-shim
 pnpm run typecheck:convex
 ```

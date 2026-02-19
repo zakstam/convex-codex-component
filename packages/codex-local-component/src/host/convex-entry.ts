@@ -1,12 +1,10 @@
 export {
-  createCodexHost,
-  type CodexHostActorResolver,
-  type CodexConvexHostActorPolicy,
-  type CodexHostFacade,
+  defineCodexHostDefinitions,
+  type CodexHostDefinitions,
   type CodexHostSliceFeatures,
   type CodexHostSliceIngestMode,
   type CodexHostSliceProfile,
-  type CreateCodexHostOptions,
+  type DefineCodexHostDefinitionsOptions,
   type RuntimeOwnedHostDefinitions,
 } from "./convexPreset.js";
 export {
@@ -17,6 +15,10 @@ export {
   type HostSurfaceMutationKey,
   type HostSurfaceQueryKey,
 } from "./surfaceManifest.js";
+export {
+  renderCodexHostShim,
+  type CodexHostShimRenderOptions,
+} from "./shim.js";
 
 export {
   ingestBatchSafe,

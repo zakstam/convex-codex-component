@@ -82,11 +82,11 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_8e3b4b49ea83",
+      "id": "UC_83de853e8e43",
       "file": "src/host/convexPersistence.ts",
-      "line": 137,
+      "line": 133,
       "col": 9,
-      "snippet": "}) as Promise<{ threadId: string; externalThreadId?: string; created: boolean }>;",
+      "snippet": "}) as Promise<{ threadId: string; created?: boolean }>;",
       "context": "prev:...(args.cwd ? { cwd: args.cwd } : {}), | next:},"
     },
     {
@@ -95,7 +95,7 @@
       "riskLevel": "default",
       "id": "UC_191e5f5cb3c0",
       "file": "src/host/convexPersistence.ts",
-      "line": 147,
+      "line": 143,
       "col": 9,
       "snippet": "}) as Promise<{ sessionId: string; threadId: string; status: \"created\" | \"active\" }>;",
       "context": "prev:lastEventCursor: args.lastEventCursor, | next:},"
@@ -106,7 +106,7 @@
       "riskLevel": "default",
       "id": "UC_0511ea914b28",
       "file": "src/host/convexPersistence.ts",
-      "line": 152,
+      "line": 148,
       "col": 113,
       "snippet": "client.mutation(chatApi.ingestBatch, toIngestPayload(args.actor, sessionId, args.threadId, args.deltas)) as Promise<{",
       "context": "prev:const runIngest = async (sessionId: string) => | next:status: \"ok\" | \"partial\" | \"session_recovered\" | \"rejected\";"
@@ -117,7 +117,7 @@
       "riskLevel": "default",
       "id": "UC_1753ffab9faf",
       "file": "src/host/convexPersistence.ts",
-      "line": 192,
+      "line": 188,
       "col": 35,
       "snippet": "const requestedAt = (request as { createdAt?: number }).createdAt;",
       "context": "prev:upsertPendingServerRequest: async ({ actor, request }) => { | next:await client.mutation(chatApi.upsertPendingServerRequest, {"
@@ -128,7 +128,7 @@
       "riskLevel": "default",
       "id": "UC_18ee97430829",
       "file": "src/host/convexPersistence.ts",
-      "line": 223,
+      "line": 219,
       "col": 9,
       "snippet": "}) as Promise<HostRuntimePersistence[\"listPendingServerRequests\"] extends (...a: never[]) => infer R ? Awaited<R> : never>;",
       "context": "prev:limit: 100, | next:},"
@@ -139,32 +139,10 @@
       "riskLevel": "default",
       "id": "UC_7ed65984e01e",
       "file": "src/host/convexPersistence.ts",
-      "line": 234,
+      "line": 230,
       "col": 9,
       "snippet": "}) as { dispatchId: string; turnId: string; accepted: true };",
       "context": "prev:...(args.dispatchId ? { dispatchId: args.dispatchId } : {}), | next:const claimToken = randomSessionId();"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_af358165669f",
-      "file": "src/host/convexPreset.ts",
-      "line": 830,
-      "col": 4,
-      "snippet": "} as WrappedDefinitionMap<RuntimeOwnedHostDefinitions[\"mutations\"], MutationWrap>;",
-      "context": "prev:), | next:const wrappedQueries = {"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_026edd9d95ba",
-      "file": "src/host/convexPreset.ts",
-      "line": 845,
-      "col": 4,
-      "snippet": "} as WrappedDefinitionMap<RuntimeOwnedHostDefinitions[\"queries\"], QueryWrap>;",
-      "context": "prev:listThreadReasoning: queryWrap(resolvedDefs.queries.listThreadReasoning), | next:const endpoints = { ...wrappedMutations, ...wrappedQueries } as"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -183,7 +161,7 @@
       "riskLevel": "default",
       "id": "UC_b7420ba788a0",
       "file": "src/host/convexSlice.ts",
-      "line": 344,
+      "line": 364,
       "col": 23,
       "snippet": "const record = value as Record<string, unknown>;",
       "context": "prev:} | next:return ("
@@ -194,7 +172,7 @@
       "riskLevel": "default",
       "id": "UC_04b0b409a61b",
       "file": "src/host/convexSlice.ts",
-      "line": 356,
+      "line": 376,
       "col": 29,
       "snippet": "const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;",
       "context": "prev:} | next:return Array.isArray(streamStats) ? streamStats : null;"
@@ -205,7 +183,7 @@
       "riskLevel": "default",
       "id": "UC_2a0ca5600914",
       "file": "src/host/convexSlice.ts",
-      "line": 364,
+      "line": 384,
       "col": 32,
       "snippet": "const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;",
       "context": "prev:} | next:return Array.isArray(recentMessages) ? recentMessages : null;"
@@ -216,7 +194,7 @@
       "riskLevel": "default",
       "id": "UC_b5a6cdf49ed2",
       "file": "src/host/convexSlice.ts",
-      "line": 372,
+      "line": 392,
       "col": 28,
       "snippet": "const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;",
       "context": "prev:} | next:return Array.isArray(allStreams) ? allStreams : null;"

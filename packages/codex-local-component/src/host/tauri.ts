@@ -13,7 +13,6 @@ export type BridgeState = {
   turnId: string | null;
   lastErrorCode?: string | null;
   lastError: string | null;
-  runtimeThreadId?: string | null;
   disabledTools?: string[];
   pendingServerRequestCount?: number | null;
   ingestEnqueuedEventCount?: number | null;
@@ -36,8 +35,7 @@ export type StartBridgeConfig = {
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
   threadStrategy?: "start" | "resume" | "fork";
-  runtimeThreadId?: string;
-  externalThreadId?: string;
+  threadId?: string;
 };
 
 export type StartPayload = {
@@ -50,8 +48,7 @@ export type StartPayload = {
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
   threadStrategy?: "start" | "resume" | "fork";
-  runtimeThreadId?: string;
-  externalThreadId?: string;
+  threadId?: string;
 };
 
 export type HelperCommandType =

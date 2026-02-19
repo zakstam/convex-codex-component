@@ -78,11 +78,8 @@ type PendingServerRequest = {
 
 type PickerThread = {
   threadId: string;
-  externalThreadId?: string | null;
-  runtimeThreadId?: string | null;
-  linkState?: "linked" | "runtime_only" | "persisted_only";
   status: string;
-  createdAt?: number;
+  updatedAt?: number;
 };
 
 function requireDefined<T>(value: T | undefined, name: string): T {
@@ -206,13 +203,13 @@ function AppContent({
     respondChatgptAuthTokensRefresh: tauriBridge.account.respondChatgptAuthTokensRefresh,
   });
 
-  // Ref breaks the circular dependency: startBridgeWithSelection → selectedRuntimeThreadId
+  // Ref breaks the circular dependency: startBridgeWithSelection → selectedThreadId
   // → conversation.threads → useCodex() → composer.onSend → startBridgeWithSelection
-  const selectedRuntimeThreadIdRef = useRef("");
+  const selectedThreadIdRef = useRef("");
 
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry") => {
-      const resumeThreadId = selectedRuntimeThreadIdRef.current.trim() || undefined;
+      const resumeThreadId = selectedThreadIdRef.current.trim() || undefined;
       if (!actorReady) {
         throw new Error("Actor identity is still synchronizing. Please retry in a moment.");
       }
@@ -226,7 +223,7 @@ function AppContent({
         disabledTools: bridge.disabledTools ?? [],
         deltaThrottleMs: 250,
         saveStreamDeltas: true,
-        ...(resumeThreadId ? { threadStrategy: "resume" as const, runtimeThreadId: resumeThreadId } : {}),
+        ...(resumeThreadId ? { threadStrategy: "resume" as const, threadId: resumeThreadId } : {}),
       });
     },
     [actor, actorReady, bridge.disabledTools, runtimeBridge],
@@ -288,11 +285,7 @@ function AppContent({
     () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
     [threads.threads],
   );
-  const selectedRuntimeThreadId = useMemo(
-    () => pickerThreads.find((t) => t.threadId === selectedThreadId)?.runtimeThreadId ?? "",
-    [pickerThreads, selectedThreadId],
-  );
-  selectedRuntimeThreadIdRef.current = selectedRuntimeThreadId;
+  selectedThreadIdRef.current = selectedThreadId;
 
   // Sync bridge-created threads into the picker selection
   useEffect(() => {

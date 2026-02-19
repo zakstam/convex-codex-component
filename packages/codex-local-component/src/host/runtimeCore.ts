@@ -171,8 +171,13 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   const ensureThreadBinding = async (preferred?: string): Promise<void> => {
     if (!actor || !sessionId || threadId) return;
     const next = preferred ?? runtimeThreadId; if (!next) return;
-    const binding = await args.persistence.ensureThread({ actor, externalThreadId: externalThreadId ?? next, ...(startupModel !== undefined ? { model: startupModel } : {}), ...(startupCwd !== undefined ? { cwd: startupCwd } : {}), localThreadId: next });
-    threadId = binding.threadId; externalThreadId = binding.externalThreadId ?? next;
+    const binding = await args.persistence.ensureThread({
+      actor,
+      threadId: externalThreadId ?? next,
+      ...(startupModel !== undefined ? { model: startupModel } : {}),
+      ...(startupCwd !== undefined ? { cwd: startupCwd } : {}),
+    });
+    threadId = binding.threadId; if (!externalThreadId) externalThreadId = next;
     await args.persistence.ensureSession({ actor, sessionId, threadId, lastEventCursor: 0 }); emitState();
   };
 

@@ -5,6 +5,7 @@ import {
   computeDurableHistoryStats,
   computePersistenceStats,
   ensureThreadByCreate,
+  ensureThreadByResolve,
   ingestBatchMixed,
   listPendingServerRequestsForHooksForActor,
   listThreadMessagesForHooks,
@@ -43,6 +44,37 @@ test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   assert.equal(calls[0].args.model, "m");
   assert.equal(calls[0].args.cwd, "/tmp");
   assert.equal(typeof calls[0].args.actor.userId, "string");
+});
+
+test("ensureThreadByResolve derives external and local identity from threadId", async () => {
+  const resolveRef = {};
+  const calls = [];
+  const ctx = {
+    runMutation: async (ref, args) => {
+      calls.push({ ref, args });
+      return { ok: true };
+    },
+  };
+  const component = {
+    threads: {
+      resolve: resolveRef,
+    },
+  };
+
+  await ensureThreadByResolve(ctx, component, {
+    actor: { userId: "ignored" },
+    threadId: "thread-1",
+    externalThreadId: "legacy-id",
+    model: "m",
+    cwd: "/tmp",
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].ref, resolveRef);
+  assert.equal(calls[0].args.externalThreadId, "thread-1");
+  assert.equal(calls[0].args.localThreadId, "thread-1");
+  assert.equal(calls[0].args.model, "m");
+  assert.equal(calls[0].args.cwd, "/tmp");
 });
 
 test("ingestBatchMixed forwards stream and lifecycle events", async () => {

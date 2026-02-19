@@ -1,56 +1,69 @@
 # API Reference
 
-This package now documents one integration path only.
+This package documents one integration path only.
 
 Use this path in order:
 
 1. Mount `@zakstam/codex-local-component/convex.config`.
-2. Define host endpoints with `createCodexHost(...)` from `@zakstam/codex-local-component/host/convex`.
-3. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
-4. Build UI with hooks from `@zakstam/codex-local-component/react`.
+2. Define host definitions via `defineCodexHostDefinitions(...)` from `@zakstam/codex-local-component/host/convex`.
+3. Export explicit Convex `query/mutation` handlers from `convex/chat.ts`.
+4. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
+5. Build UI with hooks from `@zakstam/codex-local-component/react`.
 
-## Canonical Imports
+## `@zakstam/codex-local-component`
 
-- `@zakstam/codex-local-component/convex.config`
-- `@zakstam/codex-local-component/host/convex`
-- `@zakstam/codex-local-component/host`
-- `@zakstam/codex-local-component/react`
-- `@zakstam/codex-local-component/_generated/component.js`
-- `@zakstam/codex-local-component/test`
+| `API` | `Type` | `Notes` |
+| --- | --- | --- |
+| `createCodexHostRuntime` | `function` | Runtime-owned host runtime factory. |
+| `defineCodexHostDefinitions` | `function` | Runtime-owned host definition builder. |
+| `createConvexPersistence` | `function` | Convex-backed persistence adapter for host runtime. |
 
-## Canonical Host API
+## `@zakstam/codex-local-component/react`
 
-From `@zakstam/codex-local-component/host/convex`:
+| `API` | `Type` | `Notes` |
+| --- | --- | --- |
+| `CodexProvider` | `component` | React provider for host API + actor context. |
+| `useCodex` | `hook` | Canonical high-level hook for conversation/runtime. |
+| `useCodexRuntimeBridge` | `hook` | Runtime bridge controls/state for host-driven UIs. |
 
-- `createCodexHost`
-- `CodexHostActorResolver`
-- `HostActorContext`
+## `@zakstam/codex-local-component/host`
 
-From `@zakstam/codex-local-component/host`:
+| `API` | `Type` | `Notes` |
+| --- | --- | --- |
+| `createCodexHostRuntime` | `function` | Runtime owner for Codex bridge + persistence loop. |
+| `defineCodexHostDefinitions` | `function` | Host definition source used by app `convex/chat.ts`. |
+| `renderCodexHostShim` | `function` | Deterministic host shim renderer for `sync/check` scripts. |
 
-- `createCodexHostRuntime`
+## `@zakstam/codex-local-component/host/convex`
 
-## Canonical React API
+| `API` | `Type` | `Notes` |
+| --- | --- | --- |
+| `defineCodexHostDefinitions` | `function` | Returns runtime-owned mutation/query definitions. |
+| `HOST_SURFACE_MANIFEST` | `const` | Canonical host mutation/query surface metadata. |
+| `renderCodexHostShim` | `function` | Generates explicit Convex `convex/chat.ts` module content. |
+| `vHostActorContext` | `validator` | Actor validator for host endpoints. |
 
-From `@zakstam/codex-local-component/react`:
+## `@zakstam/codex-local-component/protocol`
 
-- `CodexProvider`
-- `useCodex`
-- `useCodexChat`
-- `useCodexMessages`
-- `useCodexThreadActivity`
-- `useCodexThreadState`
-- `useCodexThreads`
-- `useCodexTokenUsage`
+| `API` | `Type` | `Notes` |
+| --- | --- | --- |
+| `parseWireMessage` | `function` | Parse inbound protocol wire lines/messages. |
+| `assertValidClientMessage` | `function` | Validate outbound client wire payloads. |
+| `classifyMessage` | `function` | Classify inbound protocol messages into thread/global scopes. |
+
+## `@zakstam/codex-local-component/convex.config`
+
+| `API` | `Type` | `Notes` |
+| --- | --- | --- |
+| `default` | `component` | Convex component mount entrypoint. |
 
 ## Notes
 
-- `createCodexHost` is the only documented host-wiring entrypoint.
-- `createCodexHost` requires explicit `actorPolicy`.
-- `actorPolicy.userId` must be a non-empty string.
-- `createCodexHost` optionally accepts `actorResolver` (`mutation`/`query`) to resolve `args.actor` before host handlers run.
-- Export Convex host functions as named constants from `codex.endpoints` to keep generated `api.chat.*` args/returns fully typed.
-- Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
+- `defineCodexHostDefinitions` is the canonical host-definition entrypoint.
+- `createCodexHost` and wrapper-based host facade APIs are removed.
+- Authentication is consumer-managed at app boundaries.
+- Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
+- Runtime-owned `ensureThread` is single-path and requires `threadId`.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

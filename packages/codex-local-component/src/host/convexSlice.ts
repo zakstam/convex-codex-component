@@ -286,8 +286,7 @@ type EnsureThreadCreateArgs = {
 
 type EnsureThreadResolveArgs = {
   actor: HostActorContext;
-  threadId?: string;
-  externalThreadId?: string;
+  threadId: string;
   model?: string;
   cwd?: string;
 };
@@ -477,12 +476,10 @@ export async function ensureThreadByResolve<
   component: Component,
   args: EnsureThreadResolveArgs,
 ): Promise<FunctionReturnType<Component["threads"]["resolve"]>> {
-  const externalThreadId = args.externalThreadId ?? args.threadId;
-  const localThreadId = args.threadId ?? externalThreadId;
   return ctx.runMutation(component.threads.resolve, {
     actor: args.actor,
-    ...(externalThreadId !== undefined ? { externalThreadId } : {}),
-    ...(localThreadId !== undefined ? { localThreadId } : {}),
+    externalThreadId: args.threadId,
+    localThreadId: args.threadId,
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
   });

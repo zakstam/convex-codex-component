@@ -30,8 +30,8 @@ Use one source of truth for implementation steps:
 ## Quickstart Summary
 
 1. Mount component in `convex/convex.config.ts` with `app.use(codexLocal)`.
-2. Define host endpoints directly in `convex/chat.ts` with `createCodexHost(...)`.
-3. Optionally keep app-specific additions in `convex/chat.extensions.ts` and re-export from `convex/chat.ts`.
+2. Generate/sync `convex/chat.ts` host shim (`pnpm run sync:host-shim`).
+3. Define host endpoints with `defineCodexHostDefinitions(...)` and explicit `mutation/query` exports.
 4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
@@ -72,6 +72,7 @@ Validate with:
 
 - `npx convex dev --once`
 - `pnpm run dev:convex:once` (or app equivalent)
+- `pnpm run check:host-shim`
 - `pnpm run typecheck`
 
 If a prerequisite is missing for an app, ask for package-specific assumptions before continuing.
@@ -93,7 +94,7 @@ pnpm add @zakstam/codex-local-component convex
 npx convex dev --once
 ```
 
-4. Define host endpoints from `createCodexHost(...)` in `convex/chat.ts`.
+4. Generate/sync `convex/chat.ts` from host manifest (`pnpm run sync:host-shim`).
 
 5. Start runtime-owned host wiring through `@zakstam/codex-local-component/host`.
 
@@ -103,6 +104,7 @@ npx convex dev --once
 
 ```bash
 pnpm run dev:convex:once
+pnpm run check:host-shim
 pnpm run lint
 pnpm run typecheck
 ```
@@ -121,7 +123,7 @@ The component supports async cascade deletion with job polling:
 - `threads.forceRunScheduledDeletion`
 - `threads.getDeletionJobStatus`
 
-Runtime-owned host endpoints from `createCodexHost(...)` expose the same lifecycle operations as:
+Runtime-owned host endpoints expose the same lifecycle operations as:
 
 - `deleteThread`
 - `scheduleDeleteThread`

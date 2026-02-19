@@ -69,6 +69,7 @@ Validate with:
 
 - `npx convex dev --once`
 - `pnpm run dev:convex:once` (or app equivalent)
+- `pnpm run check:host-shim`
 - `pnpm run typecheck`
 
 If a prerequisite is missing for an app, ask for package-specific assumptions before continuing.
@@ -81,6 +82,7 @@ If a prerequisite is missing for an app, ask for package-specific assumptions be
 ```bash
 cd apps/examples/persistent-cli-app
 pnpm run dev:convex
+pnpm run sync:host-shim
 pnpm start
 ```
 
@@ -88,6 +90,7 @@ pnpm start
 
 ```bash
 cd apps/examples/tauri-app
+pnpm run sync:host-shim
 pnpm run dev
 ```
 

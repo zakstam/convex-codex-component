@@ -79,11 +79,10 @@ export type HostRuntimeStartArgs = {
 export type HostRuntimePersistence = {
   ensureThread: (args: {
     actor: ActorContext;
-    externalThreadId?: string;
+    threadId: string;
     model?: string;
     cwd?: string;
-    localThreadId?: string;
-  }) => Promise<{ threadId: string; externalThreadId?: string; created: boolean }>;
+  }) => Promise<{ threadId: string; created?: boolean }>;
   ensureSession: (args: {
     actor: ActorContext;
     sessionId: string;

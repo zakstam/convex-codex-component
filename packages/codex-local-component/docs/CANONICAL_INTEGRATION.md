@@ -7,10 +7,11 @@ This is the only documented way to integrate this library.
 ## Steps
 
 1. Mount the component in `convex/convex.config.ts` using `@zakstam/codex-local-component/convex.config`.
-2. Define host endpoints in `convex/chat.ts` using `createCodexHost(...)` from `@zakstam/codex-local-component/host/convex`.
-3. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
-4. Build UI with hooks from `@zakstam/codex-local-component/react`.
-5. Run `chat.validateHostWiring` during startup.
+2. Define host definitions in `convex/chat.ts` with `defineCodexHostDefinitions(...)` from `@zakstam/codex-local-component/host/convex`.
+3. Export explicit Convex `mutation/query` wrappers from `convex/chat.ts`.
+4. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
+5. Build UI with hooks from `@zakstam/codex-local-component/react`.
+6. Run `chat.validateHostWiring` during startup.
 
 ## Actor Contract
 
@@ -18,53 +19,43 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
 
 - `userId` present: user-scoped isolation.
 - `userId` missing: anonymous-only isolation.
+- Authentication and actor binding are app-owned concerns.
 
 ## Thread Contract
 
 - Runtime-owned `ensureThread` is single-path.
-- Provide at least one identity: `threadId` or `externalThreadId`.
-- Do not implement mode branching.
+- Provide `threadId`.
+- Do not expose host identity alternatives in public app host APIs.
 
 ## Minimal Host Wiring
 
 ```ts
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import {
-  createCodexHost,
-  type HostActorContext,
-} from "@zakstam/codex-local-component/host/convex";
+import { defineCodexHostDefinitions } from "@zakstam/codex-local-component/host/convex";
 
-export const SERVER_ACTOR: HostActorContext = Object.freeze({
-  userId: process.env.ACTOR_USER_ID ?? "server",
-});
+const codex = defineCodexHostDefinitions({ components });
 
-const codex = createCodexHost({
-  components,
-  mutation,
-  query,
-  actorPolicy: SERVER_ACTOR,
-  actorResolver: {
-    mutation: async (ctx, actor) => requireBoundActorForMutation(ctx, actor),
-    query: async (ctx, actor) => requireBoundActorForQuery(ctx, actor),
-  },
-});
-
-export const ensureThread = codex.endpoints.ensureThread;
-export const ensureSession = codex.endpoints.ensureSession;
-export const ingestBatch = codex.endpoints.ingestBatch;
-export const scheduleDeleteThread = codex.endpoints.scheduleDeleteThread;
-export const validateHostWiring = codex.endpoints.validateHostWiring;
-export const getDeletionStatus = codex.endpoints.getDeletionStatus;
-export const threadSnapshotSafe = codex.endpoints.threadSnapshotSafe;
-export const listThreadMessages = codex.endpoints.listThreadMessages;
+export const ensureThread = mutation(codex.mutations.ensureThread);
+export const ensureSession = mutation(codex.mutations.ensureSession);
+export const ingestBatch = mutation(codex.mutations.ingestBatch);
+export const scheduleDeleteThread = mutation(codex.mutations.scheduleDeleteThread);
+export const validateHostWiring = query(codex.queries.validateHostWiring);
+export const getDeletionStatus = query(codex.queries.getDeletionStatus);
+export const threadSnapshotSafe = query(codex.queries.threadSnapshotSafe);
+export const listThreadMessages = query(codex.queries.listThreadMessages);
 ```
 
-`createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.userId` must be a non-empty string.
+For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
 
-`actorResolver` is optional. When present, it runs before every host mutation/query handler and replaces `args.actor` with the resolved actor. This is the canonical way to enforce actor binding without per-endpoint wrapper boilerplate.
+## Host Shim Generation
 
-For Convex `api.chat.*` generated typing, export each endpoint as a named constant (for example `export const ensureThread = codex.endpoints.ensureThread`).
+Canonical DX path: generate `convex/chat.ts` from host surface metadata.
+
+- `pnpm run sync:host-shim`
+- `pnpm run check:host-shim`
+
+Use `check:host-shim` in CI/typecheck flows to prevent API drift.
 
 ## Minimal React Wiring
 
@@ -91,6 +82,7 @@ Run:
 
 - `npx convex dev --once`
 - `pnpm run dev:convex:once` (or app equivalent)
+- `pnpm run check:host-shim`
 - `pnpm run typecheck`
 
 Use `apps/examples/tauri-app` as the reference implementation.

@@ -4,14 +4,16 @@
   "type": "module",
   "scripts": {
     "prepare:component": "pnpm -C ../../.. run component:build",
+    "sync:host-shim": "pnpm run prepare:component && node ./scripts/sync-host-shim.mjs",
+    "check:host-shim": "pnpm run prepare:component && node ./scripts/sync-host-shim.mjs --check",
     "dev:convex": "pnpm run prepare:component && convex dev",
     "dev:convex:once": "pnpm run prepare:component && convex dev --once",
     "start": "pnpm run prepare:component && tsx src/index.ts",
-    "typecheck": "pnpm run prepare:component && tsc --noEmit"
+    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && tsc --noEmit"
   },
   "dependencies": {
     "@zakstam/codex-local-component": "workspace:*",
-    "convex": "^1.31.7"
+    "convex": "^1.32.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.1",

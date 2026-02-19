@@ -10,7 +10,7 @@ Canonical wiring in this app centers on:
 - `useCodexRuntimeBridge`
 - `useCodexThreadState`
 - `useCodexTauriEvents` (single owner for Tauri runtime event subscriptions)
-- helper-defined host endpoints in `convex/chat.ts`
+- generated host shim endpoints in `convex/chat.ts`
 
 Canonical consumer implementation path:
 
@@ -90,14 +90,15 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexHost(...)`, `actorResolver`-based actor binding, and `codex.endpoints` exports
-- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
-- Runtime-owned host mutations/queries are exported from this single surface.
+- `convex/chat.ts`: generated app-owned public surface (`api.chat.*`) using `defineCodexHostDefinitions(...)` + explicit Convex `mutation/query` exports
+- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`, `resolveThreadHandleForStart`)
+- Host shim drift is enforced with `pnpm run sync:host-shim` and `pnpm run check:host-shim`.
 
 ## Thread API
 
-- Thread flow: `chat.startThread`, `chat.resumeThread`, and `chat.listThreadsForPicker`.
-- Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
+- Thread picker flow: `chat.listThreadsForPicker`.
+- Picker payloads expose only persisted `threadId` values; runtime thread-id mapping is helper-internal.
+- Runtime-owned `ensureThread` is single-path and requires `threadId`.
 
 Additional cleanup endpoints:
 

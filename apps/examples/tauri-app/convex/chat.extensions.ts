@@ -34,30 +34,34 @@ export const listThreadsForPicker = query({
       updatedAt: number;
     }>;
 
-    const rows = await Promise.all(
-      page.map(async (thread) => {
-        const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
-          actor: serverActor,
-          threadId: thread.threadId,
-        });
-
-        const externalThreadId = mapping?.externalThreadId ?? null;
-        const runtimeThreadId = externalThreadId ?? thread.threadId;
-        return {
-          threadId: thread.threadId,
-          status: thread.status,
-          updatedAt: thread.updatedAt,
-          externalThreadId,
-          runtimeThreadId,
-          linkState: externalThreadId ? "linked" : "persisted_only",
-        };
-      }),
-    );
+    const rows = page.map((thread) => ({
+      threadId: thread.threadId,
+      status: thread.status,
+      updatedAt: thread.updatedAt,
+    }));
 
     return {
       threads: rows,
       hasMore: !listed.isDone,
       continueCursor: listed.continueCursor,
+    };
+  },
+});
+
+export const resolveThreadHandleForStart = query({
+  args: {
+    actor: vHostActorContext,
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
+      actor: serverActor,
+      threadId: args.threadId,
+    });
+    return {
+      threadId: args.threadId,
+      threadHandleId: mapping?.externalThreadId ?? args.threadId,
     };
   },
 });

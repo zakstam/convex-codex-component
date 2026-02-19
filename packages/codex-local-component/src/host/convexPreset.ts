@@ -20,7 +20,6 @@ import {
   vHostSyncRuntimeOptions,
   type CodexHostComponentsInput,
   type HostActorContext,
-  type HostMutationRunner,
   type HostQueryRunner,
 } from "./convexSlice.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
@@ -368,26 +367,6 @@ export type RuntimeOwnedHostDefinitions = {
   };
 };
 
-type RuntimeOwnedMutationDefinition =
-  RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]];
-type RuntimeOwnedQueryDefinition =
-  RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]];
-type MutationDefinitionWrapper = (definition: RuntimeOwnedMutationDefinition) => unknown;
-type QueryDefinitionWrapper = (definition: RuntimeOwnedQueryDefinition) => unknown;
-
-type WrapperCanHandleDefinition<Wrap, Definition> =
-  Wrap extends { (definition: Definition): unknown } ? true : false;
-
-type WrapperMustHandleDefinitions<Wrap, Definitions> =
-  Exclude<
-    Definitions extends unknown
-      ? WrapperCanHandleDefinition<Wrap, Definitions>
-      : never,
-    true
-  > extends never
-    ? Wrap
-    : never;
-
 type Assert<T extends true> = T;
 type IsEqual<A, B> =
   (<T>() => T extends A ? 1 : 2) extends
@@ -400,77 +379,13 @@ type _RuntimeOwnedQueryKeysMatchManifest = Assert<
   IsEqual<keyof RuntimeOwnedHostDefinitions["queries"], RuntimeOwnedQueryKeys>
 >;
 
-type DefinitionMap = Record<string, unknown>;
-type WrappedResultForDefinition<Wrap, Definition> =
-  Wrap extends (...args: any[]) => any
-    ? ReturnType<Wrap & ((definition: Definition) => any)> &
-      (Wrap extends (definition: Definition) => infer Result ? Result : unknown)
-    : never;
-type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
-  [Key in keyof Defs]: WrappedResultForDefinition<Wrap, Defs[Key]>;
-};
-
-export type CodexConvexHostActorPolicy = {
-  userId: string;
-};
-
-type ActorResolver<Context> = (
-  ctx: Context,
-  actor: HostActorContext,
-) => HostActorContext | Promise<HostActorContext>;
-
-export type CodexHostActorResolver = {
-  mutation?: ActorResolver<HostMutationRunner & HostQueryRunner>;
-  query?: ActorResolver<HostQueryRunner>;
-};
-
-type NormalizedActorPolicy = HostActorContext;
-
-function normalizeActorPolicy(
-  policy: CodexConvexHostActorPolicy | undefined,
-): NormalizedActorPolicy | undefined {
-  if (!policy) {
-    return undefined;
-  }
-  if (typeof policy !== "object" || policy === null) {
-    throw new Error(
-      'createCodexHost requires actorPolicy to be an object: { userId: string }.',
-    );
-  }
-  if (!("userId" in policy)) {
-    throw new Error(
-      'createCodexHost requires actorPolicy to be an object: { userId: string }.',
-    );
-  }
-  return policy;
-}
-
-// ---------------------------------------------------------------------------
-// createCodexHost – the new unified entry point
-// ---------------------------------------------------------------------------
-
-export type CreateCodexHostOptions<
+export type DefineCodexHostDefinitionsOptions<
   Components extends CodexHostComponentsInput = CodexHostComponentsInput,
-  MutationWrap = unknown,
-  QueryWrap = unknown,
 > = {
   components: Components;
-  mutation: WrapperMustHandleDefinitions<MutationWrap, RuntimeOwnedMutationDefinition>;
-  query: WrapperMustHandleDefinitions<QueryWrap, RuntimeOwnedQueryDefinition>;
-  actorPolicy: CodexConvexHostActorPolicy;
-  actorResolver?: CodexHostActorResolver;
 };
 
-export type CodexHostFacade<
-  MutationWrap = unknown,
-  QueryWrap = unknown,
-> = {
-  profile: "runtimeOwned";
-  mutations: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
-  queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
-  endpoints: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap> &
-    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
-};
+export type CodexHostDefinitions = RuntimeOwnedHostDefinitions;
 
 function toPublicRuntimeOwnedDefinitions(
   defs: RuntimeOwnedInternalDefinitions,
@@ -526,67 +441,10 @@ function requireHostDefinition<Definition>(
   return definition;
 }
 
-function assertValidNormalizedActorPolicy(
-  actorPolicy: NormalizedActorPolicy | undefined,
-): asserts actorPolicy is NormalizedActorPolicy {
-  if (!actorPolicy) {
-    throw new Error("createCodexHost requires an explicit actorPolicy.");
-  }
-  const userId = actorPolicy.userId;
-  if (typeof userId !== "string" || userId.trim().length === 0) {
-    throw new Error(
-      "createCodexHost requires actorPolicy.userId to be a non-empty string.",
-    );
-  }
-}
-
-function assertMutationWrapper(
-  wrapper: unknown,
-): asserts wrapper is MutationDefinitionWrapper {
-  if (typeof wrapper !== "function") {
-    throw new Error("createCodexHost requires mutation to be a function.");
-  }
-}
-
-function assertQueryWrapper(
-  wrapper: unknown,
-): asserts wrapper is QueryDefinitionWrapper {
-  if (typeof wrapper !== "function") {
-    throw new Error("createCodexHost requires query to be a function.");
-  }
-}
-
-export function createCodexHost<
-  Components extends CodexHostComponentsInput,
-  MutationWrap = unknown,
-  QueryWrap = unknown,
->(
-  options: CreateCodexHostOptions<Components, MutationWrap, QueryWrap>,
-): CodexHostFacade<MutationWrap, QueryWrap> {
-  const actorPolicy = normalizeActorPolicy(options.actorPolicy);
-  assertValidNormalizedActorPolicy(actorPolicy);
-  const mutationWrap = options.mutation;
-  const queryWrap = options.query;
-  assertMutationWrapper(mutationWrap);
-  assertQueryWrapper(queryWrap);
-
-  // 1. Build raw internal-named slice definitions
-  const rawSlice = defineCodexHostSlice<Components>({
-    components: options.components,
-    serverActor: actorPolicy,
-    profile: "runtimeOwned",
-    ingestMode: "streamOnly",
-    features: {
-      hooks: true,
-      approvals: true,
-      serverRequests: true,
-      reasoning: true,
-      hygiene: true,
-      tokenUsage: true,
-    },
-  });
-
-  const internalDefs: RuntimeOwnedInternalDefinitions = {
+function toRuntimeOwnedInternalDefinitions(
+  rawSlice: CodexHostSliceDefinitions,
+): RuntimeOwnedInternalDefinitions {
+  return {
     profile: "runtimeOwned",
     mutations: {
       ensureThread: rawSlice.mutations.ensureThread,
@@ -625,360 +483,30 @@ export function createCodexHost<
       listThreadReasoningForHooks: requireHostDefinition(rawSlice.queries.listThreadReasoningForHooks, "listThreadReasoningForHooks"),
     },
   };
+}
 
-  // 2. Convert internal names to clean public names
-  const publicDefs = toPublicRuntimeOwnedDefinitions(internalDefs);
-  const mutationActorResolver = options.actorResolver?.mutation;
-  const queryActorResolver = options.actorResolver?.query;
-  const resolvedDefs: RuntimeOwnedHostDefinitions = {
-    profile: publicDefs.profile,
-    mutations: {
-      ensureThread: mutationActorResolver === undefined
-        ? publicDefs.mutations.ensureThread
-        : {
-            ...publicDefs.mutations.ensureThread,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.ensureThread.handler(ctx, { ...args, actor });
-            },
-          },
-      ensureSession: mutationActorResolver === undefined
-        ? publicDefs.mutations.ensureSession
-        : {
-            ...publicDefs.mutations.ensureSession,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.ensureSession.handler(ctx, { ...args, actor });
-            },
-          },
-      ingestEvent: mutationActorResolver === undefined
-        ? publicDefs.mutations.ingestEvent
-        : {
-            ...publicDefs.mutations.ingestEvent,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.ingestEvent.handler(ctx, { ...args, actor });
-            },
-          },
-      ingestBatch: mutationActorResolver === undefined
-        ? publicDefs.mutations.ingestBatch
-        : {
-            ...publicDefs.mutations.ingestBatch,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.ingestBatch.handler(ctx, { ...args, actor });
-            },
-          },
-      deleteThread: mutationActorResolver === undefined
-        ? publicDefs.mutations.deleteThread
-        : {
-            ...publicDefs.mutations.deleteThread,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.deleteThread.handler(ctx, { ...args, actor });
-            },
-          },
-      scheduleDeleteThread: mutationActorResolver === undefined
-        ? publicDefs.mutations.scheduleDeleteThread
-        : {
-            ...publicDefs.mutations.scheduleDeleteThread,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.scheduleDeleteThread.handler(ctx, { ...args, actor });
-            },
-          },
-      deleteTurn: mutationActorResolver === undefined
-        ? publicDefs.mutations.deleteTurn
-        : {
-            ...publicDefs.mutations.deleteTurn,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.deleteTurn.handler(ctx, { ...args, actor });
-            },
-          },
-      scheduleDeleteTurn: mutationActorResolver === undefined
-        ? publicDefs.mutations.scheduleDeleteTurn
-        : {
-            ...publicDefs.mutations.scheduleDeleteTurn,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.scheduleDeleteTurn.handler(ctx, { ...args, actor });
-            },
-          },
-      purgeActorData: mutationActorResolver === undefined
-        ? publicDefs.mutations.purgeActorData
-        : {
-            ...publicDefs.mutations.purgeActorData,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.purgeActorData.handler(ctx, { ...args, actor });
-            },
-          },
-      schedulePurgeActorData: mutationActorResolver === undefined
-        ? publicDefs.mutations.schedulePurgeActorData
-        : {
-            ...publicDefs.mutations.schedulePurgeActorData,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.schedulePurgeActorData.handler(ctx, { ...args, actor });
-            },
-          },
-      cancelDeletion: mutationActorResolver === undefined
-        ? publicDefs.mutations.cancelDeletion
-        : {
-            ...publicDefs.mutations.cancelDeletion,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.cancelDeletion.handler(ctx, { ...args, actor });
-            },
-          },
-      forceRunDeletion: mutationActorResolver === undefined
-        ? publicDefs.mutations.forceRunDeletion
-        : {
-            ...publicDefs.mutations.forceRunDeletion,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.forceRunDeletion.handler(ctx, { ...args, actor });
-            },
-          },
-      respondApproval: mutationActorResolver === undefined
-        ? publicDefs.mutations.respondApproval
-        : {
-            ...publicDefs.mutations.respondApproval,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.respondApproval.handler(ctx, { ...args, actor });
-            },
-          },
-      upsertTokenUsage: mutationActorResolver === undefined
-        ? publicDefs.mutations.upsertTokenUsage
-        : {
-            ...publicDefs.mutations.upsertTokenUsage,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.upsertTokenUsage.handler(ctx, { ...args, actor });
-            },
-          },
-      interruptTurn: mutationActorResolver === undefined
-        ? publicDefs.mutations.interruptTurn
-        : {
-            ...publicDefs.mutations.interruptTurn,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.interruptTurn.handler(ctx, { ...args, actor });
-            },
-          },
-      upsertPendingServerRequest: mutationActorResolver === undefined
-        ? publicDefs.mutations.upsertPendingServerRequest
-        : {
-            ...publicDefs.mutations.upsertPendingServerRequest,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.upsertPendingServerRequest.handler(ctx, { ...args, actor });
-            },
-          },
-      resolvePendingServerRequest: mutationActorResolver === undefined
-        ? publicDefs.mutations.resolvePendingServerRequest
-        : {
-            ...publicDefs.mutations.resolvePendingServerRequest,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.resolvePendingServerRequest.handler(ctx, { ...args, actor });
-            },
-          },
-      acceptTurnSend: mutationActorResolver === undefined
-        ? publicDefs.mutations.acceptTurnSend
-        : {
-            ...publicDefs.mutations.acceptTurnSend,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.acceptTurnSend.handler(ctx, { ...args, actor });
-            },
-          },
-      failAcceptedTurnSend: mutationActorResolver === undefined
-        ? publicDefs.mutations.failAcceptedTurnSend
-        : {
-            ...publicDefs.mutations.failAcceptedTurnSend,
-            handler: async (ctx, args) => {
-              const actor = await mutationActorResolver(ctx, args.actor);
-              return publicDefs.mutations.failAcceptedTurnSend.handler(ctx, { ...args, actor });
-            },
-          },
-    },
-    queries: {
-      validateHostWiring: queryActorResolver === undefined
-        ? publicDefs.queries.validateHostWiring
-        : {
-            ...publicDefs.queries.validateHostWiring,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.validateHostWiring.handler(ctx, { ...args, actor });
-            },
-          },
-      threadSnapshot: queryActorResolver === undefined
-        ? publicDefs.queries.threadSnapshot
-        : {
-            ...publicDefs.queries.threadSnapshot,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.threadSnapshot.handler(ctx, { ...args, actor });
-            },
-          },
-      threadSnapshotSafe: queryActorResolver === undefined
-        ? publicDefs.queries.threadSnapshotSafe
-        : {
-            ...publicDefs.queries.threadSnapshotSafe,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.threadSnapshotSafe.handler(ctx, { ...args, actor });
-            },
-          },
-      getDeletionStatus: queryActorResolver === undefined
-        ? publicDefs.queries.getDeletionStatus
-        : {
-            ...publicDefs.queries.getDeletionStatus,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.getDeletionStatus.handler(ctx, { ...args, actor });
-            },
-          },
-      persistenceStats: queryActorResolver === undefined
-        ? publicDefs.queries.persistenceStats
-        : {
-            ...publicDefs.queries.persistenceStats,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.persistenceStats.handler(ctx, { ...args, actor });
-            },
-          },
-      durableHistoryStats: queryActorResolver === undefined
-        ? publicDefs.queries.durableHistoryStats
-        : {
-            ...publicDefs.queries.durableHistoryStats,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.durableHistoryStats.handler(ctx, { ...args, actor });
-            },
-          },
-      dataHygiene: queryActorResolver === undefined
-        ? publicDefs.queries.dataHygiene
-        : {
-            ...publicDefs.queries.dataHygiene,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.dataHygiene.handler(ctx, { ...args, actor });
-            },
-          },
-      listThreadMessages: queryActorResolver === undefined
-        ? publicDefs.queries.listThreadMessages
-        : {
-            ...publicDefs.queries.listThreadMessages,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.listThreadMessages.handler(ctx, { ...args, actor });
-            },
-          },
-      listTurnMessages: queryActorResolver === undefined
-        ? publicDefs.queries.listTurnMessages
-        : {
-            ...publicDefs.queries.listTurnMessages,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.listTurnMessages.handler(ctx, { ...args, actor });
-            },
-          },
-      listPendingApprovals: queryActorResolver === undefined
-        ? publicDefs.queries.listPendingApprovals
-        : {
-            ...publicDefs.queries.listPendingApprovals,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.listPendingApprovals.handler(ctx, { ...args, actor });
-            },
-          },
-      listTokenUsage: queryActorResolver === undefined
-        ? publicDefs.queries.listTokenUsage
-        : {
-            ...publicDefs.queries.listTokenUsage,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.listTokenUsage.handler(ctx, { ...args, actor });
-            },
-          },
-      listPendingServerRequests: queryActorResolver === undefined
-        ? publicDefs.queries.listPendingServerRequests
-        : {
-            ...publicDefs.queries.listPendingServerRequests,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.listPendingServerRequests.handler(ctx, { ...args, actor });
-            },
-          },
-      listThreadReasoning: queryActorResolver === undefined
-        ? publicDefs.queries.listThreadReasoning
-        : {
-            ...publicDefs.queries.listThreadReasoning,
-            handler: async (ctx, args) => {
-              const actor = await queryActorResolver(ctx, args.actor);
-              return publicDefs.queries.listThreadReasoning.handler(ctx, { ...args, actor });
-            },
-          },
-    },
-  };
+const RUNTIME_OWNED_DEFAULT_FEATURES: Required<CodexHostSliceFeatures> = {
+  hooks: true,
+  approvals: true,
+  serverRequests: true,
+  reasoning: true,
+  hygiene: true,
+  tokenUsage: true,
+};
 
-  // 3. Wrap each definition with the supplied mutation/query constructors
-  const wrappedMutations = {
-    ensureThread: mutationWrap(resolvedDefs.mutations.ensureThread),
-    ensureSession: mutationWrap(resolvedDefs.mutations.ensureSession),
-    ingestEvent: mutationWrap(resolvedDefs.mutations.ingestEvent),
-    ingestBatch: mutationWrap(resolvedDefs.mutations.ingestBatch),
-    deleteThread: mutationWrap(resolvedDefs.mutations.deleteThread),
-    scheduleDeleteThread: mutationWrap(resolvedDefs.mutations.scheduleDeleteThread),
-    deleteTurn: mutationWrap(resolvedDefs.mutations.deleteTurn),
-    scheduleDeleteTurn: mutationWrap(resolvedDefs.mutations.scheduleDeleteTurn),
-    purgeActorData: mutationWrap(resolvedDefs.mutations.purgeActorData),
-    schedulePurgeActorData: mutationWrap(resolvedDefs.mutations.schedulePurgeActorData),
-    cancelDeletion: mutationWrap(resolvedDefs.mutations.cancelDeletion),
-    forceRunDeletion: mutationWrap(resolvedDefs.mutations.forceRunDeletion),
-    respondApproval: mutationWrap(resolvedDefs.mutations.respondApproval),
-    upsertTokenUsage: mutationWrap(resolvedDefs.mutations.upsertTokenUsage),
-    interruptTurn: mutationWrap(resolvedDefs.mutations.interruptTurn),
-    upsertPendingServerRequest: mutationWrap(
-      resolvedDefs.mutations.upsertPendingServerRequest,
-    ),
-    resolvePendingServerRequest: mutationWrap(
-      resolvedDefs.mutations.resolvePendingServerRequest,
-    ),
-    acceptTurnSend: mutationWrap(resolvedDefs.mutations.acceptTurnSend),
-    failAcceptedTurnSend: mutationWrap(
-      resolvedDefs.mutations.failAcceptedTurnSend,
-    ),
-  } as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap>;
-
-  const wrappedQueries = {
-    validateHostWiring: queryWrap(resolvedDefs.queries.validateHostWiring),
-    threadSnapshot: queryWrap(resolvedDefs.queries.threadSnapshot),
-    threadSnapshotSafe: queryWrap(resolvedDefs.queries.threadSnapshotSafe),
-    getDeletionStatus: queryWrap(resolvedDefs.queries.getDeletionStatus),
-    persistenceStats: queryWrap(resolvedDefs.queries.persistenceStats),
-    durableHistoryStats: queryWrap(resolvedDefs.queries.durableHistoryStats),
-    dataHygiene: queryWrap(resolvedDefs.queries.dataHygiene),
-    listThreadMessages: queryWrap(resolvedDefs.queries.listThreadMessages),
-    listTurnMessages: queryWrap(resolvedDefs.queries.listTurnMessages),
-    listPendingApprovals: queryWrap(resolvedDefs.queries.listPendingApprovals),
-    listTokenUsage: queryWrap(resolvedDefs.queries.listTokenUsage),
-    listPendingServerRequests: queryWrap(resolvedDefs.queries.listPendingServerRequests),
-    listThreadReasoning: queryWrap(resolvedDefs.queries.listThreadReasoning),
-  } as WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
-
-  const endpoints = { ...wrappedMutations, ...wrappedQueries } as
-    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap> &
-    WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
-
-  return {
+export function defineCodexHostDefinitions<
+  Components extends CodexHostComponentsInput,
+>(
+  options: DefineCodexHostDefinitionsOptions<Components>,
+): CodexHostDefinitions {
+  const rawSlice = defineCodexHostSlice<Components>({
+    components: options.components,
+    serverActor: {},
     profile: "runtimeOwned",
-    mutations: wrappedMutations,
-    queries: wrappedQueries,
-    endpoints,
-  };
+    ingestMode: "streamOnly",
+    features: RUNTIME_OWNED_DEFAULT_FEATURES,
+  });
+  return toPublicRuntimeOwnedDefinitions(
+    toRuntimeOwnedInternalDefinitions(rawSlice),
+  );
 }

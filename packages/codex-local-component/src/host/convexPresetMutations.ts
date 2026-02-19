@@ -52,27 +52,34 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
   const ensureThread = {
     args: {
       actor: vHostActorContext,
-      threadId: v.optional(v.string()),
-      externalThreadId: v.optional(v.string()),
+      threadId: v.string(),
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
     },
     returns: v.object({
       threadId: v.string(),
-      externalThreadId: v.optional(v.string()),
       created: v.optional(v.boolean()),
     }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
-      threadId?: string;
-      externalThreadId?: string;
+      threadId: string;
       model?: string;
       cwd?: string;
     }) => {
-      if (!args.threadId && !args.externalThreadId) {
-        throw new Error("ensureThread requires threadId or externalThreadId.");
+      if (!args.threadId) {
+        throw new Error("ensureThread requires threadId.");
       }
-      return ensureThreadByResolve(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
+      const resolved = await ensureThreadByResolve(
+        ctx,
+        component,
+        withServerActor(args, resolveServerActor(args, serverActor)),
+      );
+      return {
+        threadId: resolved.threadId,
+        ...(typeof resolved.created === "boolean"
+          ? { created: resolved.created }
+          : {}),
+      };
     },
   };
 

@@ -9,16 +9,19 @@ import type { CodexHostComponentsInput } from "./convexSlice.js";
 type Assert<T extends true> = T;
 type Extends<A, B> = A extends B ? true : false;
 type IsNever<T> = [T] extends [never] ? true : false;
+type IsFalse<T> = [T] extends [false] ? true : false;
 
 type MutationDef = RuntimeOwnedHostDefinitions["mutations"][keyof RuntimeOwnedHostDefinitions["mutations"]];
 type QueryDef = RuntimeOwnedHostDefinitions["queries"][keyof RuntimeOwnedHostDefinitions["queries"]];
+type EnsureThreadDef = RuntimeOwnedHostDefinitions["mutations"]["ensureThread"];
+type ValidateHostWiringDef = RuntimeOwnedHostDefinitions["queries"]["validateHostWiring"];
 
-type MutationWrap = (
-  definition: MutationDef,
-) => { definition: MutationDef; kind: "mutation" };
-type QueryWrap = (
-  definition: QueryDef,
-) => { definition: QueryDef; kind: "query" };
+type MutationWrap = <Definition extends MutationDef>(
+  definition: Definition,
+) => { definition: Definition; kind: "mutation" };
+type QueryWrap = <Definition extends QueryDef>(
+  definition: Definition,
+) => { definition: Definition; kind: "query" };
 
 type Facade = CodexHostFacade<MutationWrap, QueryWrap>;
 
@@ -30,14 +33,24 @@ type _EnsureQueryWrapperOutputNotNever = Assert<
 >;
 type _EnsureMutationWrapperCarriesDefinition = Assert<
   Extends<
-    Facade["mutations"]["ensureThread"],
-    { definition: MutationDef; kind: "mutation" }
+    IsFalse<
+      Extends<
+        Facade["mutations"]["ensureThread"],
+        { definition: EnsureThreadDef; kind: "mutation" }
+      >
+    >,
+    false
   >
 >;
 type _EnsureQueryWrapperCarriesDefinition = Assert<
   Extends<
-    Facade["queries"]["validateHostWiring"],
-    { definition: QueryDef; kind: "query" }
+    IsFalse<
+      Extends<
+        Facade["queries"]["validateHostWiring"],
+        { definition: ValidateHostWiringDef; kind: "query" }
+      >
+    >,
+    false
   >
 >;
 

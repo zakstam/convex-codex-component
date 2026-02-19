@@ -50,12 +50,7 @@ test("createCodexHost returns deterministic runtime-owned surface with clean nam
   assert.ok(codex.queries.listPendingApprovals);
   assert.ok(codex.queries.listTokenUsage);
 
-  // defs escape hatch also uses clean public names
-  assert.ok(codex.defs.mutations.ensureThread);
-  assert.ok(codex.defs.mutations.scheduleDeleteThread);
-  assert.ok(codex.defs.queries.validateHostWiring);
-  assert.ok(codex.defs.queries.getDeletionStatus);
-  assert.ok(codex.defs.queries.listThreadMessages);
+  assert.equal("defs" in codex, false);
 });
 
 test("createCodexHost output keys match HOST_SURFACE_MANIFEST keys", () => {
@@ -82,7 +77,7 @@ test("validateHostWiring reports missing component children as check failures", 
     actorPolicy: explicitActorPolicy,
   });
 
-  const result = await codex.defs.queries.validateHostWiring.handler(
+  const result = await codex.queries.validateHostWiring.handler(
     {
       runQuery: async (_ref, _args) => {
         throw new Error('Child component ComponentName(Identifier("threads")) not found');
@@ -144,7 +139,7 @@ test("actorResolver.mutation replaces actor before mutation handlers run", async
     },
   });
 
-  await codex.defs.mutations.ensureThread.handler(
+  await codex.mutations.ensureThread.handler(
     {
       runMutation: async (_ref, args) => {
         mutationCalls.push(args);
@@ -176,7 +171,7 @@ test("actorResolver.query replaces actor before query handlers run", async () =>
     },
   });
 
-  await codex.defs.queries.listPendingServerRequests.handler(
+  await codex.queries.listPendingServerRequests.handler(
     {
       runQuery: async (_ref, args) => {
         queryCalls.push(args);
@@ -244,7 +239,7 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
   });
 
   await assert.doesNotReject(
-    codex.defs.mutations.ensureThread.handler(
+    codex.mutations.ensureThread.handler(
       {
         runMutation: async (ref, args) => {
           assert.equal(ref, componentRefs.threads.resolve);
@@ -260,22 +255,14 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
   );
 });
 
-test("defs keys and wrapped keys match HOST_SURFACE_MANIFEST", () => {
+test("wrapped keys match HOST_SURFACE_MANIFEST and defs is not exposed", () => {
   const codex = host.createCodexHost({
     components: createComponentRefs(),
     ...passthrough,
     actorPolicy: explicitActorPolicy,
   });
 
-  // defs (escape hatch) keys match manifest
-  assert.deepEqual(
-    Object.keys(codex.defs.mutations).sort(),
-    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations].sort(),
-  );
-  assert.deepEqual(
-    Object.keys(codex.defs.queries).sort(),
-    [...host.HOST_SURFACE_MANIFEST.runtimeOwned.queries].sort(),
-  );
+  assert.equal("defs" in codex, false);
 
   // Wrapped keys also match manifest
   assert.deepEqual(

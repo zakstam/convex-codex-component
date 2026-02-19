@@ -50,21 +50,21 @@ const codex = createCodexHost({
   },
 });
 
-export const ensureThread = mutation(codex.defs.mutations.ensureThread);
-export const ensureSession = mutation(codex.defs.mutations.ensureSession);
-export const ingestBatch = mutation(codex.defs.mutations.ingestBatch);
-export const scheduleDeleteThread = mutation(codex.defs.mutations.scheduleDeleteThread);
-export const validateHostWiring = query(codex.defs.queries.validateHostWiring);
-export const getDeletionStatus = query(codex.defs.queries.getDeletionStatus);
-export const threadSnapshotSafe = query(codex.defs.queries.threadSnapshotSafe);
-export const listThreadMessages = query(codex.defs.queries.listThreadMessages);
+export const ensureThread = codex.endpoints.ensureThread;
+export const ensureSession = codex.endpoints.ensureSession;
+export const ingestBatch = codex.endpoints.ingestBatch;
+export const scheduleDeleteThread = codex.endpoints.scheduleDeleteThread;
+export const validateHostWiring = codex.endpoints.validateHostWiring;
+export const getDeletionStatus = codex.endpoints.getDeletionStatus;
+export const threadSnapshotSafe = codex.endpoints.threadSnapshotSafe;
+export const listThreadMessages = codex.endpoints.listThreadMessages;
 ```
 
 `createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.userId` must be a non-empty string.
 
 `actorResolver` is optional. When present, it runs before every host mutation/query handler and replaces `args.actor` with the resolved actor. This is the canonical way to enforce actor binding without per-endpoint wrapper boilerplate.
 
-For Convex `api.chat.*` generated typing, export host endpoints via `mutation(...)` / `query(...)` with `codex.defs.*`.
+For Convex `api.chat.*` generated typing, export each endpoint as a named constant (for example `export const ensureThread = codex.endpoints.ensureThread`).
 
 ## Minimal React Wiring
 

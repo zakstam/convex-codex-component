@@ -90,7 +90,7 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexHost(...)`, `actorResolver`-based actor binding, and typed `mutation/query(codex.defs.*)` re-exports
+- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexHost(...)`, `actorResolver`-based actor binding, and `codex.endpoints` exports
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
 - Runtime-owned host mutations/queries are exported from this single surface.
 

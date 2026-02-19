@@ -402,12 +402,9 @@ type _RuntimeOwnedQueryKeysMatchManifest = Assert<
 
 type DefinitionMap = Record<string, unknown>;
 type WrappedResultForDefinition<Wrap, Definition> =
-  Wrap extends {
-    <Specific extends Definition>(definition: Specific): infer GenericResult;
-  }
-    ? GenericResult
-    : Wrap extends (definition: Definition) => infer Result
-    ? Result
+  Wrap extends (...args: any[]) => any
+    ? ReturnType<Wrap & ((definition: Definition) => any)> &
+      (Wrap extends (definition: Definition) => infer Result ? Result : unknown)
     : never;
 type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
   [Key in keyof Defs]: WrappedResultForDefinition<Wrap, Defs[Key]>;
@@ -473,7 +470,6 @@ export type CodexHostFacade<
   queries: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
   endpoints: WrappedDefinitionMap<RuntimeOwnedHostDefinitions["mutations"], MutationWrap> &
     WrappedDefinitionMap<RuntimeOwnedHostDefinitions["queries"], QueryWrap>;
-  defs: RuntimeOwnedHostDefinitions;
 };
 
 function toPublicRuntimeOwnedDefinitions(
@@ -984,6 +980,5 @@ export function createCodexHost<
     mutations: wrappedMutations,
     queries: wrappedQueries,
     endpoints,
-    defs: resolvedDefs,
   };
 }

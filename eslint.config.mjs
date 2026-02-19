@@ -7,6 +7,7 @@ export default [
       "**/node_modules/**",
       "**/dist/**",
       "**/convex/_generated/**",
+      "packages/codex-local-component/src/component/_generated/**",
       "**/submodules/**",
       "**/src-tauri/**",
       "**/target/**",

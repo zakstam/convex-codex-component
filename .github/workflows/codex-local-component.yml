@@ -42,7 +42,7 @@ jobs:
       - run: pnpm --filter @zakstam/codex-local-component run ci
       - run: pnpm --filter codex-local-cli-example run typecheck
       - run: pnpm --filter codex-local-persistent-cli-example run typecheck
-      - name: Detect host/type changes for tauri API contract gate
+      - name: Detect host/type and protocol schema change gates
         id: tauri-gate
         uses: dorny/paths-filter@v3
         with:
@@ -52,9 +52,23 @@ jobs:
               - "packages/codex-local-component/src/**/*type*.ts"
               - "apps/examples/tauri-app/convex/chat.ts"
               - "apps/examples/tauri-app/src/type-contracts.ts"
+            schema_or_protocol:
+              - "packages/codex-local-component/src/protocol/schemas/**"
+              - "packages/codex-local-component/src/protocol/generated.ts"
+              - "packages/codex-local-component/src/protocol/parser.ts"
+              - "packages/codex-local-component/src/protocol/events.ts"
+              - "packages/codex-local-component/src/app-server/client.ts"
       - name: Typecheck tauri host contracts
         if: steps.tauri-gate.outputs.host_or_types == 'true'
         run: pnpm --filter codex-local-tauri-example run typecheck
       - name: Skip tauri host contract typecheck (no host/type changes)
         if: steps.tauri-gate.outputs.host_or_types != 'true'
         run: echo "Skipping tauri host contract gate (no host/type paths changed)."
+      - name: Validate protocol schema drift and fail-closed contract checks
+        if: steps.tauri-gate.outputs.schema_or_protocol == 'true'
+        run: |
+          pnpm --filter @zakstam/codex-local-component run schema:check
+          pnpm --filter @zakstam/codex-local-component run schema:verify
+      - name: Skip protocol schema gate (no protocol/schema paths changed)
+        if: steps.tauri-gate.outputs.schema_or_protocol != 'true'
+        run: echo "Skipping protocol schema gate (no protocol/schema paths changed)."

@@ -88,6 +88,9 @@
   "scripts": {
     "clean": "rm -rf dist",
     "codegen:component": "convex codegen --component-dir ./src/component",
+    "schema:sync": "node ./scripts/sync-protocol-schemas.mjs",
+    "schema:check": "node ./scripts/check-protocol-schemas.mjs",
+    "schema:verify": "pnpm run typecheck && pnpm run test && pnpm run check:unsafe-types && pnpm run check:fallback-policy",
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "lint": "eslint . --ext .ts,.tsx",

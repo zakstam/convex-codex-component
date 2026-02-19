@@ -48,6 +48,16 @@ pnpm run component:ci
 pnpm run lint
 ```
 
+## Protocol Schema Maintenance (Maintainers)
+
+Use the package-owned workflow to sync and verify generated protocol schemas:
+
+```bash
+pnpm --filter @zakstam/codex-local-component run schema:sync -- --source /path/to/codex/generated/schemas
+pnpm --filter @zakstam/codex-local-component run schema:check
+pnpm --filter @zakstam/codex-local-component run schema:verify
+```
+
 ## External consumer onboarding
 
 - npm consumers should start at `packages/codex-local-component/README.md`

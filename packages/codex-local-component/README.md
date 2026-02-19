@@ -140,9 +140,42 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `pnpm --filter @zakstam/codex-local-component run codegen:component`
 - `pnpm --filter @zakstam/codex-local-component run lint`
 - `pnpm --filter @zakstam/codex-local-component run typecheck`
+- `pnpm --filter @zakstam/codex-local-component run schema:check`
 - `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`
 - `pnpm --filter @zakstam/codex-local-component run check:fallback-policy`
 - `pnpm --filter @zakstam/codex-local-component run check:component-function-validators`
+
+## Protocol Schema Workflow (Maintainers)
+
+The protocol artifacts under `src/protocol/schemas/**` are generated and committed.
+Schema updates are manual and fail closed.
+
+Expected source directory must contain:
+
+- `codex_app_server_protocol.schemas.json`
+- `index.ts`
+- `v2/index.ts`
+
+Sync from an upstream generated schema directory:
+
+```bash
+pnpm --filter @zakstam/codex-local-component run schema:sync -- --source /path/to/codex/generated/schemas
+```
+
+Optional source metadata for auditability:
+
+```bash
+pnpm --filter @zakstam/codex-local-component run schema:sync -- --source /path/to/codex/generated/schemas --source-ref codex@<commit-or-tag>
+```
+
+Drift and contract checks:
+
+```bash
+pnpm --filter @zakstam/codex-local-component run schema:check
+pnpm --filter @zakstam/codex-local-component run schema:verify
+```
+
+`schema:verify` intentionally blocks merge until code/tests/docs are updated for any schema contract break.
 
 ## Component Authoring Exports
 

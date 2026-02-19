@@ -1,5 +1,55 @@
 # @zakstam/codex-local-component
 
+## 0.19.0
+
+### Minor Changes
+
+- 33e0867: Add first-class `actorResolver` support to `createCodexHost` so consumers can resolve/bind actor identity once for all runtime-owned host mutations and queries.
+
+  This removes the need for per-endpoint `withBoundMutationActor` / `withBoundQueryActor` boilerplate in consumer host surfaces and supports typed `mutation(codex.defs.mutations.*)` / `query(codex.defs.queries.*)` exports for generated `api.chat.*` contracts.
+
+- 45784fd: Promote deletion lifecycle operations to first-class runtime-owned host endpoints exposed through `createCodexHost(...)` (`codex.defs` and `codex.endpoints`).
+
+  Added host lifecycle APIs:
+  - `deleteThread`, `scheduleDeleteThread`
+  - `deleteTurn`, `scheduleDeleteTurn`
+  - `purgeActorData`, `schedulePurgeActorData`
+  - `cancelDeletion`, `forceRunDeletion`
+  - `getDeletionStatus`
+
+  This removes the need for consumers to hand-write actor-binding wrappers for these operations in app-owned `convex/chat.ts` files.
+
+- 20fbd33: Simplify `createCodexHost(...)` actor policy configuration to a direct actor shape.
+
+  New shape:
+  - `actorPolicy: { userId: string }`
+
+  Removed shape:
+  - `actorPolicy: { mode: "serverActor", serverActor: { userId: string } }`
+
+  This reduces boilerplate for all consumers and removes the single-mode `mode` discriminant from the public host API.
+
+- d89c999: Redesign runtime-owned host wiring to agent-style definitions + explicit Convex exports.
+  - Replace `createCodexHost(...)` with `defineCodexHostDefinitions(...)`.
+  - Remove wrapper/facade host wiring and actor-policy host API inputs.
+  - Add deterministic host shim rendering (`renderCodexHostShim`) and app `sync/check` scripts.
+  - Keep `ensureThread` host contract threadId-only and update runtime persistence contract to require `threadId`.
+  - Fix host `ensureThread` return shaping so internal mapping fields (for example `externalThreadId`) never leak past the public validator contract.
+  - Update package, example apps, and governance docs to enforce the new architecture.
+
+### Patch Changes
+
+- 0bd951c: Strengthen `createCodexHost` wrapper contract typing so incompatible wrapper signatures are rejected at compile time instead of degrading endpoint contracts.
+
+  Add compile-time host wrapper contract coverage and tighten wrapper result fallback behavior for safer endpoint typing.
+
+  Harden CI by validating `@zakstam/codex-local-component` with the correct package filter and adding a tauri host/type contract gate when boundary files change.
+
+- fe0c90f: Remove `createCodexHost(...).defs` from the runtime facade and standardize host endpoint exports on `codex.endpoints`.
+  - Keep `createCodexHost` wrapper-driven public runtime surface as `mutations`, `queries`, and `endpoints`.
+  - Update the Tauri example and canonical docs to export `api.chat.*` from `codex.endpoints`.
+  - Keep host definition types available for compile-time contracts while dropping the runtime `defs` escape hatch.
+
 ## 0.18.0
 
 ### Minor Changes

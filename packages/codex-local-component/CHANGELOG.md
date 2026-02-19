@@ -136,6 +136,15 @@
 
 ### Patch Changes
 
+- Promote deletion lifecycle operations to first-class runtime-owned host endpoints.
+  - Add runtime-owned `createCodexHost(...).defs` / `codex.endpoints` lifecycle APIs:
+    - `deleteThread`, `scheduleDeleteThread`
+    - `deleteTurn`, `scheduleDeleteTurn`
+    - `purgeActorData`, `schedulePurgeActorData`
+    - `cancelDeletion`, `forceRunDeletion`
+    - `getDeletionStatus`
+  - Remove manual per-app lifecycle wrapper boilerplate from the Tauri example and wire it directly to `codex.defs`.
+
 - Simplify external consumer integration down to one documented path and align examples/docs to that path.
   - Add `docs/CANONICAL_INTEGRATION.md` as the single implementation guide.
   - Remove split legacy docs (`CLIENT_AND_REACT_HOOKS.md`, `HOST_INTEGRATION.md`, `HOST_PRESET_MATRIX.md`, `OPERATIONS_AND_ERRORS.md`, `RUNTIME_OWNED_REFERENCE_HOST.md`).

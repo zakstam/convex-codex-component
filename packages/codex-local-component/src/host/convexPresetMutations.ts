@@ -217,6 +217,200 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     },
     ingestEvent,
     ingestBatch,
+    deleteThread: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        reason: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+      },
+      returns: v.object({ deletionJobId: v.string() }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; threadId: string; reason?: string; batchSize?: number },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.threads.deleteCascade, {
+          actor,
+          threadId: args.threadId,
+          ...(args.reason !== undefined ? { reason: args.reason } : {}),
+          ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+        });
+      },
+    },
+    scheduleDeleteThread: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        reason: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+        delayMs: v.optional(v.number()),
+      },
+      returns: v.object({
+        deletionJobId: v.string(),
+        scheduledFor: v.number(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; threadId: string; reason?: string; batchSize?: number; delayMs?: number },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.threads.scheduleDeleteCascade, {
+          actor,
+          threadId: args.threadId,
+          ...(args.reason !== undefined ? { reason: args.reason } : {}),
+          ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+          ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
+        });
+      },
+    },
+    deleteTurn: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        turnId: v.string(),
+        reason: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+      },
+      returns: v.object({ deletionJobId: v.string() }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+          turnId: string;
+          reason?: string;
+          batchSize?: number;
+        },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.turns.deleteCascade, {
+          actor,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          ...(args.reason !== undefined ? { reason: args.reason } : {}),
+          ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+        });
+      },
+    },
+    scheduleDeleteTurn: {
+      args: {
+        actor: vHostActorContext,
+        threadId: v.string(),
+        turnId: v.string(),
+        reason: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+        delayMs: v.optional(v.number()),
+      },
+      returns: v.object({
+        deletionJobId: v.string(),
+        scheduledFor: v.number(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          threadId: string;
+          turnId: string;
+          reason?: string;
+          batchSize?: number;
+          delayMs?: number;
+        },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.turns.scheduleDeleteCascade, {
+          actor,
+          threadId: args.threadId,
+          turnId: args.turnId,
+          ...(args.reason !== undefined ? { reason: args.reason } : {}),
+          ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+          ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
+        });
+      },
+    },
+    purgeActorData: {
+      args: {
+        actor: vHostActorContext,
+        reason: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+      },
+      returns: v.object({ deletionJobId: v.string() }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; reason?: string; batchSize?: number },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.threads.purgeActorData, {
+          actor,
+          ...(args.reason !== undefined ? { reason: args.reason } : {}),
+          ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+        });
+      },
+    },
+    schedulePurgeActorData: {
+      args: {
+        actor: vHostActorContext,
+        reason: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+        delayMs: v.optional(v.number()),
+      },
+      returns: v.object({
+        deletionJobId: v.string(),
+        scheduledFor: v.number(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; reason?: string; batchSize?: number; delayMs?: number },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.threads.schedulePurgeActorData, {
+          actor,
+          ...(args.reason !== undefined ? { reason: args.reason } : {}),
+          ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
+          ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
+        });
+      },
+    },
+    cancelDeletion: {
+      args: {
+        actor: vHostActorContext,
+        deletionJobId: v.string(),
+      },
+      returns: v.object({
+        deletionJobId: v.string(),
+        cancelled: v.boolean(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; deletionJobId: string },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.threads.cancelScheduledDeletion, {
+          actor,
+          deletionJobId: args.deletionJobId,
+        });
+      },
+    },
+    forceRunDeletion: {
+      args: {
+        actor: vHostActorContext,
+        deletionJobId: v.string(),
+      },
+      returns: v.object({
+        deletionJobId: v.string(),
+        forced: v.boolean(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; deletionJobId: string },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        return ctx.runMutation(component.threads.forceRunScheduledDeletion, {
+          actor,
+          deletionJobId: args.deletionJobId,
+        });
+      },
+    },
     ...(features.approvals
       ? {
           respondApprovalForHooks: {

@@ -52,5 +52,6 @@ From `@zakstam/codex-local-component/react`:
 - `createCodexHost` optionally accepts `actorResolver` (`mutation`/`query`) to resolve `args.actor` before host handlers run.
 - Export Convex host functions with `mutation(codex.defs.mutations.*)` / `query(codex.defs.queries.*)` to keep generated `api.chat.*` args/returns fully typed.
 - Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.
+- Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

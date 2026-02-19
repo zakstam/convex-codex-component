@@ -174,10 +174,29 @@ type CodexThreadsResolveComponent = {
   };
 };
 
+type CodexThreadsDeletionComponent = {
+  threads: {
+    deleteCascade: FunctionReference<"mutation", "public" | "internal">;
+    scheduleDeleteCascade: FunctionReference<"mutation", "public" | "internal">;
+    purgeActorData: FunctionReference<"mutation", "public" | "internal">;
+    schedulePurgeActorData: FunctionReference<"mutation", "public" | "internal">;
+    cancelScheduledDeletion: FunctionReference<"mutation", "public" | "internal">;
+    forceRunScheduledDeletion: FunctionReference<"mutation", "public" | "internal">;
+    getDeletionJobStatus: FunctionReference<"query", "public" | "internal">;
+  };
+};
+
 type CodexTurnsComponent = {
   turns: {
     start: FunctionReference<"mutation", "public" | "internal">;
     interrupt: FunctionReference<"mutation", "public" | "internal">;
+  };
+};
+
+type CodexTurnsDeletionComponent = {
+  turns: {
+    deleteCascade: FunctionReference<"mutation", "public" | "internal">;
+    scheduleDeleteCascade: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
@@ -243,7 +262,9 @@ type CodexReasoningComponent = {
 export type CodexHostComponentRefs =
   & CodexThreadsCreateComponent
   & CodexThreadsResolveComponent
+  & CodexThreadsDeletionComponent
   & CodexTurnsComponent
+  & CodexTurnsDeletionComponent
   & CodexSyncComponent
   & CodexMessagesComponent
   & CodexApprovalsComponent

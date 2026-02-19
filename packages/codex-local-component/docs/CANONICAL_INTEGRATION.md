@@ -56,7 +56,9 @@ const codex = createCodexHost({
 export const ensureThread = mutation(codex.defs.mutations.ensureThread);
 export const ensureSession = mutation(codex.defs.mutations.ensureSession);
 export const ingestBatch = mutation(codex.defs.mutations.ingestBatch);
+export const scheduleDeleteThread = mutation(codex.defs.mutations.scheduleDeleteThread);
 export const validateHostWiring = query(codex.defs.queries.validateHostWiring);
+export const getDeletionStatus = query(codex.defs.queries.getDeletionStatus);
 export const threadSnapshotSafe = query(codex.defs.queries.threadSnapshotSafe);
 export const listThreadMessages = query(codex.defs.queries.listThreadMessages);
 ```

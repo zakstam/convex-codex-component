@@ -357,26 +357,26 @@ function AppContent({
     conversation.effectiveThreadId && actorReady ? { actor, threadId: conversation.effectiveThreadId, limit: 50 } : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
-  const deleteThreadCascadeMutation = useMutation(
-    requireDefined(chatApi.scheduleThreadDeleteCascade, "api.chat.scheduleThreadDeleteCascade"),
+  const scheduleDeleteThreadMutation = useMutation(
+    requireDefined(chatApi.scheduleDeleteThread, "api.chat.scheduleDeleteThread"),
   );
-  const deleteTurnCascadeMutation = useMutation(
-    requireDefined(chatApi.scheduleTurnDeleteCascade, "api.chat.scheduleTurnDeleteCascade"),
+  const scheduleDeleteTurnMutation = useMutation(
+    requireDefined(chatApi.scheduleDeleteTurn, "api.chat.scheduleDeleteTurn"),
   );
   const purgeActorDataMutation = useMutation(
     requireDefined(chatApi.schedulePurgeActorData, "api.chat.schedulePurgeActorData"),
   );
-  const cancelScheduledDeletionMutation = useMutation(
-    requireDefined(chatApi.cancelScheduledDeletion, "api.chat.cancelScheduledDeletion"),
+  const cancelDeletionMutation = useMutation(
+    requireDefined(chatApi.cancelDeletion, "api.chat.cancelDeletion"),
   );
-  const forceRunScheduledDeletionMutation = useMutation(
-    requireDefined(chatApi.forceRunScheduledDeletion, "api.chat.forceRunScheduledDeletion"),
+  const forceRunDeletionMutation = useMutation(
+    requireDefined(chatApi.forceRunDeletion, "api.chat.forceRunDeletion"),
   );
   const [activeDeletionJobId, setActiveDeletionJobId] = useState<string | null>(null);
   const [activeDeletionLabel, setActiveDeletionLabel] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const deletionStatus = useQuery(
-    requireDefined(chatApi.getDeletionJobStatus, "api.chat.getDeletionJobStatus"),
+    requireDefined(chatApi.getDeletionStatus, "api.chat.getDeletionStatus"),
     activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
   );
   const cleanupThreadState = useCodexThreadState(
@@ -681,7 +681,7 @@ function AppContent({
       return;
     }
     try {
-      const result = await deleteThreadCascadeMutation({
+      const result = await scheduleDeleteThreadMutation({
         actor,
         threadId: cleanupThreadId,
         reason: "tauri-ui-delete-thread",
@@ -707,7 +707,7 @@ function AppContent({
       return;
     }
     try {
-      const result = await deleteTurnCascadeMutation({
+      const result = await scheduleDeleteTurnMutation({
         actor,
         threadId: cleanupThreadId,
         turnId: latestThreadTurnId,
@@ -753,7 +753,7 @@ function AppContent({
       return;
     }
     try {
-      const result = await cancelScheduledDeletionMutation({
+      const result = await cancelDeletionMutation({
         actor,
         deletionJobId: activeDeletionJobId,
       });
@@ -777,7 +777,7 @@ function AppContent({
       return;
     }
     try {
-      const result = await forceRunScheduledDeletionMutation({
+      const result = await forceRunDeletionMutation({
         actor,
         deletionJobId: activeDeletionJobId,
       });

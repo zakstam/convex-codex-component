@@ -101,14 +101,14 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 Additional cleanup endpoints:
 
-- `chat.deleteThreadCascade`
-- `chat.scheduleThreadDeleteCascade`
-- `chat.deleteTurnCascade`
-- `chat.scheduleTurnDeleteCascade`
+- `chat.deleteThread`
+- `chat.scheduleDeleteThread`
+- `chat.deleteTurn`
+- `chat.scheduleDeleteTurn`
 - `chat.purgeActorData`
 - `chat.schedulePurgeActorData`
-- `chat.cancelScheduledDeletion`
-- `chat.forceRunScheduledDeletion`
-- `chat.getDeletionJobStatus`
+- `chat.cancelDeletion`
+- `chat.forceRunDeletion`
+- `chat.getDeletionStatus`
 
 The Data cleanup panel schedules deletions with a grace window (10 minutes by default), allows undo/cancel before execution, and includes a force-run action to execute immediately.

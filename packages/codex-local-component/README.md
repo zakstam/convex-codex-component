@@ -121,6 +121,18 @@ The component supports async cascade deletion with job polling:
 - `threads.forceRunScheduledDeletion`
 - `threads.getDeletionJobStatus`
 
+Runtime-owned host endpoints from `createCodexHost(...)` expose the same lifecycle operations as:
+
+- `deleteThread`
+- `scheduleDeleteThread`
+- `deleteTurn`
+- `scheduleDeleteTurn`
+- `purgeActorData`
+- `schedulePurgeActorData`
+- `cancelDeletion`
+- `forceRunDeletion`
+- `getDeletionStatus`
+
 ## Type Safety Checks
 
 - `pnpm --filter @zakstam/codex-local-component run codegen:component`

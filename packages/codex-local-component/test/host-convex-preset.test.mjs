@@ -37,11 +37,14 @@ test("createCodexHost returns deterministic runtime-owned surface with clean nam
   assert.ok(codex.mutations.ensureThread);
   assert.ok(codex.mutations.ensureSession);
   assert.ok(codex.mutations.ingestEvent);
+  assert.ok(codex.mutations.scheduleDeleteThread);
+  assert.ok(codex.mutations.cancelDeletion);
   assert.ok(codex.mutations.respondApproval);
   assert.ok(codex.mutations.interruptTurn);
 
   assert.ok(codex.queries.validateHostWiring);
   assert.ok(codex.queries.threadSnapshot);
+  assert.ok(codex.queries.getDeletionStatus);
   assert.ok(codex.queries.dataHygiene);
   assert.ok(codex.queries.listThreadMessages);
   assert.ok(codex.queries.listTurnMessages);
@@ -50,7 +53,9 @@ test("createCodexHost returns deterministic runtime-owned surface with clean nam
 
   // defs escape hatch also uses clean public names
   assert.ok(codex.defs.mutations.ensureThread);
+  assert.ok(codex.defs.mutations.scheduleDeleteThread);
   assert.ok(codex.defs.queries.validateHostWiring);
+  assert.ok(codex.defs.queries.getDeletionStatus);
   assert.ok(codex.defs.queries.listThreadMessages);
 });
 

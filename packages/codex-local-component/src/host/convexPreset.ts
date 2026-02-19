@@ -178,6 +178,14 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
         threadSnapshotSafe(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
     },
+    getDeletionStatus: {
+      args: { actor: vHostActorContext, deletionJobId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; deletionJobId: string }) =>
+        ctx.runQuery(
+          component.threads.getDeletionJobStatus,
+          withServerActor(args, resolveServerActor(args, options.serverActor)),
+        ),
+    },
     persistenceStats: {
       args: { actor: vHostActorContext, threadId: v.string() },
       returns: vHostPersistenceStats,
@@ -287,6 +295,14 @@ type RuntimeOwnedInternalDefinitions = {
     ensureSession: CodexHostSliceDefinitions["mutations"]["ensureSession"];
     ingestEvent: CodexHostSliceDefinitions["mutations"]["ingestEvent"];
     ingestBatch: CodexHostSliceDefinitions["mutations"]["ingestBatch"];
+    deleteThread: CodexHostSliceDefinitions["mutations"]["deleteThread"];
+    scheduleDeleteThread: CodexHostSliceDefinitions["mutations"]["scheduleDeleteThread"];
+    deleteTurn: CodexHostSliceDefinitions["mutations"]["deleteTurn"];
+    scheduleDeleteTurn: CodexHostSliceDefinitions["mutations"]["scheduleDeleteTurn"];
+    purgeActorData: CodexHostSliceDefinitions["mutations"]["purgeActorData"];
+    schedulePurgeActorData: CodexHostSliceDefinitions["mutations"]["schedulePurgeActorData"];
+    cancelDeletion: CodexHostSliceDefinitions["mutations"]["cancelDeletion"];
+    forceRunDeletion: CodexHostSliceDefinitions["mutations"]["forceRunDeletion"];
     respondApprovalForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["respondApprovalForHooks"]>;
     upsertTokenUsageForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["upsertTokenUsageForHooks"]>;
     interruptTurnForHooks: NonNullable<CodexHostSliceDefinitions["mutations"]["interruptTurnForHooks"]>;
@@ -299,6 +315,7 @@ type RuntimeOwnedInternalDefinitions = {
     validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
     threadSnapshotSafe: CodexHostSliceDefinitions["queries"]["threadSnapshotSafe"];
+    getDeletionStatus: CodexHostSliceDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: CodexHostSliceDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: CodexHostSliceDefinitions["queries"]["durableHistoryStats"];
     dataHygiene: NonNullable<CodexHostSliceDefinitions["queries"]["dataHygiene"]>;
@@ -318,6 +335,14 @@ export type RuntimeOwnedHostDefinitions = {
     ensureSession: RuntimeOwnedInternalDefinitions["mutations"]["ensureSession"];
     ingestEvent: RuntimeOwnedInternalDefinitions["mutations"]["ingestEvent"];
     ingestBatch: RuntimeOwnedInternalDefinitions["mutations"]["ingestBatch"];
+    deleteThread: RuntimeOwnedInternalDefinitions["mutations"]["deleteThread"];
+    scheduleDeleteThread: RuntimeOwnedInternalDefinitions["mutations"]["scheduleDeleteThread"];
+    deleteTurn: RuntimeOwnedInternalDefinitions["mutations"]["deleteTurn"];
+    scheduleDeleteTurn: RuntimeOwnedInternalDefinitions["mutations"]["scheduleDeleteTurn"];
+    purgeActorData: RuntimeOwnedInternalDefinitions["mutations"]["purgeActorData"];
+    schedulePurgeActorData: RuntimeOwnedInternalDefinitions["mutations"]["schedulePurgeActorData"];
+    cancelDeletion: RuntimeOwnedInternalDefinitions["mutations"]["cancelDeletion"];
+    forceRunDeletion: RuntimeOwnedInternalDefinitions["mutations"]["forceRunDeletion"];
     respondApproval: RuntimeOwnedInternalDefinitions["mutations"]["respondApprovalForHooks"];
     upsertTokenUsage: RuntimeOwnedInternalDefinitions["mutations"]["upsertTokenUsageForHooks"];
     interruptTurn: RuntimeOwnedInternalDefinitions["mutations"]["interruptTurnForHooks"];
@@ -330,6 +355,7 @@ export type RuntimeOwnedHostDefinitions = {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
     threadSnapshotSafe: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotSafe"];
+    getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStats"];
     dataHygiene: RuntimeOwnedInternalDefinitions["queries"]["dataHygiene"];
@@ -463,6 +489,14 @@ function toPublicRuntimeOwnedDefinitions(
       ensureSession: defs.mutations.ensureSession,
       ingestEvent: defs.mutations.ingestEvent,
       ingestBatch: defs.mutations.ingestBatch,
+      deleteThread: defs.mutations.deleteThread,
+      scheduleDeleteThread: defs.mutations.scheduleDeleteThread,
+      deleteTurn: defs.mutations.deleteTurn,
+      scheduleDeleteTurn: defs.mutations.scheduleDeleteTurn,
+      purgeActorData: defs.mutations.purgeActorData,
+      schedulePurgeActorData: defs.mutations.schedulePurgeActorData,
+      cancelDeletion: defs.mutations.cancelDeletion,
+      forceRunDeletion: defs.mutations.forceRunDeletion,
       respondApproval: defs.mutations.respondApprovalForHooks,
       upsertTokenUsage: defs.mutations.upsertTokenUsageForHooks,
       interruptTurn: defs.mutations.interruptTurnForHooks,
@@ -475,6 +509,7 @@ function toPublicRuntimeOwnedDefinitions(
       validateHostWiring: defs.queries.validateHostWiring,
       threadSnapshot: defs.queries.threadSnapshot,
       threadSnapshotSafe: defs.queries.threadSnapshotSafe,
+      getDeletionStatus: defs.queries.getDeletionStatus,
       persistenceStats: defs.queries.persistenceStats,
       durableHistoryStats: defs.queries.durableHistoryStats,
       dataHygiene: defs.queries.dataHygiene,
@@ -565,6 +600,14 @@ export function createCodexHost<
       ensureSession: rawSlice.mutations.ensureSession,
       ingestEvent: rawSlice.mutations.ingestEvent,
       ingestBatch: rawSlice.mutations.ingestBatch,
+      deleteThread: rawSlice.mutations.deleteThread,
+      scheduleDeleteThread: rawSlice.mutations.scheduleDeleteThread,
+      deleteTurn: rawSlice.mutations.deleteTurn,
+      scheduleDeleteTurn: rawSlice.mutations.scheduleDeleteTurn,
+      purgeActorData: rawSlice.mutations.purgeActorData,
+      schedulePurgeActorData: rawSlice.mutations.schedulePurgeActorData,
+      cancelDeletion: rawSlice.mutations.cancelDeletion,
+      forceRunDeletion: rawSlice.mutations.forceRunDeletion,
       respondApprovalForHooks: requireHostDefinition(rawSlice.mutations.respondApprovalForHooks, "respondApprovalForHooks"),
       upsertTokenUsageForHooks: requireHostDefinition(rawSlice.mutations.upsertTokenUsageForHooks, "upsertTokenUsageForHooks"),
       interruptTurnForHooks: requireHostDefinition(rawSlice.mutations.interruptTurnForHooks, "interruptTurnForHooks"),
@@ -577,6 +620,7 @@ export function createCodexHost<
       validateHostWiring: rawSlice.queries.validateHostWiring,
       threadSnapshot: rawSlice.queries.threadSnapshot,
       threadSnapshotSafe: rawSlice.queries.threadSnapshotSafe,
+      getDeletionStatus: rawSlice.queries.getDeletionStatus,
       persistenceStats: rawSlice.queries.persistenceStats,
       durableHistoryStats: rawSlice.queries.durableHistoryStats,
       dataHygiene: requireHostDefinition(rawSlice.queries.dataHygiene, "dataHygiene"),
@@ -630,6 +674,78 @@ export function createCodexHost<
             handler: async (ctx, args) => {
               const actor = await mutationActorResolver(ctx, args.actor);
               return publicDefs.mutations.ingestBatch.handler(ctx, { ...args, actor });
+            },
+          },
+      deleteThread: mutationActorResolver === undefined
+        ? publicDefs.mutations.deleteThread
+        : {
+            ...publicDefs.mutations.deleteThread,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.deleteThread.handler(ctx, { ...args, actor });
+            },
+          },
+      scheduleDeleteThread: mutationActorResolver === undefined
+        ? publicDefs.mutations.scheduleDeleteThread
+        : {
+            ...publicDefs.mutations.scheduleDeleteThread,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.scheduleDeleteThread.handler(ctx, { ...args, actor });
+            },
+          },
+      deleteTurn: mutationActorResolver === undefined
+        ? publicDefs.mutations.deleteTurn
+        : {
+            ...publicDefs.mutations.deleteTurn,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.deleteTurn.handler(ctx, { ...args, actor });
+            },
+          },
+      scheduleDeleteTurn: mutationActorResolver === undefined
+        ? publicDefs.mutations.scheduleDeleteTurn
+        : {
+            ...publicDefs.mutations.scheduleDeleteTurn,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.scheduleDeleteTurn.handler(ctx, { ...args, actor });
+            },
+          },
+      purgeActorData: mutationActorResolver === undefined
+        ? publicDefs.mutations.purgeActorData
+        : {
+            ...publicDefs.mutations.purgeActorData,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.purgeActorData.handler(ctx, { ...args, actor });
+            },
+          },
+      schedulePurgeActorData: mutationActorResolver === undefined
+        ? publicDefs.mutations.schedulePurgeActorData
+        : {
+            ...publicDefs.mutations.schedulePurgeActorData,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.schedulePurgeActorData.handler(ctx, { ...args, actor });
+            },
+          },
+      cancelDeletion: mutationActorResolver === undefined
+        ? publicDefs.mutations.cancelDeletion
+        : {
+            ...publicDefs.mutations.cancelDeletion,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.cancelDeletion.handler(ctx, { ...args, actor });
+            },
+          },
+      forceRunDeletion: mutationActorResolver === undefined
+        ? publicDefs.mutations.forceRunDeletion
+        : {
+            ...publicDefs.mutations.forceRunDeletion,
+            handler: async (ctx, args) => {
+              const actor = await mutationActorResolver(ctx, args.actor);
+              return publicDefs.mutations.forceRunDeletion.handler(ctx, { ...args, actor });
             },
           },
       respondApproval: mutationActorResolver === undefined
@@ -724,6 +840,15 @@ export function createCodexHost<
               return publicDefs.queries.threadSnapshotSafe.handler(ctx, { ...args, actor });
             },
           },
+      getDeletionStatus: queryActorResolver === undefined
+        ? publicDefs.queries.getDeletionStatus
+        : {
+            ...publicDefs.queries.getDeletionStatus,
+            handler: async (ctx, args) => {
+              const actor = await queryActorResolver(ctx, args.actor);
+              return publicDefs.queries.getDeletionStatus.handler(ctx, { ...args, actor });
+            },
+          },
       persistenceStats: queryActorResolver === undefined
         ? publicDefs.queries.persistenceStats
         : {
@@ -814,6 +939,14 @@ export function createCodexHost<
     ensureSession: mutationWrap(resolvedDefs.mutations.ensureSession),
     ingestEvent: mutationWrap(resolvedDefs.mutations.ingestEvent),
     ingestBatch: mutationWrap(resolvedDefs.mutations.ingestBatch),
+    deleteThread: mutationWrap(resolvedDefs.mutations.deleteThread),
+    scheduleDeleteThread: mutationWrap(resolvedDefs.mutations.scheduleDeleteThread),
+    deleteTurn: mutationWrap(resolvedDefs.mutations.deleteTurn),
+    scheduleDeleteTurn: mutationWrap(resolvedDefs.mutations.scheduleDeleteTurn),
+    purgeActorData: mutationWrap(resolvedDefs.mutations.purgeActorData),
+    schedulePurgeActorData: mutationWrap(resolvedDefs.mutations.schedulePurgeActorData),
+    cancelDeletion: mutationWrap(resolvedDefs.mutations.cancelDeletion),
+    forceRunDeletion: mutationWrap(resolvedDefs.mutations.forceRunDeletion),
     respondApproval: mutationWrap(resolvedDefs.mutations.respondApproval),
     upsertTokenUsage: mutationWrap(resolvedDefs.mutations.upsertTokenUsage),
     interruptTurn: mutationWrap(resolvedDefs.mutations.interruptTurn),
@@ -833,6 +966,7 @@ export function createCodexHost<
     validateHostWiring: queryWrap(resolvedDefs.queries.validateHostWiring),
     threadSnapshot: queryWrap(resolvedDefs.queries.threadSnapshot),
     threadSnapshotSafe: queryWrap(resolvedDefs.queries.threadSnapshotSafe),
+    getDeletionStatus: queryWrap(resolvedDefs.queries.getDeletionStatus),
     persistenceStats: queryWrap(resolvedDefs.queries.persistenceStats),
     durableHistoryStats: queryWrap(resolvedDefs.queries.durableHistoryStats),
     dataHygiene: queryWrap(resolvedDefs.queries.dataHygiene),

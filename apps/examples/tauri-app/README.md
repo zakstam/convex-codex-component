@@ -36,6 +36,7 @@ Canonical consumer implementation path:
 - Shared run/check commands and required variables live in [packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md](../../packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md).
 - Relevant section: `Tauri Example`.
 - Create `apps/examples/tauri-app/.env.local` with `VITE_CONVEX_URL=...` and app-specific optional overrides as documented there.
+- CI runs `pnpm --filter codex-local-tauri-example run typecheck` whenever host/type boundary paths change to protect generated `api.chat.*` contracts.
 
 ## Actor Security
 
@@ -89,7 +90,7 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 
 ## Host Surface Ownership
 
-- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexHost(...)` and actor lock wrappers
+- `convex/chat.ts`: app-owned public surface (`api.chat.*`) built from `createCodexHost(...)` and local typed actor-lock wrappers
 - `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`)
 - Runtime-owned host mutations/queries are exported from this single surface.
 

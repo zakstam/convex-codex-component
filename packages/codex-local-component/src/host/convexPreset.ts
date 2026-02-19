@@ -348,6 +348,19 @@ type RuntimeOwnedQueryDefinition =
 type MutationDefinitionWrapper = (definition: RuntimeOwnedMutationDefinition) => unknown;
 type QueryDefinitionWrapper = (definition: RuntimeOwnedQueryDefinition) => unknown;
 
+type WrapperCanHandleDefinition<Wrap, Definition> =
+  Wrap extends { (definition: Definition): unknown } ? true : false;
+
+type WrapperMustHandleDefinitions<Wrap, Definitions> =
+  Exclude<
+    Definitions extends unknown
+      ? WrapperCanHandleDefinition<Wrap, Definitions>
+      : never,
+    true
+  > extends never
+    ? Wrap
+    : never;
+
 type Assert<T extends true> = T;
 type IsEqual<A, B> =
   (<T>() => T extends A ? 1 : 2) extends
@@ -362,7 +375,7 @@ type _RuntimeOwnedQueryKeysMatchManifest = Assert<
 
 type DefinitionMap = Record<string, unknown>;
 type WrappedResultForDefinition<Wrap, Definition> =
-  Wrap extends (definition: Definition) => infer Result ? Result : unknown;
+  Wrap extends (definition: Definition) => infer Result ? Result : never;
 type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
   [Key in keyof Defs]: WrappedResultForDefinition<Wrap, Defs[Key]>;
 };
@@ -405,8 +418,8 @@ export type CreateCodexHostOptions<
   QueryWrap = unknown,
 > = {
   components: Components;
-  mutation: MutationWrap;
-  query: QueryWrap;
+  mutation: WrapperMustHandleDefinitions<MutationWrap, RuntimeOwnedMutationDefinition>;
+  query: WrapperMustHandleDefinitions<QueryWrap, RuntimeOwnedQueryDefinition>;
   actorPolicy: CodexConvexHostActorPolicy;
 };
 

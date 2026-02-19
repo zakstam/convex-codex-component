@@ -413,11 +413,9 @@ type WrappedDefinitionMap<Defs extends DefinitionMap, Wrap> = {
   [Key in keyof Defs]: WrappedResultForDefinition<Wrap, Defs[Key]>;
 };
 
-export type CodexConvexHostActorPolicy =
-  {
-    mode: "serverActor";
-    serverActor: HostActorContext;
-  };
+export type CodexConvexHostActorPolicy = {
+  userId: string;
+};
 
 type ActorResolver<Context> = (
   ctx: Context,
@@ -429,10 +427,7 @@ export type CodexHostActorResolver = {
   query?: ActorResolver<HostQueryRunner>;
 };
 
-type NormalizedActorPolicy = {
-  mode: "serverActor";
-  serverActor: HostActorContext;
-};
+type NormalizedActorPolicy = HostActorContext;
 
 function normalizeActorPolicy(
   policy: CodexConvexHostActorPolicy | undefined,
@@ -440,15 +435,17 @@ function normalizeActorPolicy(
   if (!policy) {
     return undefined;
   }
-  if (typeof policy !== "object" || policy === null || !("mode" in policy)) {
+  if (typeof policy !== "object" || policy === null) {
     throw new Error(
-      'createCodexHost requires an explicit actorPolicy object: { mode: "serverActor", serverActor: { userId: string } }.',
+      'createCodexHost requires actorPolicy to be an object: { userId: string }.',
     );
   }
-  if (policy.mode !== "serverActor") {
-    throw new Error('createCodexHost actorPolicy supports only mode: "serverActor".');
+  if (!("userId" in policy)) {
+    throw new Error(
+      'createCodexHost requires actorPolicy to be an object: { userId: string }.',
+    );
   }
-  return { mode: "serverActor", serverActor: policy.serverActor };
+  return policy;
 }
 
 // ---------------------------------------------------------------------------
@@ -539,10 +536,10 @@ function assertValidNormalizedActorPolicy(
   if (!actorPolicy) {
     throw new Error("createCodexHost requires an explicit actorPolicy.");
   }
-  const userId = actorPolicy.serverActor.userId;
+  const userId = actorPolicy.userId;
   if (typeof userId !== "string" || userId.trim().length === 0) {
     throw new Error(
-      "createCodexHost requires actorPolicy.serverActor.userId to be a non-empty string.",
+      "createCodexHost requires actorPolicy.userId to be a non-empty string.",
     );
   }
 }
@@ -580,7 +577,7 @@ export function createCodexHost<
   // 1. Build raw internal-named slice definitions
   const rawSlice = defineCodexHostSlice<Components>({
     components: options.components,
-    serverActor: actorPolicy.serverActor,
+    serverActor: actorPolicy,
     profile: "runtimeOwned",
     ingestMode: "streamOnly",
     features: {

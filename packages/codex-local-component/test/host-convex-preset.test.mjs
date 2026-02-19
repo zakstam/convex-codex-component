@@ -22,8 +22,7 @@ const passthrough = {
 };
 
 const explicitActorPolicy = {
-  mode: "serverActor",
-  serverActor: { userId: "server-user" },
+  userId: "server-user",
 };
 
 test("createCodexHost returns deterministic runtime-owned surface with clean names", () => {
@@ -289,22 +288,7 @@ test("defs keys and wrapped keys match HOST_SURFACE_MANIFEST", () => {
   );
 });
 
-test("createCodexHost rejects unsupported actorPolicy modes", () => {
-  assert.throws(
-    () =>
-      host.createCodexHost({
-        components: createComponentRefs(),
-        ...passthrough,
-        actorPolicy: {
-          mode: "guarded",
-          serverActor: { userId: "server-user" },
-        },
-      }),
-    /supports only mode: "serverActor"/,
-  );
-});
-
-test("createCodexHost throws when serverActor.userId is missing", () => {
+test("createCodexHost rejects legacy wrapped actorPolicy shape", () => {
   assert.throws(
     () =>
       host.createCodexHost({
@@ -312,10 +296,22 @@ test("createCodexHost throws when serverActor.userId is missing", () => {
         ...passthrough,
         actorPolicy: {
           mode: "serverActor",
-          serverActor: {},
+          serverActor: { userId: "server-user" },
         },
       }),
-    /actorPolicy\.serverActor\.userId/,
+    /object: \{ userId: string \}/,
+  );
+});
+
+test("createCodexHost throws when actorPolicy.userId is missing", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: {},
+      }),
+    /object: \{ userId: string \}/,
   );
 });
 
@@ -338,23 +334,11 @@ test("createCodexHost rejects string actorPolicy shorthand", () => {
         ...passthrough,
         actorPolicy: "server-user",
       }),
-    /explicit actorPolicy object/,
+    /object: \{ userId: string \}/,
   );
 });
 
-test("createCodexHost rejects object actorPolicy shorthand", () => {
-  assert.throws(
-    () =>
-      host.createCodexHost({
-        components: createComponentRefs(),
-        ...passthrough,
-        actorPolicy: { userId: "server-user" },
-      }),
-    /explicit actorPolicy object/,
-  );
-});
-
-test("createCodexHost throws when serverActor.userId is blank", () => {
+test("createCodexHost rejects legacy actorPolicy mode wrapper", () => {
   assert.throws(
     () =>
       host.createCodexHost({
@@ -362,10 +346,22 @@ test("createCodexHost throws when serverActor.userId is blank", () => {
         ...passthrough,
         actorPolicy: {
           mode: "serverActor",
-          serverActor: { userId: "   " },
+          serverActor: { userId: "server-user" },
         },
       }),
-    /actorPolicy\.serverActor\.userId/,
+    /object: \{ userId: string \}/,
+  );
+});
+
+test("createCodexHost throws when actorPolicy.userId is blank", () => {
+  assert.throws(
+    () =>
+      host.createCodexHost({
+        components: createComponentRefs(),
+        ...passthrough,
+        actorPolicy: { userId: "   " },
+      }),
+    /actorPolicy\.userId/,
   );
 });
 

@@ -7,10 +7,7 @@ const codex = createCodexHost({
   mutation,
   query,
   actorPolicy: {
-    mode: "serverActor",
-    serverActor: {
-      userId: process.env.ACTOR_USER_ID ?? "server",
-    },
+    userId: process.env.ACTOR_USER_ID ?? "server",
   },
 });
 

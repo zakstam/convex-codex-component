@@ -8,6 +8,7 @@ import {
 import { v } from "convex/values";
 import {
   SERVER_ACTOR,
+  SERVER_ACTOR_POLICY,
   requireBoundServerActorForMutation,
   requireBoundServerActorForQuery,
 } from "./actorLock";
@@ -17,10 +18,7 @@ const codex = createCodexHost({
   components,
   mutation,
   query,
-  actorPolicy: {
-    mode: "serverActor",
-    serverActor: SERVER_ACTOR,
-  },
+  actorPolicy: SERVER_ACTOR_POLICY,
   actorResolver: {
     mutation: async (ctx, actor) =>
       requireBoundServerActorForMutation(ctx as MutationCtx, actor),

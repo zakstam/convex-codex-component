@@ -43,10 +43,7 @@ const codex = createCodexHost({
   components,
   mutation,
   query,
-  actorPolicy: {
-    mode: "serverActor",
-    serverActor: SERVER_ACTOR,
-  },
+  actorPolicy: SERVER_ACTOR,
   actorResolver: {
     mutation: async (ctx, actor) => requireBoundActorForMutation(ctx, actor),
     query: async (ctx, actor) => requireBoundActorForQuery(ctx, actor),
@@ -63,7 +60,7 @@ export const threadSnapshotSafe = query(codex.defs.queries.threadSnapshotSafe);
 export const listThreadMessages = query(codex.defs.queries.listThreadMessages);
 ```
 
-`createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.serverActor.userId` must be a non-empty string. Shorthand forms like `"server"` or `{ userId: "server" }` are not supported.
+`createCodexHost` requires explicit `actorPolicy`, and `actorPolicy.userId` must be a non-empty string.
 
 `actorResolver` is optional. When present, it runs before every host mutation/query handler and replaces `args.actor` with the resolved actor. This is the canonical way to enforce actor binding without per-endpoint wrapper boilerplate.
 

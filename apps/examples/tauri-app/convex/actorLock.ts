@@ -4,6 +4,9 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 export const SERVER_ACTOR: HostActorContext = {
   userId: process.env.ACTOR_USER_ID ?? "server",
 };
+export const SERVER_ACTOR_POLICY = {
+  userId: SERVER_ACTOR.userId ?? "server",
+};
 
 const ACTOR_LOCK_TABLE = "tauri_actor_lock";
 const ACTOR_LOCK_ENABLED = process.env.TAURI_ACTOR_LOCK?.trim() === "1";

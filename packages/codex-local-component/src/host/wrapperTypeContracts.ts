@@ -50,8 +50,7 @@ type _EnsureValidCreateOptionsCompiles = Assert<Extends<_ValidCreateOptions, obj
 
 declare const components: CodexHostComponentsInput;
 declare const actorPolicy: {
-  mode: "serverActor";
-  serverActor: { userId: string };
+  userId: string;
 };
 declare const validMutationWrap: MutationWrap;
 declare const validQueryWrap: QueryWrap;

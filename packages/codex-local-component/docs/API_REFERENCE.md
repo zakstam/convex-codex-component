@@ -47,8 +47,7 @@ From `@zakstam/codex-local-component/react`:
 
 - `createCodexHost` is the only documented host-wiring entrypoint.
 - `createCodexHost` requires explicit `actorPolicy`.
-- `actorPolicy.serverActor.userId` must be a non-empty string.
-- `createCodexHost` rejects shorthand `actorPolicy` inputs (`"server"` or `{ userId: "server" }`).
+- `actorPolicy.userId` must be a non-empty string.
 - `createCodexHost` optionally accepts `actorResolver` (`mutation`/`query`) to resolve `args.actor` before host handlers run.
 - Export Convex host functions with `mutation(codex.defs.mutations.*)` / `query(codex.defs.queries.*)` to keep generated `api.chat.*` args/returns fully typed.
 - Runtime-owned `ensureThread` is single-path and requires `threadId` or `externalThreadId`.

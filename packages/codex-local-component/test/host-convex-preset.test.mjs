@@ -187,6 +187,268 @@ test("threadSnapshot returns forbidden state safely", async () => {
   assert.equal(result.code, "E_AUTH_THREAD_FORBIDDEN");
 });
 
+test("threadSnapshotByExternalId resolves legacy id to runtime thread and returns safe snapshot", async () => {
+  const baseComponents = createComponentRefs();
+  const resolveByExternalIdRef = Symbol("threads.resolveByExternalId");
+  const getStateRef = Symbol("threads.getState");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: resolveByExternalIdRef,
+          getState: getStateRef,
+        },
+      },
+    },
+  });
+  const calls = [];
+  const result = await defs.queries.threadSnapshotByExternalId.handler(
+    {
+      runQuery: async (ref, args) => {
+        if (ref === resolveByExternalIdRef) {
+          calls.push({ ref, args });
+          return { threadId: "runtime-thread-1", externalThreadId: "legacy-thread-1" };
+        }
+        if (ref === getStateRef) {
+          calls.push({ ref, args });
+          return { threadName: "legacy-name", threadId: "runtime-thread-1" };
+        }
+        throw new Error("Unexpected query call");
+      },
+    },
+    { actor: { userId: "actor-user" }, externalThreadId: "legacy-thread-1" },
+  );
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].ref, resolveByExternalIdRef);
+  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, externalThreadId: "legacy-thread-1" });
+  assert.equal(calls[1].ref, getStateRef);
+  assert.deepEqual(calls[1].args, { actor: { userId: "actor-user" }, threadId: "runtime-thread-1" });
+  assert.equal(result.threadStatus, "ok");
+  assert.deepEqual(result.data, { threadName: "legacy-name", threadId: "runtime-thread-1" });
+});
+
+test("threadSnapshotByExternalId returns missing thread fallback for unmapped legacy id", async () => {
+  const baseComponents = createComponentRefs();
+  const resolveByExternalIdRef = Symbol("threads.resolveByExternalId");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: resolveByExternalIdRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.threadSnapshotByExternalId.handler(
+    {
+      runQuery: async () => null,
+    },
+    { actor: {}, externalThreadId: "legacy-thread-2" },
+  );
+  assert.equal(result.threadStatus, "missing_thread");
+  assert.equal(result.code, "E_THREAD_NOT_FOUND");
+  assert.equal(result.message, "[E_THREAD_NOT_FOUND] Thread not found: legacy-thread-2");
+});
+
+test("listThreadMessagesByExternalId resolves thread and returns safe payload", async () => {
+  const baseComponents = createComponentRefs();
+  const threadMessagesByExternalIdRef = Symbol("threads.resolveByExternalId");
+  const threadMessagesRef = Symbol("messages.listByThread");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: threadMessagesByExternalIdRef,
+        },
+        messages: {
+          ...baseComponents.codexLocal.messages,
+          listByThread: threadMessagesRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.listThreadMessagesByExternalId.handler(
+    {
+      runQuery: async (ref, args) => {
+        if (ref === threadMessagesByExternalIdRef) {
+          assert.deepEqual(args, { actor: {}, externalThreadId: "legacy-thread-3" });
+          return { threadId: "thread-3", externalThreadId: "legacy-thread-3" };
+        }
+        if (ref === threadMessagesRef) {
+          assert.deepEqual(args, {
+            actor: {},
+            threadId: "thread-3",
+            paginationOpts: { cursor: null, numItems: 10 },
+          });
+          return { page: [{ id: "m1" }], isDone: true, continueCursor: "cursor-1" };
+        }
+        throw new Error("Unexpected query call");
+      },
+    },
+    { actor: {}, externalThreadId: "legacy-thread-3", paginationOpts: { cursor: null, numItems: 10 } },
+  );
+  assert.equal(result.threadStatus, "ok");
+  assert.equal(result.page.length, 1);
+});
+
+test("listThreadMessagesByExternalId returns missing-thread fallback payload", async () => {
+  const baseComponents = createComponentRefs();
+  const threadMessagesByExternalIdRef = Symbol("threads.resolveByExternalId");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: threadMessagesByExternalIdRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.listThreadMessagesByExternalId.handler(
+    {
+      runQuery: async () => null,
+    },
+    { actor: {}, externalThreadId: "legacy-thread-4", paginationOpts: { cursor: null, numItems: 10 } },
+  );
+  assert.equal(result.threadStatus, "missing_thread");
+  assert.equal(result.code, "E_THREAD_NOT_FOUND");
+  assert.equal(result.continueCursor, "");
+  assert.equal(result.isDone, true);
+  assert.deepEqual(result.page, []);
+});
+
+test("listTurnMessagesByExternalId resolves thread and returns safe payload", async () => {
+  const baseComponents = createComponentRefs();
+  const threadTurnRef = Symbol("threads.resolveByExternalId");
+  const turnMessagesRef = Symbol("messages.getByTurn");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: threadTurnRef,
+        },
+        messages: {
+          ...baseComponents.codexLocal.messages,
+          getByTurn: turnMessagesRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.listTurnMessagesByExternalId.handler(
+    {
+      runQuery: async (ref, args) => {
+        if (ref === threadTurnRef) {
+          assert.deepEqual(args, { actor: {}, externalThreadId: "legacy-thread-5" });
+          return { threadId: "thread-5", externalThreadId: "legacy-thread-5" };
+        }
+        if (ref === turnMessagesRef) {
+          assert.deepEqual(args, { actor: {}, threadId: "thread-5", turnId: "turn-5" });
+          return [{ messageId: "m-1" }];
+        }
+        throw new Error("Unexpected query call");
+      },
+    },
+    { actor: {}, externalThreadId: "legacy-thread-5", turnId: "turn-5" },
+  );
+  assert.equal(result.threadStatus, "ok");
+  assert.deepEqual(result.data, [{ messageId: "m-1" }]);
+});
+
+test("listTurnMessagesByExternalId returns missing-thread fallback payload", async () => {
+  const baseComponents = createComponentRefs();
+  const threadTurnRef = Symbol("threads.resolveByExternalId");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: threadTurnRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.listTurnMessagesByExternalId.handler(
+    {
+      runQuery: async () => null,
+    },
+    { actor: {}, externalThreadId: "legacy-thread-6", turnId: "turn-6" },
+  );
+  assert.equal(result.threadStatus, "missing_thread");
+  assert.equal(result.code, "E_THREAD_NOT_FOUND");
+  assert.deepEqual(result.data, []);
+});
+
+test("listPendingServerRequestsByExternalId resolves thread and returns request payload", async () => {
+  const baseComponents = createComponentRefs();
+  const threadServerRequestRef = Symbol("threads.resolveByExternalId");
+  const pendingServerRequestRef = Symbol("serverRequests.listPending");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: threadServerRequestRef,
+        },
+        serverRequests: {
+          ...baseComponents.codexLocal.serverRequests,
+          listPending: pendingServerRequestRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.listPendingServerRequestsByExternalId.handler(
+    {
+      runQuery: async (ref, args) => {
+        if (ref === threadServerRequestRef) {
+          assert.deepEqual(args, { actor: {}, externalThreadId: "legacy-thread-7" });
+          return { threadId: "thread-7", externalThreadId: "legacy-thread-7" };
+        }
+        if (ref === pendingServerRequestRef) {
+          assert.deepEqual(args, { actor: {}, threadId: "thread-7", limit: 2 });
+          return [{ requestId: 1 }];
+        }
+        throw new Error("Unexpected query call");
+      },
+    },
+    { actor: {}, externalThreadId: "legacy-thread-7", limit: 2 },
+  );
+  assert.deepEqual(result, [{ requestId: 1 }]);
+});
+
+test("listPendingServerRequestsByExternalId returns [] when legacy thread is unmapped", async () => {
+  const baseComponents = createComponentRefs();
+  const threadServerRequestRef = Symbol("threads.resolveByExternalId");
+  const defs = host.defineCodexHostDefinitions({
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByExternalId: threadServerRequestRef,
+        },
+      },
+    },
+  });
+  const result = await defs.queries.listPendingServerRequestsByExternalId.handler(
+    {
+      runQuery: async () => null,
+    },
+    { actor: {}, externalThreadId: "legacy-thread-8" },
+  );
+  assert.deepEqual(result, []);
+});
+
 test("listPendingServerRequests returns [] when thread is missing", async () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),

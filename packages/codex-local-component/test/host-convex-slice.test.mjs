@@ -14,6 +14,7 @@ import {
   threadSnapshot,
   upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
+import { resolveThreadByExternalIdForActor } from "../dist/host/convexSlice.js";
 
 test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   const createRef = {};
@@ -75,6 +76,72 @@ test("ensureThreadByResolve derives external and local identity from threadId", 
   assert.equal(calls[0].args.localThreadId, "thread-1");
   assert.equal(calls[0].args.model, "m");
   assert.equal(calls[0].args.cwd, "/tmp");
+});
+
+test("resolveThreadByExternalIdForActor returns mapping for known external id", async () => {
+  const resolveByExternalIdRef = {};
+  const calls = [];
+  const ctx = {
+    runQuery: async (ref, args) => {
+      calls.push({ ref, args });
+      return { threadId: "runtime-thread-7", externalThreadId: "legacy-thread-7" };
+    },
+  };
+  const component = {
+    threads: {
+      resolveByExternalId: resolveByExternalIdRef,
+    },
+  };
+
+  const result = await resolveThreadByExternalIdForActor(ctx, component, {
+    actor: { userId: "actor-user" },
+    externalThreadId: "legacy-thread-7",
+  });
+
+  assert.equal(result?.threadId, "runtime-thread-7");
+  assert.equal(result?.externalThreadId, "legacy-thread-7");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].ref, resolveByExternalIdRef);
+  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, externalThreadId: "legacy-thread-7" });
+});
+
+test("resolveThreadByExternalIdForActor returns null when mapping is missing", async () => {
+  const resolveByExternalIdRef = {};
+  const ctx = {
+    runQuery: async () => null,
+  };
+  const component = {
+    threads: {
+      resolveByExternalId: resolveByExternalIdRef,
+    },
+  };
+
+  const result = await resolveThreadByExternalIdForActor(ctx, component, {
+    actor: { userId: "actor-user" },
+    externalThreadId: "legacy-thread-7",
+  });
+
+  assert.equal(result, null);
+});
+
+test("resolveThreadByExternalIdForActor throws when component lacks resolveByExternalId", async () => {
+  const component = {
+    threads: {},
+  };
+  const ctx = {
+    runQuery: async () => {
+      throw new Error("should not run");
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      resolveThreadByExternalIdForActor(ctx, component, {
+        actor: { userId: "actor-user" },
+        externalThreadId: "legacy-thread-7",
+      }),
+    /Host component is missing threads.resolveByExternalId/,
+  );
 });
 
 test("ingestBatchMixed forwards stream and lifecycle events", async () => {

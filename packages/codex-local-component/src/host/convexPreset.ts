@@ -7,6 +7,7 @@ import {
   listPendingServerRequestsForHooksForActor,
   listTokenUsageForHooksForActor,
   listThreadMessagesForHooksForActor,
+  resolveThreadByExternalIdForActor,
   listThreadReasoningForHooksForActor,
   listTurnMessagesForHooksForActor,
   persistenceStats,
@@ -66,6 +67,14 @@ function withThreadStatusOk<T extends object>(result: T): T & { threadStatus: "o
 
 function missingThreadPayload(error: unknown): ThreadReadSafeError | null {
   return classifyThreadReadError(error);
+}
+
+function missingThreadPayloadFromExternalId(externalThreadId: string): ThreadReadSafeError {
+  return {
+    threadStatus: "missing_thread",
+    code: "E_THREAD_NOT_FOUND",
+    message: `[E_THREAD_NOT_FOUND] Thread not found: ${externalThreadId}`,
+  };
 }
 
 export function defineCodexHostSlice<Components extends CodexHostComponentsInput>(
@@ -170,6 +179,21 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     features,
   });
 
+  const resolveThreadIdByExternalId = async (
+    ctx: HostQueryRunner,
+    args: { actor: HostActorContext; externalThreadId: string },
+  ) => {
+    const mapping = await resolveThreadByExternalIdForActor(
+      ctx,
+      component,
+      withServerActor(args, resolveServerActor(args, options.serverActor)),
+    );
+    if (mapping === null) {
+      return null;
+    }
+    return mapping.threadId;
+  };
+
   const queries = {
     validateHostWiring,
     threadSnapshot: {
@@ -180,6 +204,32 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             ctx,
             component,
             withServerActor(args, resolveServerActor(args, options.serverActor)),
+          );
+          return {
+            threadStatus: "ok" as const,
+            data: snapshot,
+          };
+        } catch (error) {
+          const missing = missingThreadPayload(error);
+          if (missing) {
+            return missing;
+          }
+          throw error;
+        }
+      },
+    },
+    threadSnapshotByExternalId: {
+      args: { actor: vHostActorContext, externalThreadId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; externalThreadId: string }) => {
+        const threadId = await resolveThreadIdByExternalId(ctx, args);
+        if (threadId === null) {
+          return missingThreadPayloadFromExternalId(args.externalThreadId);
+        }
+        try {
+          const snapshot = await threadSnapshot(
+            ctx,
+            component,
+            withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
           );
           return {
             threadStatus: "ok" as const,
@@ -326,6 +376,97 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               }
             },
           },
+          listThreadMessagesByExternalId: {
+            args: {
+              actor: vHostActorContext,
+              externalThreadId: v.string(),
+              paginationOpts: paginationOptsValidator,
+              streamArgs: vHostStreamArgs,
+              runtime: v.optional(vHostSyncRuntimeOptions),
+            },
+            handler: async (
+              ctx: HostQueryRunner,
+              args: {
+                actor: HostActorContext;
+                externalThreadId: string;
+                paginationOpts: { cursor: string | null; numItems: number };
+                streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
+                runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
+              },
+            ) => {
+                const threadId = await resolveThreadIdByExternalId(ctx, args);
+              if (threadId === null) {
+                const streams =
+                  args.streamArgs?.kind === "deltas"
+                    ? {
+                        kind: "deltas" as const,
+                        streams: [],
+                        deltas: [],
+                        streamWindows: [],
+                        nextCheckpoints: [],
+                      }
+                    : args.streamArgs?.kind === "list"
+                      ? {
+                          kind: "list" as const,
+                          streams: [],
+                        }
+                      : undefined;
+                return {
+                  ...missingThreadPayloadFromExternalId(args.externalThreadId),
+                  page: [],
+                  isDone: true,
+                  continueCursor: args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
+                  ...(streams ? { streams } : {}),
+                };
+              }
+              try {
+                return withThreadStatusOk(
+                  await listThreadMessagesForHooksForActor(
+                    ctx,
+                    component,
+                    withServerActor(
+                      {
+                        actor: args.actor,
+                        threadId,
+                        paginationOpts: args.paginationOpts,
+                        ...(args.streamArgs === undefined ? {} : { streamArgs: args.streamArgs }),
+                        ...(args.runtime === undefined ? {} : { runtime: args.runtime }),
+                      },
+                      resolveServerActor(args, options.serverActor),
+                    ),
+                  ),
+                );
+              } catch (error) {
+                const missing = missingThreadPayload(error);
+                if (missing) {
+                  const streams =
+                    args.streamArgs?.kind === "deltas"
+                      ? {
+                          kind: "deltas" as const,
+                          streams: [],
+                          deltas: [],
+                          streamWindows: [],
+                          nextCheckpoints: [],
+                        }
+                      : args.streamArgs?.kind === "list"
+                        ? {
+                            kind: "list" as const,
+                            streams: [],
+                          }
+                    : undefined;
+                  return {
+                    ...missing,
+                    page: [],
+                    isDone: true,
+                    continueCursor:
+                      args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
+                    ...(streams ? { streams } : {}),
+                  };
+                }
+                throw error;
+              }
+            },
+          },
           listTurnMessagesForHooks: {
             args: { actor: vHostActorContext, threadId: v.string(), turnId: v.string() },
             handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string; turnId: string }) => {
@@ -333,6 +474,44 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 return {
                   threadStatus: "ok" as const,
                   data: await listTurnMessagesForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+                };
+              } catch (error) {
+                const missing = missingThreadPayload(error);
+                if (missing) {
+                  return {
+                    ...missing,
+                    data: [],
+                  };
+                }
+                throw error;
+              }
+            },
+          },
+          listTurnMessagesByExternalId: {
+            args: { actor: vHostActorContext, externalThreadId: v.string(), turnId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; externalThreadId: string; turnId: string }) => {
+              const threadId = await resolveThreadIdByExternalId(ctx, args);
+              if (threadId === null) {
+                return {
+                  ...missingThreadPayloadFromExternalId(args.externalThreadId),
+                  data: [],
+                };
+              }
+              try {
+                return {
+                  threadStatus: "ok" as const,
+                  data: await listTurnMessagesForHooksForActor(
+                    ctx,
+                    component,
+                    withServerActor(
+                      {
+                        actor: args.actor,
+                        threadId,
+                        turnId: args.turnId,
+                      },
+                      resolveServerActor(args, options.serverActor),
+                    ),
+                  ),
                 };
               } catch (error) {
                 const missing = missingThreadPayload(error);
@@ -397,7 +576,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             args: { actor: vHostActorContext, threadId: v.optional(v.string()), limit: v.optional(v.number()) },
             handler: async (
               ctx: HostQueryRunner,
-            args: { actor: HostActorContext; threadId?: string; limit?: number },
+              args: { actor: HostActorContext; threadId?: string; limit?: number },
             ) => {
               try {
                 return await listPendingServerRequestsForHooksForActor(
@@ -412,6 +591,37 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 throw error;
               }
             }
+          },
+          listPendingServerRequestsByExternalId: {
+            args: { actor: vHostActorContext, externalThreadId: v.string(), limit: v.optional(v.number()) },
+            handler: async (
+              ctx: HostQueryRunner,
+              args: { actor: HostActorContext; externalThreadId: string; limit?: number },
+            ) => {
+              const threadId = await resolveThreadIdByExternalId(ctx, args);
+              if (threadId === null) {
+                return [];
+              }
+              try {
+                return await listPendingServerRequestsForHooksForActor(
+                  ctx,
+                  component,
+                  withServerActor(
+                    {
+                      actor: args.actor,
+                      threadId,
+                      ...(args.limit === undefined ? {} : { limit: args.limit }),
+                    },
+                    resolveServerActor(args, options.serverActor),
+                  ),
+                );
+              } catch (error) {
+                if (missingThreadPayload(error)) {
+                  return [];
+                }
+                throw error;
+              }
+            },
           },
         }
       : {}),
@@ -460,13 +670,17 @@ type RuntimeOwnedInternalDefinitions = {
   queries: {
     validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
+    threadSnapshotByExternalId: CodexHostSliceDefinitions["queries"]["threadSnapshotByExternalId"];
     getDeletionStatus: CodexHostSliceDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: CodexHostSliceDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: CodexHostSliceDefinitions["queries"]["durableHistoryStats"];
     dataHygiene: NonNullable<CodexHostSliceDefinitions["queries"]["dataHygiene"]>;
     listThreadMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesForHooks"]>;
     listTurnMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesForHooks"]>;
+    listThreadMessagesByExternalId: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesByExternalId"]>;
+    listTurnMessagesByExternalId: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesByExternalId"]>;
     listPendingApprovalsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingApprovalsForHooks"]>;
+    listPendingServerRequestsByExternalId: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsByExternalId"]>;
     listTokenUsageForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTokenUsageForHooks"]>;
     listPendingServerRequestsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsForHooks"]>;
     listThreadReasoningForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadReasoningForHooks"]>;
@@ -499,12 +713,16 @@ export type RuntimeOwnedHostDefinitions = {
   queries: {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
+    threadSnapshotByExternalId: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotByExternalId"];
     getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStats"];
     dataHygiene: RuntimeOwnedInternalDefinitions["queries"]["dataHygiene"];
     listThreadMessages: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesForHooks"];
     listTurnMessages: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesForHooks"];
+    listThreadMessagesByExternalId: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesByExternalId"];
+    listTurnMessagesByExternalId: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesByExternalId"];
+    listPendingServerRequestsByExternalId: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsByExternalId"];
     listPendingApprovals: RuntimeOwnedInternalDefinitions["queries"]["listPendingApprovalsForHooks"];
     listTokenUsage: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageForHooks"];
     listPendingServerRequests: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsForHooks"];
@@ -561,12 +779,16 @@ function toPublicRuntimeOwnedDefinitions(
     queries: {
       validateHostWiring: defs.queries.validateHostWiring,
       threadSnapshot: defs.queries.threadSnapshot,
+      threadSnapshotByExternalId: defs.queries.threadSnapshotByExternalId,
       getDeletionStatus: defs.queries.getDeletionStatus,
       persistenceStats: defs.queries.persistenceStats,
       durableHistoryStats: defs.queries.durableHistoryStats,
       dataHygiene: defs.queries.dataHygiene,
       listThreadMessages: defs.queries.listThreadMessagesForHooks,
       listTurnMessages: defs.queries.listTurnMessagesForHooks,
+      listThreadMessagesByExternalId: defs.queries.listThreadMessagesByExternalId,
+      listTurnMessagesByExternalId: defs.queries.listTurnMessagesByExternalId,
+      listPendingServerRequestsByExternalId: defs.queries.listPendingServerRequestsByExternalId,
       listPendingApprovals: defs.queries.listPendingApprovalsForHooks,
       listTokenUsage: defs.queries.listTokenUsageForHooks,
       listPendingServerRequests: defs.queries.listPendingServerRequestsForHooks,
@@ -614,14 +836,18 @@ function toRuntimeOwnedInternalDefinitions(
     queries: {
       validateHostWiring: rawSlice.queries.validateHostWiring,
       threadSnapshot: rawSlice.queries.threadSnapshot,
+      threadSnapshotByExternalId: requireHostDefinition(rawSlice.queries.threadSnapshotByExternalId, "threadSnapshotByExternalId"),
       getDeletionStatus: rawSlice.queries.getDeletionStatus,
       persistenceStats: rawSlice.queries.persistenceStats,
       durableHistoryStats: rawSlice.queries.durableHistoryStats,
       dataHygiene: requireHostDefinition(rawSlice.queries.dataHygiene, "dataHygiene"),
       listThreadMessagesForHooks: requireHostDefinition(rawSlice.queries.listThreadMessagesForHooks, "listThreadMessagesForHooks"),
       listTurnMessagesForHooks: requireHostDefinition(rawSlice.queries.listTurnMessagesForHooks, "listTurnMessagesForHooks"),
+      listThreadMessagesByExternalId: requireHostDefinition(rawSlice.queries.listThreadMessagesByExternalId, "listThreadMessagesByExternalId"),
+      listTurnMessagesByExternalId: requireHostDefinition(rawSlice.queries.listTurnMessagesByExternalId, "listTurnMessagesByExternalId"),
       listPendingApprovalsForHooks: requireHostDefinition(rawSlice.queries.listPendingApprovalsForHooks, "listPendingApprovalsForHooks"),
       listTokenUsageForHooks: requireHostDefinition(rawSlice.queries.listTokenUsageForHooks, "listTokenUsageForHooks"),
+      listPendingServerRequestsByExternalId: requireHostDefinition(rawSlice.queries.listPendingServerRequestsByExternalId, "listPendingServerRequestsByExternalId"),
       listPendingServerRequestsForHooks: requireHostDefinition(rawSlice.queries.listPendingServerRequestsForHooks, "listPendingServerRequestsForHooks"),
       listThreadReasoningForHooks: requireHostDefinition(rawSlice.queries.listThreadReasoningForHooks, "listThreadReasoningForHooks"),
     },

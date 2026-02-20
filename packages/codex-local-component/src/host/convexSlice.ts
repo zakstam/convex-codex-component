@@ -174,6 +174,23 @@ type CodexThreadsResolveComponent = {
   };
 };
 
+type CodexThreadsResolveByExternalIdComponent = {
+  threads: {
+    resolveByExternalId?: FunctionReference<
+      "query",
+      "public" | "internal",
+      {
+        actor: HostActorContext;
+        externalThreadId: string;
+      },
+      {
+        threadId: string;
+        externalThreadId: string;
+      } | null
+    >;
+  };
+};
+
 type CodexThreadsDeletionComponent = {
   threads: {
     deleteCascade: FunctionReference<"mutation", "public" | "internal">;
@@ -262,6 +279,7 @@ type CodexReasoningComponent = {
 export type CodexHostComponentRefs =
   & CodexThreadsCreateComponent
   & CodexThreadsResolveComponent
+  & CodexThreadsResolveByExternalIdComponent
   & CodexThreadsDeletionComponent
   & CodexTurnsComponent
   & CodexTurnsDeletionComponent
@@ -331,6 +349,11 @@ type IngestBatchMixedArgs = {
 type ThreadSnapshotArgs = {
   actor: HostActorContext;
   threadId: string;
+};
+
+type ExternalThreadIdLookupArgs = {
+  actor: HostActorContext;
+  externalThreadId: string;
 };
 
 type DurableHistoryMessage = {
@@ -601,6 +624,31 @@ export async function threadSnapshot<
   args: ThreadSnapshotArgs,
 ): Promise<FunctionReturnType<Component["threads"]["getState"]>> {
   return ctx.runQuery(component.threads.getState, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
+}
+
+export async function resolveThreadByExternalIdForActor<
+  Component extends CodexThreadsResolveByExternalIdComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: ExternalThreadIdLookupArgs,
+): Promise<{
+  threadId: string;
+  externalThreadId: string;
+} | null> {
+  if (!component.threads.resolveByExternalId) {
+    throw new Error(
+      "Host component is missing threads.resolveByExternalId; this is required for external ID lookup APIs.",
+    );
+  }
+  const resolveByExternalId = component.threads.resolveByExternalId;
+  return ctx.runQuery(
+    resolveByExternalId,
+    typedArgs<typeof resolveByExternalId>({
+      actor: args.actor,
+      externalThreadId: args.externalThreadId,
+    }),
+  );
 }
 
 export function classifyThreadSnapshotError(

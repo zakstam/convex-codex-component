@@ -2,14 +2,17 @@
 
 import { useMemo, type ReactNode } from "react";
 import { CodexContext, type CodexContextValue } from "./CodexContext.js";
-import type { CodexMessagesQuery } from "./types.js";
+import type { CodexMessagesQuery, CodexThreadReadResult } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
 
 export type CodexProviderApi<Actor extends Record<string, unknown> = Record<string, unknown>> = {
   listThreadMessages: CodexMessagesQuery<{ actor: Actor }>;
-  threadSnapshotSafe: CodexThreadStateQuery<{ actor: Actor }, CodexThreadActivityThreadState>;
+  threadSnapshot: CodexThreadStateQuery<
+    { actor: Actor },
+    CodexThreadReadResult<CodexThreadActivityThreadState>
+  >;
   listPendingServerRequests?: unknown;
   listTokenUsage?: CodexTokenUsageQuery<{ actor: Actor }>;
 } & Record<string, unknown>;
@@ -33,7 +36,7 @@ export function CodexProvider<Actor extends Record<string, unknown> = Record<str
     () => ({
       actor: actor ?? {},
       listThreadMessages: api.listThreadMessages,
-      threadSnapshotSafe: api.threadSnapshotSafe,
+      threadSnapshot: api.threadSnapshot,
       ...(api.listPendingServerRequests !== undefined
         ? { listPendingServerRequests: api.listPendingServerRequests }
         : {}),
@@ -43,7 +46,7 @@ export function CodexProvider<Actor extends Record<string, unknown> = Record<str
       defaultInitialNumItems: initialNumItems,
       defaultStream: stream,
     }),
-    [actor, api.listThreadMessages, api.threadSnapshotSafe, api.listPendingServerRequests, api.listTokenUsage, initialNumItems, stream],
+    [actor, api.listThreadMessages, api.threadSnapshot, api.listPendingServerRequests, api.listTokenUsage, initialNumItems, stream],
   );
 
   return <CodexContext.Provider value={value}>{children}</CodexContext.Provider>;

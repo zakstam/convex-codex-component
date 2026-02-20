@@ -11,7 +11,7 @@ import {
   listThreadMessagesForHooks,
   normalizeInboundDeltas,
   resolvePendingServerRequestForHooksForActor,
-  threadSnapshotSafe,
+  threadSnapshot,
   upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
 
@@ -261,7 +261,7 @@ test("listThreadMessagesForHooks returns stream list with deltas payload", async
   assert.deepEqual(result.streams?.streams, [{ streamId: "stream-1", state: "streaming" }]);
 });
 
-test("threadSnapshotSafe returns null when thread is missing", async () => {
+test("threadSnapshot returns missing_thread payload when thread is missing", async () => {
   const getStateRef = {};
   const ctx = {
     runQuery: async () => {
@@ -274,15 +274,17 @@ test("threadSnapshotSafe returns null when thread is missing", async () => {
     },
   };
 
-  const snapshot = await threadSnapshotSafe(ctx, component, {
+  const snapshot = await threadSnapshot(ctx, component, {
     actor: { userId: "u" },
     threadId: "thread-1",
   });
 
-  assert.equal(snapshot, null);
+  assert.equal(snapshot.threadStatus, "missing_thread");
+  assert.equal(snapshot.code, "E_THREAD_NOT_FOUND");
+  assert.equal(snapshot.message, "Thread not found for scope: thread-1");
 });
 
-test("threadSnapshotSafe rethrows unexpected errors", async () => {
+test("threadSnapshot rethrows unexpected errors", async () => {
   const getStateRef = {};
   const ctx = {
     runQuery: async () => {
@@ -297,7 +299,7 @@ test("threadSnapshotSafe rethrows unexpected errors", async () => {
 
   await assert.rejects(
     () =>
-      threadSnapshotSafe(ctx, component, {
+      threadSnapshot(ctx, component, {
         actor: { userId: "u" },
         threadId: "thread-1",
       }),

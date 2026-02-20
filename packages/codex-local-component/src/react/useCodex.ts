@@ -10,25 +10,21 @@ import { deriveCodexTokenUsage, type CodexTokenUsage } from "./tokenUsage.js";
 import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 import type { CodexTurnTokenUsage } from "./tokenUsage.js";
 import type { FunctionArgs, FunctionReference } from "convex/server";
-import type { CodexMessagesQuery } from "./types.js";
+import type { CodexMessagesQuery, CodexThreadReadResult } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexDynamicToolsQuery } from "./useCodexDynamicTools.js";
+import type { ThreadReadSafeError } from "../errors.js";
 
-type SafeThreadSnapshotResult =
-  | { threadStatus: "ok"; data: CodexThreadActivityThreadState }
-  | { threadStatus: "missing_thread"; code: "E_THREAD_NOT_FOUND"; message: string }
-  | CodexThreadActivityThreadState
-  | null
-  | undefined;
+type SafeThreadSnapshotResult = CodexThreadReadResult<CodexThreadActivityThreadState> | null | undefined;
 
-function isMissingThreadSnapshot(
-  value: unknown,
-): value is { threadStatus: "missing_thread"; code: "E_THREAD_NOT_FOUND"; message: string } {
+function isThreadReadSafeError(value: unknown): value is ThreadReadSafeError {
   return (
     typeof value === "object" &&
     value !== null &&
-    Reflect.get(value, "threadStatus") === "missing_thread"
+    (Reflect.get(value, "threadStatus") === "missing_thread" ||
+      Reflect.get(value, "threadStatus") === "forbidden_thread" ||
+      Reflect.get(value, "threadStatus") === "forbidden_session")
   );
 }
 
@@ -50,13 +46,13 @@ function unwrapThreadSnapshot(
   if (!snapshot) {
     return snapshot;
   }
-  if (isMissingThreadSnapshot(snapshot)) {
+  if (isThreadReadSafeError(snapshot)) {
     return null;
   }
   if (isOkThreadSnapshot(snapshot)) {
     return snapshot.data;
   }
-  return snapshot;
+  return null;
 }
 
 function isCodexTurnTokenUsageArray(value: unknown): value is CodexTurnTokenUsage[] {
@@ -108,25 +104,25 @@ export type UseCodexOptions<
   stream?: boolean;
   composer?: CodexChatOptions<
     CodexMessagesQuery<unknown>,
-    CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
     CodexDynamicToolsQuery<Record<string, unknown>>,
     ComposerResult, ApprovalResult, InterruptResult, DynamicToolsRespondResult
   >["composer"];
   interrupt?: CodexChatOptions<
     CodexMessagesQuery<unknown>,
-    CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
     CodexDynamicToolsQuery<Record<string, unknown>>,
     ComposerResult, ApprovalResult, InterruptResult, DynamicToolsRespondResult
   >["interrupt"];
   approvals?: CodexChatOptions<
     CodexMessagesQuery<unknown>,
-    CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
     CodexDynamicToolsQuery<Record<string, unknown>>,
     ComposerResult, ApprovalResult, InterruptResult, DynamicToolsRespondResult
   >["approvals"];
   dynamicTools?: CodexChatOptions<
     CodexMessagesQuery<unknown>,
-    CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
     CodexDynamicToolsQuery<Record<string, unknown>>,
     ComposerResult, ApprovalResult, InterruptResult, DynamicToolsRespondResult
   >["dynamicTools"];
@@ -140,7 +136,7 @@ export type UseCodexResult<
   DynamicToolsRespondResult = unknown,
 > = CodexChatResult<
   CodexMessagesQuery<unknown>,
-  CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   CodexDynamicToolsQuery<Record<string, unknown>>,
   ComposerResult,
   ApprovalResult,
@@ -206,7 +202,7 @@ export function useCodex<
       stream,
     },
     threadState: {
-      query: ctx.threadSnapshotSafe,
+      query: ctx.threadSnapshot,
       args: threadStateArgs,
     },
     ...(options.composer !== undefined ? { composer: options.composer } : {}),
@@ -220,7 +216,7 @@ export function useCodex<
   // with the internal useCodexConversationController call — zero extra
   // network cost.
   const threadStateRaw = useCodexThreadState(
-    ctx.threadSnapshotSafe,
+    ctx.threadSnapshot,
     shouldSkip
       ? "skip"
       : { actor: ctx.actor, threadId: effectiveThreadId },

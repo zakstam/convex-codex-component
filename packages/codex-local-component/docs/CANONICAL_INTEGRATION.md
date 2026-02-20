@@ -44,13 +44,12 @@ export const scheduleDeleteThread = mutation(codex.mutations.scheduleDeleteThrea
 export const validateHostWiring = query(codex.queries.validateHostWiring);
 export const getDeletionStatus = query(codex.queries.getDeletionStatus);
 export const threadSnapshot = query(codex.queries.threadSnapshot); // safe-by-default
-export const threadSnapshotStrict = query(codex.queries.threadSnapshotStrict);
 export const listThreadMessages = query(codex.queries.listThreadMessages);
 ```
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
 
-Thread-scoped reads are safe-by-default (`threadSnapshot`, `listThreadMessages`, `listTurnMessages`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`). Use `*Strict` query aliases when you want throw-on-missing behavior.
+Thread-scoped reads are safe-by-default (`threadSnapshot`, `listThreadMessages`, `listTurnMessages`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior.
 
 ## Host Shim Generation
 

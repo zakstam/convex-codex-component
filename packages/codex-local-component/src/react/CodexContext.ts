@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { CodexMessagesQuery } from "./types.js";
+import type { CodexMessagesQuery, CodexThreadReadResult } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
@@ -9,7 +9,10 @@ import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
 export type CodexContextValue = {
   actor: Record<string, unknown>;
   listThreadMessages: CodexMessagesQuery<Record<string, unknown>>;
-  threadSnapshotSafe: CodexThreadStateQuery<Record<string, unknown>, CodexThreadActivityThreadState>;
+  threadSnapshot: CodexThreadStateQuery<
+    Record<string, unknown>,
+    CodexThreadReadResult<CodexThreadActivityThreadState>
+  >;
   listPendingServerRequests?: unknown;
   listTokenUsage?: CodexTokenUsageQuery<Record<string, unknown>>;
   defaultInitialNumItems: number;

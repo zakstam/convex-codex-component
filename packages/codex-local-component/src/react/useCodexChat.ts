@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { FunctionArgs } from "convex/server";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
-import type { CodexMessagesQuery } from "./types.js";
+import type { CodexMessagesQuery, CodexThreadReadResult } from "./types.js";
 import {
   useCodexConversationController,
   type CodexConversationControllerConfig,
@@ -32,7 +32,8 @@ export type CodexChatDynamicToolsConfig<
 
 export type CodexChatConfig<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
   ComposerResult = unknown,
   ApprovalResult = unknown,
@@ -67,7 +68,8 @@ export type CodexChatTools = {
 
 type CodexChatResultState<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
   ComposerResult = unknown,
   ApprovalResult = unknown,
@@ -89,7 +91,8 @@ type CodexChatResultState<
 
 export type CodexChatResult<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
   ComposerResult = unknown,
   ApprovalResult = unknown,
@@ -107,7 +110,8 @@ export type CodexChatResult<
 
 export type CodexChatOptions<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>> = CodexDynamicToolsQuery<
     Record<string, unknown>
   >,
@@ -142,7 +146,8 @@ function normalizeToolList(toolNames: readonly string[]): string[] {
 
 export function useCodexChat<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>> = CodexDynamicToolsQuery<
     Record<string, unknown>
   >,

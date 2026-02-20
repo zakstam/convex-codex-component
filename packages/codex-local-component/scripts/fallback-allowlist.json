@@ -1775,7 +1775,7 @@
       "col": 14,
       "kind": "nullish-coalescing",
       "snippet": "actor ?? {}",
-      "context": "() => ({ actor: actor ?? {}, listThreadMessages: api.listThreadMessages, threadSnapshotSafe: api.threadSnapshotSafe, ...(api.listPendingServerRequests !== undefined ? { listPend..."
+      "context": "() => ({ actor: actor ?? {}, listThreadMessages: api.listThreadMessages, threadSnapshot: api.threadSnapshot, ...(api.listPendingServerRequests !== undefined ? { listPend..."
     },
     {
       "description": "Dynamic tool derivation defaults missing request list to empty array.",

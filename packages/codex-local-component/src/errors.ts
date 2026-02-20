@@ -5,11 +5,19 @@ export const RECOVERABLE_INGEST_ERROR_CODES = new Set([
   "SESSION_THREAD_MISMATCH",
 ]);
 
+export type ThreadReadForbiddenError = {
+  threadStatus: "forbidden_thread" | "forbidden_session";
+  code: "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN";
+  message: string;
+};
+
 export type ThreadReadMissingError = {
   threadStatus: "missing_thread";
   code: "E_THREAD_NOT_FOUND";
   message: string;
 };
+
+export type ThreadReadSafeError = ThreadReadMissingError | ThreadReadForbiddenError;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -20,7 +28,7 @@ export function parseErrorCode(error: unknown): string | null {
   return match?.[1] ?? null;
 }
 
-export function classifyThreadReadError(error: unknown): ThreadReadMissingError | null {
+export function classifyThreadReadError(error: unknown): ThreadReadSafeError | null {
   const message = errorMessage(error);
   const code = parseErrorCode(error);
   const isMissing =
@@ -28,6 +36,20 @@ export function classifyThreadReadError(error: unknown): ThreadReadMissingError 
     code === "E_SYNC_SESSION_NOT_FOUND" ||
     code === "E_THREAD_NOT_FOUND";
   if (!isMissing) {
+    if (code === "E_AUTH_THREAD_FORBIDDEN") {
+      return {
+        threadStatus: "forbidden_thread",
+        code: "E_AUTH_THREAD_FORBIDDEN",
+        message,
+      };
+    }
+    if (code === "E_AUTH_SESSION_FORBIDDEN") {
+      return {
+        threadStatus: "forbidden_session",
+        code: "E_AUTH_SESSION_FORBIDDEN",
+        message,
+      };
+    }
     return null;
   }
   return {
@@ -38,7 +60,13 @@ export function classifyThreadReadError(error: unknown): ThreadReadMissingError 
 }
 
 export function isThreadMissing(error: unknown): boolean {
-  return classifyThreadReadError(error) !== null;
+  const message = errorMessage(error);
+  const code = parseErrorCode(error);
+  return (
+    message.includes("Thread not found") ||
+    code === "E_SYNC_SESSION_NOT_FOUND" ||
+    code === "E_THREAD_NOT_FOUND"
+  );
 }
 
 export function isThreadForbidden(error: unknown): boolean {

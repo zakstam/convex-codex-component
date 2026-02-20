@@ -74,7 +74,6 @@ export {
   respondApprovalForHooksForActor,
   resolvePendingServerRequestForHooksForActor,
   threadSnapshot,
-  threadSnapshotSafe,
   upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
   listTokenUsageForHooksForActor,

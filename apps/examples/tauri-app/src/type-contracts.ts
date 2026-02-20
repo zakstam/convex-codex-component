@@ -6,7 +6,7 @@ type Assert<T extends true> = T;
 type Extends<A, B> = A extends B ? true : false;
 
 type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessages>;
-type ThreadSnapshotSafeArgs = FunctionArgs<typeof api.chat.threadSnapshotSafe>;
+type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshot>;
 type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequests>;
 type ValidateHostWiringArgs = FunctionArgs<typeof api.chat.validateHostWiring>;
 type ScheduleDeleteThreadArgs = FunctionArgs<typeof api.chat.scheduleDeleteThread>;
@@ -25,9 +25,9 @@ type _ListThreadMessagesArgsAreTyped = Assert<
   >
 >;
 
-type _ThreadSnapshotSafeArgsAreTyped = Assert<
+type _ThreadSnapshotArgsAreTyped = Assert<
   Extends<
-    ThreadSnapshotSafeArgs,
+    ThreadSnapshotArgs,
     {
       actor: ActorContext;
       threadId: string;

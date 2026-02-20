@@ -11,9 +11,9 @@ type CodexTurnMessage = {
 };
 
 type CodexSafeTurnMessages<Message extends CodexTurnMessage> = {
-  threadStatus: "ok" | "missing_thread";
+  threadStatus: "ok" | "missing_thread" | "forbidden_thread" | "forbidden_session";
   data: Message[];
-  code?: "E_THREAD_NOT_FOUND";
+  code?: "E_THREAD_NOT_FOUND" | "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN";
   message?: string;
 };
 

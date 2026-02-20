@@ -26,6 +26,16 @@ export type CodexStreamsResult =
       nextCheckpoints: Array<{ streamId: string; cursor: number }>;
     };
 
+export type CodexThreadReadError = {
+  threadStatus: "missing_thread" | "forbidden_thread" | "forbidden_session";
+  code: "E_THREAD_NOT_FOUND" | "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN";
+  message: string;
+};
+
+export type CodexThreadReadResult<State> =
+  | { threadStatus: "ok"; data: State }
+  | CodexThreadReadError;
+
 export type CodexMessagesQuery<Args = Record<string, unknown>> = FunctionReference<
   "query",
   "public",
@@ -36,8 +46,8 @@ export type CodexMessagesQuery<Args = Record<string, unknown>> = FunctionReferen
   } & Args,
   PaginationResult<CodexDurableMessageLike> & {
     streams?: CodexStreamsResult;
-    threadStatus?: "ok" | "missing_thread";
-    code?: "E_THREAD_NOT_FOUND";
+    threadStatus?: "ok" | "missing_thread" | "forbidden_thread" | "forbidden_session";
+    code?: "E_THREAD_NOT_FOUND" | "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN";
     message?: string;
   }
 >;
@@ -57,8 +67,8 @@ export type CodexReasoningQuery<Args = Record<string, unknown>> = FunctionRefere
   } & Args,
   PaginationResult<CodexReasoningSegmentLike> & {
     streams?: CodexStreamsResult;
-    threadStatus?: "ok" | "missing_thread";
-    code?: "E_THREAD_NOT_FOUND";
+    threadStatus?: "ok" | "missing_thread" | "forbidden_thread" | "forbidden_session";
+    code?: "E_THREAD_NOT_FOUND" | "E_AUTH_THREAD_FORBIDDEN" | "E_AUTH_SESSION_FORBIDDEN";
     message?: string;
   }
 >;

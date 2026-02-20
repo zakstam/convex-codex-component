@@ -28,7 +28,6 @@ export const failAcceptedTurnSend = mutation(codex.mutations.failAcceptedTurnSen
 
 export const validateHostWiring = query(codex.queries.validateHostWiring);
 export const threadSnapshot = query(codex.queries.threadSnapshot);
-export const threadSnapshotSafe = query(codex.queries.threadSnapshotSafe);
 export const getDeletionStatus = query(codex.queries.getDeletionStatus);
 export const persistenceStats = query(codex.queries.persistenceStats);
 export const durableHistoryStats = query(codex.queries.durableHistoryStats);

@@ -11,18 +11,14 @@ import {
   listTurnMessagesForHooksForActor,
   persistenceStats,
   threadSnapshot,
-  threadSnapshotSafe,
   vHostActorContext,
-  vHostDataHygiene,
-  vHostDurableHistoryStats,
-  vHostPersistenceStats,
   vHostStreamArgs,
   vHostSyncRuntimeOptions,
   type CodexHostComponentsInput,
   type HostActorContext,
   type HostQueryRunner,
 } from "./convexSlice.js";
-import { classifyThreadReadError, type ThreadReadMissingError } from "../errors.js";
+import { classifyThreadReadError, type ThreadReadSafeError } from "../errors.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
 import { resolveHostComponentRefs } from "./generatedTypingBoundary.js";
 import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
@@ -68,7 +64,7 @@ function withThreadStatusOk<T extends object>(result: T): T & { threadStatus: "o
   return { ...result, threadStatus: "ok" };
 }
 
-function missingThreadPayload(error: unknown): ThreadReadMissingError | null {
+function missingThreadPayload(error: unknown): ThreadReadSafeError | null {
   return classifyThreadReadError(error);
 }
 
@@ -198,16 +194,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         }
       },
     },
-    threadSnapshotStrict: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        threadSnapshot(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
-    },
-    threadSnapshotSafe: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        threadSnapshotSafe(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
-    },
     getDeletionStatus: {
       args: { actor: vHostActorContext, deletionJobId: v.string() },
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; deletionJobId: string }) =>
@@ -237,12 +223,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         }
       },
     },
-    persistenceStatsStrict: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      returns: vHostPersistenceStats,
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        persistenceStats(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
-    },
     durableHistoryStats: {
       args: { actor: vHostActorContext, threadId: v.string() },
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) => {
@@ -262,12 +242,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           throw error;
         }
       },
-    },
-    durableHistoryStatsStrict: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      returns: vHostDurableHistoryStats,
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-        durableHistoryStats(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
     },
     ...(features.hygiene
       ? {
@@ -291,12 +265,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 throw error;
               }
             },
-          },
-          dataHygieneStrict: {
-            args: { actor: vHostActorContext, threadId: v.string() },
-            returns: vHostDataHygiene,
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-              dataHygiene(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -358,25 +326,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               }
             },
           },
-          listThreadMessagesForHooksStrict: {
-            args: {
-              actor: vHostActorContext,
-              threadId: v.string(),
-              paginationOpts: paginationOptsValidator,
-              streamArgs: vHostStreamArgs,
-              runtime: v.optional(vHostSyncRuntimeOptions),
-            },
-            handler: async (
-              ctx: HostQueryRunner,
-              args: {
-                actor: HostActorContext;
-                threadId: string;
-                paginationOpts: { cursor: string | null; numItems: number };
-                streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
-                runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
-              },
-            ) => listThreadMessagesForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
-          },
           listTurnMessagesForHooks: {
             args: { actor: vHostActorContext, threadId: v.string(), turnId: v.string() },
             handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string; turnId: string }) => {
@@ -396,11 +345,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 throw error;
               }
             },
-          },
-          listTurnMessagesForHooksStrict: {
-            args: { actor: vHostActorContext, threadId: v.string(), turnId: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string; turnId: string }) =>
-              listTurnMessagesForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -433,13 +377,6 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 throw error;
               }
             },
-          },
-          listThreadReasoningForHooksStrict: {
-            args: { actor: vHostActorContext, threadId: v.string(), paginationOpts: paginationOptsValidator, includeRaw: v.optional(v.boolean()) },
-            handler: async (
-              ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadId: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
-            ) => listThreadReasoningForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
           },
         }
       : {}),
@@ -510,24 +447,16 @@ type RuntimeOwnedInternalDefinitions = {
   queries: {
     validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
-    threadSnapshotStrict: CodexHostSliceDefinitions["queries"]["threadSnapshotStrict"];
-    threadSnapshotSafe: CodexHostSliceDefinitions["queries"]["threadSnapshotSafe"];
     getDeletionStatus: CodexHostSliceDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: CodexHostSliceDefinitions["queries"]["persistenceStats"];
-    persistenceStatsStrict: CodexHostSliceDefinitions["queries"]["persistenceStatsStrict"];
     durableHistoryStats: CodexHostSliceDefinitions["queries"]["durableHistoryStats"];
-    durableHistoryStatsStrict: CodexHostSliceDefinitions["queries"]["durableHistoryStatsStrict"];
     dataHygiene: NonNullable<CodexHostSliceDefinitions["queries"]["dataHygiene"]>;
-    dataHygieneStrict: NonNullable<CodexHostSliceDefinitions["queries"]["dataHygieneStrict"]>;
     listThreadMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesForHooks"]>;
-    listThreadMessagesForHooksStrict: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesForHooksStrict"]>;
     listTurnMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesForHooks"]>;
-    listTurnMessagesForHooksStrict: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesForHooksStrict"]>;
     listPendingApprovalsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingApprovalsForHooks"]>;
     listTokenUsageForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTokenUsageForHooks"]>;
     listPendingServerRequestsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsForHooks"]>;
     listThreadReasoningForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadReasoningForHooks"]>;
-    listThreadReasoningForHooksStrict: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadReasoningForHooksStrict"]>;
   };
 };
 
@@ -557,24 +486,16 @@ export type RuntimeOwnedHostDefinitions = {
   queries: {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
-    threadSnapshotStrict: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotStrict"];
-    threadSnapshotSafe: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotSafe"];
     getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
-    persistenceStatsStrict: RuntimeOwnedInternalDefinitions["queries"]["persistenceStatsStrict"];
     durableHistoryStats: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStats"];
-    durableHistoryStatsStrict: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStatsStrict"];
     dataHygiene: RuntimeOwnedInternalDefinitions["queries"]["dataHygiene"];
-    dataHygieneStrict: RuntimeOwnedInternalDefinitions["queries"]["dataHygieneStrict"];
     listThreadMessages: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesForHooks"];
-    listThreadMessagesStrict: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesForHooksStrict"];
     listTurnMessages: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesForHooks"];
-    listTurnMessagesStrict: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesForHooksStrict"];
     listPendingApprovals: RuntimeOwnedInternalDefinitions["queries"]["listPendingApprovalsForHooks"];
     listTokenUsage: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageForHooks"];
     listPendingServerRequests: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsForHooks"];
     listThreadReasoning: RuntimeOwnedInternalDefinitions["queries"]["listThreadReasoningForHooks"];
-    listThreadReasoningStrict: RuntimeOwnedInternalDefinitions["queries"]["listThreadReasoningForHooksStrict"];
   };
 };
 
@@ -627,24 +548,16 @@ function toPublicRuntimeOwnedDefinitions(
     queries: {
       validateHostWiring: defs.queries.validateHostWiring,
       threadSnapshot: defs.queries.threadSnapshot,
-      threadSnapshotStrict: defs.queries.threadSnapshotStrict,
-      threadSnapshotSafe: defs.queries.threadSnapshotSafe,
       getDeletionStatus: defs.queries.getDeletionStatus,
       persistenceStats: defs.queries.persistenceStats,
-      persistenceStatsStrict: defs.queries.persistenceStatsStrict,
       durableHistoryStats: defs.queries.durableHistoryStats,
-      durableHistoryStatsStrict: defs.queries.durableHistoryStatsStrict,
       dataHygiene: defs.queries.dataHygiene,
-      dataHygieneStrict: defs.queries.dataHygieneStrict,
       listThreadMessages: defs.queries.listThreadMessagesForHooks,
-      listThreadMessagesStrict: defs.queries.listThreadMessagesForHooksStrict,
       listTurnMessages: defs.queries.listTurnMessagesForHooks,
-      listTurnMessagesStrict: defs.queries.listTurnMessagesForHooksStrict,
       listPendingApprovals: defs.queries.listPendingApprovalsForHooks,
       listTokenUsage: defs.queries.listTokenUsageForHooks,
       listPendingServerRequests: defs.queries.listPendingServerRequestsForHooks,
       listThreadReasoning: defs.queries.listThreadReasoningForHooks,
-      listThreadReasoningStrict: defs.queries.listThreadReasoningForHooksStrict,
     },
   };
 }
@@ -688,24 +601,16 @@ function toRuntimeOwnedInternalDefinitions(
     queries: {
       validateHostWiring: rawSlice.queries.validateHostWiring,
       threadSnapshot: rawSlice.queries.threadSnapshot,
-      threadSnapshotStrict: rawSlice.queries.threadSnapshotStrict,
-      threadSnapshotSafe: rawSlice.queries.threadSnapshotSafe,
       getDeletionStatus: rawSlice.queries.getDeletionStatus,
       persistenceStats: rawSlice.queries.persistenceStats,
-      persistenceStatsStrict: rawSlice.queries.persistenceStatsStrict,
       durableHistoryStats: rawSlice.queries.durableHistoryStats,
-      durableHistoryStatsStrict: rawSlice.queries.durableHistoryStatsStrict,
       dataHygiene: requireHostDefinition(rawSlice.queries.dataHygiene, "dataHygiene"),
-      dataHygieneStrict: requireHostDefinition(rawSlice.queries.dataHygieneStrict, "dataHygieneStrict"),
       listThreadMessagesForHooks: requireHostDefinition(rawSlice.queries.listThreadMessagesForHooks, "listThreadMessagesForHooks"),
-      listThreadMessagesForHooksStrict: requireHostDefinition(rawSlice.queries.listThreadMessagesForHooksStrict, "listThreadMessagesForHooksStrict"),
       listTurnMessagesForHooks: requireHostDefinition(rawSlice.queries.listTurnMessagesForHooks, "listTurnMessagesForHooks"),
-      listTurnMessagesForHooksStrict: requireHostDefinition(rawSlice.queries.listTurnMessagesForHooksStrict, "listTurnMessagesForHooksStrict"),
       listPendingApprovalsForHooks: requireHostDefinition(rawSlice.queries.listPendingApprovalsForHooks, "listPendingApprovalsForHooks"),
       listTokenUsageForHooks: requireHostDefinition(rawSlice.queries.listTokenUsageForHooks, "listTokenUsageForHooks"),
       listPendingServerRequestsForHooks: requireHostDefinition(rawSlice.queries.listPendingServerRequestsForHooks, "listPendingServerRequestsForHooks"),
       listThreadReasoningForHooks: requireHostDefinition(rawSlice.queries.listThreadReasoningForHooks, "listThreadReasoningForHooks"),
-      listThreadReasoningForHooksStrict: requireHostDefinition(rawSlice.queries.listThreadReasoningForHooksStrict, "listThreadReasoningForHooksStrict"),
     },
   };
 }

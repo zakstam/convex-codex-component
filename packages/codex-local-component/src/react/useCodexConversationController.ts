@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { FunctionArgs, FunctionReference } from "convex/server";
 import { useCodexMessages } from "./useCodexMessages.js";
-import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
+import type { CodexMessagesQuery, CodexMessagesQueryArgs, CodexThreadReadResult } from "./types.js";
 import { useCodexThreadState, type CodexThreadStateQuery } from "./useCodexThreadState.js";
 import { deriveCodexThreadActivity, type CodexThreadActivity, type CodexThreadActivityThreadState } from "./threadActivity.js";
 import { deriveCodexIngestHealth } from "./ingestHealth.js";
@@ -28,7 +28,8 @@ export type CodexConversationApprovalItem = {
 
 export type CodexConversationControllerConfig<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends
+    CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
   ComposerResult = unknown,
   ApprovalResult = unknown,
@@ -86,7 +87,7 @@ function isApprovalLike(value: unknown): value is CodexConversationApprovalItem 
 
 export function useCodexConversationController<
   MessagesQuery extends CodexMessagesQuery<unknown>,
-  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
+  ThreadStateQuery extends CodexThreadStateQuery<unknown, CodexThreadReadResult<CodexThreadActivityThreadState>>,
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>> = CodexDynamicToolsQuery<Record<string, unknown>>,
   ComposerResult = unknown,
   ApprovalResult = unknown,
@@ -108,11 +109,17 @@ export function useCodexConversationController<
     ...(config.messages.stream !== undefined ? { stream: config.messages.stream } : {}),
   });
   const threadState = useCodexThreadState(config.threadState.query, config.threadState.args);
-  const activity = useMemo(() => deriveCodexThreadActivity(threadState), [threadState]);
-  const ingestHealth = useMemo(() => deriveCodexIngestHealth(threadState), [threadState]);
+  const threadStateData = useMemo<CodexThreadActivityThreadState | null>(() => {
+    if (!threadState || threadState.threadStatus !== "ok") {
+      return null;
+    }
+    return threadState.data;
+  }, [threadState]);
+  const activity = useMemo(() => deriveCodexThreadActivity(threadStateData), [threadStateData]);
+  const ingestHealth = useMemo(() => deriveCodexIngestHealth(threadStateData), [threadStateData]);
   const branchActivity = useMemo(
-    () => deriveCodexBranchActivity(threadState, config.threadState.branchOptions),
-    [config.threadState.branchOptions, threadState],
+    () => deriveCodexBranchActivity(threadStateData, config.threadState.branchOptions),
+    [config.threadState.branchOptions, threadStateData],
   );
   const dynamicToolsQuery: FunctionReference<"query", "public", Record<string, unknown>, unknown> =
     config.dynamicTools?.query ?? config.threadState.query;
@@ -136,9 +143,9 @@ export function useCodexConversationController<
   const [interrupting, setInterrupting] = useState(false);
 
   const pendingApprovals = useMemo(() => {
-    const raw = threadState?.pendingApprovals ?? [];
+    const raw = threadStateData?.pendingApprovals ?? [];
     return raw.filter(isApprovalLike);
-  }, [threadState]);
+  }, [threadStateData]);
 
   const send = useCallback(
     async (overrideText?: string) => {

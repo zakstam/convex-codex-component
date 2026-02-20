@@ -269,13 +269,15 @@ const chatFns = {
   threadSnapshot: api.chat.threadSnapshot,
 } as const;
 
-function isMissingThreadReadResult(
+function isThreadReadError(
   value: unknown,
-): value is { threadStatus: "missing_thread"; code: "E_THREAD_NOT_FOUND"; message: string } {
+): value is { threadStatus: "missing_thread" | "forbidden_thread" | "forbidden_session"; code: string; message: string } {
   return (
     typeof value === "object" &&
     value !== null &&
-    Reflect.get(value, "threadStatus") === "missing_thread"
+    (Reflect.get(value, "threadStatus") === "missing_thread" ||
+      Reflect.get(value, "threadStatus") === "forbidden_thread" ||
+      Reflect.get(value, "threadStatus") === "forbidden_session")
   );
 }
 
@@ -580,7 +582,7 @@ async function logPersistenceStats(): Promise<void> {
     actor,
     threadId,
   });
-  if (isMissingThreadReadResult(stats) || isMissingThreadReadResult(history)) {
+  if (isThreadReadError(stats) || isThreadReadError(history)) {
     tui.appendLine("persisted> thread missing");
     return;
   }
@@ -843,12 +845,12 @@ async function handleCommand(line: string): Promise<void> {
       actor,
       threadId,
     });
-    if (
-      isMissingThreadReadResult(state) ||
-      isMissingThreadReadResult(stats) ||
-      isMissingThreadReadResult(history)
-    ) {
-      tui.appendLine("state> thread missing");
+    if (isThreadReadError(state)) {
+      tui.appendLine(`state> thread unavailable: ${state.message}`);
+      return;
+    }
+    if (isThreadReadError(stats) || isThreadReadError(history)) {
+      tui.appendLine("state> thread health stats unavailable");
       return;
     }
     const snapshot = state.data;

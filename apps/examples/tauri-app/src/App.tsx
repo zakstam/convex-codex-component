@@ -89,6 +89,7 @@ function requireDefined<T>(value: T | undefined, name: string): T {
   return value;
 }
 
+
 function requestKey(requestId: string | number): string {
   return `${typeof requestId}:${String(requestId)}`;
 }
@@ -373,15 +374,16 @@ function AppContent({
     activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
   );
   const cleanupThreadState = useCodexThreadState(
-    requireDefined(chatApi.threadSnapshotSafe, "api.chat.threadSnapshotSafe"),
+    requireDefined(chatApi.threadSnapshot, "api.chat.threadSnapshot"),
     cleanupThreadId && actorReady ? { actor, threadId: cleanupThreadId } : "skip",
   );
+  const cleanupThreadStateTurns = cleanupThreadState?.threadStatus === "ok" ? cleanupThreadState.data.turns : null;
   const latestThreadTurnId = useMemo(() => {
-    if (!cleanupThreadState?.turns || cleanupThreadState.turns.length === 0) {
+    if (!cleanupThreadStateTurns || cleanupThreadStateTurns.length === 0) {
       return null;
     }
-    return cleanupThreadState.turns[0]?.turnId ?? null;
-  }, [cleanupThreadState?.turns]);
+    return cleanupThreadStateTurns[0]?.turnId ?? null;
+  }, [cleanupThreadState?.threadStatus, cleanupThreadStateTurns]);
 
   useEffect(() => {
     if (!activeDeletionJobId || !deletionStatus) {

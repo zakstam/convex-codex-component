@@ -8,7 +8,7 @@ import {
   type HostSyncRuntimeOptions,
 } from "./convex.js";
 import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
-import { isSessionForbidden, isThreadForbidden, isThreadMissing } from "../errors.js";
+import { classifyThreadReadError } from "../errors.js";
 
 export type HostMutationRunner = {
   runMutation<Mutation extends FunctionReference<"mutation", "public" | "internal">>(
@@ -357,6 +357,10 @@ function toThreadStateQueryArgs(args: ThreadSnapshotArgs): ThreadSnapshotArgs {
   };
 }
 
+function maybeThreadReadError(error: unknown): ReturnType<typeof classifyThreadReadError> {
+  return classifyThreadReadError(error);
+}
+
 export function isStreamStatSummary(value: unknown): value is StreamStatSummary {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -599,25 +603,10 @@ export async function threadSnapshot<
   return ctx.runQuery(component.threads.getState, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
 }
 
-function isThreadSnapshotSafeError(error: unknown): boolean {
-  return isThreadMissing(error) || isThreadForbidden(error) || isSessionForbidden(error);
-}
-
-export async function threadSnapshotSafe<
-  Component extends CodexThreadsStateComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: ThreadSnapshotArgs,
-): Promise<FunctionReturnType<Component["threads"]["getState"]> | null> {
-  try {
-    return await threadSnapshot(ctx, component, args);
-  } catch (error) {
-    if (isThreadSnapshotSafeError(error)) {
-      return null;
-    }
-    throw error;
-  }
+export function classifyThreadSnapshotError(
+  error: unknown,
+): ReturnType<typeof classifyThreadReadError> {
+  return maybeThreadReadError(error);
 }
 
 export async function persistenceStats<

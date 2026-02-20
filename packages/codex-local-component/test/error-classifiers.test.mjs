@@ -17,8 +17,10 @@ test("parseErrorCode extracts bracketed codes", () => {
 
 test("thread classifiers identify missing and forbidden states", () => {
   assert.equal(isThreadMissing(new Error("Thread not found for scope: thread-1")), true);
+  assert.equal(isThreadMissing(new Error("[E_SYNC_SESSION_NOT_FOUND] missing thread")), true);
   assert.equal(isThreadForbidden(new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed")), true);
   assert.equal(isSessionForbidden(new Error("[E_AUTH_SESSION_FORBIDDEN] authorization failed")), true);
+  assert.equal(isThreadMissing(new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed")), false);
 });
 
 test("classifyThreadReadError normalizes missing thread errors to E_THREAD_NOT_FOUND", () => {
@@ -30,7 +32,14 @@ test("classifyThreadReadError normalizes missing thread errors to E_THREAD_NOT_F
       message: "Thread not found for scope: thread-1",
     },
   );
-  assert.equal(classifyThreadReadError(new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed")), null);
+  assert.deepEqual(
+    classifyThreadReadError(new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed")),
+    {
+      threadStatus: "forbidden_thread",
+      code: "E_AUTH_THREAD_FORBIDDEN",
+      message: "[E_AUTH_THREAD_FORBIDDEN] authorization failed",
+    },
+  );
 });
 
 test("isRecoverableIngestError accepts structured safe-ingest entries", () => {

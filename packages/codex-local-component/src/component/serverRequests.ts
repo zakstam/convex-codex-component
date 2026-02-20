@@ -247,10 +247,6 @@ export const listPending = query({
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit ?? 100));
 
-    if (args.threadId) {
-      await requireThreadForActor(ctx, args.actor, args.threadId);
-    }
-
     const rows = args.threadId
       ? await ctx.db
           .query("codex_server_requests")

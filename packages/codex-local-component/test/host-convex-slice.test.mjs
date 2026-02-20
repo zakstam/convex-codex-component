@@ -261,7 +261,7 @@ test("listThreadMessagesForHooks returns stream list with deltas payload", async
   assert.deepEqual(result.streams?.streams, [{ streamId: "stream-1", state: "streaming" }]);
 });
 
-test("threadSnapshot returns missing_thread payload when thread is missing", async () => {
+test("threadSnapshot rethrows missing thread errors", async () => {
   const getStateRef = {};
   const ctx = {
     runQuery: async () => {
@@ -274,14 +274,14 @@ test("threadSnapshot returns missing_thread payload when thread is missing", asy
     },
   };
 
-  const snapshot = await threadSnapshot(ctx, component, {
-    actor: { userId: "u" },
-    threadId: "thread-1",
-  });
-
-  assert.equal(snapshot.threadStatus, "missing_thread");
-  assert.equal(snapshot.code, "E_THREAD_NOT_FOUND");
-  assert.equal(snapshot.message, "Thread not found for scope: thread-1");
+  await assert.rejects(
+    () =>
+      threadSnapshot(ctx, component, {
+        actor: { userId: "u" },
+        threadId: "thread-1",
+      }),
+    /Thread not found for scope: thread-1/,
+  );
 });
 
 test("threadSnapshot rethrows unexpected errors", async () => {

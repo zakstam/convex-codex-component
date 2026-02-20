@@ -397,8 +397,21 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             args: { actor: vHostActorContext, threadId: v.optional(v.string()), limit: v.optional(v.number()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadId?: string; limit?: number },
-            ) => listPendingServerRequestsForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+            args: { actor: HostActorContext; threadId?: string; limit?: number },
+            ) => {
+              try {
+                return await listPendingServerRequestsForHooksForActor(
+                  ctx,
+                  component,
+                  withServerActor(args, resolveServerActor(args, options.serverActor)),
+                );
+              } catch (error) {
+                if (missingThreadPayload(error)) {
+                  return [];
+                }
+                throw error;
+              }
+            }
           },
         }
       : {}),

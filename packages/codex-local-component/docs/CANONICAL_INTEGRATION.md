@@ -49,7 +49,7 @@ export const listThreadMessages = query(codex.queries.listThreadMessages);
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
 
-Thread-scoped reads are safe-by-default (`threadSnapshot`, `listThreadMessages`, `listTurnMessages`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior.
+Thread-scoped reads are safe-by-default (`threadSnapshot`, `listThreadMessages`, `listTurnMessages`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` is also safe-by-default and returns an empty array (`[]`) when the thread is missing.
 
 ## Host Shim Generation
 

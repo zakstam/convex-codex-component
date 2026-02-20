@@ -187,6 +187,42 @@ test("threadSnapshot returns forbidden state safely", async () => {
   assert.equal(result.code, "E_AUTH_THREAD_FORBIDDEN");
 });
 
+test("listPendingServerRequests returns [] when thread is missing", async () => {
+  const defs = host.defineCodexHostDefinitions({
+    components: createComponentRefs(),
+  });
+
+  const result = await defs.queries.listPendingServerRequests.handler(
+    {
+      runQuery: async () => {
+        throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+      },
+    },
+    { actor: {}, threadId: "missing-thread" },
+  );
+
+  assert.deepEqual(result, []);
+});
+
+test("listPendingServerRequests rethrows non-thread-read errors", async () => {
+  const defs = host.defineCodexHostDefinitions({
+    components: createComponentRefs(),
+  });
+
+  await assert.rejects(
+      () =>
+      defs.queries.listPendingServerRequests.handler(
+        {
+          runQuery: async () => {
+            throw new Error("database write failed");
+          },
+        },
+        { actor: {}, threadId: "thread-1" },
+      ),
+    /database write failed/,
+  );
+});
+
 test("removed exports are absent from host public surface", () => {
   assert.equal("createCodexHost" in host, false);
   assert.equal("createCodexConvexHost" in host, false);

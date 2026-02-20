@@ -35,7 +35,7 @@ Use one source of truth for implementation steps:
 4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
-7. Prefer safe-by-default thread read queries; thread reads now return status payloads in place of strict throw-only variants.
+7. Prefer safe-by-default thread read queries. Most thread reads return status payloads in place of strict throw-only variants, while `listPendingServerRequests` returns an empty list (`[]`) when the thread is missing instead of throwing.
 
 ## Package Import Paths
 

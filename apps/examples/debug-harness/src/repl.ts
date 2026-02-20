@@ -3,7 +3,8 @@ import readline from "node:readline";
 export function printHelp(): void {
   console.log([
     "Commands:",
-    "  start [start|resume|fork] [threadHandle]",
+    "  start",
+    "  open-thread [start|resume|fork] [threadHandle]",
     "  send <text>",
     "  interrupt",
     "  status",

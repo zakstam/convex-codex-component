@@ -25,6 +25,8 @@ This README is app-specific operational guidance only; package docs are the inte
 - Use `bridge.lifecycle.getState()` as the snapshot fallback for reconciliation.
 - `useCodexTauriEvents` is the only place that subscribes to Tauri bridge events.
 - The hook is StrictMode-safe and deduplicates transition toasts to one toast per real running-state edge.
+- This app uses explicit thread intent: `bridge.lifecycle.start(...)` (transport connect) then `bridge.lifecycle.openThread(...)` before `bridge.turns.send(...)`.
+- This app also opts in to transport-only lifecycle-safe send recovery (`createTauriBridgeClient(..., { lifecycleSafeSend: true })`).
 
 ## Tool Policy Panel
 

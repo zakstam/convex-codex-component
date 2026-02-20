@@ -49,6 +49,13 @@ Bridge lifecycle tracking is canonicalized as push + snapshot:
 
 Consumer rule: subscribe first, then fetch a snapshot to reconcile missed events.
 
+Runtime startup is transport-first:
+
+- `connect`/`lifecycle.start` starts bridge transport and runtime session only.
+- Thread intent must be explicit via `openThread`/`lifecycle.openThread`.
+- `sendTurn`/`turns.send` fail closed until a thread is opened.
+- Optional `lifecycleSafeSend` only recovers transport startup; it never infers thread intent.
+
 ## Minimal Host Wiring
 
 ```ts

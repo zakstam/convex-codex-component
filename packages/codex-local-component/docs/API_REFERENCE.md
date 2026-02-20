@@ -69,6 +69,18 @@ Use this path in order:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
   - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `threadHandle`, and `turnId`.
+- Runtime start contract is split:
+  - `connect(...)`: transport/session only
+  - `openThread({ strategy, threadHandle? })`: explicit thread start/resume/fork
+  - `sendTurn(...)` fails closed until `openThread(...)` succeeds.
+- Tauri send behavior:
+  - canonical sequence: `bridge.lifecycle.start(...)` -> `bridge.lifecycle.openThread(...)` -> `bridge.turns.send(...)`.
+  - default (`createTauriBridgeClient(...)`): `bridge.turns.send(...)` remains fail-fast.
+  - opt-in (`createTauriBridgeClient(..., { lifecycleSafeSend: true })`): transport auto-start retry only; does not implicitly open/create threads.
+  - lifecycle-safe send typed failures:
+    - `E_TAURI_SEND_START_CONFIG_MISSING`
+    - `E_TAURI_SEND_AUTO_START_FAILED`
+    - `E_TAURI_SEND_RETRY_EXHAUSTED`
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureThread` is single-path and requires `threadId`.
 - Thread-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread fallback to keep runtime request polling consumers on a stable array contract.

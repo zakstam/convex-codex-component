@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-thread"
+description = "Enables the open_thread command without a pre-configured scope."
+commands.allow = ["open_thread"]
+
+[[permission]]
+identifier = "deny-open-thread"
+description = "Denies the open_thread command without a pre-configured scope."
+commands.deny = ["open_thread"]

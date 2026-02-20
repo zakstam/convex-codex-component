@@ -234,8 +234,12 @@ function AppContent({
         disabledTools: bridge.disabledTools ?? [],
         deltaThrottleMs: 250,
         saveStreamDeltas: true,
-        ...(resumeThreadHandle ? { threadStrategy: "resume" as const, threadHandle: resumeThreadHandle } : {}),
       });
+      await tauriBridge.lifecycle.openThread(
+        resumeThreadHandle
+          ? { strategy: "resume", threadHandle: resumeThreadHandle }
+          : { strategy: "start" },
+      );
       const readyState = await waitForBridgeReady();
       setBridge((prev) => ({
         ...prev,
@@ -269,27 +273,6 @@ function AppContent({
           setBridge((prev) => ({ ...prev, lastError: null }));
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          const transientBridgeFailure =
-            message.includes("Broken pipe") ||
-            message.includes("bridge helper is not running") ||
-            message.includes("failed to write command") ||
-            message.includes("Bridge/runtime not ready. Start runtime first.") ||
-            message.includes("Cannot dispatch turn before runtime thread is ready.");
-
-          if (transientBridgeFailure) {
-            try {
-              await startBridgeWithSelection("composer_retry");
-              await tauriBridge.turns.send(text);
-              setBridge((prev) => ({ ...prev, lastError: null }));
-              return;
-            } catch (retryError) {
-              const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
-              setBridge((prev) => ({ ...prev, lastError: retryMessage }));
-              addToast("error", retryMessage);
-              throw retryError;
-            }
-          }
-
           setBridge((prev) => ({ ...prev, lastError: message }));
           addToast("error", message);
           throw error;

@@ -2,10 +2,10 @@
 
 [[permission]]
 identifier = "allow-stop-bridge"
-description = "Enables the stop_bridge command without any pre-configured scope."
+description = "Enables the stop_bridge command without a pre-configured scope."
 commands.allow = ["stop_bridge"]
 
 [[permission]]
 identifier = "deny-stop-bridge"
-description = "Denies the stop_bridge command without any pre-configured scope."
+description = "Denies the stop_bridge command without a pre-configured scope."
 commands.deny = ["stop_bridge"]

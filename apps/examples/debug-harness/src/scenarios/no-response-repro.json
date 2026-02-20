@@ -1,5 +1,6 @@
 [
   "start",
+  "open-thread start",
   "send hello from debug harness",
   "status"
 ]

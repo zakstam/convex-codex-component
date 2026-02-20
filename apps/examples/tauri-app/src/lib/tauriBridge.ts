@@ -15,6 +15,7 @@ export type {
 export const bridge = createTauriBridgeClient(
   (command, args) => invoke(command, args),
   {
+    lifecycleSafeSend: true,
     subscribeBridgeState: async (listener) => {
       return listen<BridgeState>("codex:bridge_state", (event) => {
         listener(event.payload);

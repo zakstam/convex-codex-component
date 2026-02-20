@@ -2,10 +2,10 @@
 
 [[permission]]
 identifier = "allow-send-user-turn"
-description = "Enables the send_user_turn command without any pre-configured scope."
+description = "Enables the send_user_turn command without a pre-configured scope."
 commands.allow = ["send_user_turn"]
 
 [[permission]]
 identifier = "deny-send-user-turn"
-description = "Denies the send_user_turn command without any pre-configured scope."
+description = "Denies the send_user_turn command without a pre-configured scope."
 commands.deny = ["send_user_turn"]

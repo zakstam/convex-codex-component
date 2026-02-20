@@ -2,6 +2,7 @@ import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/Co
 import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
 import type { LoginAccountParams as ProtocolLoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
+import type { DynamicToolSpec } from "../protocol/schemas/v2/DynamicToolSpec.js";
 import type { ThreadHandle } from "../shared/threadIdentity.js";
 
 export type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
@@ -39,8 +40,6 @@ export type StartBridgeConfig = {
   disabledTools?: string[];
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
-  threadStrategy?: "start" | "resume" | "fork";
-  threadHandle?: ThreadHandle;
 };
 
 export type StartPayload = {
@@ -52,12 +51,27 @@ export type StartPayload = {
   disabledTools?: string[];
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
-  threadStrategy?: "start" | "resume" | "fork";
+};
+
+export type OpenThreadConfig = {
+  strategy: "start" | "resume" | "fork";
   threadHandle?: ThreadHandle;
+  model?: string;
+  cwd?: string;
+  dynamicTools?: DynamicToolSpec[];
+};
+
+export type OpenThreadPayload = {
+  strategy: "start" | "resume" | "fork";
+  threadHandle?: ThreadHandle;
+  model?: string;
+  cwd?: string;
+  dynamicTools?: DynamicToolSpec[];
 };
 
 export type HelperCommandType =
   | "start"
+  | "open_thread"
   | "send_turn"
   | "interrupt"
   | "respond_command_approval"
@@ -75,6 +89,7 @@ export type HelperCommandType =
 
 export type HelperCommand =
   | { type: "start"; payload: StartPayload }
+  | { type: "open_thread"; payload: OpenThreadPayload }
   | { type: "send_turn"; payload: { text: string } }
   | { type: "interrupt" }
   | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
@@ -108,6 +123,7 @@ type TauriBridgeCommandDefinition = {
 
 export const TAURI_BRIDGE_COMMANDS: ReadonlyArray<TauriBridgeCommandDefinition> = [
   { id: "start_bridge", tauriCommand: "start_bridge", helperType: "start", permission: true, ack: false },
+  { id: "open_thread", tauriCommand: "open_thread", helperType: "open_thread", permission: true, ack: true },
   { id: "send_user_turn", tauriCommand: "send_user_turn", helperType: "send_turn", permission: true, ack: true },
   { id: "interrupt_turn", tauriCommand: "interrupt_turn", helperType: "interrupt", permission: true, ack: true },
   {
@@ -179,6 +195,7 @@ export const HELPER_COMMAND_TYPES = TAURI_BRIDGE_COMMANDS
 
 export const HELPER_ACK_BY_TYPE: Readonly<Record<HelperCommandType, boolean>> = Object.freeze({
   start: false,
+  open_thread: true,
   send_turn: true,
   interrupt: true,
   respond_command_approval: true,
@@ -232,11 +249,32 @@ export type TauriBridgeStateListener = (state: BridgeState) => void;
 export type TauriBridgeStateSubscribe = (listener: TauriBridgeStateListener) => Promise<() => void>;
 export type TauriBridgeClientOptions = {
   subscribeBridgeState?: TauriBridgeStateSubscribe;
+  lifecycleSafeSend?: boolean;
 };
+
+export type TauriBridgeClientSendErrorCode =
+  | "E_TAURI_SEND_START_CONFIG_MISSING"
+  | "E_TAURI_SEND_AUTO_START_FAILED"
+  | "E_TAURI_SEND_RETRY_EXHAUSTED";
+
+export class TauriBridgeClientSendError extends Error {
+  readonly code: TauriBridgeClientSendErrorCode;
+  declare readonly cause: unknown;
+
+  constructor(code: TauriBridgeClientSendErrorCode, message: string, cause?: unknown) {
+    super(`[${code}] ${message}`);
+    this.name = "TauriBridgeClientSendError";
+    this.code = code;
+    if (cause !== undefined) {
+      (this as { cause?: unknown }).cause = cause;
+    }
+  }
+}
 
 export type TauriBridgeClient = {
   lifecycle: {
     start(config: StartBridgeConfig): Promise<unknown>;
+    openThread(config: OpenThreadConfig): Promise<unknown>;
     stop(): Promise<unknown>;
     getState(): Promise<BridgeState>;
     subscribe(listener: TauriBridgeStateListener): Promise<() => void>;
@@ -268,21 +306,117 @@ export type TauriBridgeClient = {
   };
 };
 
+const LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS = 8_000;
+const LIFECYCLE_SAFE_SEND_POLL_MS = 200;
+
+function isBridgeReadyForTurnSend(state: BridgeState): boolean {
+  return (
+    state.running === true
+  );
+}
+
+function toBridgeStartInvokeConfig(config: StartBridgeConfig): Record<string, unknown> {
+  return { ...config };
+}
+
+function toOpenThreadInvokeConfig(config: OpenThreadConfig): Record<string, unknown> {
+  const invokeConfig: Record<string, unknown> = { ...config };
+  if (typeof config.threadHandle === "string" && config.threadHandle.length > 0) {
+    invokeConfig.threadId = config.threadHandle;
+  }
+  return invokeConfig;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isLifecycleTransientSendError(error: unknown): boolean {
+  const message = errorMessage(error);
+  return (
+    message.includes("bridge helper is not running. Start runtime first.")
+    || message.includes("Bridge/runtime not ready. Start runtime first.")
+    || message.includes("Cannot dispatch turn before runtime thread is ready.")
+    || message.includes("failed to write command")
+    || message.includes("failed to write newline")
+    || message.includes("failed to flush helper stdin")
+    || message.includes("Broken pipe")
+  );
+}
+
 export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBridgeClientOptions): TauriBridgeClient {
+  let cachedStartConfig: StartBridgeConfig | null = null;
+
+  const getState = (): Promise<BridgeState> => invoke("get_bridge_state");
+  const start = (config: StartBridgeConfig): Promise<unknown> => {
+    cachedStartConfig = { ...config };
+    return invoke("start_bridge", { config: toBridgeStartInvokeConfig(config) });
+  };
+  const waitForReady = async (): Promise<void> => {
+    const deadline = Date.now() + LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const state = await getState();
+      if (isBridgeReadyForTurnSend(state)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, LIFECYCLE_SAFE_SEND_POLL_MS));
+    }
+    throw new Error(`Bridge started, but no local thread became ready within ${LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS}ms.`);
+  };
+  const ensureReadyForLifecycleSafeSend = async (): Promise<void> => {
+    if (!cachedStartConfig) {
+      throw new TauriBridgeClientSendError(
+        "E_TAURI_SEND_START_CONFIG_MISSING",
+        "Cannot auto-start for send: call lifecycle.start(...) at least once to cache transport config.",
+      );
+    }
+    try {
+      await start(cachedStartConfig);
+      await waitForReady();
+    } catch (error) {
+      throw new TauriBridgeClientSendError(
+        "E_TAURI_SEND_AUTO_START_FAILED",
+        `Lifecycle-safe send could not auto-start the bridge: ${errorMessage(error)}`,
+        error,
+      );
+    }
+  };
+  const sendTurnWithLifecycleRecovery = async (text: string): Promise<unknown> => {
+    try {
+      return await invoke("send_user_turn", { text });
+    } catch (firstError) {
+      if (!isLifecycleTransientSendError(firstError)) {
+        throw firstError;
+      }
+      await ensureReadyForLifecycleSafeSend();
+      try {
+        return await invoke("send_user_turn", { text });
+      } catch (secondError) {
+        if (!isLifecycleTransientSendError(secondError)) {
+          throw secondError;
+        }
+        throw new TauriBridgeClientSendError(
+          "E_TAURI_SEND_RETRY_EXHAUSTED",
+          `Lifecycle-safe send failed after one retry: ${errorMessage(secondError)}`,
+          secondError,
+        );
+      }
+    }
+  };
+
   return {
     lifecycle: {
       start(config: StartBridgeConfig): Promise<unknown> {
-        const invokeConfig: Record<string, unknown> = { ...config };
-        if (typeof config.threadHandle === "string" && config.threadHandle.length > 0) {
-          invokeConfig.threadId = config.threadHandle;
-        }
-        return invoke("start_bridge", { config: invokeConfig });
+        return start(config);
+      },
+      openThread(config: OpenThreadConfig): Promise<unknown> {
+        return invoke("open_thread", { config: toOpenThreadInvokeConfig(config) });
       },
       stop(): Promise<unknown> {
         return invoke("stop_bridge");
       },
       getState(): Promise<BridgeState> {
-        return invoke("get_bridge_state");
+        return getState();
       },
       subscribe(listener: TauriBridgeStateListener): Promise<() => void> {
         if (!options?.subscribeBridgeState) {
@@ -293,6 +427,9 @@ export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBrid
     },
     turns: {
       send(text: string): Promise<unknown> {
+        if (options?.lifecycleSafeSend) {
+          return sendTurnWithLifecycleRecovery(text);
+        }
         return invoke("send_user_turn", { text });
       },
       interrupt(): Promise<unknown> {

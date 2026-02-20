@@ -143,6 +143,21 @@ class DebugHarness {
     return this.snapshot.running && typeof this.snapshot.localThreadId === "string" && this.snapshot.localThreadId.length > 0;
   }
 
+  isRunning(): boolean {
+    return this.snapshot.running;
+  }
+
+  async waitForRunning(timeoutMs = 10_000): Promise<void> {
+    const deadline = now() + timeoutMs;
+    while (now() < deadline) {
+      if (this.isRunning()) {
+        return;
+      }
+      await new Promise((resolveWait) => setTimeout(resolveWait, 200));
+    }
+    throw new Error("Timed out waiting for running bridge.");
+  }
+
   async waitForReady(timeoutMs = 15_000): Promise<void> {
     const deadline = now() + timeoutMs;
     while (now() < deadline) {
@@ -313,6 +328,8 @@ async function runScenario(harness: DebugHarness, file: string, defaults: {
     if (parsed.kind === "helper") {
       await harness.send(parsed.helper);
       if (parsed.helper.type === "start") {
+        await harness.waitForRunning();
+      } else if (parsed.helper.type === "open_thread") {
         await harness.waitForReady();
       } else if (parsed.helper.type === "send_turn") {
         await harness.waitForTurnSignal();

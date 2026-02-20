@@ -33,8 +33,16 @@ struct StartBridgeConfig {
     disabled_tools: Option<Vec<String>>,
     delta_throttle_ms: Option<u64>,
     save_stream_deltas: Option<bool>,
-    thread_strategy: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenThreadConfig {
+    strategy: String,
     thread_id: Option<String>,
+    model: Option<String>,
+    cwd: Option<String>,
+    dynamic_tools: Option<serde_json::Value>,
 }
 
 #[tauri::command]
@@ -61,8 +69,6 @@ async fn start_bridge(
             "runningBefore": snapshot_before.running,
             "localThreadIdBefore": snapshot_before.local_thread_id,
             "turnIdBefore": snapshot_before.turn_id,
-            "threadStrategy": config.thread_strategy,
-            "threadIdArg": config.thread_id,
         }),
     );
 
@@ -79,8 +85,6 @@ async fn start_bridge(
                 cwd: config.cwd,
                 delta_throttle_ms: config.delta_throttle_ms,
                 save_stream_deltas: config.save_stream_deltas,
-                thread_strategy: config.thread_strategy,
-                thread_id: config.thread_id,
             },
         )
         .await;
@@ -116,6 +120,28 @@ async fn start_bridge(
     }
 
     start_result
+}
+
+#[tauri::command]
+async fn open_thread(
+    app: tauri::AppHandle,
+    state: State<'_, AppBridgeState>,
+    config: OpenThreadConfig,
+) -> Result<(), String> {
+    state
+        .runtime
+        .forward_tauri_json_command(
+            app,
+            "open_thread",
+            json!({
+                "strategy": config.strategy,
+                "threadId": config.thread_id,
+                "model": config.model,
+                "cwd": config.cwd,
+                "dynamicTools": config.dynamic_tools,
+            }),
+        )
+        .await
 }
 
 #[tauri::command]
@@ -244,7 +270,7 @@ async fn set_disabled_tools(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    debug_assert_eq!(BRIDGE_COMMANDS.len(), 15);
+    debug_assert_eq!(BRIDGE_COMMANDS.len(), 16);
     debug_assert!(!HELPER_COMMANDS.is_empty());
     debug_assert!(!HELPER_FORWARD_TAURI_COMMANDS.is_empty());
     let app = tauri::Builder::default()

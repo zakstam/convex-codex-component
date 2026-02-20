@@ -114,8 +114,30 @@ function createHarness(options = {}) {
     await handlers.onEvent(event);
   };
 
+  const runtimeCompat = {
+    ...runtime,
+    start: async (startArgs = {}) => {
+      await runtime.connect({
+        actor: startArgs.actor,
+        sessionId: startArgs.sessionId,
+        model: startArgs.model,
+        cwd: startArgs.cwd,
+        runtime: startArgs.runtime,
+        dynamicTools: startArgs.dynamicTools,
+        ingestFlushMs: startArgs.ingestFlushMs,
+      });
+      void runtime.openThread({
+        strategy: startArgs.threadStrategy ?? "start",
+        threadHandle: startArgs.threadHandle,
+        model: startArgs.model,
+        cwd: startArgs.cwd,
+        dynamicTools: startArgs.dynamicTools,
+      }).catch(() => undefined);
+    },
+  };
+
   return {
-    runtime,
+    runtime: runtimeCompat,
     sent,
     emitResponse,
     emitGlobalMessage,
@@ -128,6 +150,36 @@ function createHarness(options = {}) {
     upsertErrors,
   };
 }
+
+test("runtime connect does not open a thread until openThread is called", async () => {
+  const { runtime, sent, emitResponse } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  assert.deepEqual(sent.map((message) => message.method), ["initialize", "initialized"]);
+
+  const openPromise = runtime.openThread({ strategy: "start" });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+  await openPromise;
+
+  await runtime.stop();
+});
+
+test("runtime sendTurn fail-closes when thread is not opened", async () => {
+  const { runtime } = createHarness();
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  await assert.rejects(
+    runtime.sendTurn("hello"),
+    /E_RUNTIME_THREAD_NOT_OPEN/,
+  );
+  await runtime.stop();
+});
 
 test("runtime start supports threadStrategy=resume", async () => {
   const { runtime, sent, emitResponse } = createHarness();

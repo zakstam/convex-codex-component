@@ -49,6 +49,7 @@ export type HostRuntimeState = {
 };
 
 export type HostRuntimeErrorCode =
+  | "E_RUNTIME_THREAD_NOT_OPEN"
   | "E_RUNTIME_DISPATCH_TURN_IN_FLIGHT"
   | "E_RUNTIME_PROTOCOL_EVENT_INVALID"
   | "E_RUNTIME_INGEST_FLUSH_FAILED";
@@ -63,11 +64,9 @@ export class CodexHostRuntimeError extends Error {
   }
 }
 
-export type HostRuntimeStartArgs = {
+export type HostRuntimeConnectArgs = {
   actor?: ActorContext;
   sessionId?: string;
-  threadHandle?: ThreadHandle;
-  threadStrategy?: "start" | "resume" | "fork";
   model?: string;
   cwd?: string;
   runtime?: {
@@ -80,6 +79,14 @@ export type HostRuntimeStartArgs = {
   };
   dynamicTools?: DynamicToolSpec[];
   ingestFlushMs?: number;
+};
+
+export type HostRuntimeOpenThreadArgs = {
+  strategy: "start" | "resume" | "fork";
+  threadHandle?: ThreadHandle;
+  model?: string;
+  cwd?: string;
+  dynamicTools?: DynamicToolSpec[];
 };
 
 export type HostRuntimePersistence = {
@@ -219,7 +226,8 @@ export type HostRuntimeHandlers = {
 export type HostRuntimeLifecycleListener = (state: HostRuntimeState) => void;
 
 export type CodexHostRuntime = {
-  start: (args: HostRuntimeStartArgs) => Promise<void>;
+  connect: (args: HostRuntimeConnectArgs) => Promise<void>;
+  openThread: (args: HostRuntimeOpenThreadArgs) => Promise<CodexResponse>;
   stop: () => Promise<void>;
   sendTurn: (text: string) => Promise<{ turnId: string; accepted: true }>;
   steerTurn: (text: string, options?: { expectedTurnId?: string }) => Promise<void>;

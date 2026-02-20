@@ -35,10 +35,11 @@ import { randomSessionId } from "./runtimeHelpers.js";
 import { createRuntimeCore } from "./runtimeCore.js";
 import { createConvexPersistence, type ConvexPersistenceChatApi, type ConvexPersistenceOptions } from "./convexPersistence.js";
 import type {
+  HostRuntimeConnectArgs,
+  HostRuntimeOpenThreadArgs,
   HostRuntimePersistence,
   HostRuntimeHandlers,
   HostRuntimeState,
-  HostRuntimeStartArgs,
   RuntimeBridge,
   RuntimeBridgeHandlers,
 } from "./runtimeTypes.js";
@@ -55,7 +56,8 @@ export {
   type HostRuntimeLifecycleSource,
   type HostRuntimePersistence,
   type HostRuntimePersistedServerRequest,
-  type HostRuntimeStartArgs,
+  type HostRuntimeConnectArgs,
+  type HostRuntimeOpenThreadArgs,
   type HostRuntimeState,
 } from "./runtimeTypes.js";
 export type { ConvexPersistenceChatApi, ConvexPersistenceOptions } from "./convexPersistence.js";
@@ -122,22 +124,22 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   });
   lifecycleSnapshot = core.getState();
 
-  const start = async (startArgs: HostRuntimeStartArgs): Promise<void> => {
+  const connect = async (connectArgs: HostRuntimeConnectArgs): Promise<void> => {
     if (core.bridge) { core.emitState(); return; }
     core.setLifecycle("starting", "runtime");
-    core.actor = startArgs.actor ?? defaultActor ?? { userId: "anonymous" };
-    const rawSessionId = startArgs.sessionId ?? defaultSessionId;
+    core.actor = connectArgs.actor ?? defaultActor ?? { userId: "anonymous" };
+    const rawSessionId = connectArgs.sessionId ?? defaultSessionId;
     core.sessionId = rawSessionId ? `${rawSessionId}-${randomSessionId()}` : randomSessionId();
-    core.threadHandle = startArgs.threadHandle ?? null;
-    core.startupModel = startArgs.model;
-    core.startupCwd = startArgs.cwd;
-    core.ingestFlushMs = startArgs.ingestFlushMs ?? 250;
+    core.threadHandle = null;
+    core.startupModel = connectArgs.model;
+    core.startupCwd = connectArgs.cwd;
+    core.ingestFlushMs = connectArgs.ingestFlushMs ?? 250;
     core.resetIngestMetrics();
     core.emitState(null);
 
     const bridgeConfig: BridgeConfig = {};
     if (args.bridge?.codexBin !== undefined) bridgeConfig.codexBin = args.bridge.codexBin;
-    const resolvedCwd = startArgs.cwd ?? args.bridge?.cwd;
+    const resolvedCwd = connectArgs.cwd ?? args.bridge?.cwd;
     if (resolvedCwd !== undefined) bridgeConfig.cwd = resolvedCwd;
 
     const bridgeHandlers: RuntimeBridgeHandlers = {
@@ -162,20 +164,40 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       : new CodexLocalBridge(bridgeConfig, bridgeHandlers);
     core.bridge.start();
 
-    core.sendMessage(buildInitializeRequestWithCapabilities(core.requestIdFn(), { name: "codex_local_host_runtime", title: "Codex Local Host Runtime", version: clientPackage.version }, { experimentalApi: Array.isArray(startArgs.dynamicTools) && startArgs.dynamicTools.length > 0 }), "initialize");
+    core.sendMessage(buildInitializeRequestWithCapabilities(core.requestIdFn(), { name: "codex_local_host_runtime", title: "Codex Local Host Runtime", version: clientPackage.version }, { experimentalApi: Array.isArray(connectArgs.dynamicTools) && connectArgs.dynamicTools.length > 0 }), "initialize");
     core.sendMessage(buildInitializedNotification());
-    const strategy = startArgs.threadStrategy ?? "start";
-    if ((strategy === "resume" || strategy === "fork") && !startArgs.threadHandle) throw new Error(`threadHandle is required when threadStrategy="${strategy}".`);
-
-    if (strategy === "start") {
-      core.sendMessage(buildThreadStartRequest(core.requestIdFn(), { ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}), ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}) }), "thread/start");
-    } else if (strategy === "resume") {
-      core.sendMessage(buildThreadResumeRequest(core.requestIdFn(), { threadId: startArgs.threadHandle!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}), ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}) }), "thread/resume");
-    } else {
-      core.sendMessage(buildThreadForkRequest(core.requestIdFn(), { threadId: startArgs.threadHandle!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}) }), "thread/fork");
-    }
     core.setLifecycle("running", "runtime");
     core.emitState(null);
+  };
+
+  const openThread: CodexHostRuntime["openThread"] = async (openArgs: HostRuntimeOpenThreadArgs) => {
+    if (!core.bridge) throw new Error("Bridge not started. Connect runtime first.");
+    const strategy = openArgs.strategy;
+    if ((strategy === "resume" || strategy === "fork") && !openArgs.threadHandle) {
+      throw new Error(`threadHandle is required when strategy="${strategy}".`);
+    }
+    if (strategy === "start") {
+      const response = await core.sendRequest(buildThreadStartRequest(core.requestIdFn(), {
+        ...(openArgs.model ? { model: openArgs.model } : {}),
+        ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
+        ...(openArgs.dynamicTools ? { dynamicTools: openArgs.dynamicTools } : {}),
+      }));
+      return response;
+    }
+    if (strategy === "resume") {
+      const response = await core.sendRequest(buildThreadResumeRequest(core.requestIdFn(), {
+        threadId: openArgs.threadHandle!,
+        ...(openArgs.model ? { model: openArgs.model } : {}),
+        ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
+        ...(openArgs.dynamicTools ? { dynamicTools: openArgs.dynamicTools } : {}),
+      }));
+      return response;
+    }
+    return core.sendRequest(buildThreadForkRequest(core.requestIdFn(), {
+      threadId: openArgs.threadHandle!,
+      ...(openArgs.model ? { model: openArgs.model } : {}),
+      ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
+    }));
   };
 
   const stop = async () => {
@@ -194,8 +216,9 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
   const sendTurn: CodexHostRuntime["sendTurn"] = async (text) => {
     if (!core.bridge) throw new Error("Bridge/thread not ready. Start runtime first.");
+    if (!core.runtimeThreadId) throw core.runtimeError("E_RUNTIME_THREAD_NOT_OPEN", "Cannot send turn before opening a thread.");
     if (core.turnInFlight && !core.turnSettled) throw core.runtimeError("E_RUNTIME_DISPATCH_TURN_IN_FLIGHT", "A turn is already in flight.");
-    await core.ensureThreadBinding(core.runtimeThreadId ?? undefined);
+    await core.ensureThreadBinding(core.runtimeThreadId);
     const accepted = await core.acceptTurnSend(text);
     await core.processDispatchQueue();
     return accepted;
@@ -306,7 +329,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   };
 
   return {
-    start, stop, sendTurn, steerTurn, interrupt,
+    connect, openThread, stop, sendTurn, steerTurn, interrupt,
     resumeThread, forkThread, archiveThread, setThreadName, unarchiveThread, compactThread, rollbackThread,
     readThread, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
     readAccountRateLimits, listThreads, listLoadedThreads,

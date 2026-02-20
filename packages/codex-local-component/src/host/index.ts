@@ -11,7 +11,8 @@ export {
   type HostRuntimeHandlers,
   type HostRuntimePersistence,
   type HostRuntimePersistedServerRequest,
-  type HostRuntimeStartArgs,
+  type HostRuntimeConnectArgs,
+  type HostRuntimeOpenThreadArgs,
   type HostRuntimeState,
 } from "./runtime.js";
 

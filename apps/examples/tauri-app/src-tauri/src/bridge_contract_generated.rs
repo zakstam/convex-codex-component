@@ -2,6 +2,7 @@
 // Source: @zakstam/codex-local-component/host/tauri
 pub const BRIDGE_COMMANDS: &[&str] = &[
     "start_bridge",
+    "open_thread",
     "send_user_turn",
     "interrupt_turn",
     "respond_command_approval",
@@ -20,6 +21,7 @@ pub const BRIDGE_COMMANDS: &[&str] = &[
 
 pub const HELPER_COMMANDS: &[&str] = &[
     "start",
+    "open_thread",
     "send_turn",
     "interrupt",
     "respond_command_approval",

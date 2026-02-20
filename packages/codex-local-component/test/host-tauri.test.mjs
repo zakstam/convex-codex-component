@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createTauriBridgeClient,
+  TauriBridgeClientSendError,
   generateTauriArtifacts,
   HELPER_ACK_BY_TYPE,
   helperCommandForTauriCommand,
@@ -10,9 +11,10 @@ import {
 } from "../dist/host/tauri.js";
 
 test("TAURI_BRIDGE_COMMANDS exposes stable command metadata", () => {
-  assert.equal(TAURI_BRIDGE_COMMANDS.length, 16);
+  assert.equal(TAURI_BRIDGE_COMMANDS.length, 17);
   const names = TAURI_BRIDGE_COMMANDS.map((command) => command.tauriCommand);
   assert.ok(names.includes("start_bridge"));
+  assert.ok(names.includes("open_thread"));
   assert.ok(names.includes("get_bridge_state"));
 });
 
@@ -28,12 +30,14 @@ test("parseHelperCommand accepts supported helper commands and validates payload
 
 test("helperCommandForTauriCommand maps tauri command names to helper command names", () => {
   assert.equal(helperCommandForTauriCommand("send_user_turn"), "send_turn");
+  assert.equal(helperCommandForTauriCommand("open_thread"), "open_thread");
   assert.equal(helperCommandForTauriCommand("get_bridge_state"), null);
 });
 
 test("HELPER_ACK_BY_TYPE tracks ack-required helper commands", () => {
   assert.equal(HELPER_ACK_BY_TYPE.start, false);
   assert.equal(HELPER_ACK_BY_TYPE.stop, false);
+  assert.equal(HELPER_ACK_BY_TYPE.open_thread, true);
   assert.equal(HELPER_ACK_BY_TYPE.send_turn, true);
 });
 
@@ -53,6 +57,7 @@ test("createTauriBridgeClient wraps invoke with expected payload envelopes", asy
     sessionId: "session-1",
   });
   await client.turns.send("hello");
+  await client.lifecycle.openThread({ strategy: "start" });
   await client.account.read();
   const state = await client.lifecycle.getState();
 
@@ -68,8 +73,119 @@ test("createTauriBridgeClient wraps invoke with expected payload envelopes", asy
     },
   });
   assert.deepEqual(calls[1], { command: "send_user_turn", args: { text: "hello" } });
-  assert.deepEqual(calls[2], { command: "read_account", args: { config: {} } });
-  assert.deepEqual(calls[3], { command: "get_bridge_state", args: undefined });
+  assert.deepEqual(calls[2], { command: "open_thread", args: { config: { strategy: "start" } } });
+  assert.deepEqual(calls[3], { command: "read_account", args: { config: {} } });
+  assert.deepEqual(calls[4], { command: "get_bridge_state", args: undefined });
+});
+
+test("createTauriBridgeClient send keeps fail-fast behavior by default", async () => {
+  const calls = [];
+  const client = createTauriBridgeClient(async (command, args) => {
+    calls.push({ command, args });
+    if (command === "send_user_turn") {
+      throw new Error("bridge helper is not running. Start runtime first.");
+    }
+    return { ok: true };
+  });
+
+  await assert.rejects(
+    client.turns.send("hello"),
+    /bridge helper is not running\. Start runtime first\./,
+  );
+  assert.deepEqual(calls, [{ command: "send_user_turn", args: { text: "hello" } }]);
+});
+
+test("createTauriBridgeClient lifecycleSafeSend auto-starts and retries send", async () => {
+  const calls = [];
+  let sendAttempts = 0;
+  const client = createTauriBridgeClient(
+    async (command, args) => {
+      calls.push({ command, args });
+      if (command === "send_user_turn") {
+        sendAttempts += 1;
+        if (sendAttempts === 1) {
+          throw new Error("bridge helper is not running. Start runtime first.");
+        }
+      }
+      if (command === "get_bridge_state") {
+        return { running: true, localThreadId: "local-thread-1", turnId: null, lastError: null };
+      }
+      return { ok: true };
+    },
+    { lifecycleSafeSend: true },
+  );
+
+  await client.lifecycle.start({
+    convexUrl: "https://example.convex.cloud",
+    actor: { userId: "demo-user" },
+    sessionId: "session-1",
+  });
+  await client.turns.send("hello");
+
+  assert.equal(sendAttempts, 2);
+  assert.deepEqual(calls.map((entry) => entry.command), [
+    "start_bridge",
+    "send_user_turn",
+    "start_bridge",
+    "get_bridge_state",
+    "send_user_turn",
+  ]);
+});
+
+test("createTauriBridgeClient lifecycleSafeSend fails closed without cached start config", async () => {
+  const client = createTauriBridgeClient(
+    async (command) => {
+      if (command === "send_user_turn") {
+        throw new Error("bridge helper is not running. Start runtime first.");
+      }
+      return { ok: true };
+    },
+    { lifecycleSafeSend: true },
+  );
+
+  await assert.rejects(
+    client.turns.send("hello"),
+    (error) => {
+      assert.ok(error instanceof TauriBridgeClientSendError);
+      assert.equal(error.code, "E_TAURI_SEND_START_CONFIG_MISSING");
+      return true;
+    },
+  );
+});
+
+test("createTauriBridgeClient lifecycleSafeSend fails with retry-exhausted when resend still fails", async () => {
+  let startCalls = 0;
+  const client = createTauriBridgeClient(
+    async (command) => {
+      if (command === "start_bridge") {
+        startCalls += 1;
+        return { ok: true };
+      }
+      if (command === "get_bridge_state") {
+        return { running: true, localThreadId: "local-thread-1", turnId: null, lastError: null };
+      }
+      if (command === "send_user_turn") {
+        throw new Error("failed to write command: broken pipe");
+      }
+      return { ok: true };
+    },
+    { lifecycleSafeSend: true },
+  );
+
+  await client.lifecycle.start({
+    convexUrl: "https://example.convex.cloud",
+    actor: { userId: "demo-user" },
+    sessionId: "session-1",
+  });
+  await assert.rejects(
+    client.turns.send("hello"),
+    (error) => {
+      assert.ok(error instanceof TauriBridgeClientSendError);
+      assert.equal(error.code, "E_TAURI_SEND_RETRY_EXHAUSTED");
+      return true;
+    },
+  );
+  assert.equal(startCalls, 2);
 });
 
 test("createTauriBridgeClient exposes lifecycle subscription when configured", async () => {
@@ -119,7 +235,7 @@ test("generateTauriArtifacts returns command-aligned rust and permission outputs
   assert.match(artifacts.rustDispatchSource, /helper_command_for_tauri_command/);
   assert.match(artifacts.rustInvokeHandlersSource, /tauri::generate_handler!/);
 
-  assert.equal(artifacts.permissionFiles.length, 15);
+  assert.equal(artifacts.permissionFiles.length, 16);
   const startPermission = artifacts.permissionFiles.find((file) => file.filename === "start_bridge.toml");
   assert.ok(startPermission);
   assert.match(startPermission.contents, /allow-start-bridge/);

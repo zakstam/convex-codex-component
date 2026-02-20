@@ -10,6 +10,7 @@ import {
   parseHelperCommand,
   type ActorContext,
   type HelperCommand,
+  type OpenThreadPayload,
   type StartPayload,
 } from "@zakstam/codex-local-component/host/tauri";
 import type {
@@ -374,16 +375,19 @@ async function setDisabledTools(tools: string[]): Promise<string[]> {
   };
   emitState();
   if (runtime && latestStartPayload) {
-    const restartThreadId = bridgeState.localThreadId ?? latestStartPayload.threadHandle;
-    const strategy = restartThreadId ? "resume" : latestStartPayload.threadStrategy ?? "start";
+    const restartThreadId = bridgeState.localThreadId;
     const restartPayload: StartPayload = {
       ...latestStartPayload,
       disabledTools: normalized,
-      threadStrategy: strategy,
-      ...(restartThreadId ? { threadHandle: restartThreadId } : {}),
     };
     await stopCurrentBridge();
     await startBridge(restartPayload);
+    if (restartThreadId) {
+      await openThread({
+        strategy: "resume",
+        threadHandle: restartThreadId,
+      });
+    }
   }
   return normalized;
 }
@@ -601,27 +605,11 @@ async function startBridge(payload: StartPayload): Promise<void> {
   });
 
   try {
-    const threadStrategy = payload.threadStrategy ?? (payload.threadHandle ? "resume" : "start");
-    let runtimeThreadIdForStart: string | undefined;
-    if (threadStrategy === "resume" || threadStrategy === "fork") {
-      const requestedThreadId = payload.threadHandle?.trim();
-      if (!requestedThreadId) {
-        throw new Error(`threadId is required when threadStrategy="${threadStrategy}".`);
-      }
-      runtimeThreadIdForStart = await resolveRuntimeThreadIdForLocalThread(
-        convex,
-        payload.actor,
-        requestedThreadId,
-      );
-    }
-
     const enabledDynamicTools = resolveEnabledDynamicTools(normalizedPayload.disabledTools);
-    await runtime.start({
+    await runtime.connect({
       actor: payload.actor,
       sessionId: activeSessionId,
       dynamicTools: enabledDynamicTools,
-      ...(runtimeThreadIdForStart ? { runtimeThreadId: runtimeThreadIdForStart } : {}),
-      threadStrategy,
       ...(payload.model ? { model: payload.model } : {}),
       ...(payload.cwd ? { cwd: payload.cwd } : {}),
       ...(payload.deltaThrottleMs ? { ingestFlushMs: payload.deltaThrottleMs } : {}),
@@ -636,6 +624,31 @@ async function startBridge(payload: StartPayload): Promise<void> {
     runtime = null;
     throw error;
   }
+}
+
+async function openThread(payload: OpenThreadPayload): Promise<void> {
+  if (!runtime || !convex || !actor) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  let runtimeThreadIdForOpen: string | undefined;
+  if (payload.strategy === "resume" || payload.strategy === "fork") {
+    const requestedThreadId = payload.threadHandle?.trim();
+    if (!requestedThreadId) {
+      throw new Error(`threadId is required when strategy="${payload.strategy}".`);
+    }
+    runtimeThreadIdForOpen = await resolveRuntimeThreadIdForLocalThread(
+      convex,
+      actor,
+      requestedThreadId,
+    );
+  }
+  await runtime.openThread({
+    strategy: payload.strategy,
+    ...(runtimeThreadIdForOpen ? { threadHandle: runtimeThreadIdForOpen } : {}),
+    ...(payload.model ? { model: payload.model } : {}),
+    ...(payload.cwd ? { cwd: payload.cwd } : {}),
+    ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),
+  });
 }
 
 async function sendTurn(text: string): Promise<void> {
@@ -791,6 +804,7 @@ async function handle(command: HelperCommand): Promise<void> {
     [K in HelperCommand["type"]]: (input: Extract<HelperCommand, { type: K }>) => Promise<void> | void;
   } = {
     start: (input) => startBridge(input.payload),
+    open_thread: (input) => openThread(input.payload),
     send_turn: (input) => sendTurn(input.payload.text),
     respond_command_approval: (input) =>
       respondCommandApproval(input.payload.requestId, input.payload.decision),

@@ -32,20 +32,31 @@ export function parseCommand(input: string, defaults: {
   if (head === "save-trace") return { kind: "local", action: "save-trace" };
 
   if (head === "start") {
-    const strategy = rest[0] === "resume" || rest[0] === "fork" || rest[0] === "start"
-      ? rest[0]
-      : "start";
-    const threadHandle = strategy !== "start" ? rest[1] : undefined;
     const payload: StartPayload = {
       convexUrl: defaults.convexUrl,
       actor: { userId: defaults.userId },
       sessionId: defaults.sessionId,
       ...(defaults.model ? { model: defaults.model } : {}),
       ...(defaults.cwd ? { cwd: defaults.cwd } : {}),
-      threadStrategy: strategy,
-      ...(threadHandle ? { threadHandle } : {}),
     };
     return { kind: "helper", helper: { type: "start", payload } };
+  }
+
+  if (head === "open-thread") {
+    const strategy = rest[0] === "resume" || rest[0] === "fork" || rest[0] === "start"
+      ? rest[0]
+      : "start";
+    const threadHandle = strategy !== "start" ? rest[1] : undefined;
+    return {
+      kind: "helper",
+      helper: {
+        type: "open_thread",
+        payload: {
+          strategy,
+          ...(threadHandle ? { threadHandle } : {}),
+        },
+      },
+    };
   }
 
   if (head === "send") {

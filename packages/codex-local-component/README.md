@@ -157,6 +157,7 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 
 `createCodexHostRuntime(...)` exposes thread control helpers:
 
+- `openThread` (`start|resume|fork`)
 - `resumeThread`
 - `forkThread`
 - `archiveThread`
@@ -172,6 +173,7 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 
 `createCodexHostRuntime(...)` exposes canonical lifecycle tracking as push + snapshot:
 
+- `connect(args)`
 - `subscribeLifecycle(listener)`
 - `getLifecycleState()`
 
@@ -183,6 +185,16 @@ The lifecycle state includes:
 - `updatedAtMs`
 - `threadHandle`
 - `turnId`
+
+Tauri bridge client send behavior:
+
+- Default: `createTauriBridgeClient(...)` keeps `turns.send(...)` fail-fast.
+- Canonical sequence: `lifecycle.start(...)` (transport connect) -> `lifecycle.openThread(...)` (explicit thread intent) -> `turns.send(...)`.
+- Opt-in: `createTauriBridgeClient(..., { lifecycleSafeSend: true })` only auto-recovers transport startup from cached `lifecycle.start(...)` config. It does not implicitly open/create threads.
+- Fail-closed error codes for opt-in send:
+  - `E_TAURI_SEND_START_CONFIG_MISSING`
+  - `E_TAURI_SEND_AUTO_START_FAILED`
+  - `E_TAURI_SEND_RETRY_EXHAUSTED`
 
 ## Type Safety Checks
 

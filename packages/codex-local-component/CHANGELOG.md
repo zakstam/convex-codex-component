@@ -1,5 +1,28 @@
 # @zakstam/codex-local-component
 
+## 0.20.0
+
+### Minor Changes
+
+- 2a12607: Add high-level thread APIs for `thread/name/set` and `thread/compact/start`.
+  - Add `buildThreadSetNameRequest` and `buildThreadCompactStartRequest` in app-server helpers.
+  - Add runtime convenience methods `setThreadName` and `compactThread` on `createCodexHostRuntime(...)`.
+  - Add tests covering request builders, runtime dispatch behavior, and in-flight lock enforcement.
+  - Document the new runtime thread control helpers in package docs.
+
+### Patch Changes
+
+- 7eed3ad: Add an explicit manual protocol-schema maintenance workflow with fail-closed validation.
+  - Add `schema:sync`, `schema:check`, and `schema:verify` package scripts.
+  - Add schema sync/check scripts with a committed schema manifest for drift detection.
+  - Gate protocol/schema path changes in CI with `schema:check` and `schema:verify`.
+  - Document maintainer schema update commands and required source inputs.
+
+- 2d5e8bb: Fix package setup documentation drift and add a shared example apps runbook.
+  - Add `docs/EXAMPLE_APPS_RUNBOOK.md` as a canonical setup/check command reference.
+  - Harden docs single-path checks so runbook references must stay valid in package docs and onboarding prompt text.
+  - Add repo-owned `skills/package-setup` guidance for fail-closed package setup workflows.
+
 ## 0.19.1
 
 ### Patch Changes

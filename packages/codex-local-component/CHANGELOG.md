@@ -1,5 +1,18 @@
 # @zakstam/codex-local-component
 
+## 1.0.1
+
+### Patch Changes
+
+- 8247132: Standardize host thread read APIs on safe-result behavior.
+  - Remove `threadSnapshotSafe` and strict throw-mode read aliases from public host surface and generated shims.
+  - Keep `threadSnapshot` safe-by-default, returning thread-status payloads for missing/forbidden reads and only throwing for unexpected runtime failures.
+  - Update dependent example usage and docs to align with the safe read contract.
+
+- 67e8f67: - Make `listPendingServerRequests` safe-by-default for missing threads by removing the missing-thread lookup throw in the component query and returning an empty array when no thread exists.
+  - Add host preset fallback handling for `listPendingServerRequestsForHooks` to also return `[]` when thread resolution fails for a missing thread.
+  - Update documentation and safety notes to reflect that this query returns an empty list for missing-thread fallback while other thread reads return status payloads.
+
 ## 1.0.0
 
 ### Major Changes

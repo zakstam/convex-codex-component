@@ -1,4 +1,5 @@
 import {
+  assertKnownPayloadShape,
   parseApprovalRequest,
   parseApprovalResolution,
   parseDurableMessageDeltaEvent,
@@ -35,6 +36,7 @@ export function normalizeInboundEvents(args: {
   const sorted = [...args.streamDeltas].sort((a, b) => a.createdAt - b.createdAt);
 
   return sorted.map((event) => {
+    assertKnownPayloadShape(event.kind, event.payloadJson);
     const payloadTurnId = parseTurnIdForEvent(event.kind, event.payloadJson);
     const incomingTurnId = event.turnId;
     const incomingIsPlaceholder = incomingTurnId === "0";

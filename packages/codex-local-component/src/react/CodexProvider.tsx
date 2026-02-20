@@ -5,12 +5,13 @@ import { CodexContext, type CodexContextValue } from "./CodexContext.js";
 import type { CodexMessagesQuery } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
+import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
 
 export type CodexProviderApi<Actor extends Record<string, unknown> = Record<string, unknown>> = {
   listThreadMessages: CodexMessagesQuery<{ actor: Actor }>;
   threadSnapshotSafe: CodexThreadStateQuery<{ actor: Actor }, CodexThreadActivityThreadState>;
   listPendingServerRequests?: unknown;
-  listTokenUsage?: unknown;
+  listTokenUsage?: CodexTokenUsageQuery<{ actor: Actor }>;
 } & Record<string, unknown>;
 
 export type CodexProviderProps<Actor extends Record<string, unknown> = Record<string, unknown>> = {
@@ -30,11 +31,15 @@ export function CodexProvider<Actor extends Record<string, unknown> = Record<str
 }: CodexProviderProps<Actor>) {
   const value = useMemo<CodexContextValue>(
     () => ({
-      actor: actor ?? ({} as Record<string, unknown>),
-      listThreadMessages: api.listThreadMessages as CodexMessagesQuery<unknown>,
-      threadSnapshotSafe: api.threadSnapshotSafe as CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,
-      listPendingServerRequests: api.listPendingServerRequests,
-      listTokenUsage: api.listTokenUsage,
+      actor: actor ?? {},
+      listThreadMessages: api.listThreadMessages,
+      threadSnapshotSafe: api.threadSnapshotSafe,
+      ...(api.listPendingServerRequests !== undefined
+        ? { listPendingServerRequests: api.listPendingServerRequests }
+        : {}),
+      ...(api.listTokenUsage !== undefined
+        ? { listTokenUsage: api.listTokenUsage }
+        : {}),
       defaultInitialNumItems: initialNumItems,
       defaultStream: stream,
     }),

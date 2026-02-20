@@ -134,7 +134,7 @@ test("normalizeInboundEvents prefers payload turn id for stream deltas", () => {
   assert.equal(normalized[0]?.turnId, "turn-real-stream");
 });
 
-test("normalizeInboundEvents rejects turn/completed stream delta without canonical payload turn id", () => {
+test("normalizeInboundEvents fail-closes malformed known payloads for stream deltas", () => {
   const malformedPayload = JSON.stringify({
     jsonrpc: "2.0",
     method: "turn/completed",
@@ -163,7 +163,7 @@ test("normalizeInboundEvents rejects turn/completed stream delta without canonic
           },
         ],
       }),
-    /\[E_SYNC_TURN_ID_REQUIRED_FOR_TURN_EVENT\]/,
+    /\[E_SYNC_PAYLOAD_SCHEMA_MISMATCH\]/,
   );
 });
 
@@ -200,7 +200,7 @@ test("normalizeInboundEvents rejects stream deltas with mismatched payload and e
   );
 });
 
-test("normalizeInboundEvents fails closed for turn-scoped lifecycle events without payload turn id", () => {
+test("normalizeInboundEvents fail-closes malformed known payloads for lifecycle events", () => {
   const malformedTurnCompletedPayload = JSON.stringify({
     jsonrpc: "2.0",
     method: "turn/completed",
@@ -212,20 +212,22 @@ test("normalizeInboundEvents fails closed for turn-scoped lifecycle events witho
     },
   });
 
-  const normalized = normalizeInboundEvents({
-    streamDeltas: [
-      {
-        type: "lifecycle_event",
-        eventId: "e1",
-        turnId: "0",
-        kind: "turn/completed",
-        payloadJson: malformedTurnCompletedPayload,
-        createdAt: 10,
-      },
-    ],
-  });
-
-  assert.equal(normalized[0]?.turnId, undefined);
+  assert.throws(
+    () =>
+      normalizeInboundEvents({
+        streamDeltas: [
+          {
+            type: "lifecycle_event",
+            eventId: "e1",
+            turnId: "0",
+            kind: "turn/completed",
+            payloadJson: malformedTurnCompletedPayload,
+            createdAt: 10,
+          },
+        ],
+      }),
+    /\[E_SYNC_PAYLOAD_SCHEMA_MISMATCH\]/,
+  );
 });
 
 test("normalizeInboundEvents rejects lifecycle events with mismatched payload and envelope turn ids", () => {

@@ -11,6 +11,7 @@ import {
   turnIdForPayload,
   reasoningDeltaForPayload,
   terminalStatusForPayload,
+  validateKnownPayloadForKind,
 } from "../dist/protocol/events.js";
 import { assertValidClientMessage, parseWireMessage } from "../dist/protocol/parser.js";
 
@@ -431,5 +432,42 @@ test("assertValidClientMessage accepts server-request response envelopes", () =>
         },
       },
     }),
+  );
+});
+
+test("validateKnownPayloadForKind rejects schema-mismatched known notifications", () => {
+  const invalidKnown = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "item/agentMessage/delta",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      itemId: "item-1",
+    },
+  });
+  const result = validateKnownPayloadForKind({
+    kind: "item/agentMessage/delta",
+    payloadJson: invalidKnown,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /payload is malformed/i);
+});
+
+test("validateKnownPayloadForKind allows unknown methods", () => {
+  const unknown = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "item/newExperimentalSignal",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      value: 1,
+    },
+  });
+  assert.deepEqual(
+    validateKnownPayloadForKind({
+      kind: "item/newExperimentalSignal",
+      payloadJson: unknown,
+    }),
+    { ok: true },
   );
 });

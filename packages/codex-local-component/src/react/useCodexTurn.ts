@@ -10,6 +10,13 @@ type CodexTurnMessage = {
   status: "streaming" | "completed" | "failed" | "interrupted";
 };
 
+type CodexSafeTurnMessages<Message extends CodexTurnMessage> = {
+  threadStatus: "ok" | "missing_thread";
+  data: Message[];
+  code?: "E_THREAD_NOT_FOUND";
+  message?: string;
+};
+
 export type CodexTurnMessagesQuery<Args = Record<string, unknown>, Message extends CodexTurnMessage = CodexTurnMessage> =
   FunctionReference<
     "query",
@@ -18,7 +25,7 @@ export type CodexTurnMessagesQuery<Args = Record<string, unknown>, Message exten
       threadId: string;
       turnId: string;
     } & Args,
-    Message[]
+    Message[] | CodexSafeTurnMessages<Message>
   >;
 
 export type CodexTurnStateQuery<Args = Record<string, unknown>, Result = unknown> =
@@ -48,22 +55,31 @@ export function useCodexTurn<
   const stateQueryArgs = toOptionalRestArgsOrSkip<StateQuery>(stateArgs);
   const messages = useQuery(messagesQuery, ...messagesArgs);
   const threadState = useQuery(stateQuery, ...stateQueryArgs);
+  const normalizedMessages = useMemo(() => {
+    if (!messages) {
+      return undefined;
+    }
+    if (Array.isArray(messages)) {
+      return messages;
+    }
+    return messages.data;
+  }, [messages]);
 
   const status = useMemo(() => {
-    if (!messages || messages.length === 0) {
+    if (!normalizedMessages || normalizedMessages.length === 0) {
       return "unknown";
     }
-    if (messages.some((message) => message.status === "failed")) {
+    if (normalizedMessages.some((message) => message.status === "failed")) {
       return "failed";
     }
-    if (messages.some((message) => message.status === "interrupted")) {
+    if (normalizedMessages.some((message) => message.status === "interrupted")) {
       return "interrupted";
     }
-    if (messages.some((message) => message.status === "streaming")) {
+    if (normalizedMessages.some((message) => message.status === "streaming")) {
       return "streaming";
     }
     return "completed";
-  }, [messages]);
+  }, [normalizedMessages]);
 
   return {
     messages,

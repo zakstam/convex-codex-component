@@ -7,7 +7,7 @@
       "riskLevel": "default",
       "id": "UC_0da31f32eecc",
       "file": "src/app-server/client.ts",
-      "line": 57,
+      "line": 59,
       "col": 32,
       "snippet": "return { method, id, params } as RequestFor<M>;",
       "context": "prev:): RequestFor<M> { | next:}"
@@ -205,7 +205,7 @@
       "riskLevel": "default",
       "id": "UC_3184e187a07a",
       "file": "src/host/runtime.ts",
-      "line": 86,
+      "line": 88,
       "col": 59,
       "snippet": "const { ConvexHttpClient } = require(\"convex/browser\") as { ConvexHttpClient: new (url: string) => { mutation: (...a: unknown[]) => Promise<unknown>; query: (...a: unknown[]) => Promise<unknown> } };",
       "context": "prev:if (isConvexIntegrated(args)) { | next:const client = new ConvexHttpClient(args.convexUrl);"
@@ -293,7 +293,7 @@
       "riskLevel": "default",
       "id": "UC_42e66eb43cb2",
       "file": "src/host/tauri.ts",
-      "line": 212,
+      "line": 209,
       "col": 34,
       "snippet": "const parsed = JSON.parse(line) as { type?: unknown; payload?: unknown };",
       "context": "prev:export function parseHelperCommand(line: string): HelperCommand { | next:if (typeof parsed !== \"object\" || parsed === null) {"
@@ -304,7 +304,7 @@
       "riskLevel": "default",
       "id": "UC_55861db3a58c",
       "file": "src/host/tauri.ts",
-      "line": 216,
+      "line": 213,
       "col": 82,
       "snippet": "if (typeof parsed.type !== \"string\" || !HELPER_COMMAND_TYPE_SET.has(parsed.type as HelperCommandType)) {",
       "context": "prev:} | next:throw new Error(`Unsupported helper command: ${String(parsed.type)}`);"
@@ -315,7 +315,7 @@
       "riskLevel": "default",
       "id": "UC_2a9aaee19f0f",
       "file": "src/host/tauri.ts",
-      "line": 220,
+      "line": 217,
       "col": 33,
       "snippet": "return { type: parsed.type } as HelperCommand;",
       "context": "prev:if (parsed.type === \"interrupt\" || parsed.type === \"stop\" || parsed.type === \"status\") { | next:}"
@@ -326,7 +326,7 @@
       "riskLevel": "default",
       "id": "UC_5cf7482544d0",
       "file": "src/host/tauri.ts",
-      "line": 225,
+      "line": 222,
       "col": 16,
       "snippet": "return parsed as HelperCommand;",
       "context": "prev:} | next:}"
@@ -337,7 +337,7 @@
       "riskLevel": "default",
       "id": "UC_242404ffb924",
       "file": "src/protocol/events.ts",
-      "line": 96,
+      "line": 160,
       "col": 14,
       "snippet": "return item as ThreadItem;",
       "context": "prev:} | next:}"
@@ -348,7 +348,7 @@
       "riskLevel": "default",
       "id": "UC_8c118b97a0ad",
       "file": "src/protocol/events.ts",
-      "line": 121,
+      "line": 185,
       "col": 25,
       "snippet": "const message = parsed as ServerInboundMessage;",
       "context": "prev:} | next:payloadMessageCache.set(payloadJson, message);"
@@ -359,7 +359,7 @@
       "riskLevel": "default",
       "id": "UC_e8a823cb640b",
       "file": "src/protocol/events.ts",
-      "line": 139,
+      "line": 345,
       "col": 17,
       "snippet": "return message as Extract<ServerInboundMessage, { method: M }>;",
       "context": "prev:} | next:}"
@@ -370,7 +370,7 @@
       "riskLevel": "default",
       "id": "UC_f30747ee954f",
       "file": "src/protocol/events.ts",
-      "line": 272,
+      "line": 478,
       "col": 32,
       "snippet": "const params = message.params as Record<string, unknown>;",
       "context": "prev:} | next:if (typeof params.threadId === \"string\") {"
@@ -381,7 +381,7 @@
       "riskLevel": "default",
       "id": "UC_e6d80c7c3075",
       "file": "src/protocol/events.ts",
-      "line": 304,
+      "line": 510,
       "col": 22,
       "snippet": "? (message.params as Record<string, unknown>)",
       "context": "prev:const params = isMessageRecord(message.params) | next:: null;"
@@ -392,7 +392,7 @@
       "riskLevel": "default",
       "id": "UC_84e3c4ef1470",
       "file": "src/protocol/events.ts",
-      "line": 476,
+      "line": 682,
       "col": 22,
       "snippet": "? (message.params as Record<string, unknown>)",
       "context": "prev:const params = isMessageRecord(message.params) | next:: null;"
@@ -403,7 +403,7 @@
       "riskLevel": "default",
       "id": "UC_a647c42c19d4",
       "file": "src/protocol/events.ts",
-      "line": 607,
+      "line": 813,
       "col": 24,
       "snippet": "? (message.params as Record<string, unknown>)",
       "context": "prev:const params = isMessageRecord(message.params) | next:: null;"
@@ -414,7 +414,7 @@
       "riskLevel": "default",
       "id": "UC_b5e47f8bb29e",
       "file": "src/protocol/events.ts",
-      "line": 629,
+      "line": 835,
       "col": 24,
       "snippet": "? (message.params as Record<string, unknown>)",
       "context": "prev:const params = isMessageRecord(message.params) | next:: null;"
@@ -440,39 +440,6 @@
       "col": 26,
       "snippet": "return validator.errors as AjvError[] | null | undefined;",
       "context": "prev:function validatorErrors(validator: { errors?: unknown }): AjvError[] | null | undefined { | next:}"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_5bd159350c99",
-      "file": "src/react/CodexProvider.tsx",
-      "line": 33,
-      "col": 26,
-      "snippet": "actor: actor ?? ({} as Record<string, unknown>),",
-      "context": "prev:() => ({ | next:listThreadMessages: api.listThreadMessages as CodexMessagesQuery<unknown>,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_11ca16ccecc0",
-      "file": "src/react/CodexProvider.tsx",
-      "line": 34,
-      "col": 49,
-      "snippet": "listThreadMessages: api.listThreadMessages as CodexMessagesQuery<unknown>,",
-      "context": "prev:actor: actor ?? ({} as Record<string, unknown>), | next:threadSnapshotSafe: api.threadSnapshotSafe as CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_36656f39aaf4",
-      "file": "src/react/CodexProvider.tsx",
-      "line": 35,
-      "col": 49,
-      "snippet": "threadSnapshotSafe: api.threadSnapshotSafe as CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>,",
-      "context": "prev:listThreadMessages: api.listThreadMessages as CodexMessagesQuery<unknown>, | next:listPendingServerRequests: api.listPendingServerRequests,"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -533,89 +500,12 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_cf3a49d715fc",
-      "file": "src/react/useCodex.ts",
-      "line": 107,
-      "col": 36,
-      "snippet": "query: ctx.listThreadMessages as unknown as CodexThreadsListQuery,",
-      "context": "prev:list: threadsConfig?.list ?? { | next:args: \"skip\","
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_f23ce2ebfb4a",
-      "file": "src/react/useCodex.ts",
-      "line": 129,
-      "col": 57,
-      "snippet": ": ({ actor: ctx.actor, threadId: effectiveThreadId } as never);",
-      "context": "prev:? (\"skip\" as const) | next:const threadStateArgs = shouldSkip"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_bb05fc8a23e9",
-      "file": "src/react/useCodex.ts",
-      "line": 132,
-      "col": 57,
-      "snippet": ": ({ actor: ctx.actor, threadId: effectiveThreadId } as never);",
-      "context": "prev:? (\"skip\" as const) | next:const chat = useCodexChat({"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_d0342f55c65e",
-      "file": "src/react/useCodex.ts",
-      "line": 159,
-      "col": 59,
-      "snippet": ": ({ actor: ctx.actor, threadId: effectiveThreadId } as never),",
-      "context": "prev:? \"skip\" | next:);"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_aa952a1d2a39",
-      "file": "src/react/useCodex.ts",
-      "line": 165,
-      "col": 48,
-      "snippet": "const tokenUsageQueryRef = ctx.listTokenUsage as CodexTokenUsageQuery<unknown> | undefined;",
-      "context": "prev:// the CodexProvider, the query is skipped and tokenUsage is null. | next:const tokenUsageActive = !!tokenUsageQueryRef && !shouldSkip;"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_f97bfccaaa2f",
-      "file": "src/react/useCodex.ts",
-      "line": 168,
-      "col": 57,
-      "snippet": "? ({ actor: ctx.actor, threadId: effectiveThreadId } as never)",
-      "context": "prev:const tokenUsageArgs = tokenUsageActive | next:: (\"skip\" as const);"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
       "id": "UC_8f90a4081363",
       "file": "src/react/useCodex.ts",
-      "line": 171,
+      "line": 248,
       "col": 47,
       "snippet": "// not configured we pass the messages query as a stand-in ref; the \"skip\"",
       "context": "prev:// useQuery must always be called (rules of hooks). When token usage is | next:// args ensure Convex never executes it."
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_629c7fc50d1e",
-      "file": "src/react/useCodex.ts",
-      "line": 174,
-      "col": 51,
-      "snippet": "(tokenUsageQueryRef ?? ctx.listThreadMessages) as CodexTokenUsageQuery<unknown>,",
-      "context": "prev:const rawTokenTurns = useQuery( | next:...toOptionalRestArgsOrSkip<CodexTokenUsageQuery<unknown>>(tokenUsageArgs),"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",

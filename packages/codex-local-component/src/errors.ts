@@ -5,6 +5,12 @@ export const RECOVERABLE_INGEST_ERROR_CODES = new Set([
   "SESSION_THREAD_MISMATCH",
 ]);
 
+export type ThreadReadMissingError = {
+  threadStatus: "missing_thread";
+  code: "E_THREAD_NOT_FOUND";
+  message: string;
+};
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -14,14 +20,25 @@ export function parseErrorCode(error: unknown): string | null {
   return match?.[1] ?? null;
 }
 
-export function isThreadMissing(error: unknown): boolean {
+export function classifyThreadReadError(error: unknown): ThreadReadMissingError | null {
   const message = errorMessage(error);
   const code = parseErrorCode(error);
-  return (
+  const isMissing =
     message.includes("Thread not found") ||
     code === "E_SYNC_SESSION_NOT_FOUND" ||
-    code === "E_THREAD_NOT_FOUND"
-  );
+    code === "E_THREAD_NOT_FOUND";
+  if (!isMissing) {
+    return null;
+  }
+  return {
+    threadStatus: "missing_thread",
+    code: "E_THREAD_NOT_FOUND",
+    message,
+  };
+}
+
+export function isThreadMissing(error: unknown): boolean {
+  return classifyThreadReadError(error) !== null;
 }
 
 export function isThreadForbidden(error: unknown): boolean {

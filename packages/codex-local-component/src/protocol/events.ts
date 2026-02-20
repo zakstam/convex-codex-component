@@ -72,6 +72,23 @@ const TURN_COMPLETED_KINDS = new Set<string>(["turn/completed"]);
 const TURN_FAILED_KINDS = new Set<string>(["error"]);
 const PAYLOAD_PARSE_CACHE_LIMIT = 2000;
 const payloadMessageCache = new Map<string, ServerInboundMessage | null>();
+const KNOWN_NOTIFICATION_PAYLOAD_METHODS = new Set<string>([
+  "turn/started",
+  "turn/completed",
+  "error",
+  "item/started",
+  "item/completed",
+  "item/agentMessage/delta",
+  "item/reasoning/summaryTextDelta",
+  "item/reasoning/summaryPartAdded",
+  "item/reasoning/textDelta",
+]);
+const KNOWN_REQUEST_PAYLOAD_METHODS = new Set<string>([
+  "item/commandExecution/requestApproval",
+  "item/fileChange/requestApproval",
+  "item/tool/requestUserInput",
+  "item/tool/call",
+]);
 
 function isMessageRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -80,6 +97,53 @@ function isMessageRecord(value: unknown): value is Record<string, unknown> {
 function getStringField(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === "string" ? value : null;
+}
+
+function getNumberField(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function malformed(kind: string, detail: string): { ok: false; reason: string } {
+  return { ok: false, reason: `kind=${kind} payload is malformed: ${detail}` };
+}
+
+function getParamsRecord(message: ServerInboundMessage): Record<string, unknown> | null {
+  if (!("params" in message)) {
+    return null;
+  }
+  const { params } = message;
+  return isMessageRecord(params) ? params : null;
+}
+
+function hasThreadAndTurn(params: Record<string, unknown>): boolean {
+  return typeof params.threadId === "string" && typeof params.turnId === "string";
+}
+
+function isToolQuestionOption(value: unknown): boolean {
+  if (!isMessageRecord(value)) {
+    return false;
+  }
+  return typeof value.label === "string" && typeof value.description === "string";
+}
+
+function isToolRequestQuestion(value: unknown): boolean {
+  if (!isMessageRecord(value)) {
+    return false;
+  }
+  if (
+    typeof value.id !== "string" ||
+    typeof value.header !== "string" ||
+    typeof value.question !== "string" ||
+    typeof value.isOther !== "boolean" ||
+    typeof value.isSecret !== "boolean"
+  ) {
+    return false;
+  }
+  if (value.options === null || value.options === undefined) {
+    return true;
+  }
+  return Array.isArray(value.options) && value.options.every(isToolQuestionOption);
 }
 
 function getThreadItemFromParams(params: unknown): ThreadItem | null {
@@ -127,6 +191,148 @@ function parsePayloadMessage(payloadJson: string): ServerInboundMessage | null {
     }
   }
   return message;
+}
+
+export function validateKnownPayloadForKind(args: {
+  kind: string;
+  payloadJson: string;
+}): { ok: true } | { ok: false; reason: string } {
+  const { kind, payloadJson } = args;
+  const mustBeNotification = KNOWN_NOTIFICATION_PAYLOAD_METHODS.has(kind);
+  const mustBeRequest = KNOWN_REQUEST_PAYLOAD_METHODS.has(kind);
+  if (!mustBeNotification && !mustBeRequest) {
+    return { ok: true };
+  }
+
+  const parsed = parsePayloadMessage(payloadJson);
+  if (!parsed) {
+    return malformed(kind, "not valid JSON-RPC");
+  }
+  if (!("method" in parsed)) {
+    return malformed(kind, "missing method");
+  }
+  if (parsed.method !== kind) {
+    return malformed(kind, `method mismatch (got ${parsed.method})`);
+  }
+
+  if (mustBeRequest) {
+    if (!("id" in parsed) || (typeof parsed.id !== "number" && typeof parsed.id !== "string")) {
+      return malformed(kind, "request is missing a string/number id");
+    }
+    const params = getParamsRecord(parsed);
+    if (!params || !hasThreadAndTurn(params)) {
+      return malformed(kind, "request is missing threadId/turnId");
+    }
+    if (kind === "item/commandExecution/requestApproval" || kind === "item/fileChange/requestApproval") {
+      if (typeof params.itemId !== "string") {
+        return malformed(kind, "request is missing itemId");
+      }
+      return { ok: true };
+    }
+    if (kind === "item/tool/requestUserInput") {
+      if (typeof params.itemId !== "string") {
+        return malformed(kind, "request is missing itemId");
+      }
+      if (!Array.isArray(params.questions) || !params.questions.every(isToolRequestQuestion)) {
+        return malformed(kind, "request questions are missing or invalid");
+      }
+      return { ok: true };
+    }
+    if (kind === "item/tool/call") {
+      if (typeof params.callId !== "string" || typeof params.tool !== "string") {
+        return malformed(kind, "request is missing callId/tool");
+      }
+      return { ok: true };
+    }
+    return malformed(kind, "unsupported known request kind");
+  }
+
+  if ("id" in parsed) {
+    return malformed(kind, "notification unexpectedly includes id");
+  }
+  const params = getParamsRecord(parsed);
+  if (!params) {
+    return malformed(kind, "notification params are missing or invalid");
+  }
+
+  if (kind === "turn/started") {
+    return extractTurnId(parsed) && extractThreadId(parsed)
+      ? { ok: true }
+      : malformed(kind, "turn/thread identifiers are missing");
+  }
+
+  if (kind === "turn/completed") {
+    const turn = isMessageRecord(params.turn) ? params.turn : null;
+    if (!turn || typeof turn.id !== "string" || typeof turn.status !== "string") {
+      return malformed(kind, "turn object is missing id/status");
+    }
+    return typeof params.threadId === "string"
+      ? { ok: true }
+      : malformed(kind, "threadId is missing");
+  }
+
+  if (kind === "error") {
+    const error = isMessageRecord(params.error) ? params.error : null;
+    if (!hasThreadAndTurn(params) || !error || typeof error.message !== "string") {
+      return malformed(kind, "error payload is missing thread/turn/error.message");
+    }
+    return { ok: true };
+  }
+
+  if (kind === "item/started" || kind === "item/completed") {
+    if (!hasThreadAndTurn(params) || !getThreadItemFromParams(params)) {
+      return malformed(kind, "item payload is missing thread/turn/item");
+    }
+    return { ok: true };
+  }
+
+  if (kind === "item/agentMessage/delta") {
+    if (
+      !hasThreadAndTurn(params) ||
+      typeof params.itemId !== "string" ||
+      typeof params.delta !== "string"
+    ) {
+      return malformed(kind, "agentMessage delta is missing thread/turn/itemId/delta");
+    }
+    return { ok: true };
+  }
+
+  if (kind === "item/reasoning/summaryTextDelta") {
+    if (
+      !hasThreadAndTurn(params) ||
+      typeof params.itemId !== "string" ||
+      getNumberField(params, "summaryIndex") === null ||
+      typeof params.delta !== "string"
+    ) {
+      return malformed(kind, "reasoning summaryTextDelta payload is invalid");
+    }
+    return { ok: true };
+  }
+
+  if (kind === "item/reasoning/summaryPartAdded") {
+    if (
+      !hasThreadAndTurn(params) ||
+      typeof params.itemId !== "string" ||
+      getNumberField(params, "summaryIndex") === null
+    ) {
+      return malformed(kind, "reasoning summaryPartAdded payload is invalid");
+    }
+    return { ok: true };
+  }
+
+  if (kind === "item/reasoning/textDelta") {
+    if (
+      !hasThreadAndTurn(params) ||
+      typeof params.itemId !== "string" ||
+      getNumberField(params, "contentIndex") === null ||
+      typeof params.delta !== "string"
+    ) {
+      return malformed(kind, "reasoning textDelta payload is invalid");
+    }
+    return { ok: true };
+  }
+
+  return malformed(kind, "unsupported known notification kind");
 }
 
 function parseMethodMessage<M extends string>(

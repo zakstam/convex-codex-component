@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  classifyThreadReadError,
   isRecoverableIngestError,
   isSessionForbidden,
   isThreadForbidden,
@@ -18,6 +19,18 @@ test("thread classifiers identify missing and forbidden states", () => {
   assert.equal(isThreadMissing(new Error("Thread not found for scope: thread-1")), true);
   assert.equal(isThreadForbidden(new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed")), true);
   assert.equal(isSessionForbidden(new Error("[E_AUTH_SESSION_FORBIDDEN] authorization failed")), true);
+});
+
+test("classifyThreadReadError normalizes missing thread errors to E_THREAD_NOT_FOUND", () => {
+  assert.deepEqual(
+    classifyThreadReadError(new Error("Thread not found for scope: thread-1")),
+    {
+      threadStatus: "missing_thread",
+      code: "E_THREAD_NOT_FOUND",
+      message: "Thread not found for scope: thread-1",
+    },
+  );
+  assert.equal(classifyThreadReadError(new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed")), null);
 });
 
 test("isRecoverableIngestError accepts structured safe-ingest entries", () => {

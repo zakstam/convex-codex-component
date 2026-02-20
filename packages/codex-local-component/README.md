@@ -35,6 +35,7 @@ Use one source of truth for implementation steps:
 4. Start runtime in runtime-owned mode.
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
+7. Prefer safe-by-default thread read queries; use `*Strict` aliases only when explicit throw-on-missing behavior is required.
 
 ## Package Import Paths
 
@@ -99,6 +100,7 @@ npx convex dev --once
 5. Start runtime-owned host wiring through `@zakstam/codex-local-component/host`.
 
 6. Call `chat.validateHostWiring` during startup.
+7. Prefer `resolveActorFromAuth(ctx, requestedActor?)` for host actor binding from Convex auth identity.
 
 7. Run app checks:
 

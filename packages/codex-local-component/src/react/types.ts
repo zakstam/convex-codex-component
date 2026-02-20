@@ -34,7 +34,12 @@ export type CodexMessagesQuery<Args = Record<string, unknown>> = FunctionReferen
     paginationOpts: PaginationOptions;
     streamArgs?: CodexStreamArgs;
   } & Args,
-  PaginationResult<CodexDurableMessageLike> & { streams?: CodexStreamsResult }
+  PaginationResult<CodexDurableMessageLike> & {
+    streams?: CodexStreamsResult;
+    threadStatus?: "ok" | "missing_thread";
+    code?: "E_THREAD_NOT_FOUND";
+    message?: string;
+  }
 >;
 
 export type CodexMessagesQueryArgs<Query extends CodexMessagesQuery<unknown>> =
@@ -50,7 +55,12 @@ export type CodexReasoningQuery<Args = Record<string, unknown>> = FunctionRefere
     paginationOpts: PaginationOptions;
     includeRaw?: boolean;
   } & Args,
-  PaginationResult<CodexReasoningSegmentLike> & { streams?: CodexStreamsResult }
+  PaginationResult<CodexReasoningSegmentLike> & {
+    streams?: CodexStreamsResult;
+    threadStatus?: "ok" | "missing_thread";
+    code?: "E_THREAD_NOT_FOUND";
+    message?: string;
+  }
 >;
 
 export type CodexReasoningQueryArgs<Query extends CodexReasoningQuery<unknown>> =

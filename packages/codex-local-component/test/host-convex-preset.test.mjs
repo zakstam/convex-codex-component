@@ -31,12 +31,17 @@ test("defineCodexHostDefinitions returns deterministic runtime-owned surface wit
 
   assert.ok(defs.queries.validateHostWiring);
   assert.ok(defs.queries.threadSnapshot);
+  assert.ok(defs.queries.threadSnapshotStrict);
   assert.ok(defs.queries.getDeletionStatus);
   assert.ok(defs.queries.dataHygiene);
+  assert.ok(defs.queries.dataHygieneStrict);
   assert.ok(defs.queries.listThreadMessages);
+  assert.ok(defs.queries.listThreadMessagesStrict);
   assert.ok(defs.queries.listTurnMessages);
+  assert.ok(defs.queries.listTurnMessagesStrict);
   assert.ok(defs.queries.listPendingApprovals);
   assert.ok(defs.queries.listTokenUsage);
+  assert.ok(defs.queries.listThreadReasoningStrict);
 });
 
 test("defineCodexHostDefinitions output keys match HOST_SURFACE_MANIFEST keys", () => {
@@ -147,6 +152,42 @@ test("ensureThread rejects externalThreadId-only input", async () => {
       { actor: {}, externalThreadId: "legacy-id" },
     ),
     /ensureThread requires threadId/,
+  );
+});
+
+test("threadSnapshot safe query returns missing_thread status for missing thread errors", async () => {
+  const defs = host.defineCodexHostDefinitions({
+    components: createComponentRefs(),
+  });
+
+  const result = await defs.queries.threadSnapshot.handler(
+    {
+      runQuery: async () => {
+        throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+      },
+    },
+    { actor: {}, threadId: "missing-thread" },
+  );
+
+  assert.equal(result.threadStatus, "missing_thread");
+  assert.equal(result.code, "E_THREAD_NOT_FOUND");
+});
+
+test("threadSnapshotStrict rethrows missing thread errors", async () => {
+  const defs = host.defineCodexHostDefinitions({
+    components: createComponentRefs(),
+  });
+
+  await assert.rejects(
+    defs.queries.threadSnapshotStrict.handler(
+      {
+        runQuery: async () => {
+          throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+        },
+      },
+      { actor: {}, threadId: "missing-thread" },
+    ),
+    /\[E_THREAD_NOT_FOUND\]/,
   );
 });
 

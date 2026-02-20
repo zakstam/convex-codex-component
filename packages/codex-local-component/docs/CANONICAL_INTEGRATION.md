@@ -20,6 +20,7 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
 - `userId` present: user-scoped isolation.
 - `userId` missing: anonymous-only isolation.
 - Authentication and actor binding are app-owned concerns.
+- Prefer `resolveActorFromAuth(ctx, requestedActor?)` from `@zakstam/codex-local-component/host/convex` to derive canonical host actors from `ctx.auth.getUserIdentity()`.
 
 ## Thread Contract
 
@@ -42,11 +43,14 @@ export const ingestBatch = mutation(codex.mutations.ingestBatch);
 export const scheduleDeleteThread = mutation(codex.mutations.scheduleDeleteThread);
 export const validateHostWiring = query(codex.queries.validateHostWiring);
 export const getDeletionStatus = query(codex.queries.getDeletionStatus);
-export const threadSnapshotSafe = query(codex.queries.threadSnapshotSafe);
+export const threadSnapshot = query(codex.queries.threadSnapshot); // safe-by-default
+export const threadSnapshotStrict = query(codex.queries.threadSnapshotStrict);
 export const listThreadMessages = query(codex.queries.listThreadMessages);
 ```
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
+
+Thread-scoped reads are safe-by-default (`threadSnapshot`, `listThreadMessages`, `listTurnMessages`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`). Use `*Strict` query aliases when you want throw-on-missing behavior.
 
 ## Host Shim Generation
 

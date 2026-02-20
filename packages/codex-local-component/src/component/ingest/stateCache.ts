@@ -8,8 +8,8 @@ export type IngestStateCache = {
   setMessageRecord: (turnId: string, messageId: string, value: CachedMessage | null) => void;
   getApprovalRecord: (turnId: string, itemId: string) => Promise<CachedApproval | null>;
   setApprovalRecord: (turnId: string, itemId: string, value: CachedApproval | null) => void;
-  getStreamRecord: (streamId: string) => Promise<CachedStream | null>;
-  setStreamRecord: (streamId: string, value: CachedStream | null) => void;
+  getStreamRecord: (turnRef: GenericId<"codex_turns">, streamId: string) => Promise<CachedStream | null>;
+  setStreamRecord: (turnRef: GenericId<"codex_turns">, streamId: string, value: CachedStream | null) => void;
   queueMessagePatch: (id: GenericId<"codex_messages">, patch: Record<string, unknown>) => void;
   flushMessagePatches: () => Promise<void>;
 };
@@ -23,7 +23,7 @@ export function createIngestStateCache(args: {
 
   const messageOrderCacheByTurn = new Map<string, number>();
   const messageByTurnAndId = new Map<string, Map<string, CachedMessage | null>>();
-  const streamById = new Map<string, CachedStream | null>();
+  const streamByTurnRefAndId = new Map<string, Map<string, CachedStream | null>>();
   const approvalByTurnAndId = new Map<string, Map<string, CachedApproval | null>>();
   const messagePatchById = new Map<GenericId<"codex_messages">, Record<string, unknown>>();
 
@@ -113,13 +113,23 @@ export function createIngestStateCache(args: {
     setNestedValue(approvalByTurnAndId, turnId, itemId, value);
   };
 
-  const getStreamRecord = async (streamId: string): Promise<CachedStream | null> => {
-    if (streamById.has(streamId)) {
-      return streamById.get(streamId) ?? null;
+  const getStreamRecord = async (
+    turnRef: GenericId<"codex_turns">,
+    streamId: string,
+  ): Promise<CachedStream | null> => {
+    const turnRefKey = String(turnRef);
+    const cached = getNestedValue(streamByTurnRefAndId, turnRefKey, streamId);
+    if (cached !== undefined) {
+      return cached;
     }
     const stream = await ctx.db
       .query("codex_streams")
-      .withIndex("userScope_streamId", (q) => q.eq("userScope", userScope).eq("streamId", streamId))
+      .withIndex("userScope_turnRef_streamId", (q) =>
+        q
+          .eq("userScope", userScope)
+          .eq("turnRef", turnRef)
+          .eq("streamId", streamId),
+      )
       .first();
     const normalized = stream
       ? {
@@ -129,12 +139,16 @@ export function createIngestStateCache(args: {
           state: { kind: stream.state.kind },
         }
       : null;
-    streamById.set(streamId, normalized);
+    setNestedValue(streamByTurnRefAndId, turnRefKey, streamId, normalized);
     return normalized;
   };
 
-  const setStreamRecord = (streamId: string, value: CachedStream | null): void => {
-    streamById.set(streamId, value);
+  const setStreamRecord = (
+    turnRef: GenericId<"codex_turns">,
+    streamId: string,
+    value: CachedStream | null,
+  ): void => {
+    setNestedValue(streamByTurnRefAndId, String(turnRef), streamId, value);
   };
 
   const queueMessagePatch = (id: GenericId<"codex_messages">, patch: Record<string, unknown>): void => {

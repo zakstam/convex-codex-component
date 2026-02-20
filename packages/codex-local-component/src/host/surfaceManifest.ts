@@ -24,17 +24,24 @@ export const HOST_SURFACE_MANIFEST = {
     queries: [
       "validateHostWiring",
       "threadSnapshot",
+      "threadSnapshotStrict",
       "threadSnapshotSafe",
       "getDeletionStatus",
       "persistenceStats",
+      "persistenceStatsStrict",
       "durableHistoryStats",
+      "durableHistoryStatsStrict",
       "dataHygiene",
+      "dataHygieneStrict",
       "listThreadMessages",
+      "listThreadMessagesStrict",
       "listTurnMessages",
+      "listTurnMessagesStrict",
       "listPendingApprovals",
       "listTokenUsage",
       "listPendingServerRequests",
       "listThreadReasoning",
+      "listThreadReasoningStrict",
     ],
   },
 } as const;
@@ -65,9 +72,12 @@ export const HOST_MUTATION_INTERNAL_ALIASES = {
  */
 export const HOST_QUERY_INTERNAL_ALIASES = {
   listThreadMessagesForHooks: "listThreadMessages",
+  listThreadMessagesForHooksStrict: "listThreadMessagesStrict",
   listTurnMessagesForHooks: "listTurnMessages",
+  listTurnMessagesForHooksStrict: "listTurnMessagesStrict",
   listPendingApprovalsForHooks: "listPendingApprovals",
   listTokenUsageForHooks: "listTokenUsage",
   listPendingServerRequestsForHooks: "listPendingServerRequests",
   listThreadReasoningForHooks: "listThreadReasoning",
+  listThreadReasoningForHooksStrict: "listThreadReasoningStrict",
 } as const;

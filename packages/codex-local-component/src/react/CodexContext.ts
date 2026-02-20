@@ -4,13 +4,14 @@ import { createContext, useContext } from "react";
 import type { CodexMessagesQuery } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
+import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
 
 export type CodexContextValue = {
   actor: Record<string, unknown>;
-  listThreadMessages: CodexMessagesQuery<unknown>;
-  threadSnapshotSafe: CodexThreadStateQuery<unknown, CodexThreadActivityThreadState>;
+  listThreadMessages: CodexMessagesQuery<Record<string, unknown>>;
+  threadSnapshotSafe: CodexThreadStateQuery<Record<string, unknown>, CodexThreadActivityThreadState>;
   listPendingServerRequests?: unknown;
-  listTokenUsage?: unknown;
+  listTokenUsage?: CodexTokenUsageQuery<Record<string, unknown>>;
   defaultInitialNumItems: number;
   defaultStream: boolean;
 };

@@ -7,6 +7,7 @@ import {
   reasoningDeltaForPayload,
   terminalStatusForPayload,
   turnIdForPayload,
+  validateKnownPayloadForKind,
   type CanonicalApprovalRequest,
   type CanonicalApprovalResolution,
   type CanonicalDurableMessage,
@@ -86,6 +87,14 @@ export function parseReasoningDeltaEvent(
 
 export function parseTurnIdForEvent(kind: string, payloadJson: string): string | null {
   return turnIdForPayload(kind, payloadJson);
+}
+
+export function assertKnownPayloadShape(kind: string, payloadJson: string): void {
+  const validation = validateKnownPayloadForKind({ kind, payloadJson });
+  if (validation.ok) {
+    return;
+  }
+  syncError("E_SYNC_PAYLOAD_SCHEMA_MISMATCH", validation.reason);
 }
 
 export { syncError };

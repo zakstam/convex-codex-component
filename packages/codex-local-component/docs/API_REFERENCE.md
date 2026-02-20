@@ -39,6 +39,7 @@ Use this path in order:
 | `API` | `Type` | `Notes` |
 | --- | --- | --- |
 | `defineCodexHostDefinitions` | `function` | Returns runtime-owned mutation/query definitions. |
+| `resolveActorFromAuth` | `function` | Canonical actor helper that binds `actor.userId` to `ctx.auth.getUserIdentity().subject`. |
 | `HOST_SURFACE_MANIFEST` | `const` | Canonical host mutation/query surface metadata. |
 | `renderCodexHostShim` | `function` | Generates explicit Convex `convex/chat.ts` module content. |
 | `vHostActorContext` | `validator` | Actor validator for host endpoints. |
@@ -64,6 +65,7 @@ Use this path in order:
 - Authentication is consumer-managed at app boundaries.
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureThread` is single-path and requires `threadId`.
+- Thread-scoped query exports are safe-by-default with `*Strict` aliases for throw-on-missing behavior.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
 - Runtime thread control helpers include: `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.

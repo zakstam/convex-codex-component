@@ -62,9 +62,38 @@ export async function applyStreamEvent(
     return;
   }
 
-  let stream = await cache.getStreamRecord(event.streamId);
+  const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, event.turnId);
+  let stream = await cache.getStreamRecord(turn._id, event.streamId);
   if (!stream) {
-    const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, event.turnId);
+    const collidingStream = await ingest.ctx.db
+      .query("codex_streams")
+      .withIndex("userScope_streamId", (q) =>
+        q
+          .eq("userScope", userScopeFromActor(ingest.args.actor))
+          .eq("streamId", event.streamId),
+      )
+      .first();
+    if (
+      collidingStream &&
+      (String(collidingStream.threadId) !== ingest.args.threadId ||
+        String(collidingStream.turnId) !== event.turnId)
+    ) {
+      syncError(
+        "E_SYNC_STREAM_ID_COLLISION",
+        `streamId=${event.streamId} is already bound to threadId=${String(collidingStream.threadId)} turnId=${String(collidingStream.turnId)} and cannot be reused by threadId=${ingest.args.threadId} turnId=${event.turnId}`,
+      );
+    }
+    if (collidingStream) {
+      stream = {
+        _id: collidingStream._id,
+        state: { kind: collidingStream.state.kind },
+        turnId: String(collidingStream.turnId),
+        turnRef: collidingStream.turnRef,
+      };
+      cache.setStreamRecord(turn._id, event.streamId, stream);
+    }
+  }
+  if (!stream) {
     const streamId = await ingest.ctx.db.insert("codex_streams", {
       userScope: userScopeFromActor(ingest.args.actor),
       threadId: ingest.args.threadId,
@@ -81,7 +110,7 @@ export async function applyStreamEvent(
       turnId: event.turnId,
       turnRef: turn._id,
     };
-    cache.setStreamRecord(event.streamId, stream);
+    cache.setStreamRecord(turn._id, event.streamId, stream);
     await ensureStreamStat(ingest.ctx, {
       userScope: userScopeFromActor(ingest.args.actor),
       threadId: ingest.args.threadId,

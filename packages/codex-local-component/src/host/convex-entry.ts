@@ -41,6 +41,7 @@ export {
 
 export {
   RECOVERABLE_INGEST_ERROR_CODES,
+  classifyThreadReadError,
   isRecoverableIngestError,
   isSessionForbidden,
   isThreadForbidden,
@@ -96,3 +97,4 @@ export {
 } from "./convexSlice.js";
 
 export { hasRecoverableIngestErrors, type HostIngestErrorLike } from "./ingestRecovery.js";
+export { resolveActorFromAuth } from "./authActor.js";

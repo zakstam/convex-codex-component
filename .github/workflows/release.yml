@@ -12,11 +12,12 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: write
   id-token: write
+  pull-requests: write
 
 jobs:
   release:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +64,34 @@ jobs:
           npm config set registry https://registry.npmjs.org/
           npm config delete always-auth || true
 
-      - name: Create release PR or publish
-        uses: changesets/action@v1
+      - name: Check for pending changesets
+        id: pending-changesets
+        run: |
+          if [ -n "$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name 'README.md' -print -quit)" ]; then
+            echo "has_changesets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changesets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version and publish
+        if: steps.pending-changesets.outputs.has_changesets == 'true'
+        run: |
+          pnpm run version-packages
+          pnpm run release:publish
+
+      - name: Commit release bump and publishable lock changes
+        if: steps.pending-changesets.outputs.has_changesets == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "No release files changed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: version packages"
+          git push
         with:
           version: pnpm run version-packages
           publish: pnpm run release:publish

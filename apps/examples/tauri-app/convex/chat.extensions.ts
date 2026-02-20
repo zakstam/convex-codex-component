@@ -55,13 +55,13 @@ export const resolveThreadHandleForStart = query({
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
-    const mapping = await ctx.runQuery(components.codexLocal.threads.getExternalMapping, {
+    const mapping = await ctx.runQuery(components.codexLocal.threads.getThreadHandleMapping, {
       actor: serverActor,
       threadId: args.threadId,
     });
     return {
       threadId: args.threadId,
-      threadHandleId: mapping?.externalThreadId ?? args.threadId,
+      threadHandleId: mapping?.threadHandle ?? args.threadId,
     };
   },
 });

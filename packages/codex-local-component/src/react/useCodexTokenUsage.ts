@@ -15,9 +15,7 @@ export type CodexTokenUsageQuery<
 > = FunctionReference<
   "query",
   "public",
-  {
-    threadId: string;
-  } & Args,
+  { threadHandle: string } & Args,
   CodexTurnTokenUsage[]
 >;
 

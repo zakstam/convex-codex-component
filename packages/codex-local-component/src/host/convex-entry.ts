@@ -7,6 +7,10 @@ export {
   type DefineCodexHostDefinitionsOptions,
   type RuntimeOwnedHostDefinitions,
 } from "./convexPreset.js";
+export type {
+  RuntimeThreadLocator,
+  ThreadLocator,
+} from "../shared/threadIdentity.js";
 export {
   HOST_SURFACE_MANIFEST,
   HOST_MUTATION_INTERNAL_ALIASES,

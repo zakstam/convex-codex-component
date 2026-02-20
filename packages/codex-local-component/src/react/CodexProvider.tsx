@@ -7,6 +7,18 @@ import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
 
+export type CodexRuntimeOwnedThreadHandleApi<
+  Actor extends Record<string, unknown> = Record<string, unknown>,
+> = {
+  listThreadMessagesByThreadHandle: CodexMessagesQuery<{ actor: Actor }>;
+  threadSnapshotByThreadHandle: CodexThreadStateQuery<
+    { actor: Actor },
+    CodexThreadReadResult<CodexThreadActivityThreadState>
+  >;
+  listPendingServerRequestsByThreadHandle?: unknown;
+  listTokenUsageByThreadHandle?: CodexTokenUsageQuery<{ actor: Actor }>;
+} & Record<string, unknown>;
+
 export type CodexProviderApi<Actor extends Record<string, unknown> = Record<string, unknown>> = {
   listThreadMessages: CodexMessagesQuery<{ actor: Actor }>;
   threadSnapshot: CodexThreadStateQuery<
@@ -18,15 +30,42 @@ export type CodexProviderApi<Actor extends Record<string, unknown> = Record<stri
 } & Record<string, unknown>;
 
 export type CodexProviderProps<Actor extends Record<string, unknown> = Record<string, unknown>> = {
-  api: CodexProviderApi<Actor>;
+  preset: CodexProviderApi<Actor>;
   actor?: Actor;
   initialNumItems?: number;
   stream?: boolean;
   children: ReactNode;
 };
 
+export function createCodexReactPreset<
+  Actor extends Record<string, unknown> = Record<string, unknown>,
+>(
+  api: CodexRuntimeOwnedThreadHandleApi<Actor>,
+): CodexProviderApi<Actor> {
+  const listThreadMessages = api.listThreadMessagesByThreadHandle as unknown as CodexMessagesQuery<{ actor: Actor }>;
+  const threadSnapshot = api.threadSnapshotByThreadHandle as unknown as CodexThreadStateQuery<
+      { actor: Actor },
+      CodexThreadReadResult<CodexThreadActivityThreadState>
+    >;
+  const listPendingServerRequests = api.listPendingServerRequestsByThreadHandle;
+  const listTokenUsage = api.listTokenUsageByThreadHandle as CodexTokenUsageQuery<{ actor: Actor }> | undefined;
+
+  return {
+    listThreadMessages,
+    threadSnapshot,
+    ...(listPendingServerRequests !== undefined
+      ? { listPendingServerRequests }
+      : {}),
+    ...(listTokenUsage !== undefined
+      ? {
+          listTokenUsage,
+        }
+      : {}),
+  };
+}
+
 export function CodexProvider<Actor extends Record<string, unknown> = Record<string, unknown>>({
-  api,
+  preset,
   actor,
   initialNumItems = 30,
   stream = true,
@@ -35,18 +74,26 @@ export function CodexProvider<Actor extends Record<string, unknown> = Record<str
   const value = useMemo<CodexContextValue>(
     () => ({
       actor: actor ?? {},
-      listThreadMessages: api.listThreadMessages,
-      threadSnapshot: api.threadSnapshot,
-      ...(api.listPendingServerRequests !== undefined
-        ? { listPendingServerRequests: api.listPendingServerRequests }
+      listThreadMessages: preset.listThreadMessages,
+      threadSnapshot: preset.threadSnapshot,
+      ...(preset.listPendingServerRequests !== undefined
+        ? { listPendingServerRequests: preset.listPendingServerRequests }
         : {}),
-      ...(api.listTokenUsage !== undefined
-        ? { listTokenUsage: api.listTokenUsage }
+      ...(preset.listTokenUsage !== undefined
+        ? { listTokenUsage: preset.listTokenUsage }
         : {}),
       defaultInitialNumItems: initialNumItems,
       defaultStream: stream,
     }),
-    [actor, api.listThreadMessages, api.threadSnapshot, api.listPendingServerRequests, api.listTokenUsage, initialNumItems, stream],
+    [
+      actor,
+      preset.listThreadMessages,
+      preset.threadSnapshot,
+      preset.listPendingServerRequests,
+      preset.listTokenUsage,
+      initialNumItems,
+      stream,
+    ],
   );
 
   return <CodexContext.Provider value={value}>{children}</CodexContext.Provider>;

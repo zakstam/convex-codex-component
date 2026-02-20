@@ -174,18 +174,18 @@ type CodexThreadsResolveComponent = {
   };
 };
 
-type CodexThreadsResolveByExternalIdComponent = {
+type CodexThreadsResolveByThreadHandleComponent = {
   threads: {
-    resolveByExternalId?: FunctionReference<
+    resolveByThreadHandle?: FunctionReference<
       "query",
       "public" | "internal",
       {
         actor: HostActorContext;
-        externalThreadId: string;
+        threadHandle: string;
       },
       {
         threadId: string;
-        externalThreadId: string;
+        threadHandle: string;
       } | null
     >;
   };
@@ -279,7 +279,7 @@ type CodexReasoningComponent = {
 export type CodexHostComponentRefs =
   & CodexThreadsCreateComponent
   & CodexThreadsResolveComponent
-  & CodexThreadsResolveByExternalIdComponent
+  & CodexThreadsResolveByThreadHandleComponent
   & CodexThreadsDeletionComponent
   & CodexTurnsComponent
   & CodexTurnsDeletionComponent
@@ -351,9 +351,9 @@ type ThreadSnapshotArgs = {
   threadId: string;
 };
 
-type ExternalThreadIdLookupArgs = {
+type ThreadHandleLookupArgs = {
   actor: HostActorContext;
-  externalThreadId: string;
+  threadHandle: string;
 };
 
 type DurableHistoryMessage = {
@@ -505,7 +505,7 @@ export async function ensureThreadByResolve<
 ): Promise<FunctionReturnType<Component["threads"]["resolve"]>> {
   return ctx.runMutation(component.threads.resolve, {
     actor: args.actor,
-    externalThreadId: args.threadId,
+    threadHandle: args.threadId,
     localThreadId: args.threadId,
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
@@ -626,29 +626,36 @@ export async function threadSnapshot<
   return ctx.runQuery(component.threads.getState, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
 }
 
-export async function resolveThreadByExternalIdForActor<
-  Component extends CodexThreadsResolveByExternalIdComponent,
+export async function resolveThreadByThreadHandleForActor<
+  Component extends CodexThreadsResolveByThreadHandleComponent,
 >(
   ctx: HostQueryRunner,
   component: Component,
-  args: ExternalThreadIdLookupArgs,
+  args: ThreadHandleLookupArgs,
 ): Promise<{
   threadId: string;
-  externalThreadId: string;
+  threadHandle: string;
 } | null> {
-  if (!component.threads.resolveByExternalId) {
+  if (!component.threads.resolveByThreadHandle) {
     throw new Error(
-      "Host component is missing threads.resolveByExternalId; this is required for external ID lookup APIs.",
+      "Host component is missing threads.resolveByThreadHandle; this is required for thread handle lookup APIs.",
     );
   }
-  const resolveByExternalId = component.threads.resolveByExternalId;
-  return ctx.runQuery(
-    resolveByExternalId,
-    typedArgs<typeof resolveByExternalId>({
+  const resolveByThreadHandle = component.threads.resolveByThreadHandle;
+  const resolved = await ctx.runQuery(
+    resolveByThreadHandle,
+    typedArgs<typeof resolveByThreadHandle>({
       actor: args.actor,
-      externalThreadId: args.externalThreadId,
+      threadHandle: args.threadHandle,
     }),
   );
+  if (!resolved) {
+    return null;
+  }
+  return {
+    threadId: resolved.threadId,
+    threadHandle: resolved.threadHandle,
+  };
 }
 
 export function classifyThreadSnapshotError(

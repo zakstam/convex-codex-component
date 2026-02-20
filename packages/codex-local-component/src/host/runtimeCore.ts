@@ -51,7 +51,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let sessionId: string | null = null;
   let threadId: string | null = null;
   let runtimeThreadId: string | null = null;
-  let externalThreadId: string | null = null;
+  let threadHandle: string | null = null;
   let turnId: string | null = null;
   let turnInFlight = false;
   let turnSettled = false;
@@ -93,7 +93,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (error === undefined) { /* keep */ } else if (error === null) { lastErrorCode = null; lastErrorMessage = null; }
     else { lastErrorCode = error.code; lastErrorMessage = `[${error.code}] ${error.message}`; }
     args.handlers?.onState?.({
-      running: !!bridge, threadId, externalThreadId, turnId, turnInFlight,
+      running: !!bridge, threadId, threadHandle, turnId, turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
       ingestMetrics: { enqueuedEventCount, skippedEventCount, enqueuedByKind: snapshotKindCounts(enqueuedByKind), skippedByKind: snapshotKindCounts(skippedByKind) },
       lastErrorCode, lastError: lastErrorMessage,
@@ -164,7 +164,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (!("thread" in message.result) || typeof message.result.thread !== "object" || message.result.thread === null) return;
     if (!("id" in message.result.thread) || typeof message.result.thread.id !== "string") return;
     if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
-      runtimeThreadId = message.result.thread.id; if (!externalThreadId) externalThreadId = message.result.thread.id; emitState();
+      runtimeThreadId = message.result.thread.id; if (!threadHandle) threadHandle = message.result.thread.id; emitState();
     }
   };
 
@@ -173,11 +173,11 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     const next = preferred ?? runtimeThreadId; if (!next) return;
     const binding = await args.persistence.ensureThread({
       actor,
-      threadId: externalThreadId ?? next,
+      threadId: threadHandle ?? next,
       ...(startupModel !== undefined ? { model: startupModel } : {}),
       ...(startupCwd !== undefined ? { cwd: startupCwd } : {}),
     });
-    threadId = binding.threadId; if (!externalThreadId) externalThreadId = next;
+    threadId = binding.threadId; if (!threadHandle) threadHandle = next;
     await args.persistence.ensureSession({ actor, sessionId, threadId, lastEventCursor: 0 }); emitState();
   };
 
@@ -304,8 +304,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     set actor(v) { actor = v; },
     get sessionId() { return sessionId; },
     set sessionId(v) { sessionId = v; },
-    get externalThreadId() { return externalThreadId; },
-    set externalThreadId(v) { externalThreadId = v; },
+    get threadHandle() { return threadHandle; },
+    set threadHandle(v) { threadHandle = v; },
     get threadId() { return threadId; },
     get runtimeThreadId() { return runtimeThreadId; },
     get turnId() { return turnId; },
@@ -337,7 +337,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
 
     resetAll() {
       bridge = null; actor = null; sessionId = null; threadId = null; runtimeThreadId = null;
-      externalThreadId = null; turnId = null; turnInFlight = false; turnSettled = false;
+      threadHandle = null; turnId = null; turnInFlight = false; turnSettled = false;
       interruptRequested = false;
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
       startupModel = undefined; startupCwd = undefined; pendingRequests.clear();
@@ -351,7 +351,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       return [];
     },
     getState: (): HostRuntimeState => ({
-      running: !!bridge, threadId, externalThreadId, turnId, turnInFlight,
+      running: !!bridge, threadId, threadHandle, turnId, turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
       ingestMetrics: { enqueuedEventCount, skippedEventCount, enqueuedByKind: snapshotKindCounts(enqueuedByKind), skippedByKind: snapshotKindCounts(skippedByKind) },
       lastErrorCode, lastError: lastErrorMessage,

@@ -46,3 +46,9 @@ export * from "../local-adapter/bridge.js";
 
 // Folded-in: app-server (previously @zakstam/codex-local-component/app-server)
 export * from "../app-server/index.js";
+export type {
+  ThreadHandle,
+  ThreadHandleIdentity,
+  RuntimeThreadLocator,
+  ThreadLocator,
+} from "../shared/threadIdentity.js";

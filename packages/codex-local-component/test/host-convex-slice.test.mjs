@@ -14,7 +14,7 @@ import {
   threadSnapshot,
   upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
-import { resolveThreadByExternalIdForActor } from "../dist/host/convexSlice.js";
+import { resolveThreadByThreadHandleForActor } from "../dist/host/convexSlice.js";
 
 test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   const createRef = {};
@@ -65,66 +65,66 @@ test("ensureThreadByResolve derives external and local identity from threadId", 
   await ensureThreadByResolve(ctx, component, {
     actor: { userId: "ignored" },
     threadId: "thread-1",
-    externalThreadId: "legacy-id",
+    threadHandle: "legacy-id",
     model: "m",
     cwd: "/tmp",
   });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].ref, resolveRef);
-  assert.equal(calls[0].args.externalThreadId, "thread-1");
+  assert.equal(calls[0].args.threadHandle, "thread-1");
   assert.equal(calls[0].args.localThreadId, "thread-1");
   assert.equal(calls[0].args.model, "m");
   assert.equal(calls[0].args.cwd, "/tmp");
 });
 
-test("resolveThreadByExternalIdForActor returns mapping for known external id", async () => {
-  const resolveByExternalIdRef = {};
+test("resolveThreadByThreadHandleForActor returns mapping for known external id", async () => {
+  const resolveByThreadHandleRef = {};
   const calls = [];
   const ctx = {
     runQuery: async (ref, args) => {
       calls.push({ ref, args });
-      return { threadId: "runtime-thread-7", externalThreadId: "legacy-thread-7" };
+      return { threadId: "runtime-thread-7", threadHandle: "legacy-thread-7" };
     },
   };
   const component = {
     threads: {
-      resolveByExternalId: resolveByExternalIdRef,
+      resolveByThreadHandle: resolveByThreadHandleRef,
     },
   };
 
-  const result = await resolveThreadByExternalIdForActor(ctx, component, {
+  const result = await resolveThreadByThreadHandleForActor(ctx, component, {
     actor: { userId: "actor-user" },
-    externalThreadId: "legacy-thread-7",
+    threadHandle: "legacy-thread-7",
   });
 
   assert.equal(result?.threadId, "runtime-thread-7");
-  assert.equal(result?.externalThreadId, "legacy-thread-7");
+  assert.equal(result?.threadHandle, "legacy-thread-7");
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].ref, resolveByExternalIdRef);
-  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, externalThreadId: "legacy-thread-7" });
+  assert.equal(calls[0].ref, resolveByThreadHandleRef);
+  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, threadHandle: "legacy-thread-7" });
 });
 
-test("resolveThreadByExternalIdForActor returns null when mapping is missing", async () => {
-  const resolveByExternalIdRef = {};
+test("resolveThreadByThreadHandleForActor returns null when mapping is missing", async () => {
+  const resolveByThreadHandleRef = {};
   const ctx = {
     runQuery: async () => null,
   };
   const component = {
     threads: {
-      resolveByExternalId: resolveByExternalIdRef,
+      resolveByThreadHandle: resolveByThreadHandleRef,
     },
   };
 
-  const result = await resolveThreadByExternalIdForActor(ctx, component, {
+  const result = await resolveThreadByThreadHandleForActor(ctx, component, {
     actor: { userId: "actor-user" },
-    externalThreadId: "legacy-thread-7",
+    threadHandle: "legacy-thread-7",
   });
 
   assert.equal(result, null);
 });
 
-test("resolveThreadByExternalIdForActor throws when component lacks resolveByExternalId", async () => {
+test("resolveThreadByThreadHandleForActor throws when component lacks resolveByThreadHandle", async () => {
   const component = {
     threads: {},
   };
@@ -136,11 +136,11 @@ test("resolveThreadByExternalIdForActor throws when component lacks resolveByExt
 
   await assert.rejects(
     () =>
-      resolveThreadByExternalIdForActor(ctx, component, {
+      resolveThreadByThreadHandleForActor(ctx, component, {
         actor: { userId: "actor-user" },
-        externalThreadId: "legacy-thread-7",
+        threadHandle: "legacy-thread-7",
       }),
-    /Host component is missing threads.resolveByExternalId/,
+    /Host component is missing threads.resolveByThreadHandle/,
   );
 });
 

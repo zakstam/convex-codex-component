@@ -98,7 +98,7 @@
   - Remove wrapper/facade host wiring and actor-policy host API inputs.
   - Add deterministic host shim rendering (`renderCodexHostShim`) and app `sync/check` scripts.
   - Keep `ensureThread` host contract threadId-only and update runtime persistence contract to require `threadId`.
-  - Fix host `ensureThread` return shaping so internal mapping fields (for example `externalThreadId`) never leak past the public validator contract.
+  - Fix host `ensureThread` return shaping so internal mapping fields (for example `threadHandle`) never leak past the public validator contract.
   - Update package, example apps, and governance docs to enforce the new architecture.
 
 ### Patch Changes
@@ -138,7 +138,7 @@
 
   ### Breaking changes
   - Remove public host preset `threadMode` configuration.
-  - Runtime-owned `ensureThread` now requires at least one identity (`threadId` or `externalThreadId`).
+  - Runtime-owned `ensureThread` now requires at least one identity (`threadId` or `threadHandle`).
   - Update host preset behavior to resolve thread bindings through one deterministic path.
 
   ### Improvements
@@ -154,7 +154,7 @@
 
   ### Breaking changes
   - Remove public host preset `threadMode` configuration.
-  - Runtime-owned `ensureThread` now requires at least one identity (`threadId` or `externalThreadId`).
+  - Runtime-owned `ensureThread` now requires at least one identity (`threadId` or `threadHandle`).
   - Update host preset behavior to resolve thread bindings through one deterministic path.
 
   ### Improvements
@@ -635,7 +635,7 @@
 - 3634658: Add full app-server thread lifecycle support to the package runtime and helpers.
   - Add typed app-server builders for `thread/resume`, `thread/fork`, `thread/read`, `thread/list`, `thread/loaded/list`, `thread/archive`, `thread/unarchive`, and `thread/rollback`.
   - Extend `createCodexHostRuntime` with startup strategies (`start`/`resume`/`fork`) and runtime thread lifecycle methods.
-  - Expand `@zakstam/codex-local-component/client` thread helper exports (`createThread`, `resolveThread`, `resumeThread`, `resolveThreadByExternalId`, `getExternalThreadMapping`, `listThreads`).
+  - Expand `@zakstam/codex-local-component/client` thread helper exports (`createThread`, `resolveThread`, `resumeThread`, `resolveThreadByThreadHandle`, `getThreadHandleMapping`, `listThreads`).
   - Add lifecycle-focused runtime and helper test coverage and documentation updates.
 
 - b0f3d69: Add first-class reasoning stream support across the component, client, host wrappers, and React hooks.

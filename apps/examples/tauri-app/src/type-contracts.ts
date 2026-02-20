@@ -5,9 +5,9 @@ import type { ActorContext } from "./lib/tauriBridge";
 type Assert<T extends true> = T;
 type Extends<A, B> = A extends B ? true : false;
 
-type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessages>;
-type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshot>;
-type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequests>;
+type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessagesByThreadHandle>;
+type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshotByThreadHandle>;
+type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequestsByThreadHandle>;
 type ValidateHostWiringArgs = FunctionArgs<typeof api.chat.validateHostWiring>;
 type ScheduleDeleteThreadArgs = FunctionArgs<typeof api.chat.scheduleDeleteThread>;
 type ScheduleDeleteTurnArgs = FunctionArgs<typeof api.chat.scheduleDeleteTurn>;
@@ -19,7 +19,7 @@ type _ListThreadMessagesArgsAreTyped = Assert<
     ListThreadMessagesArgs,
     {
       actor: ActorContext;
-      threadId: string;
+      threadHandle: string;
       paginationOpts: { cursor: string | null; numItems: number };
     }
   >
@@ -30,7 +30,7 @@ type _ThreadSnapshotArgsAreTyped = Assert<
     ThreadSnapshotArgs,
     {
       actor: ActorContext;
-      threadId: string;
+      threadHandle: string;
     }
   >
 >;
@@ -40,7 +40,7 @@ type _ListPendingServerRequestsArgsAreTyped = Assert<
     ListPendingServerRequestsArgs,
     {
       actor: ActorContext;
-      threadId?: string;
+      threadHandle: string;
       limit?: number;
     }
   >

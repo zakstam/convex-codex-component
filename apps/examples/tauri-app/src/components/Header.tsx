@@ -42,8 +42,8 @@ export function Header({
             <span className="header-badge">local</span>
           </h1>
           <p className="meta">
-            {bridge.localThreadId
-              ? `thread ${bridge.localThreadId.slice(0, 10)}...`
+            {bridge.threadHandle
+              ? `thread ${bridge.threadHandle.slice(0, 10)}...`
               : "no active thread"}
           </p>
           <p className="meta" title="Actor used for host API calls">

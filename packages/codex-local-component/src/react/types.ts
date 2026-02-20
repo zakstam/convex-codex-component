@@ -40,7 +40,7 @@ export type CodexMessagesQuery<Args = Record<string, unknown>> = FunctionReferen
   "query",
   "public",
   {
-    threadId: string;
+    threadHandle: string;
     paginationOpts: PaginationOptions;
     streamArgs?: CodexStreamArgs;
   } & Args,

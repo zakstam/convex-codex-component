@@ -105,7 +105,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.actor = startArgs.actor ?? defaultActor ?? { userId: "anonymous" };
     const rawSessionId = startArgs.sessionId ?? defaultSessionId;
     core.sessionId = rawSessionId ? `${rawSessionId}-${randomSessionId()}` : randomSessionId();
-    core.externalThreadId = startArgs.externalThreadId ?? null;
+    core.threadHandle = startArgs.threadHandle ?? null;
     core.startupModel = startArgs.model;
     core.startupCwd = startArgs.cwd;
     core.ingestFlushMs = startArgs.ingestFlushMs ?? 250;
@@ -142,14 +142,14 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.sendMessage(buildInitializeRequestWithCapabilities(core.requestIdFn(), { name: "codex_local_host_runtime", title: "Codex Local Host Runtime", version: clientPackage.version }, { experimentalApi: Array.isArray(startArgs.dynamicTools) && startArgs.dynamicTools.length > 0 }), "initialize");
     core.sendMessage(buildInitializedNotification());
     const strategy = startArgs.threadStrategy ?? "start";
-    if ((strategy === "resume" || strategy === "fork") && !startArgs.runtimeThreadId) throw new Error(`runtimeThreadId is required when threadStrategy="${strategy}".`);
+    if ((strategy === "resume" || strategy === "fork") && !startArgs.threadHandle) throw new Error(`threadHandle is required when threadStrategy="${strategy}".`);
 
     if (strategy === "start") {
       core.sendMessage(buildThreadStartRequest(core.requestIdFn(), { ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}), ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}) }), "thread/start");
     } else if (strategy === "resume") {
-      core.sendMessage(buildThreadResumeRequest(core.requestIdFn(), { threadId: startArgs.runtimeThreadId!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}), ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}) }), "thread/resume");
+      core.sendMessage(buildThreadResumeRequest(core.requestIdFn(), { threadId: startArgs.threadHandle!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}), ...(startArgs.dynamicTools ? { dynamicTools: startArgs.dynamicTools } : {}) }), "thread/resume");
     } else {
-      core.sendMessage(buildThreadForkRequest(core.requestIdFn(), { threadId: startArgs.runtimeThreadId!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}) }), "thread/fork");
+      core.sendMessage(buildThreadForkRequest(core.requestIdFn(), { threadId: startArgs.threadHandle!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}) }), "thread/fork");
     }
     core.emitState(null);
   };

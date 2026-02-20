@@ -35,6 +35,7 @@ type HelperEvent =
       payload: {
         running: boolean;
         localThreadId: string | null;
+        threadHandle: string | null;
         turnId: string | null;
         lastErrorCode: string | null;
         lastError: string | null;
@@ -198,6 +199,7 @@ function emitState(next?: Partial<typeof bridgeState>): void {
     payload: {
       running: bridgeState.running,
       localThreadId: bridgeState.localThreadId,
+      threadHandle: runtimeThreadId,
       turnId: bridgeState.turnId,
       lastErrorCode: bridgeState.lastErrorCode,
       lastError: bridgeState.lastError,
@@ -359,13 +361,13 @@ async function setDisabledTools(tools: string[]): Promise<string[]> {
   };
   emitState();
   if (runtime && latestStartPayload) {
-    const restartThreadId = bridgeState.localThreadId ?? latestStartPayload.threadId;
+    const restartThreadId = bridgeState.localThreadId ?? latestStartPayload.threadHandle;
     const strategy = restartThreadId ? "resume" : latestStartPayload.threadStrategy ?? "start";
     const restartPayload: StartPayload = {
       ...latestStartPayload,
       disabledTools: normalized,
       threadStrategy: strategy,
-      ...(restartThreadId ? { threadId: restartThreadId } : {}),
+      ...(restartThreadId ? { threadHandle: restartThreadId } : {}),
     };
     await stopCurrentBridge();
     await startBridge(restartPayload);
@@ -583,10 +585,10 @@ async function startBridge(payload: StartPayload): Promise<void> {
   });
 
   try {
-    const threadStrategy = payload.threadStrategy ?? (payload.threadId ? "resume" : "start");
+    const threadStrategy = payload.threadStrategy ?? (payload.threadHandle ? "resume" : "start");
     let runtimeThreadIdForStart: string | undefined;
     if (threadStrategy === "resume" || threadStrategy === "fork") {
-      const requestedThreadId = payload.threadId?.trim();
+      const requestedThreadId = payload.threadHandle?.trim();
       if (!requestedThreadId) {
         throw new Error(`threadId is required when threadStrategy="${threadStrategy}".`);
       }

@@ -21,10 +21,7 @@ export type CodexTurnMessagesQuery<Args = Record<string, unknown>, Message exten
   FunctionReference<
     "query",
     "public",
-    {
-      threadId: string;
-      turnId: string;
-    } & Args,
+    { threadHandle: string; turnId: string } & Args,
     Message[] | CodexSafeTurnMessages<Message>
   >;
 
@@ -32,9 +29,7 @@ export type CodexTurnStateQuery<Args = Record<string, unknown>, Result = unknown
   FunctionReference<
     "query",
     "public",
-    {
-      threadId: string;
-    } & Args,
+    { threadHandle: string } & Args,
     Result
   >;
 

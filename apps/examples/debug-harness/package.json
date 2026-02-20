@@ -1,0 +1,21 @@
+{
+  "name": "codex-local-debug-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:component": "pnpm -C ../../.. run component:build",
+    "prepare:helper": "pnpm -C ../tauri-app run build:node",
+    "start": "pnpm run prepare:component && pnpm run prepare:helper && tsx src/index.ts",
+    "dev": "pnpm run start",
+    "repro:no-response": "pnpm run prepare:component && pnpm run prepare:helper && tsx src/index.ts --scenario src/scenarios/no-response-repro.json",
+    "typecheck": "pnpm run prepare:component && tsc --noEmit"
+  },
+  "dependencies": {
+    "@zakstam/codex-local-component": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.11",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  }
+}

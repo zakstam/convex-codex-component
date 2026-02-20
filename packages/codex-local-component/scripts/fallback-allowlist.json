@@ -602,7 +602,7 @@
       "context": "rawSessionId = startArgs.sessionId ?? defaultSessionId"
     },
     {
-      "description": "Initial runtime state sets externalThreadId to null when not provided to keep explicit empty-state semantics.",
+      "description": "Initial runtime state sets threadHandle to null when not provided to keep explicit empty-state semantics.",
       "userApproved": false,
       "riskLevel": "low",
       "id": "FB_8074841b1b39",
@@ -610,8 +610,8 @@
       "line": 108,
       "col": 29,
       "kind": "nullish-coalescing",
-      "snippet": "startArgs.externalThreadId ?? null",
-      "context": "core.externalThreadId = startArgs.externalThreadId ?? null;"
+      "snippet": "startArgs.threadHandle ?? null",
+      "context": "core.threadHandle = startArgs.threadHandle ?? null;"
     },
     {
       "description": "Defaults ingest flush interval to 250ms for balanced batching latency when unset.",
@@ -746,7 +746,7 @@
       "context": "next = preferred ?? runtimeThreadId"
     },
     {
-      "description": "Persistence ensureThread defaults externalThreadId to resolved next id when absent; practical fallback but can hide external-id loss.",
+      "description": "Persistence ensureThread defaults threadHandle to resolved next id when absent; practical fallback but can hide external-id loss.",
       "userApproved": false,
       "riskLevel": "medium",
       "id": "FB_c3bce9020e46",
@@ -754,8 +754,8 @@
       "line": 176,
       "col": 17,
       "kind": "nullish-coalescing",
-      "snippet": "externalThreadId ?? next",
-      "context": "binding = await args.persistence.ensureThread({ actor, threadId: externalThreadId ?? next, ...(startupModel !== undefined ? { model: startupModel } : {}), ...(startupCwd !== und..."
+      "snippet": "threadHandle ?? next",
+      "context": "binding = await args.persistence.ensureThread({ actor, threadId: threadHandle ?? next, ...(startupModel !== undefined ? { model: startupModel } : {}), ...(startupCwd !== und..."
     },
     {
       "description": "Defaults dispatch claim owner to \"runtime-owner\" when sessionId is unavailable.",

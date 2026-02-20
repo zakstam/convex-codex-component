@@ -3,8 +3,10 @@
 // ── Primary API ──────────────────────────────────────────────────────
 export {
   CodexProvider,
+  createCodexReactPreset,
   type CodexProviderProps,
   type CodexProviderApi,
+  type CodexRuntimeOwnedThreadHandleApi,
 } from "./CodexProvider.js";
 export {
   useCodex,
@@ -61,6 +63,12 @@ export type {
   CodexStreamArgs,
   CodexStreamsResult,
 } from "./types.js";
+export type {
+  ThreadHandle,
+  ThreadHandleIdentity,
+  RuntimeThreadLocator,
+  ThreadLocator,
+} from "../shared/threadIdentity.js";
 export type {
   CodexThreadStateQuery,
 } from "./useCodexThreadState.js";

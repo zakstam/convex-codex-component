@@ -529,11 +529,11 @@ export declare const components: {
           updatedAt: number;
         }
       >;
-      getExternalMapping: FunctionReference<
+      getThreadHandleMapping: FunctionReference<
         "query",
         "internal",
         { actor: { userId?: string }; threadId: string },
-        null | { externalThreadId: string; threadId: string }
+        null | { threadHandle: string; threadId: string }
       >;
       getState: FunctionReference<
         "query",
@@ -626,18 +626,18 @@ export declare const components: {
         {
           actor: { userId?: string };
           cwd?: string;
-          externalThreadId?: string;
+          threadHandle?: string;
           localThreadId?: string;
           model?: string;
           personality?: string;
         },
-        { created: boolean; externalThreadId?: string; threadId: string }
+        { created: boolean; threadHandle?: string; threadId: string }
       >;
-      resolveByExternalId: FunctionReference<
+      resolveByThreadHandle: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; externalThreadId: string },
-        null | { externalThreadId: string; threadId: string }
+        { actor: { userId?: string }; threadHandle: string },
+        null | { threadHandle: string; threadId: string }
       >;
       resume: FunctionReference<
         "mutation",

@@ -15,7 +15,7 @@ type CodexMessagesQueryRef = FunctionReference<
   "query",
   "public",
   {
-    threadId: string;
+    threadHandle: string;
     paginationOpts: PaginationOptions;
     streamArgs?: CodexStreamArgs;
   },
@@ -33,7 +33,7 @@ export function optimisticallySendCodexMessage(query: CodexMessagesQueryRef) {
   return (
     store: OptimisticLocalStore,
     args: {
-      threadId: string;
+      threadHandle: string;
       turnId: string;
       text: string;
       messageId?: string;
@@ -44,7 +44,7 @@ export function optimisticallySendCodexMessage(query: CodexMessagesQueryRef) {
     const queries = store.getAllQueries(query);
     let maxOrderInTurn = -1;
     for (const q of queries) {
-      if (q.args?.threadId !== args.threadId || q.args?.streamArgs) {
+      if (q.args?.threadHandle !== args.threadHandle || q.args?.streamArgs) {
         continue;
       }
       for (const message of q.value?.page ?? []) {
@@ -60,7 +60,7 @@ export function optimisticallySendCodexMessage(query: CodexMessagesQueryRef) {
     const userMessageId = args.messageId ?? randomId();
     insertAtTop({
       paginatedQuery: query,
-      argsToMatch: { threadId: args.threadId },
+      argsToMatch: { threadHandle: args.threadHandle },
       item: {
         messageId: userMessageId,
         turnId: args.turnId,
@@ -89,7 +89,7 @@ export function optimisticallySendCodexMessage(query: CodexMessagesQueryRef) {
     const assistantOrder = userOrder + 1;
     insertAtTop({
       paginatedQuery: query,
-      argsToMatch: { threadId: args.threadId },
+      argsToMatch: { threadHandle: args.threadHandle },
       item: {
         messageId: assistantMessageId,
         turnId: args.turnId,

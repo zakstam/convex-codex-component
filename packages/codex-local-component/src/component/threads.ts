@@ -57,7 +57,7 @@ export const create = mutation({
 export const resolve = mutation({
   args: {
     actor: vActorContext,
-    externalThreadId: v.optional(v.string()),
+    threadHandle: v.optional(v.string()),
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
     personality: v.optional(v.string()),
@@ -65,21 +65,21 @@ export const resolve = mutation({
   },
   returns: v.object({
     threadId: v.string(),
-    externalThreadId: v.optional(v.string()),
+    threadHandle: v.optional(v.string()),
     created: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const ts = now();
-    const externalThreadId = args.externalThreadId;
+    const threadHandle = args.threadHandle;
 
-    if (externalThreadId !== undefined) {
+    if (threadHandle !== undefined) {
       const binding = await ctx.db
         .query("codex_thread_bindings")
-        .withIndex("userScope_userId_externalThreadId", (q) =>
+        .withIndex("userScope_userId_threadHandle", (q) =>
           q
             .eq("userScope", userScopeFromActor(args.actor))
             .eq("userId", args.actor.userId)
-            .eq("externalThreadId", externalThreadId),
+            .eq("threadHandle", threadHandle),
         )
         .first();
 
@@ -100,7 +100,7 @@ export const resolve = mutation({
 
         return {
           threadId: touched.threadId,
-          externalThreadId,
+          threadHandle,
           created: false,
         };
       }
@@ -116,11 +116,11 @@ export const resolve = mutation({
       ...(args.localThreadId !== undefined ? { localThreadId: args.localThreadId } : {}),
     });
 
-    if (externalThreadId !== undefined) {
+    if (threadHandle !== undefined) {
       await ctx.db.insert("codex_thread_bindings", {
         userScope: userScopeFromActor(args.actor),
         ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
-        externalThreadId,
+        threadHandle,
         threadId: touched.threadId,
         threadRef: touched.threadRef,
         createdAt: ts,
@@ -130,32 +130,32 @@ export const resolve = mutation({
 
     return {
       threadId: touched.threadId,
-      ...(externalThreadId !== undefined ? { externalThreadId } : {}),
+      ...(threadHandle !== undefined ? { threadHandle } : {}),
       created: true,
     };
   },
 });
 
-export const resolveByExternalId = query({
+export const resolveByThreadHandle = query({
   args: {
     actor: vActorContext,
-    externalThreadId: v.string(),
+    threadHandle: v.string(),
   },
   returns: v.union(
     v.null(),
     v.object({
       threadId: v.string(),
-      externalThreadId: v.string(),
+      threadHandle: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
     const binding = await ctx.db
       .query("codex_thread_bindings")
-      .withIndex("userScope_userId_externalThreadId", (q) =>
+      .withIndex("userScope_userId_threadHandle", (q) =>
         q
           .eq("userScope", userScopeFromActor(args.actor))
           .eq("userId", args.actor.userId)
-          .eq("externalThreadId", args.externalThreadId),
+          .eq("threadHandle", args.threadHandle),
       )
       .first();
 
@@ -165,12 +165,12 @@ export const resolveByExternalId = query({
 
     return {
       threadId: String(binding.threadId),
-      externalThreadId: String(binding.externalThreadId),
+      threadHandle: String(binding.threadHandle),
     };
   },
 });
 
-export const getExternalMapping = query({
+export const getThreadHandleMapping = query({
   args: {
     actor: vActorContext,
     threadId: v.string(),
@@ -179,7 +179,7 @@ export const getExternalMapping = query({
     v.null(),
     v.object({
       threadId: v.string(),
-      externalThreadId: v.string(),
+      threadHandle: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -201,7 +201,7 @@ export const getExternalMapping = query({
 
     return {
       threadId: String(binding.threadId),
-      externalThreadId: String(binding.externalThreadId),
+      threadHandle: String(binding.threadHandle),
     };
   },
 });

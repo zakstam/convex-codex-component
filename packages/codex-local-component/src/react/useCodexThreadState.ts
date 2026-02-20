@@ -7,9 +7,7 @@ import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 export type CodexThreadStateQuery<Args = Record<string, unknown>, Result = unknown> = FunctionReference<
   "query",
   "public",
-  {
-    threadId: string;
-  } & Args,
+  { threadHandle: string } & Args,
   Result
 >;
 

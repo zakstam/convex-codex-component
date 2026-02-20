@@ -22,13 +22,13 @@ export default defineSchema({
   codex_thread_bindings: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
-    externalThreadId: v.string(),
+    threadHandle: v.string(),
     threadId: v.string(),
     threadRef: v.id("codex_threads"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("userScope_userId_externalThreadId", ["userScope", "userId", "externalThreadId"])
+    .index("userScope_userId_threadHandle", ["userScope", "userId", "threadHandle"])
     .index("userScope_userId_threadId", ["userScope", "userId", "threadId"])
     .index("userScope_threadRef", ["userScope", "threadRef"]),
 

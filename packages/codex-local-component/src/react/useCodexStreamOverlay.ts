@@ -8,7 +8,7 @@ import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 type StreamOverlayState = {
-  threadId: string | undefined;
+  threadHandle: string | undefined;
   streamIds: string[];
   cursorsByStreamId: Record<string, number>;
   deltas: CodexStreamDeltaLike[];
@@ -153,7 +153,7 @@ function applyDeltaBatch(
   }
 
   const nextState: StreamOverlayState = {
-    threadId: state.threadId,
+    threadHandle: state.threadHandle,
     streamIds: nextStreamIds,
     cursorsByStreamId: nextCursors,
     deltas: nextDeltas.slice(-5000),
@@ -179,17 +179,25 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
   cursorsByStreamId: Record<string, number>;
   reset: () => void;
 } {
-  const threadId = args === "skip" ? undefined : args.threadId;
+  const threadHandle = args === "skip"
+    ? undefined
+    : (() => {
+        const record = args as Record<string, unknown>;
+        if (typeof record.threadHandle === "string") {
+          return record.threadHandle;
+        }
+        return undefined;
+      })();
   const [overlayState, setOverlayState] = useState<StreamOverlayState>({
-    threadId,
+    threadHandle,
     streamIds: [],
     cursorsByStreamId: {},
     deltas: [],
   });
 
   useEffect(() => {
-    setOverlayState({ threadId, streamIds: [], cursorsByStreamId: {}, deltas: [] });
-  }, [threadId]);
+    setOverlayState({ threadHandle, streamIds: [], cursorsByStreamId: {}, deltas: [] });
+  }, [threadHandle]);
 
   const toQueryArgs = (): FunctionArgs<Query> | "skip" => {
     if (!enabled || args === "skip") {
@@ -205,7 +213,7 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
           cursor: overlayState.cursorsByStreamId[streamId] ?? 0,
         })),
       },
-    };
+    } as unknown as FunctionArgs<Query>;
   };
 
   const streamDeltaQuery = useQuery(
@@ -234,6 +242,6 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
     deltas: overlayState.deltas,
     streamIds: overlayState.streamIds,
     cursorsByStreamId: overlayState.cursorsByStreamId,
-    reset: () => setOverlayState({ threadId, streamIds: [], cursorsByStreamId: {}, deltas: [] }),
+    reset: () => setOverlayState({ threadHandle, streamIds: [], cursorsByStreamId: {}, deltas: [] }),
   };
 }

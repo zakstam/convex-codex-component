@@ -36,6 +36,7 @@ pub struct HelperStartPayload {
 pub struct BridgeStateSnapshot {
     pub running: bool,
     pub local_thread_id: Option<String>,
+    pub thread_handle: Option<String>,
     pub turn_id: Option<String>,
     pub last_error_code: Option<String>,
     pub last_error: Option<String>,
@@ -188,6 +189,7 @@ impl BridgeRuntime {
             json!({
                 "running": false,
                 "localThreadId": null,
+                "threadHandle": null,
                 "turnId": null,
                 "pendingServerRequestCount": 0,
                 "ingestEnqueuedEventCount": 0,
@@ -276,6 +278,7 @@ impl BridgeRuntime {
             json!({
                 "running": false,
                 "localThreadId": null,
+                "threadHandle": null,
                 "turnId": null,
                 "pendingServerRequestCount": 0,
                 "ingestEnqueuedEventCount": 0,

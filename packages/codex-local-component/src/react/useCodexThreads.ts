@@ -17,7 +17,7 @@ export type CodexThreadsControls<
 > = {
   createThread?: (args?: Record<string, unknown>) => Promise<CreateResult>;
   resolveThread?: (args: { localThreadId: string }) => Promise<ResolveResult>;
-  resumeThread?: (args: { threadId: string }) => Promise<ResumeResult>;
+  resumeThread?: (args: { threadHandle: string }) => Promise<ResumeResult>;
 };
 
 export function useCodexThreads<
@@ -32,14 +32,14 @@ export function useCodexThreads<
       args: FunctionArgs<Query> | "skip";
     };
     controls?: CodexThreadsControls<CreateResult, ResolveResult, ResumeResult>;
-    initialSelectedThreadId?: string | null;
+    initialSelectedThreadHandle?: string | null;
   },
 ) {
   const listArgs = toOptionalRestArgsOrSkip<Query>(config.list.args);
   const listed = useQuery(config.list.query, ...listArgs);
 
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
-    config.initialSelectedThreadId ?? null,
+  const [selectedThreadHandle, setSelectedThreadHandle] = useState<string | null>(
+    config.initialSelectedThreadHandle ?? null,
   );
   const [busyAction, setBusyAction] = useState<null | "create" | "resolve" | "resume">(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +60,11 @@ export function useCodexThreads<
 
   // ── Stale selection guard ────────────────────────────────────────────
   // When the selected thread is deleted, the list query updates reactively
-  // but selectedThreadId state is stale. Convex's useQuery throws server
+  // but selectedThreadHandle state is stale. Convex's useQuery throws server
   // errors during render, so we must validate BEFORE the return value
   // reaches useCodex (which would subscribe to listThreadMessages).
-  const validatedSelectedThreadId = useMemo(() => {
-    if (!selectedThreadId || listed === undefined) return selectedThreadId;
+  const validatedSelectedThreadHandle = useMemo(() => {
+    if (!selectedThreadHandle || listed === undefined) return selectedThreadHandle;
 
     // Extract thread items — supports { threads: [...] } (standard shape)
     // and direct array shapes.
@@ -74,25 +74,25 @@ export function useCodexThreads<
         ? ((listed as Record<string, unknown>).threads as unknown[] | undefined)
         : undefined;
 
-    if (!items) return selectedThreadId;
+    if (!items) return selectedThreadHandle;
 
     const found = items.some(
       (item) =>
         !!item &&
         typeof item === "object" &&
         "threadId" in item &&
-        (item as { threadId: unknown }).threadId === selectedThreadId,
+        (item as { threadId: unknown }).threadId === selectedThreadHandle,
     );
 
-    return found ? selectedThreadId : null;
-  }, [selectedThreadId, listed]);
+    return found ? selectedThreadHandle : null;
+  }, [selectedThreadHandle, listed]);
 
   // Clean up stale state after the render-time guard prevents the crash
   useEffect(() => {
-    if (selectedThreadId && validatedSelectedThreadId === null) {
-      setSelectedThreadId(null);
+    if (selectedThreadHandle && validatedSelectedThreadHandle === null) {
+      setSelectedThreadHandle(null);
     }
-  }, [selectedThreadId, validatedSelectedThreadId]);
+  }, [selectedThreadHandle, validatedSelectedThreadHandle]);
 
   const create = useCallback(
     async (args?: Record<string, unknown>) => {
@@ -112,20 +112,20 @@ export function useCodexThreads<
         return null;
       }
       const result = await run("resolve", () => resolveThread({ localThreadId }));
-      setSelectedThreadId(localThreadId);
+      setSelectedThreadHandle(localThreadId);
       return result;
     },
     [config.controls, run],
   );
 
   const resume = useCallback(
-    async (threadId: string) => {
+    async (threadHandle: string) => {
       const resumeThread = config.controls?.resumeThread;
       if (!resumeThread) {
         return null;
       }
-      const result = await run("resume", () => resumeThread({ threadId }));
-      setSelectedThreadId(threadId);
+      const result = await run("resume", () => resumeThread({ threadHandle }));
+      setSelectedThreadHandle(threadHandle);
       return result;
     },
     [config.controls, run],
@@ -134,8 +134,8 @@ export function useCodexThreads<
   return useMemo(
     () => ({
       threads: listed,
-      selectedThreadId: validatedSelectedThreadId,
-      setSelectedThreadId,
+      selectedThreadHandle: validatedSelectedThreadHandle,
+      setSelectedThreadHandle,
       busyAction,
       isBusy: busyAction !== null,
       error,
@@ -143,6 +143,6 @@ export function useCodexThreads<
       resolve,
       resume,
     }),
-    [busyAction, create, error, listed, resolve, resume, validatedSelectedThreadId],
+    [busyAction, create, error, listed, resolve, resume, validatedSelectedThreadHandle],
   );
 }

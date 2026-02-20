@@ -27,9 +27,9 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
 - Runtime-owned `ensureThread` is single-path.
 - Provide `threadId`.
 - Do not expose host identity alternatives in public app host APIs.
-- Use `threadSnapshotByExternalId`, `listThreadMessagesByExternalId`, `listTurnMessagesByExternalId`, and `listPendingServerRequestsByExternalId` when the runtime is started from an external thread identifier. These preserve canonical thread-scoped safety contracts:
-  - `threadSnapshotByExternalId`, `listThreadMessagesByExternalId`, `listTurnMessagesByExternalId` return `threadStatus` payloads when the thread is missing or unauthorized.
-  - `listPendingServerRequestsByExternalId` returns `[]` on missing-thread fallback to preserve poller array contracts.
+- Use `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle`, and `listPendingServerRequestsByThreadHandle` when the runtime is started from an external thread identifier. These preserve canonical thread-scoped safety contracts:
+  - `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle` return `threadStatus` payloads when the thread is missing or unauthorized.
+  - `listPendingServerRequestsByThreadHandle` returns `[]` on missing-thread fallback to preserve poller array contracts.
 
 ## Minimal Host Wiring
 
@@ -52,7 +52,7 @@ export const listThreadMessages = query(codex.queries.listThreadMessages);
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
 
-Thread-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByExternalId`, `listThreadMessages`, `listThreadMessagesByExternalId`, `listTurnMessages`, `listTurnMessagesByExternalId`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` and `listPendingServerRequestsByExternalId` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
+Thread-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByThreadHandle`, `listThreadMessages`, `listThreadMessagesByThreadHandle`, `listTurnMessages`, `listTurnMessagesByThreadHandle`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` and `listPendingServerRequestsByThreadHandle` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
 
 ## Host Shim Generation
 

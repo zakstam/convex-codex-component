@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 type Thread = {
-  threadId: string;
+  threadHandle: string;
   status: string;
   updatedAt?: number;
 };
@@ -9,7 +9,7 @@ type Thread = {
 type Props = {
   threads: Thread[];
   selected: string;
-  onSelect: (threadId: string) => void;
+  onSelect: (threadHandle: string) => void;
   disabled: boolean;
 };
 
@@ -39,9 +39,9 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedThread = threads.find((t) => t.threadId === selected);
+  const selectedThread = threads.find((t) => t.threadHandle === selected);
   const displayLabel = selectedThread
-    ? `${selectedThread.threadId.slice(0, 12)}... • ${selectedThread.status}`
+    ? `${selectedThread.threadHandle.slice(0, 12)}... • ${selectedThread.status}`
     : "New thread";
 
   return (
@@ -80,21 +80,21 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
           </button>
           {threads.map((thread) => (
             <button
-              key={thread.threadId}
-              className={`thread-picker-option ${thread.threadId === selected ? "active" : ""}`}
+              key={thread.threadHandle}
+              className={`thread-picker-option ${thread.threadHandle === selected ? "active" : ""}`}
               onClick={() => {
-                onSelect(thread.threadId);
+                onSelect(thread.threadHandle);
                 setOpen(false);
               }}
               role="option"
-              aria-selected={thread.threadId === selected}
+              aria-selected={thread.threadHandle === selected}
             >
               <span
                 className={`status-dot ${thread.status === "active" ? "running" : "stopped"}`}
                 aria-hidden="true"
               />
               <span className="thread-option-id">
-                {thread.threadId.slice(0, 16)}...
+                {thread.threadHandle.slice(0, 16)}...
               </span>
               <span className={`status-badge ${thread.status}`}>
                 {thread.status}

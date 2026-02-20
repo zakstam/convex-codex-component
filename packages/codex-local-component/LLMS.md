@@ -26,8 +26,8 @@ Do not use wrapper/facade host builders.
 
 - Runtime-owned `ensureThread` is single-path.
 - Provide `threadId`.
-- Do not expose host identity alternatives (`externalThreadId`, `runtimeThreadId`) in consumer host APIs.
-- If runtime thread IDs are only available by legacy identifier, use `threadSnapshotByExternalId`, `listThreadMessagesByExternalId`, `listTurnMessagesByExternalId`, and `listPendingServerRequestsByExternalId` for read paths. These delegate mapping on the host and preserve safe fallback semantics for missing/forbidden states.
+- Do not expose host identity alternatives (`threadHandle`, `runtimeThreadId`) in consumer host APIs.
+- If runtime thread IDs are only available by legacy identifier, use `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle`, and `listPendingServerRequestsByThreadHandle` for read paths. These delegate mapping on the host and preserve safe fallback semantics for missing/forbidden states.
 
 ## Task-to-doc routing
 

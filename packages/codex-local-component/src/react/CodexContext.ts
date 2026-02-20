@@ -26,7 +26,7 @@ export function useCodexContext(): CodexContextValue {
   if (!ctx) {
     throw new Error(
       "useCodexContext must be used within a <CodexProvider>. " +
-      "Wrap your component tree with <CodexProvider api={api.chat} actor={actor}>."
+      "Wrap your component tree with <CodexProvider preset={createCodexReactPreset(api.chat)} actor={actor}>."
     );
   }
   return ctx;

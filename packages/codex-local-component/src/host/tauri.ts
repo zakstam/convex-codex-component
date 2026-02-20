@@ -2,6 +2,7 @@ import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/Co
 import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
 import type { LoginAccountParams as ProtocolLoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
+import type { ThreadHandle } from "../shared/threadIdentity.js";
 
 export type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 
@@ -10,6 +11,7 @@ export type ActorContext = { userId?: string };
 export type BridgeState = {
   running: boolean;
   localThreadId: string | null;
+  threadHandle: string | null;
   turnId: string | null;
   lastErrorCode?: string | null;
   lastError: string | null;
@@ -35,7 +37,7 @@ export type StartBridgeConfig = {
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
   threadStrategy?: "start" | "resume" | "fork";
-  threadId?: string;
+  threadHandle?: ThreadHandle;
 };
 
 export type StartPayload = {
@@ -48,7 +50,7 @@ export type StartPayload = {
   deltaThrottleMs?: number;
   saveStreamDeltas?: boolean;
   threadStrategy?: "start" | "resume" | "fork";
-  threadId?: string;
+  threadHandle?: ThreadHandle;
 };
 
 export type HelperCommandType =
@@ -261,7 +263,11 @@ export function createTauriBridgeClient(invoke: TauriInvoke): TauriBridgeClient 
   return {
     lifecycle: {
       start(config: StartBridgeConfig): Promise<unknown> {
-        return invoke("start_bridge", { config });
+        const invokeConfig: Record<string, unknown> = { ...config };
+        if (typeof config.threadHandle === "string" && config.threadHandle.length > 0) {
+          invokeConfig.threadId = config.threadHandle;
+        }
+        return invoke("start_bridge", { config: invokeConfig });
       },
       stop(): Promise<unknown> {
         return invoke("stop_bridge");

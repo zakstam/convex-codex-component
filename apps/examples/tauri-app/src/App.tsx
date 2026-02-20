@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   CodexProvider,
+  createCodexReactPreset,
   useCodex,
   useCodexAccountAuth,
   useCodexRuntimeBridge,
@@ -77,7 +78,7 @@ type PendingServerRequest = {
 };
 
 type PickerThread = {
-  threadId: string;
+  threadHandle: string;
   status: string;
   updatedAt?: number;
 };
@@ -95,6 +96,7 @@ function requestKey(requestId: string | number): string {
 }
 
 const chatApi = requireDefined(api.chat, "api.chat");
+const reactApi = createCodexReactPreset(chatApi);
 
 export default function App() {
   const [actorUserId, setActorUserId] = useState<string>(() => resolveActorUserId());
@@ -111,7 +113,7 @@ export default function App() {
   );
 
   return (
-    <CodexProvider api={chatApi} actor={actor}>
+    <CodexProvider preset={reactApi} actor={actor}>
       <AppContent
         actor={actor}
         actorReady={actorReady}
@@ -137,6 +139,7 @@ function AppContent({
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
     localThreadId: null,
+    threadHandle: null,
     turnId: null,
     disabledTools: [],
     lastError: null,
@@ -204,13 +207,26 @@ function AppContent({
     respondChatgptAuthTokensRefresh: tauriBridge.account.respondChatgptAuthTokensRefresh,
   });
 
-  // Ref breaks the circular dependency: startBridgeWithSelection → selectedThreadId
+  // Ref breaks the circular dependency: startBridgeWithSelection → selectedThreadHandle
   // → conversation.threads → useCodex() → composer.onSend → startBridgeWithSelection
-  const selectedThreadIdRef = useRef("");
+  const selectedThreadHandleRef = useRef("");
+  const waitForBridgeReady = useCallback(async () => {
+    const timeoutMs = 12_000;
+    const pollMs = 200;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const state = await tauriBridge.lifecycle.getState();
+      if (state.running && typeof state.localThreadId === "string" && state.localThreadId.length > 0) {
+        return state;
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+    throw new Error("Bridge started, but no local thread became ready within 12s.");
+  }, []);
 
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry") => {
-      const resumeThreadId = selectedThreadIdRef.current.trim() || undefined;
+      const resumeThreadHandle = selectedThreadHandleRef.current.trim() || undefined;
       if (!actorReady) {
         throw new Error("Actor identity is still synchronizing. Please retry in a moment.");
       }
@@ -224,25 +240,37 @@ function AppContent({
         disabledTools: bridge.disabledTools ?? [],
         deltaThrottleMs: 250,
         saveStreamDeltas: true,
-        ...(resumeThreadId ? { threadStrategy: "resume" as const, threadId: resumeThreadId } : {}),
+        ...(resumeThreadHandle ? { threadStrategy: "resume" as const, threadHandle: resumeThreadHandle } : {}),
       });
+      const readyState = await waitForBridgeReady();
+      setBridge((prev) => ({
+        ...prev,
+        running: readyState.running,
+        localThreadId: readyState.localThreadId ?? null,
+        turnId: readyState.turnId ?? null,
+        lastError: readyState.lastError ?? null,
+      }));
     },
-    [actor, actorReady, bridge.disabledTools, runtimeBridge],
+    [actor, actorReady, bridge.disabledTools, runtimeBridge, waitForBridgeReady],
   );
 
   const conversation = useCodex({
-    // threadId omitted — derived from threads.selectedThreadId
+    ...(bridge.threadHandle ? { threadHandle: bridge.threadHandle } : {}),
     actorReady,
     threads: {
       list: {
         query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
         args: actorReady ? { actor, limit: 25 } : "skip",
       },
-      initialSelectedThreadId: "",
+      initialSelectedThreadHandle: "",
     },
     composer: {
       onSend: async (text: string) => {
         try {
+          const stateBeforeSend = await tauriBridge.lifecycle.getState();
+          if (!stateBeforeSend.running || !stateBeforeSend.localThreadId) {
+            await startBridgeWithSelection("composer_retry");
+          }
           await tauriBridge.turns.send(text);
           setBridge((prev) => ({ ...prev, lastError: null }));
         } catch (error) {
@@ -250,7 +278,9 @@ function AppContent({
           const transientBridgeFailure =
             message.includes("Broken pipe") ||
             message.includes("bridge helper is not running") ||
-            message.includes("failed to write command");
+            message.includes("failed to write command") ||
+            message.includes("Bridge/runtime not ready. Start runtime first.") ||
+            message.includes("Cannot dispatch turn before runtime thread is ready.");
 
           if (transientBridgeFailure) {
             try {
@@ -281,21 +311,27 @@ function AppContent({
 
   // ── Derive picker values from composed threads ──────────────────────
   const threads = conversation.threads!;
-  const selectedThreadId = threads.selectedThreadId ?? "";
+  const selectedThreadHandle = threads.selectedThreadHandle ?? "";
   const pickerThreads = useMemo(
-    () => ((threads.threads as { threads?: PickerThread[] } | undefined)?.threads ?? []),
+    () =>
+      (((threads.threads as { threads?: Array<{ threadId: string; status: string; updatedAt?: number }> } | undefined)?.threads ?? [])
+        .map((thread) => ({
+          threadHandle: thread.threadId,
+          status: thread.status,
+          ...(thread.updatedAt !== undefined ? { updatedAt: thread.updatedAt } : {}),
+        }))),
     [threads.threads],
   );
-  selectedThreadIdRef.current = selectedThreadId;
+  selectedThreadHandleRef.current = selectedThreadHandle;
 
   // Sync bridge-created threads into the picker selection
   useEffect(() => {
-    if (bridge.localThreadId && conversation.threads) {
-      conversation.threads.setSelectedThreadId(bridge.localThreadId);
+    if (bridge.threadHandle && conversation.threads) {
+      conversation.threads.setSelectedThreadHandle(bridge.threadHandle);
     }
-  }, [bridge.localThreadId, conversation.threads]);
+  }, [bridge.threadHandle, conversation.threads]);
 
-  const cleanupThreadId = conversation.effectiveThreadId || null;
+  const cleanupThreadHandle = conversation.effectiveThreadHandle || null;
 
   const messages = conversation.messages;
   const displayMessages = useMemo(
@@ -347,8 +383,10 @@ function AppContent({
   }, [tokenUsage]);
 
   const pendingServerRequestsRaw = useQuery(
-    requireDefined(chatApi.listPendingServerRequests, "api.chat.listPendingServerRequests"),
-    conversation.effectiveThreadId && actorReady ? { actor, threadId: conversation.effectiveThreadId, limit: 50 } : "skip",
+    requireDefined(chatApi.listPendingServerRequestsByThreadHandle, "api.chat.listPendingServerRequestsByThreadHandle"),
+    conversation.effectiveThreadHandle && actorReady
+      ? { actor, threadHandle: conversation.effectiveThreadHandle, limit: 50 }
+      : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
   const scheduleDeleteThreadMutation = useMutation(
@@ -374,8 +412,8 @@ function AppContent({
     activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
   );
   const cleanupThreadState = useCodexThreadState(
-    requireDefined(chatApi.threadSnapshot, "api.chat.threadSnapshot"),
-    cleanupThreadId && actorReady ? { actor, threadId: cleanupThreadId } : "skip",
+    requireDefined(chatApi.threadSnapshotByThreadHandle, "api.chat.threadSnapshotByThreadHandle"),
+    cleanupThreadHandle && actorReady ? { actor, threadHandle: cleanupThreadHandle } : "skip",
   );
   const cleanupThreadStateTurns = cleanupThreadState?.threadStatus === "ok" ? cleanupThreadState.data.turns : null;
   const latestThreadTurnId = useMemo(() => {
@@ -666,11 +704,11 @@ function AppContent({
   };
 
   const onDeleteCurrentThread = async () => {
-    if (!cleanupThreadId || !actorReady || bridge.running) {
+    if (!cleanupThreadHandle || !actorReady || bridge.running) {
       return;
     }
     const confirmed = window.confirm(
-      `Delete persisted Codex data for thread ${cleanupThreadId.slice(0, 12)}...?`,
+      `Delete persisted Codex data for thread ${cleanupThreadHandle.slice(0, 12)}...?`,
     );
     if (!confirmed) {
       return;
@@ -678,7 +716,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteThreadMutation({
         actor,
-        threadId: cleanupThreadId,
+        threadId: cleanupThreadHandle,
         reason: "tauri-ui-delete-thread",
         delayMs: DEFAULT_DELETE_DELAY_MS,
       });
@@ -692,7 +730,7 @@ function AppContent({
   };
 
   const onDeleteLatestTurn = async () => {
-    if (!cleanupThreadId || !latestThreadTurnId || !actorReady || bridge.running) {
+    if (!cleanupThreadHandle || !latestThreadTurnId || !actorReady || bridge.running) {
       return;
     }
     const confirmed = window.confirm(
@@ -704,7 +742,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteTurnMutation({
         actor,
-        threadId: cleanupThreadId,
+        threadId: cleanupThreadHandle,
         turnId: latestThreadTurnId,
         reason: "tauri-ui-delete-turn",
         delayMs: DEFAULT_DELETE_DELAY_MS,
@@ -801,8 +839,8 @@ function AppContent({
         />
         <ThreadPicker
           threads={pickerThreads}
-          selected={selectedThreadId}
-          onSelect={(nextThreadId) => threads.setSelectedThreadId(nextThreadId)}
+          selected={selectedThreadHandle}
+          onSelect={(nextThreadId) => threads.setSelectedThreadHandle(nextThreadId)}
           disabled={bridge.running}
         />
         <MessageList messages={displayMessages} status={messages.status} tokenByTurnId={tokenByTurnId} />
@@ -855,14 +893,14 @@ function AppContent({
               <button
                 className="danger"
                 onClick={() => void onDeleteCurrentThread()}
-                disabled={!cleanupThreadId || !actorReady || bridge.running}
+                disabled={!cleanupThreadHandle || !actorReady || bridge.running}
               >
                 Schedule Thread Delete
               </button>
               <button
                 className="danger"
                 onClick={() => void onDeleteLatestTurn()}
-                disabled={!cleanupThreadId || !latestThreadTurnId || !actorReady || bridge.running}
+                disabled={!cleanupThreadHandle || !latestThreadTurnId || !actorReady || bridge.running}
               >
                 Schedule Turn Delete
               </button>

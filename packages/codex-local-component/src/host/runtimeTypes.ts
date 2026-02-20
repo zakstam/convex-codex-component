@@ -19,6 +19,7 @@ import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.j
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
 import type { CodexLocalBridge } from "../local-adapter/bridge.js";
+import type { RuntimeThreadLocator, ThreadHandle } from "../shared/threadIdentity.js";
 
 // ── Public types ──────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ export type ActorContext = { userId?: string };
 export type HostRuntimeState = {
   running: boolean;
   threadId: string | null;
-  externalThreadId: string | null;
+  threadHandle: string | null;
   turnId: string | null;
   turnInFlight: boolean;
   pendingServerRequestCount: number;
@@ -59,8 +60,7 @@ export class CodexHostRuntimeError extends Error {
 export type HostRuntimeStartArgs = {
   actor?: ActorContext;
   sessionId?: string;
-  externalThreadId?: string;
-  runtimeThreadId?: string;
+  threadHandle?: ThreadHandle;
   threadStrategy?: "start" | "resume" | "fork";
   model?: string;
   cwd?: string;
@@ -217,20 +217,20 @@ export type CodexHostRuntime = {
   steerTurn: (text: string, options?: { expectedTurnId?: string }) => Promise<void>;
   interrupt: () => void;
   resumeThread: (
-    runtimeThreadId: string,
+    threadHandle: RuntimeThreadLocator["runtimeThreadId"],
     params?: Omit<ThreadResumeParams, "threadId"> & { dynamicTools?: DynamicToolSpec[] },
   ) => Promise<CodexResponse>;
   forkThread: (
-    runtimeThreadId: string,
+    threadHandle: RuntimeThreadLocator["runtimeThreadId"],
     params?: Omit<ThreadForkParams, "threadId">,
   ) => Promise<CodexResponse>;
-  archiveThread: (runtimeThreadId: string) => Promise<CodexResponse>;
-  setThreadName: (runtimeThreadId: string, name: string) => Promise<CodexResponse>;
-  unarchiveThread: (runtimeThreadId: string) => Promise<CodexResponse>;
-  compactThread: (runtimeThreadId: string) => Promise<CodexResponse>;
-  rollbackThread: (runtimeThreadId: string, numTurns: number) => Promise<CodexResponse>;
+  archiveThread: (threadHandle: RuntimeThreadLocator["runtimeThreadId"]) => Promise<CodexResponse>;
+  setThreadName: (threadHandle: RuntimeThreadLocator["runtimeThreadId"], name: string) => Promise<CodexResponse>;
+  unarchiveThread: (threadHandle: RuntimeThreadLocator["runtimeThreadId"]) => Promise<CodexResponse>;
+  compactThread: (threadHandle: RuntimeThreadLocator["runtimeThreadId"]) => Promise<CodexResponse>;
+  rollbackThread: (threadHandle: RuntimeThreadLocator["runtimeThreadId"], numTurns: number) => Promise<CodexResponse>;
   readThread: (
-    runtimeThreadId: string,
+    threadHandle: RuntimeThreadLocator["runtimeThreadId"],
     includeTurns?: boolean,
   ) => Promise<CodexResponse>;
   readAccount: (params?: { refreshToken?: boolean }) => Promise<CodexResponse>;

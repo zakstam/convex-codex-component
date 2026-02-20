@@ -360,11 +360,11 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         any,
         Name
       >;
-      getExternalMapping: FunctionReference<
+      getThreadHandleMapping: FunctionReference<
         "query",
         "internal",
         { actor: { userId?: string }; threadId: string },
-        null | { externalThreadId: string; threadId: string },
+        null | { threadHandle: string; threadId: string },
         Name
       >;
       getState: FunctionReference<
@@ -456,19 +456,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           actor: { userId?: string };
           cwd?: string;
-          externalThreadId?: string;
+          threadHandle?: string;
           localThreadId?: string;
           model?: string;
           personality?: string;
         },
-        { created: boolean; externalThreadId?: string; threadId: string },
+        { created: boolean; threadHandle?: string; threadId: string },
         Name
       >;
-      resolveByExternalId: FunctionReference<
+      resolveByThreadHandle: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; externalThreadId: string },
-        null | { externalThreadId: string; threadId: string },
+        { actor: { userId?: string }; threadHandle: string },
+        null | { threadHandle: string; threadId: string },
         Name
       >;
       resume: FunctionReference<

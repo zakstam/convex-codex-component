@@ -262,12 +262,9 @@ export class TauriBridgeClientSendError extends Error {
   declare readonly cause: unknown;
 
   constructor(code: TauriBridgeClientSendErrorCode, message: string, cause?: unknown) {
-    super(`[${code}] ${message}`);
+    super(`[${code}] ${message}`, cause === undefined ? undefined : { cause });
     this.name = "TauriBridgeClientSendError";
     this.code = code;
-    if (cause !== undefined) {
-      (this as { cause?: unknown }).cause = cause;
-    }
   }
 }
 

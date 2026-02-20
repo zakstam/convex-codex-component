@@ -36,6 +36,7 @@ Use one source of truth for implementation steps:
 5. Call `chat.validateHostWiring` at startup.
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
 7. Prefer safe-by-default thread read queries. Most thread reads return status payloads in place of strict throw-only variants, while `listPendingServerRequests` returns an empty list (`[]`) when the thread is missing instead of throwing.
+8. Run `pnpm --filter @zakstam/codex-local-component run doctor:integration` to fail fast on setup drift.
 
 ## Package Import Paths
 
@@ -110,6 +111,21 @@ pnpm run check:host-shim
 pnpm run lint
 pnpm run typecheck
 ```
+
+8. Run package doctor checks for canonical contract drift:
+
+```bash
+pnpm --filter @zakstam/codex-local-component run doctor:integration
+```
+
+## Integration Failure/Fix Matrix
+
+Use these failure classes to unblock quickly:
+
+- `E_DOCTOR_MISSING_FILE`: required canonical docs are missing. Fix by restoring expected docs.
+- `E_DOCTOR_CANONICAL_MARKER`: canonical marker drift in package docs. Fix by restoring canonical marker text.
+- `E_DOCTOR_LEGACY_ALIAS`: legacy alias symbols leaked into public docs. Fix by replacing with canonical `threadHandle` naming.
+- `E_DOCTOR_README_ROUTING`: example README not routing to package `LLMS.md`. Fix by restoring canonical routing section.
 
 ## Data Lifecycle APIs
 

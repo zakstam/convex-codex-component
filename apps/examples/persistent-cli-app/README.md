@@ -8,6 +8,7 @@ It is an example implementation of the package strategy defined in:
 LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
 
 Canonical default used here: runtime-owned host integration.
+This README is operational guidance for this example app only; package docs define the integration contract.
 
 ## Runbook and Setup
 

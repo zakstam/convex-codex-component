@@ -12,6 +12,7 @@ Use this sequence only:
 3. Define host endpoints with `defineCodexHostDefinitions(...)` in `convex/chat.ts`.
 4. Start runtime with `createCodexHostRuntime(...)`.
 5. Build UI with `@zakstam/codex-local-component/react` hooks.
+6. Run `pnpm --filter @zakstam/codex-local-component run doctor:integration` before claiming integration complete.
 
 Do not use wrapper/facade host builders.
 
@@ -26,8 +27,8 @@ Do not use wrapper/facade host builders.
 
 - Runtime-owned `ensureThread` is single-path.
 - Provide `threadId`.
-- Do not expose host identity alternatives (`threadHandle`, `runtimeThreadId`) in consumer host APIs.
-- If runtime thread IDs are only available by legacy identifier, use `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle`, and `listPendingServerRequestsByThreadHandle` for read paths. These delegate mapping on the host and preserve safe fallback semantics for missing/forbidden states.
+- `threadHandle` is the canonical consumer identity for external thread mapping and `*ByThreadHandle` read APIs.
+- Do not expose alternate host identity shapes beyond canonical thread-handle contracts.
 
 ## Task-to-doc routing
 

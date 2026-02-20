@@ -24,6 +24,7 @@ npx convex dev --once
 pnpm run dev:convex:once
 pnpm run check:host-shim
 pnpm run typecheck
+pnpm --filter @zakstam/codex-local-component run doctor:integration
 ```
 
 `check:host-shim` is required for generated `api.chat.*` contract stability.

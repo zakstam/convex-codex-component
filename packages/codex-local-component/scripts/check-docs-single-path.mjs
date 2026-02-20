@@ -49,6 +49,11 @@ assertIncludes(llms, RUNBOOK_PATH, "LLMS.md");
 const packageReadme = readPackageFile("README.md");
 assertIncludes(packageReadme, CANONICAL_MARKER, "README.md");
 assertIncludes(packageReadme, RUNBOOK_PATH, "README.md");
+assertIncludes(
+  packageReadme,
+  "pnpm --filter @zakstam/codex-local-component run doctor:integration",
+  "README.md",
+);
 
 const packageJson = readPackageFile("package.json");
 assertIncludes(packageJson, RUNBOOK_PATH, "package.json");
@@ -63,6 +68,12 @@ for (const relPath of canonicalDocs) {
   const source = readPackageFile(relPath);
   assertIncludes(source, CANONICAL_MARKER, relPath);
 }
+
+assertIncludes(
+  readPackageFile("docs/CANONICAL_INTEGRATION.md"),
+  "pnpm --filter @zakstam/codex-local-component run doctor:integration",
+  "docs/CANONICAL_INTEGRATION.md",
+);
 
 const linkedDocs = [
   "README.md",

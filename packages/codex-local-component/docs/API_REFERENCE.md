@@ -1,6 +1,7 @@
 # API Reference
 
 This package documents one integration path only.
+If setup drifts, treat it as an integration error and run the doctor check.
 
 Use this path in order:
 
@@ -76,3 +77,4 @@ Use this path in order:
 - Runtime thread control helpers include: `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.
+- For fail-fast setup diagnostics, run `pnpm --filter @zakstam/codex-local-component run doctor:integration`.

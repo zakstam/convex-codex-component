@@ -7,6 +7,8 @@ Canonical consumer implementation path:
 
 - `packages/codex-local-component/LLMS.md`
 
+This app is intentionally lightweight and does not define an integration alternative to the package canonical path.
+
 LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
 
 ## Run

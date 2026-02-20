@@ -15,6 +15,9 @@ Canonical wiring in this app centers on:
 Canonical consumer implementation path:
 
 - `packages/codex-local-component/LLMS.md`
+- `packages/codex-local-component/docs/CANONICAL_INTEGRATION.md`
+
+This README is app-specific operational guidance only; package docs are the integration source of truth.
 
 ## State Authority
 

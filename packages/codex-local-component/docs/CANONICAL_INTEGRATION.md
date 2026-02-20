@@ -3,6 +3,7 @@
 Canonical default: runtime-owned host integration.
 
 This is the only documented way to integrate this library.
+No alternate consumer setup path is supported.
 
 ## Steps
 
@@ -12,6 +13,7 @@ This is the only documented way to integrate this library.
 4. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
 5. Build UI with hooks from `@zakstam/codex-local-component/react`.
 6. Run `chat.validateHostWiring` during startup.
+7. Run package doctor checks during integration and CI.
 
 ## Actor Contract
 
@@ -90,5 +92,6 @@ Run:
 - `pnpm run dev:convex:once` (or app equivalent)
 - `pnpm run check:host-shim`
 - `pnpm run typecheck`
+- `pnpm --filter @zakstam/codex-local-component run doctor:integration`
 
 Use `apps/examples/tauri-app` as the reference implementation.

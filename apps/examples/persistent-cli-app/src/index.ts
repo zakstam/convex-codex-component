@@ -576,11 +576,11 @@ async function logPersistenceStats(): Promise<void> {
   }
   const stats = await convex.query(chatFns.persistenceStats, {
     actor,
-    threadId,
+    threadHandle: threadId,
   });
   const history = await convex.query(chatFns.durableHistoryStats, {
     actor,
-    threadId,
+    threadHandle: threadId,
   });
   if (isThreadReadError(stats) || isThreadReadError(history)) {
     tui.appendLine("persisted> thread missing");
@@ -633,7 +633,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     updateStatus();
     await convex.mutation(chatFns.ensureThread, {
       actor,
-      threadId,
+      threadHandle: threadId,
       ...(model ? { model } : {}),
       cwd,
     });
@@ -835,15 +835,15 @@ async function handleCommand(line: string): Promise<void> {
     }
     const state = await convex.query(chatFns.threadSnapshot, {
       actor,
-      threadId,
+      threadHandle: threadId,
     });
     const stats = await convex.query(chatFns.persistenceStats, {
       actor,
-      threadId,
+      threadHandle: threadId,
     });
     const history = await convex.query(chatFns.durableHistoryStats, {
       actor,
-      threadId,
+      threadHandle: threadId,
     });
     if (isThreadReadError(state)) {
       tui.appendLine(`state> thread unavailable: ${state.message}`);

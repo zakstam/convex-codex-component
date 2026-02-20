@@ -42,13 +42,10 @@ export function createCodexReactPreset<
 >(
   api: CodexRuntimeOwnedThreadHandleApi<Actor>,
 ): CodexProviderApi<Actor> {
-  const listThreadMessages = api.listThreadMessagesByThreadHandle as unknown as CodexMessagesQuery<{ actor: Actor }>;
-  const threadSnapshot = api.threadSnapshotByThreadHandle as unknown as CodexThreadStateQuery<
-      { actor: Actor },
-      CodexThreadReadResult<CodexThreadActivityThreadState>
-    >;
+  const listThreadMessages = api.listThreadMessagesByThreadHandle;
+  const threadSnapshot = api.threadSnapshotByThreadHandle;
   const listPendingServerRequests = api.listPendingServerRequestsByThreadHandle;
-  const listTokenUsage = api.listTokenUsageByThreadHandle as CodexTokenUsageQuery<{ actor: Actor }> | undefined;
+  const listTokenUsage = api.listTokenUsageByThreadHandle;
 
   return {
     listThreadMessages,

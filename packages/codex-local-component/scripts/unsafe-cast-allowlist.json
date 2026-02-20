@@ -539,17 +539,6 @@
       "col": 19,
       "snippet": "? ((listed as Record<string, unknown>).threads as unknown[] | undefined)",
       "context": "prev:: listed && typeof listed === \"object\" && \"threads\" in listed | next:: undefined;"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_5c78cfc26b1b",
-      "file": "src/react/useCodexThreads.ts",
-      "line": 84,
-      "col": 14,
-      "snippet": "(item as { threadId: unknown }).threadId === selectedThreadId,",
-      "context": "prev:\"threadId\" in item && | next:);"
     }
   ]
 }

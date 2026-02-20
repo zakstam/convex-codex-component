@@ -1,6 +1,7 @@
 # API Reference
 
 This package documents one integration path only.
+Canonical default: runtime-owned host integration.
 If setup drifts, treat it as an integration error and run the doctor check.
 
 Use this path in order:

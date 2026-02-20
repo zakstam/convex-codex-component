@@ -137,7 +137,7 @@ test("runtime start supports threadStrategy=resume", async () => {
     actor: { userId: "u" },
     sessionId: "s",
     threadStrategy: "resume",
-    runtimeThreadId: threadId,
+    threadHandle: threadId,
   });
 
   const methods = sent.map((message) => message.method);

@@ -179,15 +179,17 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
   cursorsByStreamId: Record<string, number>;
   reset: () => void;
 } {
+  const extractThreadHandle = (value: unknown): string | undefined => {
+    if (typeof value !== "object" || value === null) {
+      return undefined;
+    }
+    const candidate = Reflect.get(value, "threadHandle");
+    return typeof candidate === "string" ? candidate : undefined;
+  };
+
   const threadHandle = args === "skip"
     ? undefined
-    : (() => {
-        const record = args as Record<string, unknown>;
-        if (typeof record.threadHandle === "string") {
-          return record.threadHandle;
-        }
-        return undefined;
-      })();
+    : extractThreadHandle(args);
   const [overlayState, setOverlayState] = useState<StreamOverlayState>({
     threadHandle,
     streamIds: [],
@@ -203,7 +205,13 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
     if (!enabled || args === "skip") {
       return "skip";
     }
-    return {
+    const composedArgs: Omit<FunctionArgs<Query>, "paginationOpts" | "streamArgs"> & {
+      paginationOpts: { cursor: null; numItems: 0 };
+      streamArgs: {
+        kind: "deltas";
+        cursors: Array<{ streamId: string; cursor: number }>;
+      };
+    } = {
       ...args,
       paginationOpts: { cursor: null, numItems: 0 },
       streamArgs: {
@@ -213,7 +221,8 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
           cursor: overlayState.cursorsByStreamId[streamId] ?? 0,
         })),
       },
-    } as unknown as FunctionArgs<Query>;
+    };
+    return composedArgs;
   };
 
   const streamDeltaQuery = useQuery(

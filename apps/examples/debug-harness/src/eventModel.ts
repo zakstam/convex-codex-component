@@ -2,6 +2,9 @@ export type HelperStateEvent = {
   type: "state";
   payload: {
     running: boolean;
+    phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
+    source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
+    updatedAtMs: number;
     localThreadId: string | null;
     threadHandle: string | null;
     turnId: string | null;
@@ -66,6 +69,9 @@ export type BridgeSnapshot = HelperStateEvent["payload"];
 
 export const EMPTY_SNAPSHOT: BridgeSnapshot = {
   running: false,
+  phase: "idle",
+  source: "runtime",
+  updatedAtMs: 0,
   localThreadId: null,
   threadHandle: null,
   turnId: null,

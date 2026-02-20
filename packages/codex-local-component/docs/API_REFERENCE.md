@@ -65,6 +65,10 @@ Use this path in order:
 - `defineCodexHostDefinitions` is the canonical host-definition entrypoint.
 - `createCodexHost` and wrapper-based host facade APIs are removed.
 - Authentication is consumer-managed at app boundaries.
+- Canonical bridge lifecycle contract is push + snapshot:
+  - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
+  - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
+  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `threadHandle`, and `turnId`.
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureThread` is single-path and requires `threadId`.
 - Thread-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread fallback to keep runtime request polling consumers on a stable array contract.

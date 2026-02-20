@@ -473,6 +473,7 @@ function AppContent({
     setPendingAuthRefresh,
     addToast,
     refreshBridgeState: runtimeBridge.refresh,
+    subscribeBridgeLifecycle: tauriBridge.lifecycle.subscribe,
   });
 
   const onStartBridge = useCallback(async () => {

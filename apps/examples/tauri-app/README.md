@@ -21,7 +21,8 @@ This README is app-specific operational guidance only; package docs are the inte
 
 ## State Authority
 
-- Runtime start/stop UI signals must be sourced from `codex:bridge_state`.
+- Runtime lifecycle signals must be sourced from `bridge.lifecycle.subscribe(...)` (package-owned contract).
+- Use `bridge.lifecycle.getState()` as the snapshot fallback for reconciliation.
 - `useCodexTauriEvents` is the only place that subscribes to Tauri bridge events.
 - The hook is StrictMode-safe and deduplicates transition toasts to one toast per real running-state edge.
 

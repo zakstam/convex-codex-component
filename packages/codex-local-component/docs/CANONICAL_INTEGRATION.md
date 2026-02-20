@@ -33,6 +33,22 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
   - `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle` return `threadStatus` payloads when the thread is missing or unauthorized.
   - `listPendingServerRequestsByThreadHandle` returns `[]` on missing-thread fallback to preserve poller array contracts.
 
+## Lifecycle Contract
+
+Bridge lifecycle tracking is canonicalized as push + snapshot:
+
+- Runtime owners use `subscribeLifecycle(listener)` for transitions and `getLifecycleState()` for reconciliation.
+- Tauri bridge owners use `bridge.lifecycle.subscribe(listener)` for transitions and `bridge.lifecycle.getState()` for reconciliation.
+- Lifecycle snapshots include:
+  - `running`
+  - `phase` (`idle|starting|running|stopping|stopped|error`)
+  - `source` (`runtime|bridge_event|protocol_error|process_exit`)
+  - `updatedAtMs`
+  - `threadHandle`
+  - `turnId`
+
+Consumer rule: subscribe first, then fetch a snapshot to reconcile missed events.
+
 ## Minimal Host Wiring
 
 ```ts

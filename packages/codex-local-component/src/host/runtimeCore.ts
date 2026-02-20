@@ -18,6 +18,8 @@ import type {
   ClientMessage,
   ClientRequestMessage,
   HostRuntimeErrorCode,
+  HostRuntimeLifecyclePhase,
+  HostRuntimeLifecycleSource,
   HostRuntimePersistence,
   HostRuntimeHandlers,
   HostRuntimePersistedServerRequest,
@@ -82,6 +84,9 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let skippedEventCount = 0;
   let lastErrorCode: HostRuntimeErrorCode | null = null;
   let lastErrorMessage: string | null = null;
+  let lifecyclePhase: HostRuntimeLifecyclePhase = "idle";
+  let lifecycleSource: HostRuntimeLifecycleSource = "runtime";
+  let lifecycleUpdatedAtMs = Date.now();
   const pendingRequests = new Map<number, PendingRequest>();
 
   const incrementCount = (counts: Map<string, number>, kind: string) => { counts.set(kind, (counts.get(kind) ?? 0) + 1); };
@@ -92,12 +97,26 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   const emitState = (error?: { code: HostRuntimeErrorCode; message: string } | null) => {
     if (error === undefined) { /* keep */ } else if (error === null) { lastErrorCode = null; lastErrorMessage = null; }
     else { lastErrorCode = error.code; lastErrorMessage = `[${error.code}] ${error.message}`; }
+    lifecycleUpdatedAtMs = Date.now();
     args.handlers?.onState?.({
-      running: !!bridge, threadId, threadHandle, turnId, turnInFlight,
+      running: !!bridge,
+      phase: lifecyclePhase,
+      source: lifecycleSource,
+      updatedAtMs: lifecycleUpdatedAtMs,
+      threadId,
+      threadHandle,
+      turnId,
+      turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
       ingestMetrics: { enqueuedEventCount, skippedEventCount, enqueuedByKind: snapshotKindCounts(enqueuedByKind), skippedByKind: snapshotKindCounts(skippedByKind) },
       lastErrorCode, lastError: lastErrorMessage,
     });
+  };
+
+  const setLifecycle = (phase: HostRuntimeLifecyclePhase, source: HostRuntimeLifecycleSource) => {
+    lifecyclePhase = phase;
+    lifecycleSource = source;
+    lifecycleUpdatedAtMs = Date.now();
   };
 
   const runtimeError = (code: HostRuntimeErrorCode, message: string): CodexHostRuntimeError => {
@@ -344,6 +363,9 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       pendingServerRequests.clear(); pendingServerRequestRetries.clear();
       pendingAuthTokensRefreshRequests.clear(); ingestQueue = [];
       flushTail = Promise.resolve();
+      lifecyclePhase = "idle";
+      lifecycleSource = "runtime";
+      lifecycleUpdatedAtMs = Date.now();
     },
     rejectAllPending() { for (const [, p] of pendingRequests) p.reject?.(new Error("Bridge stopped before request completed.")); },
     listPendingServerRequests: async (threadIdFilter?: string): Promise<HostRuntimePersistedServerRequest[]> => {
@@ -351,13 +373,21 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       return [];
     },
     getState: (): HostRuntimeState => ({
-      running: !!bridge, threadId, threadHandle, turnId, turnInFlight,
+      running: !!bridge,
+      phase: lifecyclePhase,
+      source: lifecycleSource,
+      updatedAtMs: lifecycleUpdatedAtMs,
+      threadId,
+      threadHandle,
+      turnId,
+      turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
       ingestMetrics: { enqueuedEventCount, skippedEventCount, enqueuedByKind: snapshotKindCounts(enqueuedByKind), skippedByKind: snapshotKindCounts(skippedByKind) },
       lastErrorCode, lastError: lastErrorMessage,
     }),
-    setProtocolError(msg: string) { lastErrorCode = null; lastErrorMessage = msg; },
-    setProcessExitError(code: number | string) { lastErrorCode = null; lastErrorMessage = `codex exited with code ${String(code)}`; },
+    setProtocolError(msg: string) { setLifecycle("error", "protocol_error"); lastErrorCode = null; lastErrorMessage = msg; },
+    setProcessExitError(code: number | string) { setLifecycle("error", "process_exit"); lastErrorCode = null; lastErrorMessage = `codex exited with code ${String(code)}`; },
+    setLifecycle,
   };
 }
 

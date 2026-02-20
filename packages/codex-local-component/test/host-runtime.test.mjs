@@ -846,3 +846,30 @@ test("respondChatgptAuthTokensRefresh rejects unknown request id", async () => {
 
   await runtime.stop();
 });
+
+test("runtime exposes canonical lifecycle subscription and snapshot", async () => {
+  const { runtime } = createHarness();
+  const snapshots = [];
+  const unsubscribe = runtime.subscribeLifecycle((state) => {
+    snapshots.push(state);
+  });
+
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0].phase, "idle");
+  assert.equal(snapshots[0].source, "runtime");
+  assert.equal(runtime.getLifecycleState().phase, "idle");
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  assert.ok(snapshots.some((state) => state.phase === "starting"));
+  assert.equal(runtime.getLifecycleState().phase, "running");
+  assert.equal(runtime.getLifecycleState().source, "runtime");
+
+  await runtime.stop();
+  assert.equal(runtime.getLifecycleState().phase, "stopped");
+
+  unsubscribe();
+});

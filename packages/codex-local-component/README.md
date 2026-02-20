@@ -168,6 +168,22 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `listThreads`
 - `listLoadedThreads`
 
+## Runtime Bridge Lifecycle APIs
+
+`createCodexHostRuntime(...)` exposes canonical lifecycle tracking as push + snapshot:
+
+- `subscribeLifecycle(listener)`
+- `getLifecycleState()`
+
+The lifecycle state includes:
+
+- `running`
+- `phase` (`idle|starting|running|stopping|stopped|error`)
+- `source` (`runtime|bridge_event|protocol_error|process_exit`)
+- `updatedAtMs`
+- `threadHandle`
+- `turnId`
+
 ## Type Safety Checks
 
 - `pnpm --filter @zakstam/codex-local-component run codegen:component`

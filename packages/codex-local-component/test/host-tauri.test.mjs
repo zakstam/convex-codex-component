@@ -72,6 +72,46 @@ test("createTauriBridgeClient wraps invoke with expected payload envelopes", asy
   assert.deepEqual(calls[3], { command: "get_bridge_state", args: undefined });
 });
 
+test("createTauriBridgeClient exposes lifecycle subscription when configured", async () => {
+  const listeners = [];
+  const unsubscribed = [];
+  const client = createTauriBridgeClient(
+    async (command) => {
+      if (command === "get_bridge_state") {
+        return { running: false, localThreadId: null, threadHandle: null, turnId: null, lastError: null };
+      }
+      return { ok: true };
+    },
+    {
+      subscribeBridgeState: async (listener) => {
+        listeners.push(listener);
+        return () => {
+          unsubscribed.push(true);
+        };
+      },
+    },
+  );
+
+  const states = [];
+  const off = await client.lifecycle.subscribe((state) => {
+    states.push(state);
+  });
+
+  listeners[0]({
+    running: true,
+    localThreadId: "thread-1",
+    threadHandle: "thread-1",
+    turnId: "turn-1",
+    lastError: null,
+  });
+  assert.equal(states.length, 1);
+  assert.equal(states[0].running, true);
+  assert.equal(states[0].threadHandle, "thread-1");
+
+  off();
+  assert.equal(unsubscribed.length, 1);
+});
+
 test("generateTauriArtifacts returns command-aligned rust and permission outputs", () => {
   const artifacts = generateTauriArtifacts();
 

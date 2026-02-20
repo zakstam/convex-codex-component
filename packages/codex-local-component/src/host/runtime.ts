@@ -37,6 +37,7 @@ import { createConvexPersistence, type ConvexPersistenceChatApi, type ConvexPers
 import type {
   HostRuntimePersistence,
   HostRuntimeHandlers,
+  HostRuntimeState,
   HostRuntimeStartArgs,
   RuntimeBridge,
   RuntimeBridgeHandlers,
@@ -49,6 +50,9 @@ export {
   type CodexHostRuntime,
   type HostRuntimeErrorCode,
   type HostRuntimeHandlers,
+  type HostRuntimeLifecycleListener,
+  type HostRuntimeLifecyclePhase,
+  type HostRuntimeLifecycleSource,
   type HostRuntimePersistence,
   type HostRuntimePersistedServerRequest,
   type HostRuntimeStartArgs,
@@ -95,13 +99,32 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     persistence = args.persistence;
   }
 
+  const lifecycleSubscribers = new Set<(state: HostRuntimeState) => void>();
+  let lifecycleSnapshot: HostRuntimeState;
+  const notifyLifecycle = (state: HostRuntimeState) => {
+    lifecycleSnapshot = state;
+    for (const listener of lifecycleSubscribers) {
+      listener(state);
+    }
+  };
+
   const core = createRuntimeCore({
     persistence,
-    ...(args.handlers ? { handlers: args.handlers } : {}),
+    handlers: {
+      onState: (state) => {
+        notifyLifecycle(state);
+        args.handlers?.onState?.(state);
+      },
+      ...(args.handlers?.onEvent ? { onEvent: args.handlers.onEvent } : {}),
+      ...(args.handlers?.onGlobalMessage ? { onGlobalMessage: args.handlers.onGlobalMessage } : {}),
+      ...(args.handlers?.onProtocolError ? { onProtocolError: args.handlers.onProtocolError } : {}),
+    },
   });
+  lifecycleSnapshot = core.getState();
 
   const start = async (startArgs: HostRuntimeStartArgs): Promise<void> => {
     if (core.bridge) { core.emitState(); return; }
+    core.setLifecycle("starting", "runtime");
     core.actor = startArgs.actor ?? defaultActor ?? { userId: "anonymous" };
     const rawSessionId = startArgs.sessionId ?? defaultSessionId;
     core.sessionId = rawSessionId ? `${rawSessionId}-${randomSessionId()}` : randomSessionId();
@@ -151,16 +174,20 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     } else {
       core.sendMessage(buildThreadForkRequest(core.requestIdFn(), { threadId: startArgs.threadHandle!, ...(startArgs.model ? { model: startArgs.model } : {}), ...(startArgs.cwd ? { cwd: startArgs.cwd } : {}) }), "thread/fork");
     }
+    core.setLifecycle("running", "runtime");
     core.emitState(null);
   };
 
   const stop = async () => {
+    core.setLifecycle("stopping", "runtime");
+    core.emitState();
     core.clearFlushTimer();
     core.clearPendingServerRequestRetryTimer();
     await core.flushQueue();
     core.rejectAllPending();
     core.bridge?.stop();
     core.resetAll();
+    core.setLifecycle("stopped", "runtime");
     core.resetIngestMetrics();
     core.emitState(null);
   };
@@ -287,5 +314,13 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     respondCommandApproval, respondFileChangeApproval, respondToolUserInput,
     respondDynamicToolCall, respondChatgptAuthTokensRefresh,
     getState: core.getState,
+    getLifecycleState: () => lifecycleSnapshot,
+    subscribeLifecycle: (listener) => {
+      lifecycleSubscribers.add(listener);
+      listener(lifecycleSnapshot);
+      return () => {
+        lifecycleSubscribers.delete(listener);
+      };
+    },
   };
 }

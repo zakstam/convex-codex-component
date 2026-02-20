@@ -12,6 +12,7 @@ export type PendingAuthRefreshRequest = {
 type RuntimeLogEntry = { id: string; line: string };
 
 type BridgeStateEvent = Partial<BridgeState>;
+type BridgeStateUnsubscribe = () => void;
 
 type UseCodexTauriEventsOptions = {
   setBridge: Dispatch<SetStateAction<BridgeState>>;
@@ -20,6 +21,7 @@ type UseCodexTauriEventsOptions = {
   setPendingAuthRefresh: Dispatch<SetStateAction<PendingAuthRefreshRequest[]>>;
   addToast: (type: ToastItem["type"], message: string) => void;
   refreshBridgeState: () => Promise<Partial<BridgeState> | null | undefined>;
+  subscribeBridgeLifecycle: (listener: (state: BridgeStateEvent) => void) => Promise<BridgeStateUnsubscribe>;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -33,6 +35,7 @@ export function useCodexTauriEvents({
   setPendingAuthRefresh,
   addToast,
   refreshBridgeState,
+  subscribeBridgeLifecycle,
 }: UseCodexTauriEventsOptions) {
   const setBridgeRef = useRef(setBridge);
   const setRuntimeLogRef = useRef(setRuntimeLog);
@@ -40,6 +43,7 @@ export function useCodexTauriEvents({
   const setPendingAuthRefreshRef = useRef(setPendingAuthRefresh);
   const addToastRef = useRef(addToast);
   const refreshBridgeStateRef = useRef(refreshBridgeState);
+  const subscribeBridgeLifecycleRef = useRef(subscribeBridgeLifecycle);
   const lastRunningRef = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -49,7 +53,8 @@ export function useCodexTauriEvents({
     setPendingAuthRefreshRef.current = setPendingAuthRefresh;
     addToastRef.current = addToast;
     refreshBridgeStateRef.current = refreshBridgeState;
-  }, [addToast, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog]);
+    subscribeBridgeLifecycleRef.current = subscribeBridgeLifecycle;
+  }, [addToast, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
 
   useEffect(() => {
     let disposed = false;
@@ -57,12 +62,12 @@ export function useCodexTauriEvents({
 
     const attach = async () => {
       const nextUnsubs = await Promise.all([
-        listen<BridgeStateEvent>("codex:bridge_state", (event) => {
+        subscribeBridgeLifecycleRef.current((payload) => {
           setBridgeRef.current((prev) => {
             const next = {
               ...prev,
-              ...event.payload,
-              threadHandle: event.payload.threadHandle ?? prev.threadHandle ?? null,
+              ...payload,
+              threadHandle: payload.threadHandle ?? prev.threadHandle ?? null,
             };
             if (!next.running) {
               next.threadHandle = null;

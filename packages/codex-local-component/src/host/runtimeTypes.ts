@@ -25,8 +25,14 @@ import type { RuntimeThreadLocator, ThreadHandle } from "../shared/threadIdentit
 
 export type ActorContext = { userId?: string };
 
+export type HostRuntimeLifecyclePhase = "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
+export type HostRuntimeLifecycleSource = "runtime" | "bridge_event" | "protocol_error" | "process_exit";
+
 export type HostRuntimeState = {
   running: boolean;
+  phase: HostRuntimeLifecyclePhase;
+  source: HostRuntimeLifecycleSource;
+  updatedAtMs: number;
   threadId: string | null;
   threadHandle: string | null;
   turnId: string | null;
@@ -210,6 +216,8 @@ export type HostRuntimeHandlers = {
   onProtocolError?: (error: { message: string; line: string }) => void;
 };
 
+export type HostRuntimeLifecycleListener = (state: HostRuntimeState) => void;
+
 export type CodexHostRuntime = {
   start: (args: HostRuntimeStartArgs) => Promise<void>;
   stop: () => Promise<void>;
@@ -265,6 +273,8 @@ export type CodexHostRuntime = {
     chatgptPlanType?: string | null;
   }) => Promise<void>;
   getState: () => HostRuntimeState;
+  getLifecycleState: () => HostRuntimeState;
+  subscribeLifecycle: (listener: HostRuntimeLifecycleListener) => () => void;
 };
 
 export type HostRuntimePersistedServerRequest = {

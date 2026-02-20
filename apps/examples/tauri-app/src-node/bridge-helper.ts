@@ -34,6 +34,9 @@ type HelperEvent =
       type: "state";
       payload: {
         running: boolean;
+        phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
+        source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
+        updatedAtMs: number;
         localThreadId: string | null;
         threadHandle: string | null;
         turnId: string | null;
@@ -127,6 +130,9 @@ let startRuntimeOptions: {
 
 let bridgeState: {
   running: boolean;
+  phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
+  source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
+  updatedAtMs: number;
   localThreadId: string | null;
   turnId: string | null;
   lastErrorCode: string | null;
@@ -139,6 +145,9 @@ let bridgeState: {
   disabledTools: string[];
 } = {
   running: false,
+  phase: "idle",
+  source: "runtime",
+  updatedAtMs: Date.now(),
   localThreadId: null,
   turnId: null,
   lastErrorCode: null,
@@ -192,12 +201,16 @@ function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
     ...bridgeState,
     ...(next ?? {}),
+    updatedAtMs: Date.now(),
   };
 
   emit({
     type: "state",
     payload: {
       running: bridgeState.running,
+      phase: bridgeState.phase,
+      source: bridgeState.source,
+      updatedAtMs: bridgeState.updatedAtMs,
       localThreadId: bridgeState.localThreadId,
       threadHandle: runtimeThreadId,
       turnId: bridgeState.turnId,
@@ -511,6 +524,9 @@ async function startBridge(payload: StartPayload): Promise<void> {
       onState: (state) => {
         emitState({
           running: state.running,
+          phase: state.phase,
+          source: state.source,
+          updatedAtMs: state.updatedAtMs,
           localThreadId: state.threadId,
           turnId: state.turnId,
           lastErrorCode: state.lastErrorCode,
@@ -612,11 +628,11 @@ async function startBridge(payload: StartPayload): Promise<void> {
       runtime: startRuntimeOptions,
     });
 
-    emitState({ running: true, lastErrorCode: null, lastError: null });
+    emitState({ running: true, phase: "running", source: "runtime", lastErrorCode: null, lastError: null });
     emit({ type: "ack", payload: { command: "start" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    emitState({ running: false, lastErrorCode: null, lastError: message });
+    emitState({ running: false, phase: "error", source: "runtime", lastErrorCode: null, lastError: message });
     runtime = null;
     throw error;
   }
@@ -727,6 +743,8 @@ async function stopCurrentBridge(): Promise<void> {
     runtimeThreadId = null;
     emitState({
       running: false,
+      phase: "stopped",
+      source: "runtime",
       localThreadId: null,
       turnId: null,
       lastErrorCode: null,

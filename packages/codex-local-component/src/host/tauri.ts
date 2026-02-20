@@ -10,6 +10,9 @@ export type ActorContext = { userId?: string };
 
 export type BridgeState = {
   running: boolean;
+  phase?: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
+  source?: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
+  updatedAtMs?: number;
   localThreadId: string | null;
   threadHandle: string | null;
   turnId: string | null;
@@ -225,12 +228,18 @@ export function parseHelperCommand(line: string): HelperCommand {
 }
 
 export type TauriInvoke = <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
+export type TauriBridgeStateListener = (state: BridgeState) => void;
+export type TauriBridgeStateSubscribe = (listener: TauriBridgeStateListener) => Promise<() => void>;
+export type TauriBridgeClientOptions = {
+  subscribeBridgeState?: TauriBridgeStateSubscribe;
+};
 
 export type TauriBridgeClient = {
   lifecycle: {
     start(config: StartBridgeConfig): Promise<unknown>;
     stop(): Promise<unknown>;
     getState(): Promise<BridgeState>;
+    subscribe(listener: TauriBridgeStateListener): Promise<() => void>;
   };
   turns: {
     send(text: string): Promise<unknown>;
@@ -259,7 +268,7 @@ export type TauriBridgeClient = {
   };
 };
 
-export function createTauriBridgeClient(invoke: TauriInvoke): TauriBridgeClient {
+export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBridgeClientOptions): TauriBridgeClient {
   return {
     lifecycle: {
       start(config: StartBridgeConfig): Promise<unknown> {
@@ -274,6 +283,12 @@ export function createTauriBridgeClient(invoke: TauriInvoke): TauriBridgeClient 
       },
       getState(): Promise<BridgeState> {
         return invoke("get_bridge_state");
+      },
+      subscribe(listener: TauriBridgeStateListener): Promise<() => void> {
+        if (!options?.subscribeBridgeState) {
+          throw new Error("Bridge lifecycle subscription is not configured for this client.");
+        }
+        return options.subscribeBridgeState(listener);
       },
     },
     turns: {

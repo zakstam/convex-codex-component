@@ -98,6 +98,8 @@ jobs:
 
       - name: Commit release bump and publishable lock changes
         if: steps.pending-changesets.outputs.has_changesets == 'true'
+        env:
+          RELEASE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
         run: |
           if git diff --quiet; then
             echo "No release files changed."
@@ -108,4 +110,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "chore: version packages"
-          git push
+          git push origin HEAD:${RELEASE_BRANCH}

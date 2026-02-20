@@ -77,12 +77,6 @@ type PendingServerRequest = {
   questions?: ToolQuestion[];
 };
 
-type PickerThread = {
-  threadHandle: string;
-  status: string;
-  updatedAt?: number;
-};
-
 function requireDefined<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
     throw new Error(`Missing generated Convex reference: ${name}`);

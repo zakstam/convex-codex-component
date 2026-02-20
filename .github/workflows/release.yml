@@ -78,6 +78,8 @@ jobs:
         run: |
           pnpm run version-packages
           pnpm run release:publish
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
 
       - name: Commit release bump and publishable lock changes
         if: steps.pending-changesets.outputs.has_changesets == 'true'

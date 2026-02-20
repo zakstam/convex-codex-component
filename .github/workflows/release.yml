@@ -92,11 +92,3 @@ jobs:
           git add .
           git commit -m "chore: version packages"
           git push
-        with:
-          version: pnpm run version-packages
-          publish: pnpm run release:publish
-          commit: "chore: version packages"
-          title: "chore: version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"

@@ -269,6 +269,16 @@ const chatFns = {
   threadSnapshot: api.chat.threadSnapshot,
 } as const;
 
+function isMissingThreadReadResult(
+  value: unknown,
+): value is { threadStatus: "missing_thread"; code: "E_THREAD_NOT_FOUND"; message: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Reflect.get(value, "threadStatus") === "missing_thread"
+  );
+}
+
 async function assertHostWiring(): Promise<void> {
   const validation = await convex.query(chatFns.validateHostWiring, { actor });
   const checks = validation.checks as Array<{ name: string; ok: boolean; error?: string }>;
@@ -570,6 +580,10 @@ async function logPersistenceStats(): Promise<void> {
     actor,
     threadId,
   });
+  if (isMissingThreadReadResult(stats) || isMissingThreadReadResult(history)) {
+    tui.appendLine("persisted> thread missing");
+    return;
+  }
   tui.appendLine(
     `persisted> streams=${stats.streamCount} deltas=${stats.deltaCount} messages=${history.messageCountInPage}`,
   );
@@ -829,8 +843,17 @@ async function handleCommand(line: string): Promise<void> {
       actor,
       threadId,
     });
+    if (
+      isMissingThreadReadResult(state) ||
+      isMissingThreadReadResult(stats) ||
+      isMissingThreadReadResult(history)
+    ) {
+      tui.appendLine("state> thread missing");
+      return;
+    }
+    const snapshot = state.data;
     tui.appendLine(
-      `state> thread=${state.threadId} turns=${state.turns.length} activeStreams=${state.activeStreams.length} pendingApprovals=${state.pendingApprovals.length} deltas=${stats.deltaCount} messages=${history.messageCountInPage}`,
+      `state> thread=${snapshot.threadId} turns=${snapshot.turns.length} activeStreams=${snapshot.activeStreams.length} pendingApprovals=${snapshot.pendingApprovals.length} deltas=${stats.deltaCount} messages=${history.messageCountInPage}`,
     );
     return;
   }

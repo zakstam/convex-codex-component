@@ -1,5 +1,22 @@
 # @zakstam/codex-local-component
 
+## 1.1.0
+
+### Minor Changes
+
+- 444f693: Remove legacy external-thread alias contracts and standardize on canonical thread-handle integration.
+  - Unify host, runtime, React, and component contracts on `threadHandle` and `*ByThreadHandle`.
+  - Remove legacy alias exports and type paths that referenced external-id naming.
+  - Align Tauri and persistent CLI example host surfaces with canonical query names.
+  - Tighten canonical docs and references to the single runtime-owned integration path.
+
+### Patch Changes
+
+- 4fa3fe0: Tighten canonical integration onboarding with fail-fast diagnostics and stronger drift checks.
+  - Add `doctor:integration` to detect doc and canonical-contract drift with actionable failure output.
+  - Add `check:canonical-symbols` to block legacy external-id aliases in package docs.
+  - Update canonical docs/runbook/examples to route users to one integration source of truth.
+
 ## 1.0.2
 
 ### Patch Changes

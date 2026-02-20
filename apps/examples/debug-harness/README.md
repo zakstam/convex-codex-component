@@ -22,11 +22,12 @@ Run from repository root for implemented (non-docs-only) changes:
 pnpm -C codex-convex-component run example:debug:repro:no-response
 ```
 
-This runs a deterministic `start -> send -> status` scenario and writes a trace artifact under `./traces/`.
+This runs a deterministic `start -> send -> status` scenario and writes a trace artifact under `./.tmp/traces/`.
 If this gate fails or cannot run due to missing prerequisites, treat verification as failed (do not claim completion).
 
 ## Notes
 
 - This harness spawns `apps/examples/tauri-app/dist-node/bridge-helper.js`.
+- It auto-loads defaults from `apps/examples/tauri-app/.env.local` when present, with process env taking precedence.
 - It logs a timeline and classifies stalls like missing acks or missing `turn/*` events after `send_turn`.
-- Use `save-trace` in REPL to write a JSONL artifact under `./traces/`.
+- Use `save-trace` in REPL to write a JSONL artifact under `./.tmp/traces/`.

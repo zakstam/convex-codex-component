@@ -40,6 +40,7 @@ class DebugHarness {
   private readonly sent: CommandRecord[] = [];
   private rawEnabled = false;
   private pollTimer: NodeJS.Timeout | null = null;
+  constructor(private readonly helperEnv: NodeJS.ProcessEnv) {}
 
   startProcess(): void {
     if (this.process) {
@@ -49,7 +50,7 @@ class DebugHarness {
     const helperPath = resolve(here, "../../tauri-app/dist-node/bridge-helper.js");
     this.process = spawn(process.execPath, [helperPath], {
       stdio: "pipe",
-      env: process.env,
+      env: this.helperEnv,
     });
 
     this.process.stdout.setEncoding("utf8");
@@ -185,7 +186,8 @@ class DebugHarness {
   }
 
   async saveTrace(pathname?: string): Promise<void> {
-    const out = pathname ?? `./traces/${new Date().toISOString().replaceAll(":", "-")}.jsonl`;
+    const here = dirname(fileURLToPath(import.meta.url));
+    const out = pathname ?? resolve(here, "../.tmp/traces", `${new Date().toISOString().replaceAll(":", "-")}.jsonl`);
     const path = await writeTrace(out, this.timeline.all());
     console.log(`Trace written: ${path}`);
   }
@@ -238,6 +240,65 @@ class DebugHarness {
   }
 }
 
+function parseDotEnv(contents: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const rawLine of contents.split(/\r?\n/u)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const normalized = trimmed.startsWith("export ") ? trimmed.slice("export ".length) : trimmed;
+    const separator = normalized.indexOf("=");
+    if (separator <= 0) {
+      continue;
+    }
+    const key = normalized.slice(0, separator).trim();
+    if (!key) {
+      continue;
+    }
+    let rawValue = normalized.slice(separator + 1).trim();
+    if (
+      (rawValue.startsWith("\"") && rawValue.endsWith("\""))
+      || (rawValue.startsWith("'") && rawValue.endsWith("'"))
+    ) {
+      rawValue = rawValue.slice(1, -1);
+    } else {
+      rawValue = rawValue.replace(/\s+#.*$/u, "").trim();
+    }
+    values[key] = rawValue.replace(/\\n/gu, "\n");
+  }
+  return values;
+}
+
+async function resolveHarnessEnv(): Promise<{
+  env: NodeJS.ProcessEnv;
+  envLocalPath: string;
+  loadedFromEnvLocal: boolean;
+}> {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const envLocalPath = resolve(here, "../../tauri-app/.env.local");
+  try {
+    const envLocal = await readFile(envLocalPath, "utf8");
+    const parsed = parseDotEnv(envLocal);
+    return {
+      // Shell/process env takes precedence over checked-in local file values.
+      env: { ...parsed, ...process.env },
+      envLocalPath,
+      loadedFromEnvLocal: true,
+    };
+  } catch (error) {
+    const code = error && typeof error === "object" ? Reflect.get(error, "code") : undefined;
+    if (code === "ENOENT") {
+      return {
+        env: { ...process.env },
+        envLocalPath,
+        loadedFromEnvLocal: false,
+      };
+    }
+    throw error;
+  }
+}
+
 async function runScenario(harness: DebugHarness, file: string, defaults: {
   convexUrl: string;
   userId: string;
@@ -263,6 +324,8 @@ async function runScenario(harness: DebugHarness, file: string, defaults: {
 }
 
 async function main(): Promise<void> {
+  const envResolution = await resolveHarnessEnv();
+  const runtimeEnv = envResolution.env;
   const defaults: {
     convexUrl: string;
     userId: string;
@@ -270,17 +333,17 @@ async function main(): Promise<void> {
     cwd?: string;
     model?: string;
   } = {
-    convexUrl: process.env.VITE_CONVEX_URL ?? process.env.CONVEX_URL ?? "http://127.0.0.1:3210",
-    userId: process.env.CODEX_DEBUG_USER_ID ?? "debug-user",
+    convexUrl: runtimeEnv.VITE_CONVEX_URL ?? runtimeEnv.CONVEX_URL ?? "http://127.0.0.1:3210",
+    userId: runtimeEnv.CODEX_DEBUG_USER_ID ?? "debug-user",
     sessionId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   };
-  if (process.env.VITE_CODEX_CWD) {
-    defaults.cwd = process.env.VITE_CODEX_CWD;
+  if (runtimeEnv.VITE_CODEX_CWD) {
+    defaults.cwd = runtimeEnv.VITE_CODEX_CWD;
   }
-  if (process.env.VITE_CODEX_MODEL) {
-    defaults.model = process.env.VITE_CODEX_MODEL;
+  if (runtimeEnv.VITE_CODEX_MODEL) {
+    defaults.model = runtimeEnv.VITE_CODEX_MODEL;
   }
-  const harness = new DebugHarness();
+  const harness = new DebugHarness(runtimeEnv);
 
   const args = process.argv.slice(2);
   const scenarioIndex = args.indexOf("--scenario");
@@ -293,6 +356,11 @@ async function main(): Promise<void> {
   }
 
   console.log("Codex debug harness started.");
+  if (envResolution.loadedFromEnvLocal) {
+    console.log(`Loaded defaults from ${envResolution.envLocalPath} (process env overrides file values).`);
+  } else {
+    console.log(`No .env.local found at ${envResolution.envLocalPath}; using process env defaults.`);
+  }
   console.log(`Default convex URL: ${defaults.convexUrl}`);
   printHelp();
 

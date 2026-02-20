@@ -30,6 +30,7 @@ pnpm-debug.log*
 .turbo/
 .cache/
 .pnpm-store/
+apps/examples/debug-harness/.tmp/
 
 # IDE/editor
 .idea/

@@ -111,6 +111,26 @@ Host/type boundary validation target used in CI:
 pnpm --filter codex-local-tauri-example run typecheck
 ```
 
+## Debug Harness
+
+Working directory:
+
+```bash
+cd apps/examples/debug-harness
+```
+
+Environment behavior:
+
+- Prefers shell/process env values when set.
+- Otherwise auto-loads defaults from `apps/examples/tauri-app/.env.local`.
+- Requires `VITE_CONVEX_URL` (directly or via `.env.local`) for scenario smoke commands.
+
+Verification flow:
+
+```bash
+pnpm run repro:no-response
+```
+
 ## CLI Example
 
 Working directory:

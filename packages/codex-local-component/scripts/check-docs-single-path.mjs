@@ -7,6 +7,7 @@ const repoRoot = resolve(packageRoot, "../..");
 const CANONICAL_MARKER =
   "Canonical default: runtime-owned host integration.";
 const LLMS_PATH = "packages/codex-local-component/LLMS.md";
+const RUNBOOK_PATH = "docs/EXAMPLE_APPS_RUNBOOK.md";
 
 const failures = [];
 
@@ -43,10 +44,19 @@ function assertNotRegex(source, pattern, label) {
 const llms = readPackageFile("LLMS.md");
 assertIncludes(llms, CANONICAL_MARKER, "LLMS.md");
 assertIncludes(llms, "## Hard Rule", "LLMS.md");
+assertIncludes(llms, RUNBOOK_PATH, "LLMS.md");
+
+const packageReadme = readPackageFile("README.md");
+assertIncludes(packageReadme, CANONICAL_MARKER, "README.md");
+assertIncludes(packageReadme, RUNBOOK_PATH, "README.md");
+
+const packageJson = readPackageFile("package.json");
+assertIncludes(packageJson, RUNBOOK_PATH, "package.json");
 
 const canonicalDocs = [
   "README.md",
   "docs/CANONICAL_INTEGRATION.md",
+  RUNBOOK_PATH,
 ];
 
 for (const relPath of canonicalDocs) {

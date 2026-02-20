@@ -110,3 +110,8 @@ pnpm run dev
 - Package front door: `packages/codex-local-component/README.md`
 - Canonical integration: `packages/codex-local-component/docs/CANONICAL_INTEGRATION.md`
 - API reference: `packages/codex-local-component/docs/API_REFERENCE.md`
+- Example apps runbook: `packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md`
+
+## Repo Skills
+
+- Package setup skill: `skills/package-setup/SKILL.md`

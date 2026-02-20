@@ -27,7 +27,7 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
 ## Thread Contract
 
 - Runtime-owned `ensureThread` is single-path.
-- Provide `threadId`.
+- Provide `threadHandle`.
 - Do not expose host identity alternatives in public app host APIs.
 - Use `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle`, and `listPendingServerRequestsByThreadHandle` when the runtime is started from an external thread identifier. These preserve canonical thread-scoped safety contracts:
   - `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle` return `threadStatus` payloads when the thread is missing or unauthorized.

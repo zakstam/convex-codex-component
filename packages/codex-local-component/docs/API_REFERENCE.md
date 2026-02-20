@@ -82,7 +82,7 @@ Use this path in order:
     - `E_TAURI_SEND_AUTO_START_FAILED`
     - `E_TAURI_SEND_RETRY_EXHAUSTED`
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
-- Runtime-owned `ensureThread` is single-path and requires `threadId`.
+- Runtime-owned `ensureThread` is single-path and requires `threadHandle`.
 - Thread-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread fallback to keep runtime request polling consumers on a stable array contract.
 - External identifier read aliases are also available:
   - `threadSnapshotByThreadHandle`

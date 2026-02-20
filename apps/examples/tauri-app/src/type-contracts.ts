@@ -61,7 +61,7 @@ type _ScheduleDeleteThreadArgsAreTyped = Assert<
     ScheduleDeleteThreadArgs,
     {
       actor: ActorContext;
-      threadId: string;
+      threadHandle: string;
       reason?: string;
       batchSize?: number;
       delayMs?: number;
@@ -74,7 +74,7 @@ type _ScheduleDeleteTurnArgsAreTyped = Assert<
     ScheduleDeleteTurnArgs,
     {
       actor: ActorContext;
-      threadId: string;
+      threadHandle: string;
       turnId: string;
       reason?: string;
       batchSize?: number;

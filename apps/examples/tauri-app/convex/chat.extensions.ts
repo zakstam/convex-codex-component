@@ -29,13 +29,13 @@ export const listThreadsForPicker = query({
     });
 
     const page = listed.page as Array<{
-      threadId: string;
+      threadHandle: string;
       status: string;
       updatedAt: number;
     }>;
 
     const rows = page.map((thread) => ({
-      threadId: thread.threadId,
+      threadHandle: thread.threadHandle,
       status: thread.status,
       updatedAt: thread.updatedAt,
     }));

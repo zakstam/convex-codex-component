@@ -611,7 +611,7 @@ export declare const components: {
           isDone: boolean;
           page: Array<{
             status: "active" | "archived" | "failed";
-            threadId: string;
+            threadHandle: string;
             updatedAt: number;
           }>;
         }

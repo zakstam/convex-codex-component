@@ -103,8 +103,8 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 ## Thread API
 
 - Thread picker flow: `chat.listThreadsForPicker`.
-- Picker payloads expose only persisted `threadId` values; runtime thread-id mapping is helper-internal.
-- Runtime-owned `ensureThread` is single-path and requires `threadId`.
+- Picker payloads expose `threadHandle` values directly.
+- Runtime-owned `ensureThread` is single-path and requires `threadHandle`.
 
 Additional cleanup endpoints:
 

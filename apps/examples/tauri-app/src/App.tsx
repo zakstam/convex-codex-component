@@ -291,9 +291,9 @@ function AppContent({
   const selectedThreadHandle = threads.selectedThreadHandle ?? "";
   const pickerThreads = useMemo(
     () =>
-      (((threads.threads as { threads?: Array<{ threadId: string; status: string; updatedAt?: number }> } | undefined)?.threads ?? [])
+      (((threads.threads as { threads?: Array<{ threadHandle: string; status: string; updatedAt?: number }> } | undefined)?.threads ?? [])
         .map((thread) => ({
-          threadHandle: thread.threadId,
+          threadHandle: thread.threadHandle,
           status: thread.status,
           ...(thread.updatedAt !== undefined ? { updatedAt: thread.updatedAt } : {}),
         }))),
@@ -694,7 +694,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteThreadMutation({
         actor,
-        threadId: cleanupThreadHandle,
+        threadHandle: cleanupThreadHandle,
         reason: "tauri-ui-delete-thread",
         delayMs: DEFAULT_DELETE_DELAY_MS,
       });
@@ -720,7 +720,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteTurnMutation({
         actor,
-        threadId: cleanupThreadHandle,
+        threadHandle: cleanupThreadHandle,
         turnId: latestThreadTurnId,
         reason: "tauri-ui-delete-turn",
         delayMs: DEFAULT_DELETE_DELAY_MS,

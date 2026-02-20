@@ -17,8 +17,8 @@ Canonical consumer implementation guidance is in:
 ## Thread API
 
 - Thread picker flow: `chat.listThreadsForPicker`.
-- Picker query returns persisted thread metadata only (`threadId`, status, timestamps).
-- Runtime-owned `ensureThread` uses one resolve path and requires `threadId`.
+- Picker query returns persisted thread metadata only (`threadHandle`, status, timestamps).
+- Runtime-owned `ensureThread` uses one resolve path and requires `threadHandle`.
 
 ## Actor Lock
 

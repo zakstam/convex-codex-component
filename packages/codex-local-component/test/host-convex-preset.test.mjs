@@ -10,7 +10,9 @@ function createComponentRefs() {
       reasoning: {},
       serverRequests: {},
       sync: {},
-      threads: {},
+      threads: {
+        resolveByThreadHandle: Symbol("threads.resolveByThreadHandle"),
+      },
       turns: {},
     },
   };
@@ -108,7 +110,7 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
       },
       {
         actor: {},
-        threadId: "thread-1",
+        threadHandle: "thread-1",
       },
     ),
   );
@@ -127,13 +129,13 @@ test("ensureThread strips internal mapping fields from resolve result", async ()
         threadHandle: "runtime-handle-1",
       }),
     },
-    { actor: {}, threadId: "thread-1" },
+    { actor: {}, threadHandle: "thread-1" },
   );
 
   assert.deepEqual(result, { threadId: "thread-1", created: true });
 });
 
-test("ensureThread rejects threadHandle-only input", async () => {
+test("ensureThread rejects threadId-only input", async () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),
   });
@@ -145,9 +147,9 @@ test("ensureThread rejects threadHandle-only input", async () => {
           throw new Error("should not run");
         },
       },
-      { actor: {}, threadHandle: "legacy-id" },
+      { actor: {}, threadId: "legacy-id" },
     ),
-    /ensureThread requires threadId/,
+    /ensureThread requires threadHandle/,
   );
 });
 
@@ -162,7 +164,7 @@ test("threadSnapshot safe query returns missing_thread status for missing thread
         throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
       },
     },
-    { actor: {}, threadId: "missing-thread" },
+    { actor: {}, threadHandle: "missing-thread" },
   );
 
   assert.equal(result.threadStatus, "missing_thread");
@@ -180,7 +182,7 @@ test("threadSnapshot returns forbidden state safely", async () => {
         throw new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed");
       },
     },
-    { actor: {}, threadId: "missing-thread" },
+    { actor: {}, threadHandle: "missing-thread" },
   );
 
   assert.equal(result.threadStatus, "forbidden_thread");
@@ -460,7 +462,7 @@ test("listPendingServerRequests returns [] when thread is missing", async () => 
         throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
       },
     },
-    { actor: {}, threadId: "missing-thread" },
+    { actor: {}, threadHandle: "missing-thread" },
   );
 
   assert.deepEqual(result, []);
@@ -479,7 +481,7 @@ test("listPendingServerRequests rethrows non-thread-read errors", async () => {
             throw new Error("database write failed");
           },
         },
-        { actor: {}, threadId: "thread-1" },
+        { actor: {}, threadHandle: "thread-1" },
       ),
     /database write failed/,
   );

@@ -192,7 +192,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     const next = preferred ?? runtimeThreadId; if (!next) return;
     const binding = await args.persistence.ensureThread({
       actor,
-      threadId: threadHandle ?? next,
+      threadHandle: threadHandle === null ? next : threadHandle,
       ...(startupModel !== undefined ? { model: startupModel } : {}),
       ...(startupCwd !== undefined ? { cwd: startupCwd } : {}),
     });

@@ -29,7 +29,7 @@ const vResumeResult = v.object({
 const vThreadListResult = v.object({
   page: v.array(
     v.object({
-      threadId: v.string(),
+      threadHandle: v.string(),
       status: v.union(v.literal("active"), v.literal("archived"), v.literal("failed")),
       updatedAt: v.number(),
     }),
@@ -550,11 +550,25 @@ export const list = query({
 
     return {
       ...result,
-      page: result.page.map((thread) => ({
-        threadId: String(thread.threadId),
-        status: thread.status,
-        updatedAt: Number(thread.updatedAt),
-      })),
+      page: await Promise.all(
+        result.page.map(async (thread) => {
+          const threadId = String(thread.threadId);
+          const binding = await ctx.db
+            .query("codex_thread_bindings")
+            .withIndex("userScope_userId_threadId", (q) =>
+              q
+                .eq("userScope", userScopeFromActor(args.actor))
+                .eq("userId", args.actor.userId)
+                .eq("threadId", threadId),
+            )
+            .first();
+          return {
+            threadHandle: binding ? String(binding.threadHandle) : threadId,
+            status: thread.status,
+            updatedAt: Number(thread.updatedAt),
+          };
+        }),
+      ),
     };
   },
 });

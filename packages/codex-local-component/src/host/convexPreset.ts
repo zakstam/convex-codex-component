@@ -197,13 +197,17 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
   const queries = {
     validateHostWiring,
     threadSnapshot: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) => {
+      args: { actor: vHostActorContext, threadHandle: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
         try {
+          const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+          if (threadId === null) {
+            return missingThreadPayloadFromThreadHandle(args.threadHandle);
+          }
           const snapshot = await threadSnapshot(
             ctx,
             component,
-            withServerActor(args, resolveServerActor(args, options.serverActor)),
+            withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
           );
           return {
             threadStatus: "ok" as const,
@@ -253,11 +257,24 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         ),
     },
     persistenceStats: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) => {
+      args: { actor: vHostActorContext, threadHandle: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
+        const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+        if (threadId === null) {
+          return {
+            ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+            streamCount: 0,
+            deltaCount: 0,
+            latestCursorByStream: [],
+          };
+        }
         try {
           return withThreadStatusOk(
-            await persistenceStats(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+            await persistenceStats(
+              ctx,
+              component,
+              withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+            ),
           );
         } catch (error) {
           const missing = missingThreadPayload(error);
@@ -274,11 +291,23 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       },
     },
     durableHistoryStats: {
-      args: { actor: vHostActorContext, threadId: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) => {
+      args: { actor: vHostActorContext, threadHandle: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
+        const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+        if (threadId === null) {
+          return {
+            ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+            messageCountInPage: 0,
+            latest: [],
+          };
+        }
         try {
           return withThreadStatusOk(
-            await durableHistoryStats(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+            await durableHistoryStats(
+              ctx,
+              component,
+              withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+            ),
           );
         } catch (error) {
           const missing = missingThreadPayload(error);
@@ -296,11 +325,24 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.hygiene
       ? {
           dataHygiene: {
-            args: { actor: vHostActorContext, threadId: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) => {
+            args: { actor: vHostActorContext, threadHandle: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
+              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              if (threadId === null) {
+                return {
+                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  scannedStreamStats: 0,
+                  streamStatOrphans: 0,
+                  orphanStreamIds: [],
+                };
+              }
               try {
                 return withThreadStatusOk(
-                  await dataHygiene(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+                  await dataHygiene(
+                    ctx,
+                    component,
+                    withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+                  ),
                 );
               } catch (error) {
                 const missing = missingThreadPayload(error);
@@ -323,7 +365,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           listThreadMessagesForHooks: {
             args: {
               actor: vHostActorContext,
-              threadId: v.string(),
+              threadHandle: v.string(),
               paginationOpts: paginationOptsValidator,
               streamArgs: vHostStreamArgs,
               runtime: v.optional(vHostSyncRuntimeOptions),
@@ -332,18 +374,52 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               ctx: HostQueryRunner,
               args: {
                 actor: HostActorContext;
-                threadId: string;
+                threadHandle: string;
                 paginationOpts: { cursor: string | null; numItems: number };
                 streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
                 runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
               },
             ) => {
+              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              if (threadId === null) {
+                const streams =
+                  args.streamArgs?.kind === "deltas"
+                    ? {
+                        kind: "deltas" as const,
+                        streams: [],
+                        deltas: [],
+                        streamWindows: [],
+                        nextCheckpoints: [],
+                      }
+                    : args.streamArgs?.kind === "list"
+                      ? {
+                          kind: "list" as const,
+                          streams: [],
+                        }
+                      : undefined;
+                return {
+                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  page: [],
+                  isDone: true,
+                  continueCursor: args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
+                  ...(streams ? { streams } : {}),
+                };
+              }
               try {
                 return withThreadStatusOk(
                   await listThreadMessagesForHooksForActor(
                     ctx,
                     component,
-                    withServerActor(args, resolveServerActor(args, options.serverActor)),
+                    withServerActor(
+                      {
+                        actor: args.actor,
+                        threadId,
+                        paginationOpts: args.paginationOpts,
+                        ...(args.streamArgs === undefined ? {} : { streamArgs: args.streamArgs }),
+                        ...(args.runtime === undefined ? {} : { runtime: args.runtime }),
+                      },
+                      resolveServerActor(args, options.serverActor),
+                    ),
                   ),
                 );
               } catch (error) {
@@ -468,12 +544,23 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             },
           },
           listTurnMessagesForHooks: {
-            args: { actor: vHostActorContext, threadId: v.string(), turnId: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string; turnId: string }) => {
+            args: { actor: vHostActorContext, threadHandle: v.string(), turnId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string; turnId: string }) => {
+              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              if (threadId === null) {
+                return {
+                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  data: [],
+                };
+              }
               try {
                 return {
                   threadStatus: "ok" as const,
-                  data: await listTurnMessagesForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+                  data: await listTurnMessagesForHooksForActor(
+                    ctx,
+                    component,
+                    withServerActor({ actor: args.actor, threadId, turnId: args.turnId }, resolveServerActor(args, options.serverActor)),
+                  ),
                 };
               } catch (error) {
                 const missing = missingThreadPayload(error);
@@ -530,17 +617,29 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.reasoning
       ? {
           listThreadReasoningForHooks: {
-            args: { actor: vHostActorContext, threadId: v.string(), paginationOpts: paginationOptsValidator, includeRaw: v.optional(v.boolean()) },
+            args: { actor: vHostActorContext, threadHandle: v.string(), paginationOpts: paginationOptsValidator, includeRaw: v.optional(v.boolean()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadId: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
+              args: { actor: HostActorContext; threadHandle: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
             ) => {
+              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              if (threadId === null) {
+                return {
+                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  page: [],
+                  isDone: true,
+                  continueCursor: args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
+                };
+              }
               try {
                 return withThreadStatusOk(
                   await listThreadReasoningForHooksForActor(
                     ctx,
                     component,
-                    withServerActor(args, resolveServerActor(args, options.serverActor)),
+                    withServerActor(
+                      { actor: args.actor, threadId, paginationOpts: args.paginationOpts, ...(args.includeRaw === undefined ? {} : { includeRaw: args.includeRaw }) },
+                      resolveServerActor(args, options.serverActor),
+                    ),
                   ),
                 );
               } catch (error) {
@@ -573,16 +672,29 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.serverRequests
       ? {
           listPendingServerRequestsForHooks: {
-            args: { actor: vHostActorContext, threadId: v.optional(v.string()), limit: v.optional(v.number()) },
+            args: { actor: vHostActorContext, threadHandle: v.optional(v.string()), limit: v.optional(v.number()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadId?: string; limit?: number },
+              args: { actor: HostActorContext; threadHandle?: string; limit?: number },
             ) => {
               try {
+                const threadId = args.threadHandle
+                  ? await resolveThreadIdByThreadHandle(ctx, { actor: args.actor, threadHandle: args.threadHandle })
+                  : null;
+                if (args.threadHandle && threadId === null) {
+                  return [];
+                }
                 return await listPendingServerRequestsForHooksForActor(
                   ctx,
                   component,
-                  withServerActor(args, resolveServerActor(args, options.serverActor)),
+                  withServerActor(
+                    {
+                      actor: args.actor,
+                      ...(threadId ? { threadId } : {}),
+                      ...(args.limit === undefined ? {} : { limit: args.limit }),
+                    },
+                    resolveServerActor(args, options.serverActor),
+                  ),
                 );
               } catch (error) {
                 if (missingThreadPayload(error)) {
@@ -628,9 +740,18 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.tokenUsage
       ? {
           listTokenUsageForHooks: {
-            args: { actor: vHostActorContext, threadId: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadId: string }) =>
-              listTokenUsageForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+            args: { actor: vHostActorContext, threadHandle: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
+              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              if (!threadId) {
+                return [];
+              }
+              return listTokenUsageForHooksForActor(
+                ctx,
+                component,
+                withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+              );
+            },
           },
           listTokenUsageByThreadHandle: {
             args: { actor: vHostActorContext, threadHandle: v.string() },

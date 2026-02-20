@@ -92,7 +92,7 @@ export type HostRuntimeOpenThreadArgs = {
 export type HostRuntimePersistence = {
   ensureThread: (args: {
     actor: ActorContext;
-    threadId: string;
+    threadHandle: string;
     model?: string;
     cwd?: string;
   }) => Promise<{ threadId: string; created?: boolean }>;

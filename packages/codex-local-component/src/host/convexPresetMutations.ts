@@ -11,6 +11,7 @@ import {
   ingestEventMixed,
   ingestEventStreamOnly,
   interruptTurnForHooksForActor,
+  resolveThreadByThreadHandleForActor,
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
   upsertPendingServerRequestForHooksForActor,
@@ -48,11 +49,25 @@ function resolveServerActor(
 
 export function buildPresetMutations(opts: MutationBuilderArgs) {
   const { component, serverActor, ingestMode, features } = opts;
+  const resolveThreadIdOrThrow = async (
+    ctx: HostQueryRunner,
+    args: { actor: HostActorContext; threadHandle: string },
+  ): Promise<string> => {
+    const mapping = await resolveThreadByThreadHandleForActor(
+      ctx,
+      component,
+      withServerActor(args, resolveServerActor(args, serverActor)),
+    );
+    if (!mapping) {
+      throw new Error(`[E_THREAD_NOT_FOUND] Thread not found: ${args.threadHandle}`);
+    }
+    return mapping.threadId;
+  };
 
   const ensureThread = {
     args: {
       actor: vHostActorContext,
-      threadId: v.string(),
+      threadHandle: v.string(),
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
     },
@@ -62,12 +77,12 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
-      threadId: string;
+      threadHandle: string;
       model?: string;
       cwd?: string;
     }) => {
-      if (!args.threadId) {
-        throw new Error("ensureThread requires threadId.");
+      if (!args.threadHandle) {
+        throw new Error("ensureThread requires threadHandle.");
       }
       const resolved = await ensureThreadByResolve(
         ctx,
@@ -227,19 +242,20 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     deleteThread: {
       args: {
         actor: vHostActorContext,
-        threadId: v.string(),
+        threadHandle: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
       },
       returns: v.object({ deletionJobId: v.string() }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadId: string; reason?: string; batchSize?: number },
+        args: { actor: HostActorContext; threadHandle: string; reason?: string; batchSize?: number },
       ) => {
         const actor = resolveServerActor(args, serverActor);
+        const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.threads.deleteCascade, {
           actor,
-          threadId: args.threadId,
+          threadId,
           ...(args.reason !== undefined ? { reason: args.reason } : {}),
           ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
         });
@@ -248,7 +264,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     scheduleDeleteThread: {
       args: {
         actor: vHostActorContext,
-        threadId: v.string(),
+        threadHandle: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
         delayMs: v.optional(v.number()),
@@ -259,12 +275,13 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadId: string; reason?: string; batchSize?: number; delayMs?: number },
+        args: { actor: HostActorContext; threadHandle: string; reason?: string; batchSize?: number; delayMs?: number },
       ) => {
         const actor = resolveServerActor(args, serverActor);
+        const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.threads.scheduleDeleteCascade, {
           actor,
-          threadId: args.threadId,
+          threadId,
           ...(args.reason !== undefined ? { reason: args.reason } : {}),
           ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
           ...(args.delayMs !== undefined ? { delayMs: args.delayMs } : {}),
@@ -274,7 +291,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     deleteTurn: {
       args: {
         actor: vHostActorContext,
-        threadId: v.string(),
+        threadHandle: v.string(),
         turnId: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
@@ -284,16 +301,17 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: {
           actor: HostActorContext;
-          threadId: string;
+          threadHandle: string;
           turnId: string;
           reason?: string;
           batchSize?: number;
         },
       ) => {
         const actor = resolveServerActor(args, serverActor);
+        const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.turns.deleteCascade, {
           actor,
-          threadId: args.threadId,
+          threadId,
           turnId: args.turnId,
           ...(args.reason !== undefined ? { reason: args.reason } : {}),
           ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
@@ -303,7 +321,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     scheduleDeleteTurn: {
       args: {
         actor: vHostActorContext,
-        threadId: v.string(),
+        threadHandle: v.string(),
         turnId: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
@@ -317,7 +335,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: {
           actor: HostActorContext;
-          threadId: string;
+          threadHandle: string;
           turnId: string;
           reason?: string;
           batchSize?: number;
@@ -325,9 +343,10 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         },
       ) => {
         const actor = resolveServerActor(args, serverActor);
+        const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.turns.scheduleDeleteCascade, {
           actor,
-          threadId: args.threadId,
+          threadId,
           turnId: args.turnId,
           ...(args.reason !== undefined ? { reason: args.reason } : {}),
           ...(args.batchSize !== undefined ? { batchSize: args.batchSize } : {}),
@@ -423,7 +442,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           respondApprovalForHooks: {
             args: {
               actor: vHostActorContext,
-              threadId: v.string(),
+              threadHandle: v.string(),
               turnId: v.string(),
               itemId: v.string(),
               decision: v.union(v.literal("accepted"), v.literal("declined")),
@@ -431,9 +450,15 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             returns: v.null(),
             handler: async (
               ctx: HostMutationRunner & HostQueryRunner,
-              args: { actor: HostActorContext; threadId: string; turnId: string; itemId: string; decision: "accepted" | "declined" },
-            ) =>
-              respondApprovalForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, serverActor))),
+              args: { actor: HostActorContext; threadHandle: string; turnId: string; itemId: string; decision: "accepted" | "declined" },
+            ) => {
+              const threadId = await resolveThreadIdOrThrow(ctx, args);
+              return respondApprovalForHooksForActor(
+                ctx,
+                component,
+                withServerActor({ ...args, threadId }, resolveServerActor(args, serverActor)),
+              );
+            },
           },
         }
       : {}),
@@ -513,20 +538,22 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           interruptTurnForHooks: {
             args: {
               actor: vHostActorContext,
-              threadId: v.string(),
+              threadHandle: v.string(),
               turnId: v.string(),
               reason: v.optional(v.string()),
             },
             returns: v.null(),
             handler: async (
               ctx: HostMutationRunner & HostQueryRunner,
-              args: { actor: HostActorContext; threadId: string; turnId: string; reason?: string },
-            ) =>
-              interruptTurnForHooksForActor(
+              args: { actor: HostActorContext; threadHandle: string; turnId: string; reason?: string },
+            ) => {
+              const threadId = await resolveThreadIdOrThrow(ctx, args);
+              return interruptTurnForHooksForActor(
                 ctx,
                 component,
-                withServerActor(args, resolveServerActor(args, serverActor)),
-              ),
+                withServerActor({ ...args, threadId }, resolveServerActor(args, serverActor)),
+              );
+            },
           },
         }
       : {}),

@@ -47,7 +47,7 @@ test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   assert.equal(typeof calls[0].args.actor.userId, "string");
 });
 
-test("ensureThreadByResolve derives external and local identity from threadId", async () => {
+test("ensureThreadByResolve derives external and local identity from threadHandle", async () => {
   const resolveRef = {};
   const calls = [];
   const ctx = {
@@ -64,8 +64,7 @@ test("ensureThreadByResolve derives external and local identity from threadId", 
 
   await ensureThreadByResolve(ctx, component, {
     actor: { userId: "ignored" },
-    threadId: "thread-1",
-    threadHandle: "legacy-id",
+    threadHandle: "thread-1",
     model: "m",
     cwd: "/tmp",
   });

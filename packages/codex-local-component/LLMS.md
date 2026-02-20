@@ -26,7 +26,7 @@ Do not use wrapper/facade host builders.
 ## Thread Contract
 
 - Runtime-owned `ensureThread` is single-path.
-- Provide `threadId`.
+- Provide `threadHandle`.
 - `threadHandle` is the canonical consumer identity for external thread mapping and `*ByThreadHandle` read APIs.
 - Do not expose alternate host identity shapes beyond canonical thread-handle contracts.
 

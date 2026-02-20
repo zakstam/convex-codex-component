@@ -127,7 +127,7 @@ export function createConvexPersistence(
     ensureThread: async (args) => {
       return client.mutation(chatApi.ensureThread, {
         actor: args.actor,
-        threadId: args.threadId,
+        threadHandle: args.threadHandle,
         ...(args.model ? { model: args.model } : {}),
         ...(args.cwd ? { cwd: args.cwd } : {}),
       }) as Promise<{ threadId: string; created?: boolean }>;

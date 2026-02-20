@@ -1,6 +1,6 @@
 {
   "name": "@zakstam/codex-local-component",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Integrate with one prompt: install this package, open `README.md` then follow mapped docs (`docs/CANONICAL_INTEGRATION.md`, `docs/API_REFERENCE.md`) and validate with `npx convex dev --once`, `pnpm run dev:convex:once`, `pnpm run typecheck`.",
   "license": "MIT",
   "type": "module",

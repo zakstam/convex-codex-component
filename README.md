@@ -52,6 +52,7 @@ pnpm run lint
 
 - `.github/workflows/release.yml` publishes directly to npm when pending changesets exist and CI has already passed.
 - The release workflow now runs from `workflow_run` after `codex-local-component` completes successfully on `main` (plus optional manual `workflow_dispatch`).
+- `.github/workflows/codex-local-component.yml` must include `.changeset/**` and release workflow paths so release-only commits still trigger the CI gate.
 
 ## Protocol Schema Maintenance (Maintainers)
 

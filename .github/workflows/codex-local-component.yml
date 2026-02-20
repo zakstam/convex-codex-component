@@ -5,18 +5,22 @@ on:
     paths:
       - "packages/**"
       - "apps/**"
+      - ".changeset/**"
       - "package.json"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - ".github/workflows/codex-local-component.yml"
+      - ".github/workflows/release.yml"
   pull_request:
     paths:
       - "packages/**"
       - "apps/**"
+      - ".changeset/**"
       - "package.json"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - ".github/workflows/codex-local-component.yml"
+      - ".github/workflows/release.yml"
 
 jobs:
   validate:

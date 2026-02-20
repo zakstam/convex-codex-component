@@ -1,7 +1,11 @@
 name: release
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - codex-local-component
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
@@ -13,14 +17,25 @@ concurrency:
 permissions:
   contents: write
   id-token: write
-  pull-requests: write
 
 jobs:
   release:
-    if: github.actor != 'github-actions[bot]'
+    if: >
+      github.actor != 'github-actions[bot]' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:

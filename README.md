@@ -48,6 +48,11 @@ pnpm run component:ci
 pnpm run lint
 ```
 
+## Release Automation
+
+- `.github/workflows/release.yml` publishes directly to npm when pending changesets exist and CI has already passed.
+- The release workflow now runs from `workflow_run` after `codex-local-component` completes successfully on `main` (plus optional manual `workflow_dispatch`).
+
 ## Protocol Schema Maintenance (Maintainers)
 
 Use the package-owned workflow to sync and verify generated protocol schemas:

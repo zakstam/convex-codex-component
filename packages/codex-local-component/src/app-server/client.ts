@@ -9,9 +9,11 @@ import type { GetAccountParams } from "../protocol/schemas/v2/GetAccountParams.j
 import type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
+import type { ThreadCompactStartParams } from "../protocol/schemas/v2/ThreadCompactStartParams.js";
 import type { ThreadReadParams } from "../protocol/schemas/v2/ThreadReadParams.js";
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
 import type { ThreadRollbackParams } from "../protocol/schemas/v2/ThreadRollbackParams.js";
+import type { ThreadSetNameParams } from "../protocol/schemas/v2/ThreadSetNameParams.js";
 import type { ThreadStartParams } from "../protocol/schemas/v2/ThreadStartParams.js";
 import type { ThreadUnarchiveParams } from "../protocol/schemas/v2/ThreadUnarchiveParams.js";
 import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/CommandExecutionApprovalDecision.js";
@@ -141,6 +143,14 @@ export function buildThreadArchiveRequest(
   return buildClientRequest("thread/archive", id, params);
 }
 
+export function buildThreadSetNameRequest(
+  id: number,
+  params: ThreadSetNameParams,
+): RequestFor<"thread/name/set"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/name/set", id, params);
+}
+
 export function buildThreadUnarchiveRequest(
   id: number,
   params: ThreadUnarchiveParams,
@@ -155,6 +165,14 @@ export function buildThreadRollbackRequest(
 ): RequestFor<"thread/rollback"> {
   assertUuidThreadId(params.threadId);
   return buildClientRequest("thread/rollback", id, params);
+}
+
+export function buildThreadCompactStartRequest(
+  id: number,
+  params: ThreadCompactStartParams,
+): RequestFor<"thread/compact/start"> {
+  assertUuidThreadId(params.threadId);
+  return buildClientRequest("thread/compact/start", id, params);
 }
 
 export function buildTurnStartRequest(

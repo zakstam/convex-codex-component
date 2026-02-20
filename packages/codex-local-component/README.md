@@ -135,6 +135,21 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `forceRunDeletion`
 - `getDeletionStatus`
 
+## Runtime Thread Control APIs
+
+`createCodexHostRuntime(...)` exposes thread control helpers:
+
+- `resumeThread`
+- `forkThread`
+- `archiveThread`
+- `setThreadName`
+- `unarchiveThread`
+- `compactThread`
+- `rollbackThread`
+- `readThread`
+- `listThreads`
+- `listLoadedThreads`
+
 ## Type Safety Checks
 
 - `pnpm --filter @zakstam/codex-local-component run codegen:component`

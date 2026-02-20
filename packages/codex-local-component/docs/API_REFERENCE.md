@@ -65,5 +65,6 @@ Use this path in order:
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureThread` is single-path and requires `threadId`.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
+- Runtime thread control helpers include: `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

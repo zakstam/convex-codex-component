@@ -190,6 +190,41 @@ test("runtime thread lifecycle mutations are blocked while turn is in flight", a
     runtime.archiveThread(threadId),
     /Cannot change thread lifecycle while a turn is in flight/,
   );
+  await assert.rejects(
+    runtime.setThreadName(threadId, "Renamed during turn"),
+    /Cannot change thread lifecycle while a turn is in flight/,
+  );
+  await assert.rejects(
+    runtime.compactThread(threadId),
+    /Cannot change thread lifecycle while a turn is in flight/,
+  );
+
+  await runtime.stop();
+});
+
+test("setThreadName and compactThread send thread requests and resolve responses", async () => {
+  const { runtime, sent, emitResponse } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  const setNamePromise = runtime.setThreadName(threadId, "Renamed from runtime");
+  const setNameRequest = sent.find((message) => message.method === "thread/name/set");
+  assert.equal(setNameRequest.params.threadId, threadId);
+  assert.equal(setNameRequest.params.name, "Renamed from runtime");
+  await emitResponse({ id: setNameRequest.id, result: {} });
+  await setNamePromise;
+
+  const compactPromise = runtime.compactThread(threadId);
+  const compactRequest = sent.find((message) => message.method === "thread/compact/start");
+  assert.equal(compactRequest.params.threadId, threadId);
+  await emitResponse({ id: compactRequest.id, result: {} });
+  await compactPromise;
 
   await runtime.stop();
 });

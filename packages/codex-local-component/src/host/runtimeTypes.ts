@@ -225,7 +225,9 @@ export type CodexHostRuntime = {
     params?: Omit<ThreadForkParams, "threadId">,
   ) => Promise<CodexResponse>;
   archiveThread: (runtimeThreadId: string) => Promise<CodexResponse>;
+  setThreadName: (runtimeThreadId: string, name: string) => Promise<CodexResponse>;
   unarchiveThread: (runtimeThreadId: string) => Promise<CodexResponse>;
+  compactThread: (runtimeThreadId: string) => Promise<CodexResponse>;
   rollbackThread: (runtimeThreadId: string, numTurns: number) => Promise<CodexResponse>;
   readThread: (
     runtimeThreadId: string,

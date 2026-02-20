@@ -11,12 +11,14 @@ import {
   buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
   buildThreadArchiveRequest,
+  buildThreadCompactStartRequest,
   buildThreadForkRequest,
   buildThreadListRequest,
   buildThreadLoadedListRequest,
   buildThreadReadRequest,
   buildThreadResumeRequest,
   buildThreadRollbackRequest,
+  buildThreadSetNameRequest,
   buildThreadStartRequest,
   buildThreadUnarchiveRequest,
   buildToolRequestUserInputResponse,
@@ -48,10 +50,12 @@ test("app-server thread lifecycle builders create typed request envelopes", () =
   assert.deepEqual(buildThreadArchiveRequest(3, { threadId }).method, "thread/archive");
   assert.deepEqual(buildThreadUnarchiveRequest(4, { threadId }).method, "thread/unarchive");
   assert.deepEqual(buildThreadRollbackRequest(5, { threadId, numTurns: 2 }).method, "thread/rollback");
-  assert.deepEqual(buildThreadReadRequest(6, { threadId }).params.includeTurns, false);
-  assert.deepEqual(buildThreadReadRequest(7, { threadId, includeTurns: true }).params.includeTurns, true);
-  assert.deepEqual(buildThreadListRequest(8, {}).method, "thread/list");
-  assert.deepEqual(buildThreadLoadedListRequest(9, {}).method, "thread/loaded/list");
+  assert.deepEqual(buildThreadSetNameRequest(6, { threadId, name: "Renamed thread" }).method, "thread/name/set");
+  assert.deepEqual(buildThreadCompactStartRequest(7, { threadId }).method, "thread/compact/start");
+  assert.deepEqual(buildThreadReadRequest(8, { threadId }).params.includeTurns, false);
+  assert.deepEqual(buildThreadReadRequest(9, { threadId, includeTurns: true }).params.includeTurns, true);
+  assert.deepEqual(buildThreadListRequest(10, {}).method, "thread/list");
+  assert.deepEqual(buildThreadLoadedListRequest(11, {}).method, "thread/loaded/list");
 });
 
 test("app-server thread lifecycle builders pass dynamicTools on start and resume", () => {
@@ -80,6 +84,17 @@ test("app-server request builders reject malformed thread IDs", () => {
   );
   assert.throws(() =>
     buildThreadResumeRequest(2, {
+      threadId: "thread-not-uuid",
+    }),
+  );
+  assert.throws(() =>
+    buildThreadSetNameRequest(3, {
+      threadId: "thread-not-uuid",
+      name: "Bad id",
+    }),
+  );
+  assert.throws(() =>
+    buildThreadCompactStartRequest(4, {
       threadId: "thread-not-uuid",
     }),
   );

@@ -13,12 +13,14 @@ import {
   buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
   buildThreadArchiveRequest,
+  buildThreadCompactStartRequest,
   buildThreadForkRequest,
   buildThreadListRequest,
   buildThreadLoadedListRequest,
   buildThreadReadRequest,
   buildThreadResumeRequest,
   buildThreadRollbackRequest,
+  buildThreadSetNameRequest,
   buildInitializeRequestWithCapabilities,
   buildInitializedNotification,
   buildThreadStartRequest,
@@ -217,9 +219,17 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.throwIfTurnMutationLocked();
     return core.sendRequest(buildThreadArchiveRequest(core.requestIdFn(), { threadId: tid }));
   };
+  const setThreadName: CodexHostRuntime["setThreadName"] = async (tid, name) => {
+    core.throwIfTurnMutationLocked();
+    return core.sendRequest(buildThreadSetNameRequest(core.requestIdFn(), { threadId: tid, name }));
+  };
   const unarchiveThread: CodexHostRuntime["unarchiveThread"] = async (tid) => {
     core.throwIfTurnMutationLocked();
     return core.sendRequest(buildThreadUnarchiveRequest(core.requestIdFn(), { threadId: tid }));
+  };
+  const compactThread: CodexHostRuntime["compactThread"] = async (tid) => {
+    core.throwIfTurnMutationLocked();
+    return core.sendRequest(buildThreadCompactStartRequest(core.requestIdFn(), { threadId: tid }));
   };
   const rollbackThread: CodexHostRuntime["rollbackThread"] = async (tid, n) => {
     core.throwIfTurnMutationLocked();
@@ -270,7 +280,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
   return {
     start, stop, sendTurn, steerTurn, interrupt,
-    resumeThread, forkThread, archiveThread, unarchiveThread, rollbackThread,
+    resumeThread, forkThread, archiveThread, setThreadName, unarchiveThread, compactThread, rollbackThread,
     readThread, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
     readAccountRateLimits, listThreads, listLoadedThreads,
     listPendingServerRequests: core.listPendingServerRequests,

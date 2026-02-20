@@ -11,6 +11,8 @@ export {
   buildThreadListRequest,
   buildThreadLoadedListRequest,
   buildThreadArchiveRequest,
+  buildThreadCompactStartRequest,
+  buildThreadSetNameRequest,
   buildThreadUnarchiveRequest,
   buildThreadRollbackRequest,
   buildTurnStartRequest,

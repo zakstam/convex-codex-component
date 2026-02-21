@@ -43,6 +43,14 @@
       "types": "./dist/host/convex-entry.d.ts",
       "import": "./dist/host/convex-entry.js"
     },
+    "./host/contracts": {
+      "types": "./dist/host/contracts.d.ts",
+      "import": "./dist/host/contracts.js"
+    },
+    "./host/tooling": {
+      "types": "./dist/host/tooling.d.ts",
+      "import": "./dist/host/tooling.js"
+    },
     "./host/tauri": {
       "types": "./dist/host/tauri.d.ts",
       "import": "./dist/host/tauri.js"
@@ -103,6 +111,7 @@
     "check:unsafe-types": "node ./scripts/check-unsafe-types.mjs",
     "check:unsafe-types:write": "node ./scripts/check-unsafe-types.mjs --write-allowlist",
     "check:error-discipline": "node ./scripts/check-error-discipline.mjs",
+    "check:host-boundaries": "node ./scripts/check-host-boundaries.mjs",
     "check:fallback-policy": "node ./scripts/check-fallback-policy.mjs",
     "check:fallback-policy:write": "node ./scripts/check-fallback-policy.mjs --write-allowlist",
     "check:docs:single-path": "node ./scripts/check-docs-single-path.mjs",
@@ -110,7 +119,7 @@
     "check:component-function-validators": "node ./scripts/check-component-function-validators.mjs",
     "doctor:integration": "node ./scripts/doctor-integration.mjs",
     "check:canonical-symbols": "node ./scripts/check-canonical-symbols.mjs",
-    "ci": "pnpm run typecheck && pnpm run check:component-function-validators && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run check:fallback-policy && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference && pnpm run check:canonical-symbols && pnpm run doctor:integration"
+    "ci": "pnpm run typecheck && pnpm run check:component-function-validators && pnpm run check:unsafe-types && pnpm run check:error-discipline && pnpm run check:host-boundaries && pnpm run check:fallback-policy && pnpm run test && pnpm run check:mount-imports && pnpm run check:docs:single-path && pnpm run check:api-reference && pnpm run check:canonical-symbols && pnpm run doctor:integration"
   },
   "dependencies": {
     "ajv": "^8.17.1",

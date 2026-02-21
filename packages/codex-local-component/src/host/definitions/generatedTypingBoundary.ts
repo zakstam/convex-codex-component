@@ -1,4 +1,4 @@
-import type { CodexHostComponentRefs, CodexHostComponentsInput } from "./convexSlice.js";
+import type { CodexHostComponentRefs, CodexHostComponentsInput } from "../convexSlice.js";
 
 /**
  * Generated Convex component refs can have broad typing in some workspaces.

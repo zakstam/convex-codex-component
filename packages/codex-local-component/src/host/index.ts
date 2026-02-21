@@ -14,7 +14,7 @@ export {
   type HostRuntimeConnectArgs,
   type HostRuntimeOpenThreadArgs,
   type HostRuntimeState,
-} from "./runtime.js";
+} from "./runtime/index.js";
 
 // Non-Convex normalization helpers
 export {
@@ -32,7 +32,7 @@ export {
   createConvexPersistence,
   type ConvexPersistenceChatApi,
   type ConvexPersistenceOptions,
-} from "./convexPersistence.js";
+} from "./persistence/index.js";
 
 // Non-Convex: additional convexSlice exports only available at host level
 export {

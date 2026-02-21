@@ -5,10 +5,10 @@
  */
 import {
   buildTurnStartTextRequest,
-} from "../app-server/client.js";
-import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../protocol/generated.js";
-import type { ClientOutboundWireMessage } from "../protocol/outbound.js";
-import { isTurnNotFound } from "../errors.js";
+} from "../../app-server/client.js";
+import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../../protocol/generated.js";
+import type { ClientOutboundWireMessage } from "../../protocol/outbound.js";
+import { isTurnNotFound } from "../../errors.js";
 import {
   randomSessionId,
   toRequestKey,

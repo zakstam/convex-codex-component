@@ -35,12 +35,16 @@ import {
   buildToolRequestUserInputResponse,
   buildTurnInterruptRequest,
   buildTurnSteerTextRequest,
-} from "../app-server/client.js";
-import clientPackage from "../../package.json" with { type: "json" };
-import { CodexLocalBridge, type BridgeConfig } from "../local-adapter/bridge.js";
+} from "../../app-server/client.js";
+import clientPackage from "../../../package.json" with { type: "json" };
+import { CodexLocalBridge, type BridgeConfig } from "../../local-adapter/bridge.js";
 import { randomSessionId } from "./runtimeHelpers.js";
 import { createRuntimeCore } from "./runtimeCore.js";
-import { createConvexPersistence, type ConvexPersistenceChatApi, type ConvexPersistenceOptions } from "./convexPersistence.js";
+import {
+  createConvexPersistence,
+  type ConvexPersistenceChatApi,
+  type ConvexPersistenceOptions,
+} from "../persistence/convex/convexPersistence.js";
 import type {
   HostRuntimeConnectArgs,
   HostRuntimeImportLocalThreadArgs,
@@ -72,7 +76,7 @@ export {
   type HostRuntimeOpenThreadArgs,
   type HostRuntimeState,
 } from "./runtimeTypes.js";
-export type { ConvexPersistenceChatApi, ConvexPersistenceOptions } from "./convexPersistence.js";
+export type { ConvexPersistenceChatApi, ConvexPersistenceOptions } from "../persistence/convex/convexPersistence.js";
 
 type ManualPersistenceArgs = {
   bridge?: BridgeConfig;

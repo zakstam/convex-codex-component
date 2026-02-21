@@ -2,11 +2,11 @@
  * Standalone utility functions and constants for the CodexHostRuntime.
  * All functions here are pure (no closures over mutable state).
  */
-import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../protocol/generated.js";
-import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
-import type { ChatgptAuthTokensRefreshParams } from "../protocol/schemas/v2/ChatgptAuthTokensRefreshParams.js";
-import { terminalStatusForPayload } from "../protocol/events.js";
-import type { TerminalTurnStatus } from "../shared/status.js";
+import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../../protocol/generated.js";
+import type { ToolRequestUserInputQuestion } from "../../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
+import type { ChatgptAuthTokensRefreshParams } from "../../protocol/schemas/v2/ChatgptAuthTokensRefreshParams.js";
+import { terminalStatusForPayload } from "../../protocol/events.js";
+import type { TerminalTurnStatus } from "../../shared/status.js";
 import type {
   IngestSafeError,
   ManagedServerRequestMethod,

@@ -49,6 +49,8 @@ Use one source of truth for implementation steps:
 - `@zakstam/codex-local-component/react`
 - `@zakstam/codex-local-component/host`
 - `@zakstam/codex-local-component/host/convex`
+- `@zakstam/codex-local-component/host/contracts`
+- `@zakstam/codex-local-component/host/tooling`
 - `@zakstam/codex-local-component/convex.config`
 - `@zakstam/codex-local-component/_generated/component.js`
 - `@zakstam/codex-local-component/test`
@@ -233,6 +235,16 @@ Conversation-scoped thread listing query:
 
 - `listThreadsForConversation` (`actor`, `conversationId`, `includeArchived?`)
 
+## Host Bounded Context Layout
+
+Host internals are organized for same-branch multi-agent ownership:
+
+- `src/host/contracts.ts`
+- `src/host/definitions/**`
+- `src/host/runtime/**`
+- `src/host/persistence/**`
+- `src/host/tooling.ts`
+
 ## Type Safety Checks
 
 - `pnpm --filter @zakstam/codex-local-component run codegen:component`
@@ -241,6 +253,7 @@ Conversation-scoped thread listing query:
 - `pnpm --filter @zakstam/codex-local-component run typecheck:tsc`
 - `pnpm --filter @zakstam/codex-local-component run schema:check`
 - `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`
+- `pnpm --filter @zakstam/codex-local-component run check:host-boundaries`
 - `pnpm --filter @zakstam/codex-local-component run check:fallback-policy`
 - `pnpm --filter @zakstam/codex-local-component run check:component-function-validators`
 

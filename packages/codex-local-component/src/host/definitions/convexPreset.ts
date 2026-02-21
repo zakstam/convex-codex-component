@@ -18,8 +18,8 @@ import {
   type CodexHostComponentsInput,
   type HostActorContext,
   type HostQueryRunner,
-} from "./convexSlice.js";
-import { classifyThreadReadError, type ThreadReadSafeError } from "../errors.js";
+} from "../convexSlice.js";
+import { classifyThreadReadError, type ThreadReadSafeError } from "../../errors.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
 import { resolveHostComponentRefs } from "./generatedTypingBoundary.js";
 import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";

@@ -3,8 +3,8 @@
  * Absorbs session rollover, dispatch queue management, and field mapping.
  */
 import type { FunctionReference } from "convex/server";
-import { hasRecoverableIngestErrors } from "./ingestRecovery.js";
-import type { HostRuntimePersistence, ActorContext, IngestDelta } from "./runtimeTypes.js";
+import { hasRecoverableIngestErrors } from "../../ingestRecovery.js";
+import type { HostRuntimePersistence, ActorContext, IngestDelta } from "../../runtime/runtimeTypes.js";
 
 type ConvexHttpClientLike = {
   mutation: (fn: FunctionReference<"mutation", "public">, args: Record<string, unknown>) => Promise<unknown>;

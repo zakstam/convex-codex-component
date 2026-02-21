@@ -6,7 +6,7 @@ export {
   type CodexHostSliceProfile,
   type DefineCodexHostDefinitionsOptions,
   type RuntimeOwnedHostDefinitions,
-} from "./convexPreset.js";
+} from "./definitions/index.js";
 export type {
   RuntimeConversationLocator,
   ThreadLocator,
@@ -18,11 +18,11 @@ export {
   type HostSurfaceProfile,
   type HostSurfaceMutationKey,
   type HostSurfaceQueryKey,
-} from "./surfaceManifest.js";
+} from "./definitions/index.js";
 export {
   renderCodexHostShim,
   type CodexHostShimRenderOptions,
-} from "./shim.js";
+} from "./definitions/index.js";
 
 export {
   ingestBatchSafe,

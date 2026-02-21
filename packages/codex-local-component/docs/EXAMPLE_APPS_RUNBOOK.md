@@ -29,6 +29,7 @@ npx convex dev --once
 pnpm run dev:convex:once
 pnpm run check:host-shim
 pnpm run typecheck
+pnpm --filter @zakstam/codex-local-component run check:host-boundaries
 pnpm --filter @zakstam/codex-local-component run doctor:integration
 ```
 

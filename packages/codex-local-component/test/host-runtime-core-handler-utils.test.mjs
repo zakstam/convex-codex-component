@@ -6,7 +6,7 @@ import {
   enqueuePendingServerRequestRetry,
   flushPendingServerRequestRetries,
   handleBridgeGlobalMessage,
-} from "../dist/host/runtimeCoreHandlers.js";
+} from "../dist/host/runtime/runtimeCoreHandlers.js";
 import {
   isManagedServerRequestMethod,
   parseTurnCompletedStatus,
@@ -16,7 +16,7 @@ import {
   parseManagedServerRequestFromEvent,
   rewritePayloadTurnId,
   toRequestKey,
-} from "../dist/host/runtimeHelpers.js";
+} from "../dist/host/runtime/runtimeHelpers.js";
 
 function createBaseContext(overrides = {}) {
   const context = {

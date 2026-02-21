@@ -6,10 +6,10 @@
 import {
   buildTurnInterruptRequest,
   isUuidLikeThreadId,
-} from "../app-server/client.js";
-import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../protocol/generated.js";
-import { normalizeInboundDeltas } from "./normalizeInboundDeltas.js";
-import { isTurnNotFound } from "../errors.js";
+} from "../../app-server/client.js";
+import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../../protocol/generated.js";
+import { normalizeInboundDeltas } from "../normalizeInboundDeltas.js";
+import { isTurnNotFound } from "../../errors.js";
 import {
   asObject,
   isChatgptAuthTokensRefreshRequest,
@@ -25,7 +25,7 @@ import {
   shouldDropRejectedIngestBatch,
   toRequestKey,
 } from "./runtimeHelpers.js";
-import { IDLE_INGEST_FLUSH_MS } from "../shared/limits.js";
+import { IDLE_INGEST_FLUSH_MS } from "../../shared/limits.js";
 import type {
   ActorContext,
   ClientMessage,

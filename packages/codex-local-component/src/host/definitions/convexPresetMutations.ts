@@ -29,7 +29,7 @@ import {
   type HostActorContext,
   type HostMutationRunner,
   type HostQueryRunner,
-} from "./convexSlice.js";
+} from "../convexSlice.js";
 import type { CodexHostSliceFeatures, CodexHostSliceIngestMode } from "./convexPreset.js";
 
 type MutationBuilderArgs = {

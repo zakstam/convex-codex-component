@@ -2,31 +2,31 @@
  * Shared types and error class for the CodexHostRuntime.
  * Pure type definitions — no runtime code.
  */
-import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../protocol/generated.js";
-import type { ClientOutboundWireMessage } from "../protocol/outbound.js";
-import type { CommandExecutionApprovalDecision } from "../protocol/schemas/v2/CommandExecutionApprovalDecision.js";
-import type { CancelLoginAccountParams } from "../protocol/schemas/v2/CancelLoginAccountParams.js";
-import type { FileChangeApprovalDecision } from "../protocol/schemas/v2/FileChangeApprovalDecision.js";
-import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
-import type { ToolRequestUserInputQuestion } from "../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
-import type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
-import type { DynamicToolCallOutputContentItem } from "../protocol/schemas/v2/DynamicToolCallOutputContentItem.js";
-import type { DynamicToolSpec } from "../protocol/schemas/v2/DynamicToolSpec.js";
-import type { ChatgptAuthTokensRefreshParams } from "../protocol/schemas/v2/ChatgptAuthTokensRefreshParams.js";
-import type { ClientRequest } from "../protocol/schemas/ClientRequest.js";
-import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.js";
-import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
-import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
-import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
-import type { NewConversationParams } from "../protocol/schemas/NewConversationParams.js";
-import type { ResumeConversationParams } from "../protocol/schemas/ResumeConversationParams.js";
-import type { ListConversationsParams } from "../protocol/schemas/ListConversationsParams.js";
-import type { ForkConversationParams } from "../protocol/schemas/ForkConversationParams.js";
-import type { ArchiveConversationParams } from "../protocol/schemas/ArchiveConversationParams.js";
-import type { InterruptConversationParams } from "../protocol/schemas/InterruptConversationParams.js";
-import type { GetConversationSummaryParams } from "../protocol/schemas/GetConversationSummaryParams.js";
-import type { CodexLocalBridge } from "../local-adapter/bridge.js";
-import type { RuntimeConversationLocator, ThreadHandle } from "../shared/threadIdentity.js";
+import type { CodexResponse, NormalizedEvent, ServerInboundMessage, RpcId } from "../../protocol/generated.js";
+import type { ClientOutboundWireMessage } from "../../protocol/outbound.js";
+import type { CommandExecutionApprovalDecision } from "../../protocol/schemas/v2/CommandExecutionApprovalDecision.js";
+import type { CancelLoginAccountParams } from "../../protocol/schemas/v2/CancelLoginAccountParams.js";
+import type { FileChangeApprovalDecision } from "../../protocol/schemas/v2/FileChangeApprovalDecision.js";
+import type { ToolRequestUserInputAnswer } from "../../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
+import type { ToolRequestUserInputQuestion } from "../../protocol/schemas/v2/ToolRequestUserInputQuestion.js";
+import type { LoginAccountParams } from "../../protocol/schemas/v2/LoginAccountParams.js";
+import type { DynamicToolCallOutputContentItem } from "../../protocol/schemas/v2/DynamicToolCallOutputContentItem.js";
+import type { DynamicToolSpec } from "../../protocol/schemas/v2/DynamicToolSpec.js";
+import type { ChatgptAuthTokensRefreshParams } from "../../protocol/schemas/v2/ChatgptAuthTokensRefreshParams.js";
+import type { ClientRequest } from "../../protocol/schemas/ClientRequest.js";
+import type { ThreadForkParams } from "../../protocol/schemas/v2/ThreadForkParams.js";
+import type { ThreadListParams } from "../../protocol/schemas/v2/ThreadListParams.js";
+import type { ThreadLoadedListParams } from "../../protocol/schemas/v2/ThreadLoadedListParams.js";
+import type { ThreadResumeParams } from "../../protocol/schemas/v2/ThreadResumeParams.js";
+import type { NewConversationParams } from "../../protocol/schemas/NewConversationParams.js";
+import type { ResumeConversationParams } from "../../protocol/schemas/ResumeConversationParams.js";
+import type { ListConversationsParams } from "../../protocol/schemas/ListConversationsParams.js";
+import type { ForkConversationParams } from "../../protocol/schemas/ForkConversationParams.js";
+import type { ArchiveConversationParams } from "../../protocol/schemas/ArchiveConversationParams.js";
+import type { InterruptConversationParams } from "../../protocol/schemas/InterruptConversationParams.js";
+import type { GetConversationSummaryParams } from "../../protocol/schemas/GetConversationSummaryParams.js";
+import type { CodexLocalBridge } from "../../local-adapter/bridge.js";
+import type { RuntimeConversationLocator, ThreadHandle } from "../../shared/threadIdentity.js";
 
 // ── Public types ──────────────────────────────────────────────────────
 

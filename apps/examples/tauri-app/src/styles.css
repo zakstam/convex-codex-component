@@ -635,6 +635,11 @@ button.icon-btn {
   color: var(--success);
 }
 
+.status-badge.local-unsynced {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
 @keyframes badgePulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
@@ -928,6 +933,21 @@ button.icon-btn {
   transition: transform 0.2s ease;
 }
 
+.thread-picker-local-toggle {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem;
+}
+
+.thread-picker-local-toggle input {
+  width: 14px;
+  height: 14px;
+}
+
 .thread-picker-dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -987,6 +1007,19 @@ button.icon-btn {
 .thread-picker-option.active {
   background: var(--accent-glow);
   border-color: rgba(245, 158, 11, 0.15);
+}
+
+.thread-picker-section {
+  padding: 6px 4px 2px;
+}
+
+.thread-picker-section-label {
+  margin: 0 8px 6px;
+  color: var(--ink-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .thread-option-id {

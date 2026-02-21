@@ -495,6 +495,23 @@ export declare const components: {
         },
         { deletionJobId: string }
       >;
+      forceRebindSync: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          reasonCode?: string;
+          runtimeThreadId: string;
+          threadHandle: string;
+        },
+        {
+          rebindCount: number;
+          runtimeThreadId: string;
+          syncState: "unsynced" | "syncing" | "synced" | "drifted";
+          threadHandle: string;
+          threadId: string;
+        }
+      >;
       forceRunScheduledDeletion: FunctionReference<
         "mutation",
         "internal",
@@ -610,10 +627,41 @@ export declare const components: {
           continueCursor: string;
           isDone: boolean;
           page: Array<{
+            preview: string;
             status: "active" | "archived" | "failed";
             threadHandle: string;
             updatedAt: number;
           }>;
+        }
+      >;
+      listRuntimeThreadBindings: FunctionReference<
+        "query",
+        "internal",
+        { actor: { userId?: string }; runtimeThreadIds: Array<string> },
+        Array<{
+          runtimeThreadId: string;
+          threadHandle: string;
+          threadId: string;
+        }>
+      >;
+      markSyncProgress: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          cursor: number;
+          errorCode?: string;
+          runtimeThreadId?: string;
+          sessionId?: string;
+          syncState?: "unsynced" | "syncing" | "synced" | "drifted";
+          threadHandle: string;
+        },
+        {
+          lastSyncedCursor: number;
+          runtimeThreadId?: string;
+          syncState: "unsynced" | "syncing" | "synced" | "drifted";
+          threadHandle: string;
+          threadId: string;
         }
       >;
       purgeActorData: FunctionReference<
@@ -669,6 +717,26 @@ export declare const components: {
           reason?: string;
         },
         { deletionJobId: string; scheduledFor: number }
+      >;
+      syncOpenBinding: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          cwd?: string;
+          model?: string;
+          runtimeThreadId: string;
+          sessionId?: string;
+          threadHandle?: string;
+        },
+        {
+          created: boolean;
+          rebindApplied: boolean;
+          runtimeThreadId: string;
+          syncState: "unsynced" | "syncing" | "synced" | "drifted";
+          threadHandle: string;
+          threadId: string;
+        }
       >;
     };
     tokenUsage: {

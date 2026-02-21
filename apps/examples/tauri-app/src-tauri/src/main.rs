@@ -85,6 +85,8 @@ async fn start_bridge(
                 cwd: config.cwd,
                 delta_throttle_ms: config.delta_throttle_ms,
                 save_stream_deltas: config.save_stream_deltas,
+                thread_strategy: None,
+                thread_id: None,
             },
         )
         .await;
@@ -135,12 +137,23 @@ async fn open_thread(
             "open_thread",
             json!({
                 "strategy": config.strategy,
-                "threadId": config.thread_id,
+                "threadHandle": config.thread_id,
                 "model": config.model,
                 "cwd": config.cwd,
                 "dynamicTools": config.dynamic_tools,
             }),
         )
+        .await
+}
+
+#[tauri::command]
+async fn refresh_local_threads(
+    app: tauri::AppHandle,
+    state: State<'_, AppBridgeState>,
+) -> Result<(), String> {
+    state
+        .runtime
+        .forward_tauri_json_command(app, "refresh_local_threads", json!({}))
         .await
 }
 
@@ -270,7 +283,7 @@ async fn set_disabled_tools(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    debug_assert_eq!(BRIDGE_COMMANDS.len(), 16);
+    debug_assert_eq!(BRIDGE_COMMANDS.len(), 17);
     debug_assert!(!HELPER_COMMANDS.is_empty());
     debug_assert!(!HELPER_FORWARD_TAURI_COMMANDS.is_empty());
     let app = tauri::Builder::default()

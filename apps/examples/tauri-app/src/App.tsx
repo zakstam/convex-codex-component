@@ -29,6 +29,7 @@ import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./hooks/use
 import { KNOWN_DYNAMIC_TOOLS, TAURI_RUNTIME_TOOL_PROMPT } from "./lib/dynamicTools";
 
 const ACTOR_STORAGE_KEY = "codex-local-tauri-actor-user-id";
+const SHOW_LOCAL_THREADS_STORAGE_KEY = "codex-local-tauri-show-local-threads";
 const DEFAULT_DELETE_DELAY_MS = 10 * 60 * 1000;
 function resolveActorUserId(): string {
   if (typeof window === "undefined") {
@@ -75,6 +76,17 @@ type PendingServerRequest = {
   itemId: string;
   reason?: string;
   questions?: ToolQuestion[];
+};
+
+type RuntimeThreadBindingRow = {
+  runtimeThreadId: string;
+  threadId: string;
+  threadHandle: string;
+};
+
+type LocalRuntimeThreadRow = {
+  threadId: string;
+  preview: string;
 };
 
 function requireDefined<T>(value: T | undefined, name: string): T {
@@ -132,6 +144,8 @@ function AppContent({
   const actorUserId = actor.userId ?? "";
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
+    persistedThreadId: null,
+    runtimeThreadId: null,
     localThreadId: null,
     threadHandle: null,
     turnId: null,
@@ -155,6 +169,14 @@ function AppContent({
   const [cancelLoginId, setCancelLoginId] = useState("");
   const [authSummary, setAuthSummary] = useState<string>("No account action yet.");
   const [pendingAuthRefresh, setPendingAuthRefresh] = useState<PendingAuthRefreshRequest[]>([]);
+  const [showLocalThreads, setShowLocalThreads] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.localStorage.getItem(SHOW_LOCAL_THREADS_STORAGE_KEY) === "1";
+  });
+  const [localRuntimeThreads, setLocalRuntimeThreads] = useState<LocalRuntimeThreadRow[]>([]);
+  const [selectedLocalThreadHandle, setSelectedLocalThreadHandle] = useState<string | null>(null);
 
   const addToast = useCallback((type: ToastItem["type"], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -210,7 +232,7 @@ function AppContent({
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const state = await tauriBridge.lifecycle.getState();
-      if (state.running && typeof state.localThreadId === "string" && state.localThreadId.length > 0) {
+      if (state.running && typeof state.persistedThreadId === "string" && state.persistedThreadId.length > 0) {
         return state;
       }
       await new Promise((resolve) => setTimeout(resolve, pollMs));
@@ -218,9 +240,8 @@ function AppContent({
     throw new Error("Bridge started, but no local thread became ready within 12s.");
   }, []);
 
-  const startBridgeWithSelection = useCallback(
-    async (startSource: "manual_start_button" | "composer_retry") => {
-      const resumeThreadHandle = selectedThreadHandleRef.current.trim() || undefined;
+  const connectBridge = useCallback(
+    async (startSource: "manual_start_button" | "composer_retry" | "auto_startup") => {
       if (!actorReady) {
         throw new Error("Actor identity is still synchronizing. Please retry in a moment.");
       }
@@ -235,6 +256,24 @@ function AppContent({
         deltaThrottleMs: 250,
         saveStreamDeltas: true,
       });
+      const state = await tauriBridge.lifecycle.getState();
+      setBridge((prev) => ({
+        ...prev,
+        running: state.running,
+        persistedThreadId: state.persistedThreadId ?? null,
+        runtimeThreadId: state.runtimeThreadId ?? null,
+        localThreadId: state.localThreadId ?? null,
+        turnId: state.turnId ?? null,
+        lastError: state.lastError ?? null,
+      }));
+    },
+    [actor, actorReady, bridge.disabledTools, runtimeBridge],
+  );
+
+  const startBridgeWithSelection = useCallback(
+    async (startSource: "manual_start_button" | "composer_retry" | "auto_startup") => {
+      const resumeThreadHandle = selectedThreadHandleRef.current.trim() || undefined;
+      await connectBridge(startSource);
       await tauriBridge.lifecycle.openThread(
         resumeThreadHandle
           ? { strategy: "resume", threadHandle: resumeThreadHandle }
@@ -244,17 +283,20 @@ function AppContent({
       setBridge((prev) => ({
         ...prev,
         running: readyState.running,
+        persistedThreadId: readyState.persistedThreadId ?? null,
+        runtimeThreadId: readyState.runtimeThreadId ?? null,
         localThreadId: readyState.localThreadId ?? null,
         turnId: readyState.turnId ?? null,
         lastError: readyState.lastError ?? null,
       }));
     },
-    [actor, actorReady, bridge.disabledTools, runtimeBridge, waitForBridgeReady],
+    [connectBridge, waitForBridgeReady],
   );
+  const autoStartAttemptedRef = useRef(false);
 
   const conversation = useCodex({
-    ...(bridge.threadHandle ? { threadHandle: bridge.threadHandle } : {}),
     actorReady,
+    ...(selectedLocalThreadHandle ? { threadHandle: selectedLocalThreadHandle } : {}),
     threads: {
       list: {
         query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
@@ -265,8 +307,12 @@ function AppContent({
     composer: {
       onSend: async (text: string) => {
         try {
-          const stateBeforeSend = await tauriBridge.lifecycle.getState();
-          if (!stateBeforeSend.running || !stateBeforeSend.localThreadId) {
+          let stateBeforeSend = await tauriBridge.lifecycle.getState();
+          if (!stateBeforeSend.running) {
+            await connectBridge("composer_retry");
+            stateBeforeSend = await tauriBridge.lifecycle.getState();
+          }
+          if (!stateBeforeSend.persistedThreadId) {
             await startBridgeWithSelection("composer_retry");
           }
           await tauriBridge.turns.send(text);
@@ -288,25 +334,103 @@ function AppContent({
 
   // ── Derive picker values from composed threads ──────────────────────
   const threads = conversation.threads!;
-  const selectedThreadHandle = threads.selectedThreadHandle ?? "";
-  const pickerThreads = useMemo(
-    () =>
-      (((threads.threads as { threads?: Array<{ threadHandle: string; status: string; updatedAt?: number }> } | undefined)?.threads ?? [])
-        .map((thread) => ({
-          threadHandle: thread.threadHandle,
-          status: thread.status,
-          ...(thread.updatedAt !== undefined ? { updatedAt: thread.updatedAt } : {}),
-        }))),
-    [threads.threads],
+  const selectedThreadHandle = selectedLocalThreadHandle ?? (threads.selectedThreadHandle ?? "");
+  const localRuntimeThreadIds = useMemo(
+    () => localRuntimeThreads.map((thread) => thread.threadId),
+    [localRuntimeThreads],
   );
+  const localRuntimeThreadPreviewById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const thread of localRuntimeThreads) {
+      map.set(thread.threadId, thread.preview);
+    }
+    return map;
+  }, [localRuntimeThreads]);
+  const localBindingsRaw = useQuery(
+    requireDefined(chatApi.listRuntimeThreadBindingsForPicker, "api.chat.listRuntimeThreadBindingsForPicker"),
+    actorReady && showLocalThreads && localRuntimeThreadIds.length > 0
+      ? { actor, runtimeThreadIds: localRuntimeThreadIds }
+      : "skip",
+  );
+  const localBindings = (localBindingsRaw ?? []) as RuntimeThreadBindingRow[];
+  const localBindingByRuntimeThreadId = useMemo(() => {
+    const map = new Map<string, RuntimeThreadBindingRow>();
+    for (const row of localBindings) {
+      map.set(row.runtimeThreadId, row);
+    }
+    return map;
+  }, [localBindings]);
+  const pickerThreads = useMemo(
+    () => {
+      const persisted =
+        (((threads.threads as { threads?: Array<{ threadHandle: string; status: string; updatedAt?: number; preview: string }> } | undefined)?.threads ?? [])
+          .map((thread) => ({
+            threadHandle: thread.threadHandle,
+            status: thread.status,
+            preview: thread.preview,
+            scope: "persisted" as const,
+            ...(thread.updatedAt !== undefined ? { updatedAt: thread.updatedAt } : {}),
+          })));
+
+      if (!showLocalThreads) {
+        return persisted;
+      }
+
+      const persistedHandles = new Set(persisted.map((thread) => thread.threadHandle));
+      const localUnsynced = localRuntimeThreadIds
+        .filter((runtimeThreadId) => !localBindingByRuntimeThreadId.has(runtimeThreadId))
+        .filter((runtimeThreadId) => !persistedHandles.has(runtimeThreadId))
+        .map((runtimeThreadId) => ({
+          threadHandle: runtimeThreadId,
+          status: "local-unsynced",
+          preview: localRuntimeThreadPreviewById.get(runtimeThreadId) ?? "Untitled thread",
+          scope: "local_unsynced" as const,
+        }));
+
+      return [...persisted, ...localUnsynced];
+    },
+    [localBindingByRuntimeThreadId, localRuntimeThreadIds, localRuntimeThreadPreviewById, showLocalThreads, threads.threads],
+  );
+  const localUnsyncedHandleSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const thread of pickerThreads) {
+      if (thread.scope === "local_unsynced") {
+        set.add(thread.threadHandle);
+      }
+    }
+    return set;
+  }, [pickerThreads]);
   selectedThreadHandleRef.current = selectedThreadHandle;
 
-  // Sync bridge-created threads into the picker selection
   useEffect(() => {
-    if (bridge.threadHandle && conversation.threads) {
-      conversation.threads.setSelectedThreadHandle(bridge.threadHandle);
+    if (typeof window === "undefined") {
+      return;
     }
-  }, [bridge.threadHandle, conversation.threads]);
+    window.localStorage.setItem(SHOW_LOCAL_THREADS_STORAGE_KEY, showLocalThreads ? "1" : "0");
+  }, [showLocalThreads]);
+
+  useEffect(() => {
+    if (bridge.running) {
+      return;
+    }
+    setLocalRuntimeThreads([]);
+  }, [bridge.running]);
+
+  useEffect(() => {
+    if (!actorReady) {
+      autoStartAttemptedRef.current = false;
+      return;
+    }
+    if (bridge.running || autoStartAttemptedRef.current) {
+      return;
+    }
+    autoStartAttemptedRef.current = true;
+    void connectBridge("auto_startup").catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      setBridge((prev) => ({ ...prev, lastError: message }));
+      addToast("error", message);
+    });
+  }, [actorReady, addToast, bridge.running, connectBridge]);
 
   const cleanupThreadHandle = conversation.effectiveThreadHandle || null;
 
@@ -454,14 +578,39 @@ function AppContent({
     setRuntimeLog,
     setAuthSummary,
     setPendingAuthRefresh,
+    onLocalThreadsLoaded: (threads) => {
+      setLocalRuntimeThreads(threads);
+    },
     addToast,
     refreshBridgeState: runtimeBridge.refresh,
     subscribeBridgeLifecycle: tauriBridge.lifecycle.subscribe,
   });
 
   const onStartBridge = useCallback(async () => {
-    await startBridgeWithSelection("manual_start_button");
-  }, [startBridgeWithSelection]);
+    autoStartAttemptedRef.current = true;
+    await connectBridge("manual_start_button");
+  }, [connectBridge]);
+
+  const onToggleShowLocalThreads = useCallback(
+    async (next: boolean) => {
+      setShowLocalThreads(next);
+      if (!next) {
+        setLocalRuntimeThreads([]);
+        setSelectedLocalThreadHandle(null);
+        return;
+      }
+      if (!bridge.running) {
+        return;
+      }
+      try {
+        await tauriBridge.lifecycle.refreshLocalThreads();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        addToast("error", message);
+      }
+    },
+    [addToast, bridge.running],
+  );
 
   const onInsertDynamicToolPrompt = () => {
     const prompt = TAURI_RUNTIME_TOOL_PROMPT;
@@ -482,6 +631,41 @@ function AppContent({
       addToast("error", message);
     }
   };
+
+  const onSelectThreadHandle = useCallback(
+    async (nextThreadHandle: string) => {
+      const normalizedThreadHandle = nextThreadHandle.trim();
+      const isLocalUnsyncedSelection =
+        normalizedThreadHandle.length > 0 && localUnsyncedHandleSet.has(normalizedThreadHandle);
+      setSelectedLocalThreadHandle(isLocalUnsyncedSelection ? normalizedThreadHandle : null);
+      threads.setSelectedThreadHandle(normalizedThreadHandle);
+      if (!bridge.running) {
+        return;
+      }
+      try {
+        await tauriBridge.lifecycle.openThread(
+          normalizedThreadHandle.length > 0
+            ? { strategy: "resume", threadHandle: normalizedThreadHandle }
+            : { strategy: "start" },
+        );
+        const state = await tauriBridge.lifecycle.getState();
+        setBridge((prev) => ({
+          ...prev,
+          running: state.running,
+          persistedThreadId: state.persistedThreadId ?? null,
+          runtimeThreadId: state.runtimeThreadId ?? null,
+          localThreadId: state.localThreadId ?? null,
+          turnId: state.turnId ?? null,
+          lastError: state.lastError ?? null,
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setBridge((prev) => ({ ...prev, lastError: message }));
+        addToast("error", message);
+      }
+    },
+    [addToast, bridge.running, localUnsyncedHandleSet, threads],
+  );
 
   const onRespondCommandOrFile = async (
     request: PendingServerRequest,
@@ -818,8 +1002,10 @@ function AppContent({
         <ThreadPicker
           threads={pickerThreads}
           selected={selectedThreadHandle}
-          onSelect={(nextThreadId) => threads.setSelectedThreadHandle(nextThreadId)}
-          disabled={bridge.running}
+          onSelect={(nextThreadId) => void onSelectThreadHandle(nextThreadId)}
+          disabled={!actorReady}
+          showLocalThreads={showLocalThreads}
+          onToggleShowLocalThreads={(next) => void onToggleShowLocalThreads(next)}
         />
         <MessageList messages={displayMessages} status={messages.status} tokenByTurnId={tokenByTurnId} />
         {latestReasoning && (

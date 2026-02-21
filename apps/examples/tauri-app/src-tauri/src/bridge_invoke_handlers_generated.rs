@@ -6,6 +6,7 @@ macro_rules! bridge_generate_handler {
         tauri::generate_handler![
             start_bridge,
             open_thread,
+            refresh_local_threads,
             send_user_turn,
             interrupt_turn,
             respond_command_approval,

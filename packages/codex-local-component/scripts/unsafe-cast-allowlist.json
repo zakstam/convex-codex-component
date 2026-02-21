@@ -62,7 +62,7 @@
       "riskLevel": "default",
       "id": "UC_fa6f7396a01b",
       "file": "src/component/threads.ts",
-      "line": 605,
+      "line": 833,
       "col": 55,
       "snippet": "const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };",
       "context": "prev:try { | next:if (typeof parsed.streamId === \"string\") {"
@@ -82,23 +82,23 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_83de853e8e43",
+      "id": "UC_0f895b0bee65",
       "file": "src/host/convexPersistence.ts",
-      "line": 133,
+      "line": 138,
       "col": 9,
-      "snippet": "}) as Promise<{ threadId: string; created?: boolean }>;",
-      "context": "prev:...(args.cwd ? { cwd: args.cwd } : {}), | next:},"
+      "snippet": "}) as { threadId: string; created?: boolean; rebindApplied?: boolean };",
+      "context": "prev:...(args.cwd ? { cwd: args.cwd } : {}), | next:if (opened.rebindApplied) {"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_191e5f5cb3c0",
+      "id": "UC_e4893cba309f",
       "file": "src/host/convexPersistence.ts",
-      "line": 143,
+      "line": 162,
       "col": 9,
-      "snippet": "}) as Promise<{ sessionId: string; threadId: string; status: \"created\" | \"active\" }>;",
-      "context": "prev:lastEventCursor: args.lastEventCursor, | next:},"
+      "snippet": "}) as { sessionId: string; threadId: string; status: \"created\" | \"active\" };",
+      "context": "prev:lastEventCursor: args.lastEventCursor, | next:await client.mutation(chatApi.markThreadSyncProgress, {"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -106,7 +106,7 @@
       "riskLevel": "default",
       "id": "UC_0511ea914b28",
       "file": "src/host/convexPersistence.ts",
-      "line": 148,
+      "line": 176,
       "col": 113,
       "snippet": "client.mutation(chatApi.ingestBatch, toIngestPayload(args.actor, sessionId, args.threadId, args.deltas)) as Promise<{",
       "context": "prev:const runIngest = async (sessionId: string) => | next:status: \"ok\" | \"partial\" | \"session_recovered\" | \"rejected\";"
@@ -117,7 +117,7 @@
       "riskLevel": "default",
       "id": "UC_1753ffab9faf",
       "file": "src/host/convexPersistence.ts",
-      "line": 188,
+      "line": 254,
       "col": 35,
       "snippet": "const requestedAt = (request as { createdAt?: number }).createdAt;",
       "context": "prev:upsertPendingServerRequest: async ({ actor, request }) => { | next:await client.mutation(chatApi.upsertPendingServerRequest, {"
@@ -128,7 +128,7 @@
       "riskLevel": "default",
       "id": "UC_18ee97430829",
       "file": "src/host/convexPersistence.ts",
-      "line": 219,
+      "line": 285,
       "col": 9,
       "snippet": "}) as Promise<HostRuntimePersistence[\"listPendingServerRequests\"] extends (...a: never[]) => infer R ? Awaited<R> : never>;",
       "context": "prev:limit: 100, | next:},"
@@ -139,7 +139,7 @@
       "riskLevel": "default",
       "id": "UC_7ed65984e01e",
       "file": "src/host/convexPersistence.ts",
-      "line": 230,
+      "line": 296,
       "col": 9,
       "snippet": "}) as { dispatchId: string; turnId: string; accepted: true };",
       "context": "prev:...(args.dispatchId ? { dispatchId: args.dispatchId } : {}), | next:const claimToken = randomSessionId();"
@@ -161,7 +161,7 @@
       "riskLevel": "default",
       "id": "UC_b7420ba788a0",
       "file": "src/host/convexSlice.ts",
-      "line": 364,
+      "line": 426,
       "col": 23,
       "snippet": "const record = value as Record<string, unknown>;",
       "context": "prev:} | next:return ("
@@ -172,7 +172,7 @@
       "riskLevel": "default",
       "id": "UC_04b0b409a61b",
       "file": "src/host/convexSlice.ts",
-      "line": 376,
+      "line": 438,
       "col": 29,
       "snippet": "const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;",
       "context": "prev:} | next:return Array.isArray(streamStats) ? streamStats : null;"
@@ -183,7 +183,7 @@
       "riskLevel": "default",
       "id": "UC_2a0ca5600914",
       "file": "src/host/convexSlice.ts",
-      "line": 384,
+      "line": 446,
       "col": 32,
       "snippet": "const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;",
       "context": "prev:} | next:return Array.isArray(recentMessages) ? recentMessages : null;"
@@ -194,7 +194,7 @@
       "riskLevel": "default",
       "id": "UC_b5a6cdf49ed2",
       "file": "src/host/convexSlice.ts",
-      "line": 392,
+      "line": 454,
       "col": 28,
       "snippet": "const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;",
       "context": "prev:} | next:return Array.isArray(allStreams) ? allStreams : null;"
@@ -205,7 +205,7 @@
       "riskLevel": "default",
       "id": "UC_3184e187a07a",
       "file": "src/host/runtime.ts",
-      "line": 88,
+      "line": 94,
       "col": 59,
       "snippet": "const { ConvexHttpClient } = require(\"convex/browser\") as { ConvexHttpClient: new (url: string) => { mutation: (...a: unknown[]) => Promise<unknown>; query: (...a: unknown[]) => Promise<unknown> } };",
       "context": "prev:if (isConvexIntegrated(args)) { | next:const client = new ConvexHttpClient(args.convexUrl);"
@@ -216,7 +216,7 @@
       "riskLevel": "default",
       "id": "UC_8815481c17f8",
       "file": "src/host/runtimeCore.ts",
-      "line": 35,
+      "line": 37,
       "col": 38,
       "snippet": "clearPendingServerRequestRetryTimer as clearRetryTimer,",
       "context": "prev:import { | next:enqueuePendingServerRequestRetry,"
@@ -227,7 +227,7 @@
       "riskLevel": "default",
       "id": "UC_cd83c72121de",
       "file": "src/host/runtimeCore.ts",
-      "line": 37,
+      "line": 39,
       "col": 13,
       "snippet": "flushQueue as flushQueueHandler,",
       "context": "prev:enqueuePendingServerRequestRetry, | next:handleBridgeEvent as bridgeEventHandler,"
@@ -238,7 +238,7 @@
       "riskLevel": "default",
       "id": "UC_773ee88d4b25",
       "file": "src/host/runtimeCore.ts",
-      "line": 38,
+      "line": 40,
       "col": 20,
       "snippet": "handleBridgeEvent as bridgeEventHandler,",
       "context": "prev:flushQueue as flushQueueHandler, | next:handleBridgeGlobalMessage as bridgeGlobalHandler,"
@@ -249,7 +249,7 @@
       "riskLevel": "default",
       "id": "UC_40fa6f64523b",
       "file": "src/host/runtimeCore.ts",
-      "line": 39,
+      "line": 41,
       "col": 28,
       "snippet": "handleBridgeGlobalMessage as bridgeGlobalHandler,",
       "context": "prev:handleBridgeEvent as bridgeEventHandler, | next:type HandlerCtx,"
@@ -293,7 +293,7 @@
       "riskLevel": "default",
       "id": "UC_42e66eb43cb2",
       "file": "src/host/tauri.ts",
-      "line": 209,
+      "line": 234,
       "col": 34,
       "snippet": "const parsed = JSON.parse(line) as { type?: unknown; payload?: unknown };",
       "context": "prev:export function parseHelperCommand(line: string): HelperCommand { | next:if (typeof parsed !== \"object\" || parsed === null) {"
@@ -304,7 +304,7 @@
       "riskLevel": "default",
       "id": "UC_55861db3a58c",
       "file": "src/host/tauri.ts",
-      "line": 213,
+      "line": 238,
       "col": 82,
       "snippet": "if (typeof parsed.type !== \"string\" || !HELPER_COMMAND_TYPE_SET.has(parsed.type as HelperCommandType)) {",
       "context": "prev:} | next:throw new Error(`Unsupported helper command: ${String(parsed.type)}`);"
@@ -315,7 +315,7 @@
       "riskLevel": "default",
       "id": "UC_2a9aaee19f0f",
       "file": "src/host/tauri.ts",
-      "line": 217,
+      "line": 242,
       "col": 33,
       "snippet": "return { type: parsed.type } as HelperCommand;",
       "context": "prev:if (parsed.type === \"interrupt\" || parsed.type === \"stop\" || parsed.type === \"status\") { | next:}"
@@ -326,7 +326,7 @@
       "riskLevel": "default",
       "id": "UC_5cf7482544d0",
       "file": "src/host/tauri.ts",
-      "line": 222,
+      "line": 247,
       "col": 16,
       "snippet": "return parsed as HelperCommand;",
       "context": "prev:} | next:}"
@@ -469,7 +469,7 @@
       "riskLevel": "default",
       "id": "UC_ad61feca714b",
       "file": "src/react/index.ts",
-      "line": 30,
+      "line": 32,
       "col": 3,
       "snippet": "// as a standalone hook. Type exports remain available below.",
       "context": "prev:// useCodexThreads is composed through useCodex({ threads }) — not exported | next:// ── Utilities ────────────────────────────────────────────────────────"
@@ -502,7 +502,7 @@
       "riskLevel": "default",
       "id": "UC_8f90a4081363",
       "file": "src/react/useCodex.ts",
-      "line": 248,
+      "line": 244,
       "col": 47,
       "snippet": "// not configured we pass the messages query as a stand-in ref; the \"skip\"",
       "context": "prev:// useQuery must always be called (rules of hooks). When token usage is | next:// args ensure Convex never executes it."

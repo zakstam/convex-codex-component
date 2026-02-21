@@ -796,6 +796,9 @@ type RuntimeOwnedQueryKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.queries)
 type RuntimeOwnedInternalDefinitions = {
   profile: "runtimeOwned";
   mutations: {
+    syncOpenThreadBinding: CodexHostSliceDefinitions["mutations"]["syncOpenThreadBinding"];
+    markThreadSyncProgress: CodexHostSliceDefinitions["mutations"]["markThreadSyncProgress"];
+    forceRebindThreadSync: CodexHostSliceDefinitions["mutations"]["forceRebindThreadSync"];
     ensureThread: CodexHostSliceDefinitions["mutations"]["ensureThread"];
     ensureSession: CodexHostSliceDefinitions["mutations"]["ensureSession"];
     ingestEvent: CodexHostSliceDefinitions["mutations"]["ingestEvent"];
@@ -840,6 +843,9 @@ type RuntimeOwnedInternalDefinitions = {
 export type RuntimeOwnedHostDefinitions = {
   profile: "runtimeOwned";
   mutations: {
+    syncOpenThreadBinding: RuntimeOwnedInternalDefinitions["mutations"]["syncOpenThreadBinding"];
+    markThreadSyncProgress: RuntimeOwnedInternalDefinitions["mutations"]["markThreadSyncProgress"];
+    forceRebindThreadSync: RuntimeOwnedInternalDefinitions["mutations"]["forceRebindThreadSync"];
     ensureThread: RuntimeOwnedInternalDefinitions["mutations"]["ensureThread"];
     ensureSession: RuntimeOwnedInternalDefinitions["mutations"]["ensureSession"];
     ingestEvent: RuntimeOwnedInternalDefinitions["mutations"]["ingestEvent"];
@@ -907,6 +913,9 @@ function toPublicRuntimeOwnedDefinitions(
   return {
     profile: defs.profile,
     mutations: {
+      syncOpenThreadBinding: defs.mutations.syncOpenThreadBinding,
+      markThreadSyncProgress: defs.mutations.markThreadSyncProgress,
+      forceRebindThreadSync: defs.mutations.forceRebindThreadSync,
       ensureThread: defs.mutations.ensureThread,
       ensureSession: defs.mutations.ensureSession,
       ingestEvent: defs.mutations.ingestEvent,
@@ -965,6 +974,9 @@ function toRuntimeOwnedInternalDefinitions(
   return {
     profile: "runtimeOwned",
     mutations: {
+      syncOpenThreadBinding: rawSlice.mutations.syncOpenThreadBinding,
+      markThreadSyncProgress: rawSlice.mutations.markThreadSyncProgress,
+      forceRebindThreadSync: rawSlice.mutations.forceRebindThreadSync,
       ensureThread: rawSlice.mutations.ensureThread,
       ensureSession: rawSlice.mutations.ensureSession,
       ingestEvent: rawSlice.mutations.ingestEvent,

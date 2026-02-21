@@ -27,6 +27,7 @@ This README is app-specific operational guidance only; package docs are the inte
 - The hook is StrictMode-safe and deduplicates transition toasts to one toast per real running-state edge.
 - This app uses explicit thread intent: `bridge.lifecycle.start(...)` (transport connect) then `bridge.lifecycle.openThread(...)` before `bridge.turns.send(...)`.
 - This app also opts in to transport-only lifecycle-safe send recovery (`createTauriBridgeClient(..., { lifecycleSafeSend: true })`).
+- Runtime auto-start is enabled when the app bootstraps actor identity; manual start remains available for recovery.
 
 ## Tool Policy Panel
 
@@ -97,14 +98,20 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 ## Host Surface Ownership
 
 - `convex/chat.ts`: generated app-owned public surface (`api.chat.*`) using `defineCodexHostDefinitions(...)` + explicit Convex `mutation/query` exports
-- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`, `resolveThreadHandleForStart`)
+- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `listRuntimeThreadBindingsForPicker`, `getActorBindingForBootstrap`, `resolveOpenTarget`)
 - Host shim drift is enforced with `pnpm run sync:host-shim` and `pnpm run check:host-shim`.
 
 ## Thread API
 
 - Thread picker flow: `chat.listThreadsForPicker`.
-- Picker payloads expose `threadHandle` values directly.
+- Picker payloads expose canonical persisted rows (`threadHandle`, `preview`, status, timestamps).
+- Local runtime-only thread visibility is opt-in (off by default) via the picker checkbox.
+- When enabled, local threads are loaded immediately (and cleared immediately when disabled) and shown as `local unsynced` until a persisted binding exists.
+- Local unsynced rows now use runtime-provided preview text when available (fallback: `Untitled thread`).
+- Selecting a `local unsynced` thread now calls package runtime `importLocalThreadToPersistence(...)` so history is imported into Convex and shown immediately without sending a new turn.
 - Runtime-owned `ensureThread` is single-path and requires `threadHandle`.
+- Sync engine host hooks are explicit: `chat.syncOpenThreadBinding`, `chat.markThreadSyncProgress`, `chat.forceRebindThreadSync`.
+- Bridge lifecycle state distinguishes `persistedThreadId` (Convex) and `runtimeThreadId` (Codex runtime).
 
 Additional cleanup endpoints:
 

@@ -38,6 +38,8 @@ type HelperEvent =
         phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
         source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
         updatedAtMs: number;
+        persistedThreadId: string | null;
+        runtimeThreadId: string | null;
         localThreadId: string | null;
         threadHandle: string | null;
         turnId: string | null;
@@ -134,6 +136,8 @@ let bridgeState: {
   phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
   source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
   updatedAtMs: number;
+  persistedThreadId: string | null;
+  runtimeThreadId: string | null;
   localThreadId: string | null;
   turnId: string | null;
   lastErrorCode: string | null;
@@ -149,6 +153,8 @@ let bridgeState: {
   phase: "idle",
   source: "runtime",
   updatedAtMs: Date.now(),
+  persistedThreadId: null,
+  runtimeThreadId: null,
   localThreadId: null,
   turnId: null,
   lastErrorCode: null,
@@ -212,8 +218,10 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       phase: bridgeState.phase,
       source: bridgeState.source,
       updatedAtMs: bridgeState.updatedAtMs,
+      persistedThreadId: bridgeState.persistedThreadId,
+      runtimeThreadId: bridgeState.runtimeThreadId,
       localThreadId: bridgeState.localThreadId,
-      threadHandle: runtimeThreadId,
+      threadHandle: bridgeState.runtimeThreadId,
       turnId: bridgeState.turnId,
       lastErrorCode: bridgeState.lastErrorCode,
       lastError: bridgeState.lastError,
@@ -313,8 +321,8 @@ async function executeDynamicToolCall(
 
   let pendingSummary: Array<{ requestId: string | number; method: string }> = [];
   if (includePendingRequests && runtime) {
-    const pending = bridgeState.localThreadId
-      ? await runtime.listPendingServerRequests(bridgeState.localThreadId)
+    const pending = bridgeState.persistedThreadId
+      ? await runtime.listPendingServerRequests(bridgeState.persistedThreadId)
       : await runtime.listPendingServerRequests();
     pendingSummary = pending.map((request) => ({
       requestId: request.requestId,
@@ -326,9 +334,10 @@ async function executeDynamicToolCall(
     tool: toolCall.tool,
     generatedAt: new Date().toISOString(),
     threadId: toolCall.threadId,
+    persistedThreadId: bridgeState.persistedThreadId,
+    runtimeThreadId: bridgeState.runtimeThreadId,
     localThreadId: bridgeState.localThreadId,
     turnId: toolCall.turnId,
-    runtimeThreadId,
     helperPid: process.pid,
     cwd: process.cwd(),
     ...(note ? { note } : {}),
@@ -346,16 +355,64 @@ async function executeDynamicToolCall(
   };
 }
 
-async function resolveRuntimeThreadIdForLocalThread(
+type OpenTargetResolution =
+  | {
+      mode: "bound";
+      conversationHandle: string;
+      runtimeThreadHandle: string;
+    }
+  | {
+      mode: "unbound";
+      conversationHandle: string;
+      runtimeThreadHandle: string;
+    };
+
+function getThreadHandleFromCodexResponse(response: unknown): string | null {
+  const root = asRecord(response);
+  const result = asRecord(root?.result);
+  const thread = asRecord(result?.thread);
+  const threadId = typeof thread?.id === "string" ? thread.id : null;
+  if (threadId && threadId.length > 0) {
+    return threadId;
+  }
+  return null;
+}
+
+async function resolveOpenTarget(
   client: ConvexHttpClient,
   actor: ActorContext,
-  threadId: string,
-): Promise<string> {
+  conversationHandle: string,
+): Promise<OpenTargetResolution> {
   const result = await client.query(
-    requireDefined(chatApi.resolveThreadHandleForStart, "api.chat.resolveThreadHandleForStart"),
-    { actor, threadId },
-  ) as { threadHandleId: string };
-  return result.threadHandleId;
+    requireDefined(chatApi.resolveOpenTarget, "api.chat.resolveOpenTarget"),
+    { actor, conversationHandle },
+  ) as OpenTargetResolution;
+  return result;
+}
+
+async function runtimeHasLocalRolloutThreadHandle(threadHandle: string): Promise<boolean> {
+  if (!runtime) {
+    return false;
+  }
+  let cursor: string | null = null;
+  while (true) {
+    const response = await runtime.listThreads(cursor ? { cursor } : undefined);
+    const root = asRecord(response);
+    const result = asRecord(root?.result);
+    const data = Array.isArray(result?.data) ? result.data : [];
+    for (const row of data) {
+      const thread = asRecord(row);
+      if (typeof thread?.id === "string" && thread.id === threadHandle) {
+        return true;
+      }
+    }
+    const nextCursor = typeof result?.nextCursor === "string" ? result.nextCursor : null;
+    if (!nextCursor) {
+      break;
+    }
+    cursor = nextCursor;
+  }
+  return false;
 }
 
 async function setDisabledTools(tools: string[]): Promise<string[]> {
@@ -375,17 +432,17 @@ async function setDisabledTools(tools: string[]): Promise<string[]> {
   };
   emitState();
   if (runtime && latestStartPayload) {
-    const restartThreadId = bridgeState.localThreadId;
+    const restartThreadHandle = bridgeState.runtimeThreadId ?? null;
     const restartPayload: StartPayload = {
       ...latestStartPayload,
       disabledTools: normalized,
     };
     await stopCurrentBridge();
     await startBridge(restartPayload);
-    if (restartThreadId) {
+    if (restartThreadHandle) {
       await openThread({
         strategy: "resume",
-        threadHandle: restartThreadId,
+        threadHandle: restartThreadHandle,
       });
     }
   }
@@ -465,6 +522,56 @@ async function handlePendingDynamicToolCalls(threadId: string): Promise<void> {
   }
 }
 
+async function emitLoadedRuntimeThreadsSnapshot(source: "start" | "open_thread"): Promise<void> {
+  if (!runtime) {
+    return;
+  }
+  const untitledPreview = "Untitled thread";
+  const threadIds: string[] = [];
+  const threads: Array<{ threadId: string; preview: string }> = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+
+  while (true) {
+    const response = await runtime.listThreads(cursor ? { cursor } : undefined);
+    const root = asRecord(response);
+    const result = asRecord(root?.result);
+    const data = Array.isArray(result?.data) ? result.data : [];
+    for (const row of data) {
+      const thread = asRecord(row);
+      const id = typeof thread?.id === "string" ? thread.id : null;
+      if (!id) {
+        continue;
+      }
+      if (seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      threadIds.push(id);
+      const previewRaw = typeof thread?.preview === "string" ? thread.preview.trim() : "";
+      threads.push({
+        threadId: id,
+        preview: previewRaw.length > 0 ? previewRaw : untitledPreview,
+      });
+    }
+    const nextCursor = result?.nextCursor;
+    if (typeof nextCursor !== "string" || nextCursor.length === 0) {
+      break;
+    }
+    cursor = nextCursor;
+  }
+
+  emit({
+    type: "global",
+    payload: {
+      kind: "bridge/local_threads_loaded",
+      source,
+      threadIds,
+      threads,
+    },
+  });
+}
+
 async function startBridge(payload: StartPayload): Promise<void> {
   const normalizedPayload = {
     ...payload,
@@ -531,7 +638,9 @@ async function startBridge(payload: StartPayload): Promise<void> {
           phase: state.phase,
           source: state.source,
           updatedAtMs: state.updatedAtMs,
-          localThreadId: state.threadId,
+          persistedThreadId: state.persistedThreadId,
+          runtimeThreadId: state.runtimeThreadId,
+          localThreadId: state.persistedThreadId,
           turnId: state.turnId,
           lastErrorCode: state.lastErrorCode,
           lastError: state.lastError,
@@ -544,7 +653,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
       },
       onEvent: (event) => {
         runtimeThreadId = event.threadId;
-        emitState();
+        emitState({ runtimeThreadId: event.threadId });
         if (event.kind === "item/tool/call") {
           void handlePendingDynamicToolCalls(event.threadId);
         }
@@ -617,6 +726,19 @@ async function startBridge(payload: StartPayload): Promise<void> {
     });
 
     emitState({ running: true, phase: "running", source: "runtime", lastErrorCode: null, lastError: null });
+    try {
+      await emitLoadedRuntimeThreadsSnapshot("start");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/local_threads_load_failed",
+          source: "start",
+          message,
+        },
+      });
+    }
     emit({ type: "ack", payload: { command: "start" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -631,16 +753,68 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
     throw new Error("Bridge/runtime not ready. Start runtime first.");
   }
   let runtimeThreadIdForOpen: string | undefined;
+  let resolvedUnboundTarget: { conversationHandle: string; runtimeThreadHandle: string } | null = null;
   if (payload.strategy === "resume" || payload.strategy === "fork") {
-    const requestedThreadId = payload.threadHandle?.trim();
-    if (!requestedThreadId) {
-      throw new Error(`threadId is required when strategy="${payload.strategy}".`);
+    const conversationHandle = payload.threadHandle?.trim();
+    if (!conversationHandle) {
+      throw new Error(`threadHandle is required when strategy="${payload.strategy}".`);
     }
-    runtimeThreadIdForOpen = await resolveRuntimeThreadIdForLocalThread(
+    const resolved = await resolveOpenTarget(
       convex,
       actor,
-      requestedThreadId,
+      conversationHandle,
     );
+    const canResumeLocally = await runtimeHasLocalRolloutThreadHandle(resolved.runtimeThreadHandle);
+    if (canResumeLocally) {
+      runtimeThreadIdForOpen = resolved.runtimeThreadHandle;
+      if (payload.strategy === "resume" && resolved.mode === "unbound") {
+        resolvedUnboundTarget = {
+          conversationHandle: resolved.conversationHandle,
+          runtimeThreadHandle: resolved.runtimeThreadHandle,
+        };
+      }
+    } else if (payload.strategy === "resume" && resolved.mode === "bound") {
+      const started = await runtime.openThread({
+        strategy: "start",
+        ...(payload.model ? { model: payload.model } : {}),
+        ...(payload.cwd ? { cwd: payload.cwd } : {}),
+        ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),
+      });
+      const startedRuntimeThreadHandle =
+        getThreadHandleFromCodexResponse(started) ??
+        runtimeThreadId ??
+        null;
+      if (!startedRuntimeThreadHandle) {
+        throw new Error("[E_OPEN_TARGET_RESOLUTION_FAILED] Could not determine runtime thread handle during rebind.");
+      }
+      await convex.mutation(
+        requireDefined(chatApi.syncOpenThreadBinding, "api.chat.syncOpenThreadBinding"),
+        {
+          actor,
+          threadHandle: resolved.conversationHandle,
+          runtimeThreadId: startedRuntimeThreadHandle,
+          ...(payload.model ? { model: payload.model } : {}),
+          ...(payload.cwd ? { cwd: payload.cwd } : {}),
+          ...(activeSessionId ? { sessionId: activeSessionId } : {}),
+        },
+      );
+      try {
+        await emitLoadedRuntimeThreadsSnapshot("open_thread");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        emit({
+          type: "global",
+          payload: {
+            kind: "bridge/local_threads_load_failed",
+            source: "open_thread",
+            message,
+          },
+        });
+      }
+      return;
+    } else {
+      throw new Error(`[E_OPEN_TARGET_NOT_FOUND] No local rollout found for conversation handle: ${conversationHandle}`);
+    }
   }
   await runtime.openThread({
     strategy: payload.strategy,
@@ -649,6 +823,51 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
     ...(payload.cwd ? { cwd: payload.cwd } : {}),
     ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),
   });
+  if (resolvedUnboundTarget) {
+    try {
+      await runtime.importLocalThreadToPersistence({
+        runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+        threadHandle: resolvedUnboundTarget.conversationHandle,
+      });
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/local_thread_synced",
+          threadHandle: resolvedUnboundTarget.conversationHandle,
+          runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/local_thread_sync_failed",
+          threadHandle: resolvedUnboundTarget.conversationHandle,
+          runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+          message,
+        },
+      });
+      throw error;
+    }
+  }
+  try {
+    await emitLoadedRuntimeThreadsSnapshot("open_thread");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    emit({
+      type: "global",
+      payload: {
+        kind: "bridge/local_threads_load_failed",
+        source: "open_thread",
+        message,
+      },
+    });
+  }
+}
+
+async function refreshLocalThreads(): Promise<void> {
+  await emitLoadedRuntimeThreadsSnapshot("open_thread");
 }
 
 async function sendTurn(text: string): Promise<void> {
@@ -758,6 +977,8 @@ async function stopCurrentBridge(): Promise<void> {
       running: false,
       phase: "stopped",
       source: "runtime",
+      persistedThreadId: null,
+      runtimeThreadId: null,
       localThreadId: null,
       turnId: null,
       lastErrorCode: null,
@@ -805,6 +1026,7 @@ async function handle(command: HelperCommand): Promise<void> {
   } = {
     start: (input) => startBridge(input.payload),
     open_thread: (input) => openThread(input.payload),
+    refresh_local_threads: () => refreshLocalThreads(),
     send_turn: (input) => sendTurn(input.payload.text),
     respond_command_approval: (input) =>
       respondCommandApproval(input.payload.requestId, input.payload.decision),
@@ -835,6 +1057,19 @@ async function handle(command: HelperCommand): Promise<void> {
 }
 
 let buffered = "";
+let commandQueue: Promise<void> = Promise.resolve();
+
+function enqueueCommand(command: HelperCommand): void {
+  const run = async () => {
+    try {
+      await handle(command);
+    } catch (error) {
+      emit({ type: "error", payload: { message: error instanceof Error ? error.message : String(error) } });
+    }
+  };
+  commandQueue = commandQueue.then(run, run);
+}
+
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
   buffered += String(chunk);
@@ -850,9 +1085,7 @@ process.stdin.on("data", (chunk) => {
     }
     try {
       const command = parseHelperCommand(line);
-      void handle(command).catch((error) => {
-        emit({ type: "error", payload: { message: error instanceof Error ? error.message : String(error) } });
-      });
+      enqueueCommand(command);
     } catch (error) {
       emit({ type: "error", payload: { message: error instanceof Error ? error.message : String(error) } });
     }

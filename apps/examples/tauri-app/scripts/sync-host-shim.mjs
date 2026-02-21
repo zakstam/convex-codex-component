@@ -12,7 +12,8 @@ const expected = renderCodexHostShim({
   extensionExports: [
     "getActorBindingForBootstrap",
     "listThreadsForPicker",
-    "resolveThreadHandleForStart",
+    "listRuntimeThreadBindingsForPicker",
+    "resolveOpenTarget",
   ],
 });
 const current = readFileSync(chatPath, "utf8");

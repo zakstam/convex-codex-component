@@ -2,10 +2,10 @@
 
 [[permission]]
 identifier = "allow-respond-tool-user-input"
-description = "Enables the respond_tool_user_input command without a pre-configured scope."
+description = "Enables the respond_tool_user_input command without any pre-configured scope."
 commands.allow = ["respond_tool_user_input"]
 
 [[permission]]
 identifier = "deny-respond-tool-user-input"
-description = "Denies the respond_tool_user_input command without a pre-configured scope."
+description = "Denies the respond_tool_user_input command without any pre-configured scope."
 commands.deny = ["respond_tool_user_input"]

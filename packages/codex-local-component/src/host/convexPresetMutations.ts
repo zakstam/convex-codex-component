@@ -6,14 +6,17 @@ import { v } from "convex/values";
 import {
   ensureSession as ensureSessionHandler,
   ensureThreadByResolve,
+  forceRebindThreadSyncForActor,
   ingestBatchMixed,
   ingestBatchStreamOnly,
   ingestEventMixed,
   ingestEventStreamOnly,
   interruptTurnForHooksForActor,
+  markThreadSyncProgressForActor,
   resolveThreadByThreadHandleForActor,
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
+  syncOpenThreadBindingForActor,
   upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
   vHostActorContext,
@@ -223,6 +226,91 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
   };
 
   return {
+    syncOpenThreadBinding: {
+      args: {
+        actor: vHostActorContext,
+        threadHandle: v.string(),
+        runtimeThreadId: v.optional(v.string()),
+        model: v.optional(v.string()),
+        cwd: v.optional(v.string()),
+        sessionId: v.optional(v.string()),
+      },
+      returns: v.object({
+        threadId: v.string(),
+        created: v.boolean(),
+        rebindApplied: v.boolean(),
+        threadHandle: v.string(),
+        runtimeThreadId: v.string(),
+        syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; threadHandle: string; runtimeThreadId?: string; model?: string; cwd?: string; sessionId?: string },
+      ) => syncOpenThreadBindingForActor(
+        ctx,
+        component,
+        withServerActor(
+          {
+            actor: args.actor,
+            threadHandle: args.threadHandle,
+            runtimeThreadId: args.runtimeThreadId ?? args.threadHandle,
+            ...(args.model !== undefined ? { model: args.model } : {}),
+            ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+            ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
+          },
+          resolveServerActor(args, serverActor),
+        ),
+      ),
+    },
+    markThreadSyncProgress: {
+      args: {
+        actor: vHostActorContext,
+        threadHandle: v.string(),
+        runtimeThreadId: v.optional(v.string()),
+        sessionId: v.optional(v.string()),
+        cursor: v.number(),
+        syncState: v.optional(v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted"))),
+        errorCode: v.optional(v.string()),
+      },
+      returns: v.object({
+        threadId: v.string(),
+        threadHandle: v.string(),
+        runtimeThreadId: v.optional(v.string()),
+        syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
+        lastSyncedCursor: v.number(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; threadHandle: string; runtimeThreadId?: string; sessionId?: string; cursor: number; syncState?: "unsynced" | "syncing" | "synced" | "drifted"; errorCode?: string },
+      ) => markThreadSyncProgressForActor(
+        ctx,
+        component,
+        withServerActor(args, resolveServerActor(args, serverActor)),
+      ),
+    },
+    forceRebindThreadSync: {
+      args: {
+        actor: vHostActorContext,
+        threadHandle: v.string(),
+        runtimeThreadId: v.string(),
+        reasonCode: v.optional(v.string()),
+      },
+      returns: v.object({
+        threadId: v.string(),
+        threadHandle: v.string(),
+        runtimeThreadId: v.string(),
+        syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
+        rebindCount: v.number(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; threadHandle: string; runtimeThreadId: string; reasonCode?: string },
+      ) => forceRebindThreadSyncForActor(
+        ctx,
+        component,
+        withServerActor(args, resolveServerActor(args, serverActor)),
+      ),
+    },
     ensureThread,
     ensureSession: {
       args: {

@@ -14,6 +14,9 @@ export type BridgeState = {
   phase?: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
   source?: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
   updatedAtMs?: number;
+  persistedThreadId: string | null;
+  runtimeThreadId: string | null;
+  // Back-compat alias for persisted thread id.
   localThreadId: string | null;
   threadHandle: string | null;
   turnId: string | null;
@@ -72,6 +75,7 @@ export type OpenThreadPayload = {
 export type HelperCommandType =
   | "start"
   | "open_thread"
+  | "refresh_local_threads"
   | "send_turn"
   | "interrupt"
   | "respond_command_approval"
@@ -90,6 +94,7 @@ export type HelperCommandType =
 export type HelperCommand =
   | { type: "start"; payload: StartPayload }
   | { type: "open_thread"; payload: OpenThreadPayload }
+  | { type: "refresh_local_threads"; payload: Record<string, never> }
   | { type: "send_turn"; payload: { text: string } }
   | { type: "interrupt" }
   | { type: "respond_command_approval"; payload: { requestId: string | number; decision: CommandExecutionApprovalDecision } }
@@ -124,6 +129,13 @@ type TauriBridgeCommandDefinition = {
 export const TAURI_BRIDGE_COMMANDS: ReadonlyArray<TauriBridgeCommandDefinition> = [
   { id: "start_bridge", tauriCommand: "start_bridge", helperType: "start", permission: true, ack: false },
   { id: "open_thread", tauriCommand: "open_thread", helperType: "open_thread", permission: true, ack: true },
+  {
+    id: "refresh_local_threads",
+    tauriCommand: "refresh_local_threads",
+    helperType: "refresh_local_threads",
+    permission: true,
+    ack: true,
+  },
   { id: "send_user_turn", tauriCommand: "send_user_turn", helperType: "send_turn", permission: true, ack: true },
   { id: "interrupt_turn", tauriCommand: "interrupt_turn", helperType: "interrupt", permission: true, ack: true },
   {
@@ -196,6 +208,7 @@ export const HELPER_COMMAND_TYPES = TAURI_BRIDGE_COMMANDS
 export const HELPER_ACK_BY_TYPE: Readonly<Record<HelperCommandType, boolean>> = Object.freeze({
   start: false,
   open_thread: true,
+  refresh_local_threads: true,
   send_turn: true,
   interrupt: true,
   respond_command_approval: true,
@@ -272,6 +285,7 @@ export type TauriBridgeClient = {
   lifecycle: {
     start(config: StartBridgeConfig): Promise<unknown>;
     openThread(config: OpenThreadConfig): Promise<unknown>;
+    refreshLocalThreads(): Promise<unknown>;
     stop(): Promise<unknown>;
     getState(): Promise<BridgeState>;
     subscribe(listener: TauriBridgeStateListener): Promise<() => void>;
@@ -309,6 +323,10 @@ const LIFECYCLE_SAFE_SEND_POLL_MS = 200;
 function isBridgeReadyForTurnSend(state: BridgeState): boolean {
   return (
     state.running === true
+    && (
+      (typeof state.persistedThreadId === "string" && state.persistedThreadId.length > 0)
+      || (typeof state.localThreadId === "string" && state.localThreadId.length > 0)
+    )
   );
 }
 
@@ -358,7 +376,7 @@ export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBrid
       }
       await new Promise((resolve) => setTimeout(resolve, LIFECYCLE_SAFE_SEND_POLL_MS));
     }
-    throw new Error(`Bridge started, but no local thread became ready within ${LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS}ms.`);
+    throw new Error(`Bridge started, but no persisted thread became ready within ${LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS}ms.`);
   };
   const ensureReadyForLifecycleSafeSend = async (): Promise<void> => {
     if (!cachedStartConfig) {
@@ -408,6 +426,9 @@ export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBrid
       },
       openThread(config: OpenThreadConfig): Promise<unknown> {
         return invoke("open_thread", { config: toOpenThreadInvokeConfig(config) });
+      },
+      refreshLocalThreads(): Promise<unknown> {
+        return invoke("refresh_local_threads");
       },
       stop(): Promise<unknown> {
         return invoke("stop_bridge");

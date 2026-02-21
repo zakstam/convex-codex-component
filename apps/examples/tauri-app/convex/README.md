@@ -10,14 +10,16 @@ Canonical consumer implementation guidance is in:
 
 - `convex.config.ts`: mounts `codexLocal`
 - `actorLock.ts`: app-owned actor binding and server-side identity guard
-- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `getActorBindingForBootstrap`, `resolveThreadHandleForStart`) using actor lock
+- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `listRuntimeThreadBindingsForPicker`, `getActorBindingForBootstrap`, `resolveOpenTarget`) using actor lock
 - `chat.ts`: generated host shim (exports public `api.chat.*`) built from `defineCodexHostDefinitions(...)`
   - includes deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
 
 ## Thread API
 
 - Thread picker flow: `chat.listThreadsForPicker`.
-- Picker query returns persisted thread metadata only (`threadHandle`, status, timestamps).
+- Picker query returns persisted thread metadata only (`threadHandle`, `preview`, status, timestamps).
+- `chat.listRuntimeThreadBindingsForPicker` maps runtime thread IDs to persisted bindings for local-thread labeling (`local unsynced` vs persisted).
+- `chat.resolveOpenTarget` resolves a selected conversation handle to an open target (`bound` or `unbound`) for resume/rebind decisions.
 - Runtime-owned `ensureThread` uses one resolve path and requires `threadHandle`.
 
 ## Actor Lock

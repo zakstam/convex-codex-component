@@ -2,10 +2,13 @@ import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { defineCodexHostDefinitions } from "@zakstam/codex-local-component/host/convex";
 
-export { getActorBindingForBootstrap, listThreadsForPicker, resolveThreadHandleForStart } from "./chat.extensions";
+export { getActorBindingForBootstrap, listThreadsForPicker, listRuntimeThreadBindingsForPicker, resolveOpenTarget } from "./chat.extensions";
 
 const codex = defineCodexHostDefinitions({ components });
 
+export const syncOpenThreadBinding = mutation(codex.mutations.syncOpenThreadBinding);
+export const markThreadSyncProgress = mutation(codex.mutations.markThreadSyncProgress);
+export const forceRebindThreadSync = mutation(codex.mutations.forceRebindThreadSync);
 export const ensureThread = mutation(codex.mutations.ensureThread);
 export const ensureSession = mutation(codex.mutations.ensureSession);
 export const ingestEvent = mutation(codex.mutations.ingestEvent);

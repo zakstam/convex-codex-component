@@ -33,6 +33,9 @@ export type HostRuntimeState = {
   phase: HostRuntimeLifecyclePhase;
   source: HostRuntimeLifecycleSource;
   updatedAtMs: number;
+  persistedThreadId: string | null;
+  runtimeThreadId: string | null;
+  // Back-compat alias for consumers still reading `threadId`.
   threadId: string | null;
   threadHandle: string | null;
   turnId: string | null;
@@ -87,6 +90,21 @@ export type HostRuntimeOpenThreadArgs = {
   model?: string;
   cwd?: string;
   dynamicTools?: DynamicToolSpec[];
+};
+
+export type HostRuntimeImportLocalThreadArgs = {
+  runtimeThreadHandle: ThreadHandle;
+  threadHandle?: ThreadHandle;
+  sessionId?: string;
+};
+
+export type HostRuntimeImportLocalThreadResult = {
+  threadHandle: string;
+  threadId: string;
+  importedTurnCount: number;
+  importedMessageCount: number;
+  syncState: "synced" | "partial";
+  warnings: string[];
 };
 
 export type HostRuntimePersistence = {
@@ -249,6 +267,9 @@ export type CodexHostRuntime = {
     threadHandle: RuntimeThreadLocator["runtimeThreadId"],
     includeTurns?: boolean,
   ) => Promise<CodexResponse>;
+  importLocalThreadToPersistence: (
+    args: HostRuntimeImportLocalThreadArgs,
+  ) => Promise<HostRuntimeImportLocalThreadResult>;
   readAccount: (params?: { refreshToken?: boolean }) => Promise<CodexResponse>;
   loginAccount: (params: LoginAccountParams) => Promise<CodexResponse>;
   cancelAccountLogin: (params: CancelLoginAccountParams) => Promise<CodexResponse>;

@@ -4,6 +4,7 @@
 pub const HELPER_FORWARD_TAURI_COMMANDS: &[&str] = &[
     "start_bridge",
     "open_thread",
+    "refresh_local_threads",
     "send_user_turn",
     "interrupt_turn",
     "respond_command_approval",
@@ -23,6 +24,7 @@ pub fn helper_command_for_tauri_command(tauri_command: &str) -> Option<&'static 
     match tauri_command {
         "start_bridge" => Some("start"),
         "open_thread" => Some("open_thread"),
+        "refresh_local_threads" => Some("refresh_local_threads"),
         "send_user_turn" => Some("send_turn"),
         "interrupt_turn" => Some("interrupt"),
         "respond_command_approval" => Some("respond_command_approval"),

@@ -3,7 +3,9 @@ import { useState, useRef, useEffect } from "react";
 type Thread = {
   threadHandle: string;
   status: string;
+  preview: string;
   updatedAt?: number;
+  scope?: "persisted" | "local_unsynced";
 };
 
 type Props = {
@@ -11,6 +13,8 @@ type Props = {
   selected: string;
   onSelect: (threadHandle: string) => void;
   disabled: boolean;
+  showLocalThreads: boolean;
+  onToggleShowLocalThreads: (next: boolean) => void;
 };
 
 function formatRelativeTime(timestamp?: number): string {
@@ -25,7 +29,14 @@ function formatRelativeTime(timestamp?: number): string {
   return `${days}d ago`;
 }
 
-export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
+export function ThreadPicker({
+  threads,
+  selected,
+  onSelect,
+  disabled,
+  showLocalThreads,
+  onToggleShowLocalThreads,
+}: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,8 +52,10 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
 
   const selectedThread = threads.find((t) => t.threadHandle === selected);
   const displayLabel = selectedThread
-    ? `${selectedThread.threadHandle.slice(0, 12)}... • ${selectedThread.status}`
+    ? `${selectedThread.preview} • ${selectedThread.scope === "local_unsynced" ? "local unsynced" : selectedThread.status}`
     : "New thread";
+  const persistedThreads = threads.filter((thread) => thread.scope !== "local_unsynced");
+  const localUnsyncedThreads = threads.filter((thread) => thread.scope === "local_unsynced");
 
   return (
     <div
@@ -64,6 +77,14 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
           {open ? "▲" : "▼"}
         </span>
       </button>
+      <label className="thread-picker-local-toggle">
+        <input
+          type="checkbox"
+          checked={showLocalThreads}
+          onChange={(event) => onToggleShowLocalThreads(event.target.checked)}
+        />
+        <span>Show local unsynced threads</span>
+      </label>
       {open && (
         <div className="thread-picker-dropdown">
           <button
@@ -78,7 +99,7 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
             <span className="status-dot stopped" aria-hidden="true" />
             <span>Start a new thread</span>
           </button>
-          {threads.map((thread) => (
+          {persistedThreads.map((thread) => (
             <button
               key={thread.threadHandle}
               className={`thread-picker-option ${thread.threadHandle === selected ? "active" : ""}`}
@@ -94,7 +115,7 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
                 aria-hidden="true"
               />
               <span className="thread-option-id">
-                {thread.threadHandle.slice(0, 16)}...
+                {thread.preview}
               </span>
               <span className={`status-badge ${thread.status}`}>
                 {thread.status}
@@ -106,6 +127,29 @@ export function ThreadPicker({ threads, selected, onSelect, disabled }: Props) {
               )}
             </button>
           ))}
+          {showLocalThreads && localUnsyncedThreads.length > 0 && (
+            <div className="thread-picker-section">
+              <p className="thread-picker-section-label">Local unsynced</p>
+              {localUnsyncedThreads.map((thread) => (
+                <button
+                  key={thread.threadHandle}
+                  className={`thread-picker-option ${thread.threadHandle === selected ? "active" : ""}`}
+                  onClick={() => {
+                    onSelect(thread.threadHandle);
+                    setOpen(false);
+                  }}
+                  role="option"
+                  aria-selected={thread.threadHandle === selected}
+                >
+                  <span className="status-dot running" aria-hidden="true" />
+                  <span className="thread-option-id">
+                    {thread.preview}
+                  </span>
+                  <span className="status-badge local-unsynced">local unsynced</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

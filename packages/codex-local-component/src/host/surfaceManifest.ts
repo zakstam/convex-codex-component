@@ -1,6 +1,9 @@
 export const HOST_SURFACE_MANIFEST = {
   runtimeOwned: {
     mutations: [
+      "syncOpenThreadBinding",
+      "markThreadSyncProgress",
+      "forceRebindThreadSync",
       "ensureThread",
       "ensureSession",
       "ingestEvent",

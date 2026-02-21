@@ -207,6 +207,12 @@
           "markdownDescription": "Enables the logout_account command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_thread command without a pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-thread",
+          "markdownDescription": "Enables the open_thread command without a pre-configured scope."
+        },
+        {
           "description": "Enables the read_account command without any pre-configured scope.",
           "type": "string",
           "const": "allow-read-account",
@@ -217,6 +223,12 @@
           "type": "string",
           "const": "allow-read-account-rate-limits",
           "markdownDescription": "Enables the read_account_rate_limits command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the refresh_local_threads command without a pre-configured scope.",
+          "type": "string",
+          "const": "allow-refresh-local-threads",
+          "markdownDescription": "Enables the refresh_local_threads command without a pre-configured scope."
         },
         {
           "description": "Enables the respond_chatgpt_auth_tokens_refresh command without any pre-configured scope.",
@@ -297,6 +309,12 @@
           "markdownDescription": "Denies the logout_account command without any pre-configured scope."
         },
         {
+          "description": "Denies the open_thread command without a pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-thread",
+          "markdownDescription": "Denies the open_thread command without a pre-configured scope."
+        },
+        {
           "description": "Denies the read_account command without any pre-configured scope.",
           "type": "string",
           "const": "deny-read-account",
@@ -307,6 +325,12 @@
           "type": "string",
           "const": "deny-read-account-rate-limits",
           "markdownDescription": "Denies the read_account_rate_limits command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the refresh_local_threads command without a pre-configured scope.",
+          "type": "string",
+          "const": "deny-refresh-local-threads",
+          "markdownDescription": "Denies the refresh_local_threads command without a pre-configured scope."
         },
         {
           "description": "Denies the respond_chatgpt_auth_tokens_refresh command without any pre-configured scope.",

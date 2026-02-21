@@ -168,6 +168,52 @@ test("runtime connect does not open a thread until openThread is called", async 
   await runtime.stop();
 });
 
+test("runtime can import local thread history into persistence using a single call", async () => {
+  const { runtime, sent, emitResponse, ingestCalls } = createHarness();
+  const runtimeThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  const persistedThreadHandle = "conv-thread-1";
+
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  const importPromise = runtime.importLocalThreadToPersistence({
+    runtimeThreadHandle: runtimeThreadId,
+    threadHandle: persistedThreadHandle,
+  });
+  const threadReadRequest = await waitForMessage(sent, (message) => message.method === "thread/read");
+  await emitResponse({
+    id: threadReadRequest.id,
+    result: {
+      thread: {
+        id: runtimeThreadId,
+        turns: [
+          {
+            id: "turn-1",
+            status: "completed",
+            error: null,
+            items: [
+              { type: "userMessage", id: "item-user-1", content: [{ type: "text", text: "hi" }] },
+              { type: "agentMessage", id: "item-assistant-1", text: "hello" },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  const imported = await importPromise;
+  assert.equal(imported.threadHandle, persistedThreadHandle);
+  assert.equal(imported.importedTurnCount, 1);
+  assert.equal(imported.importedMessageCount, 2);
+  assert.equal(imported.syncState, "synced");
+  assert.equal(ingestCalls.length, 1);
+  assert.ok(ingestCalls[0].deltas.some((delta) => delta.kind === "item/completed"));
+
+  await runtime.stop();
+});
+
 test("runtime sendTurn fail-closes when thread is not opened", async () => {
   const { runtime } = createHarness();
   await runtime.connect({

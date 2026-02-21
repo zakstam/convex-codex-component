@@ -12,6 +12,9 @@ type ConvexHttpClientLike = {
 };
 
 export type ConvexPersistenceChatApi = {
+  syncOpenThreadBinding: FunctionReference<"mutation", "public">;
+  markThreadSyncProgress: FunctionReference<"mutation", "public">;
+  forceRebindThreadSync: FunctionReference<"mutation", "public">;
   ensureThread: FunctionReference<"mutation", "public">;
   ensureSession: FunctionReference<"mutation", "public">;
   ingestBatch: FunctionReference<"mutation", "public">;
@@ -81,6 +84,7 @@ export function createConvexPersistence(
 ): HostRuntimePersistence & { activeSessionId: string | null } {
   let activeSessionId: string | null = null;
   const dispatchQueues = new Map<string, DispatchQueueEntry[]>();
+  const threadHandleByPersistedThreadId = new Map<string, string>();
   const runtimeOpts = options?.runtimeOptions ?? {};
 
   function getDispatchQueue(threadId: string): DispatchQueueEntry[] {
@@ -125,22 +129,46 @@ export function createConvexPersistence(
 
   const persistence: HostRuntimePersistence = {
     ensureThread: async (args) => {
-      return client.mutation(chatApi.ensureThread, {
+      const opened = await client.mutation(chatApi.syncOpenThreadBinding, {
         actor: args.actor,
         threadHandle: args.threadHandle,
+        runtimeThreadId: args.threadHandle,
         ...(args.model ? { model: args.model } : {}),
         ...(args.cwd ? { cwd: args.cwd } : {}),
-      }) as Promise<{ threadId: string; created?: boolean }>;
+      }) as { threadId: string; created?: boolean; rebindApplied?: boolean };
+      if (opened.rebindApplied) {
+        await client.mutation(chatApi.forceRebindThreadSync, {
+          actor: args.actor,
+          threadHandle: args.threadHandle,
+          runtimeThreadId: args.threadHandle,
+          reasonCode: "AUTO_FORCE_REBIND_ON_OPEN",
+        });
+      }
+      threadHandleByPersistedThreadId.set(opened.threadId, args.threadHandle);
+      return {
+        threadId: opened.threadId,
+        ...(typeof opened.created === "boolean" ? { created: opened.created } : {}),
+      };
     },
 
     ensureSession: async (args) => {
       activeSessionId = args.sessionId;
-      return client.mutation(chatApi.ensureSession, {
+      const threadHandle = threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId;
+      const ensured = await client.mutation(chatApi.ensureSession, {
         actor: args.actor,
         sessionId: args.sessionId,
         threadId: args.threadId,
         lastEventCursor: args.lastEventCursor,
-      }) as Promise<{ sessionId: string; threadId: string; status: "created" | "active" }>;
+      }) as { sessionId: string; threadId: string; status: "created" | "active" };
+      await client.mutation(chatApi.markThreadSyncProgress, {
+        actor: args.actor,
+        threadHandle,
+        runtimeThreadId: threadHandle,
+        sessionId: args.sessionId,
+        cursor: args.lastEventCursor,
+        syncState: "syncing",
+      });
+      return ensured;
     },
 
     ingestSafe: async (args) => {
@@ -151,6 +179,18 @@ export function createConvexPersistence(
         }>;
 
       const initial = await runIngest(args.sessionId);
+      const initialCursor = maxCursorEnd(args.deltas);
+      const threadHandle = threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId;
+      if (initial.status !== "rejected") {
+        await client.mutation(chatApi.markThreadSyncProgress, {
+          actor: args.actor,
+          threadHandle,
+          runtimeThreadId: threadHandle,
+          sessionId: args.sessionId,
+          cursor: initialCursor,
+          syncState: initial.status === "partial" ? "syncing" : "synced",
+        });
+      }
       if (initial.status !== "rejected") {
         return { status: initial.status, errors: mapIngestErrors(initial.errors) };
       }
@@ -173,14 +213,40 @@ export function createConvexPersistence(
 
         const retried = await runIngest(nextSessionId);
         if (retried.status === "rejected") {
+          await client.mutation(chatApi.markThreadSyncProgress, {
+            actor: args.actor,
+            threadHandle,
+            runtimeThreadId: threadHandle,
+            sessionId: nextSessionId,
+            cursor: initialCursor,
+            syncState: "drifted",
+            errorCode: "INGEST_RETRY_REJECTED",
+          });
           return {
             status: "partial" as const,
             errors: mapIngestErrors(retried.errors).map((e) => ({ ...e, recoverable: true })),
           };
         }
+        await client.mutation(chatApi.markThreadSyncProgress, {
+          actor: args.actor,
+          threadHandle,
+          runtimeThreadId: threadHandle,
+          sessionId: nextSessionId,
+          cursor: initialCursor,
+          syncState: retried.status === "partial" ? "syncing" : "synced",
+        });
         return { status: retried.status, errors: mapIngestErrors(retried.errors) };
       }
 
+      await client.mutation(chatApi.markThreadSyncProgress, {
+        actor: args.actor,
+        threadHandle,
+        runtimeThreadId: threadHandle,
+        sessionId: args.sessionId,
+        cursor: initialCursor,
+        syncState: "drifted",
+        errorCode: "INGEST_REJECTED",
+      });
       return { status: initial.status, errors: mapIngestErrors(initial.errors) };
     },
 

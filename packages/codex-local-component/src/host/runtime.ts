@@ -36,7 +36,10 @@ import { createRuntimeCore } from "./runtimeCore.js";
 import { createConvexPersistence, type ConvexPersistenceChatApi, type ConvexPersistenceOptions } from "./convexPersistence.js";
 import type {
   HostRuntimeConnectArgs,
+  HostRuntimeImportLocalThreadArgs,
+  HostRuntimeImportLocalThreadResult,
   HostRuntimeOpenThreadArgs,
+  IngestDelta,
   HostRuntimePersistence,
   HostRuntimeHandlers,
   HostRuntimeState,
@@ -51,6 +54,8 @@ export {
   type CodexHostRuntime,
   type HostRuntimeErrorCode,
   type HostRuntimeHandlers,
+  type HostRuntimeImportLocalThreadArgs,
+  type HostRuntimeImportLocalThreadResult,
   type HostRuntimeLifecycleListener,
   type HostRuntimeLifecyclePhase,
   type HostRuntimeLifecycleSource,
@@ -80,6 +85,180 @@ type ConvexIntegratedArgs = {
 };
 
 export type CreateCodexHostRuntimeArgs = ManualPersistenceArgs | ConvexIntegratedArgs;
+
+type SnapshotThreadItem = {
+  type?: string;
+  id?: string;
+  [key: string]: unknown;
+};
+
+type SnapshotTurn = {
+  id?: string;
+  status?: string;
+  error?: unknown;
+  items?: SnapshotThreadItem[];
+};
+
+type UnknownRecord = { [key: string]: unknown };
+
+function isUnknownRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function asSnapshotTurn(value: unknown): SnapshotTurn | null {
+  if (!isUnknownRecord(value)) {
+    return null;
+  }
+  const record = value;
+  const id = typeof record.id === "string" ? record.id : null;
+  const status = typeof record.status === "string" ? record.status : null;
+  const items = Array.isArray(record.items)
+    ? record.items
+      .map((item) => {
+        if (!isUnknownRecord(item)) {
+          return null;
+        }
+        return item;
+      })
+      .filter((item): item is SnapshotThreadItem => item !== null)
+    : null;
+  return {
+    ...(id ? { id } : {}),
+    ...(status ? { status } : {}),
+    error: record.error,
+    ...(items ? { items } : {}),
+  };
+}
+
+function normalizeTurnStatus(status: string | undefined): "completed" | "interrupted" | "failed" | "inProgress" {
+  if (status === "completed" || status === "interrupted" || status === "failed" || status === "inProgress") {
+    return status;
+  }
+  return "completed";
+}
+
+function normalizeTurnError(
+  status: "completed" | "interrupted" | "failed" | "inProgress",
+  errorValue: unknown,
+): { message: string } | null {
+  if (status === "completed") {
+    return null;
+  }
+  const errorRecord = isUnknownRecord(errorValue) ? errorValue : null;
+  const message = typeof errorRecord?.message === "string" && errorRecord.message.trim().length > 0
+    ? errorRecord.message
+    : status === "interrupted"
+      ? "Turn interrupted during local thread import."
+      : "Turn failed during local thread import.";
+  return { message };
+}
+
+function buildThreadImportDeltas(args: {
+  snapshotId: string;
+  threadHandle: string;
+  turns: SnapshotTurn[];
+}): IngestDelta[] {
+  const deltas: IngestDelta[] = [];
+  let cursor = 0;
+  let createdAtMs = Date.now();
+
+  const push = (deltaArgs: {
+    turnId: string;
+    streamSuffix: string;
+    kind: string;
+    payload: Record<string, unknown>;
+  }) => {
+    const cursorStart = cursor;
+    const cursorEnd = cursor + 1;
+    cursor = cursorEnd;
+    deltas.push({
+      type: "stream_delta",
+      eventId: `thread-import:${args.snapshotId}:${args.threadHandle}:${deltaArgs.turnId}:${cursorEnd}`,
+      turnId: deltaArgs.turnId,
+      streamId: `thread-import:${args.snapshotId}:${args.threadHandle}:${deltaArgs.turnId}:${deltaArgs.streamSuffix}`,
+      kind: deltaArgs.kind,
+      payloadJson: JSON.stringify({
+        method: deltaArgs.kind,
+        params: deltaArgs.payload,
+      }),
+      cursorStart,
+      cursorEnd,
+      createdAt: createdAtMs++,
+      threadId: args.threadHandle,
+    });
+  };
+
+  for (const turn of args.turns) {
+    const turnId = typeof turn.id === "string" ? turn.id : null;
+    if (!turnId) {
+      continue;
+    }
+    const status = normalizeTurnStatus(turn.status);
+    const normalizedError = normalizeTurnError(status, turn.error);
+    const turnPayload = {
+      id: turnId,
+      items: [],
+      status,
+      ...(normalizedError ? { error: normalizedError } : { error: null }),
+    };
+    push({
+      turnId,
+      streamSuffix: "turn",
+      kind: "turn/started",
+      payload: {
+        threadId: args.threadHandle,
+        turn: turnPayload,
+      },
+    });
+    const items = Array.isArray(turn.items) ? turn.items : [];
+    for (const item of items) {
+      const itemId = typeof item.id === "string" ? item.id : null;
+      const itemType = typeof item.type === "string" ? item.type : null;
+      if (!itemId || !itemType) {
+        continue;
+      }
+      push({
+        turnId,
+        streamSuffix: `item:${itemId}`,
+        kind: "item/completed",
+        payload: {
+          threadId: args.threadHandle,
+          turnId,
+          item,
+        },
+      });
+    }
+    if (status !== "inProgress") {
+      push({
+        turnId,
+        streamSuffix: "terminal",
+        kind: "turn/completed",
+        payload: {
+          threadId: args.threadHandle,
+          turn: turnPayload,
+        },
+      });
+    }
+  }
+
+  return deltas;
+}
+
+function extractThreadReadTurns(response: unknown): SnapshotTurn[] {
+  if (!isUnknownRecord(response)) {
+    throw new Error("[E_IMPORT_THREAD_READ_FAILED][UNKNOWN] thread/read failed");
+  }
+  const error = isUnknownRecord(response.error) ? response.error : null;
+  if (error) {
+    const code = typeof error.code === "number" ? String(error.code) : "UNKNOWN";
+    const message = typeof error.message === "string" ? error.message : "thread/read failed";
+    throw new Error(`[E_IMPORT_THREAD_READ_FAILED][${code}] ${message}`);
+  }
+  const result = isUnknownRecord(response.result) ? response.result : null;
+  const thread = result && isUnknownRecord(result.thread) ? result.thread : null;
+  const turns = thread && Array.isArray(thread.turns) ? thread.turns : [];
+  return turns.map((turn) => asSnapshotTurn(turn)).filter((turn): turn is SnapshotTurn => turn !== null);
+}
 
 function isConvexIntegrated(args: CreateCodexHostRuntimeArgs): args is ConvexIntegratedArgs {
   return "convexUrl" in args && "chatApi" in args && "userId" in args;
@@ -287,6 +466,83 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   };
   const readThread: CodexHostRuntime["readThread"] = async (tid, includeTurns = false) =>
     core.sendRequest(buildThreadReadRequest(core.requestIdFn(), { threadId: tid, includeTurns }));
+  const importLocalThreadToPersistence: CodexHostRuntime["importLocalThreadToPersistence"] = async (
+    importArgs: HostRuntimeImportLocalThreadArgs,
+  ): Promise<HostRuntimeImportLocalThreadResult> => {
+    if (!core.bridge) {
+      throw new Error("[E_IMPORT_THREAD_BRIDGE_NOT_READY] Bridge not started. Connect runtime first.");
+    }
+    if (!core.actor) {
+      throw new Error("[E_IMPORT_THREAD_ACTOR_MISSING] Actor is required before importing local threads.");
+    }
+    const runtimeThreadHandle = importArgs.runtimeThreadHandle.trim();
+    if (runtimeThreadHandle.length === 0) {
+      throw new Error("[E_IMPORT_THREAD_HANDLE_REQUIRED] runtimeThreadHandle is required.");
+    }
+    const targetThreadHandle = importArgs.threadHandle?.trim() || runtimeThreadHandle;
+    const snapshotResponse = await readThread(runtimeThreadHandle, true);
+    const turns = extractThreadReadTurns(snapshotResponse);
+    const importedTurnCount = turns.filter((turn) => typeof turn.id === "string").length;
+    const importedMessageCount = turns.reduce((count, turn) => {
+      const items = Array.isArray(turn.items) ? turn.items : [];
+      const next = items.filter(
+        (item) => typeof item.id === "string" && typeof item.type === "string",
+      ).length;
+      return count + next;
+    }, 0);
+
+    const ensuredThread = await persistence.ensureThread({
+      actor: core.actor,
+      threadHandle: targetThreadHandle,
+      ...(core.startupModel ? { model: core.startupModel } : {}),
+      ...(core.startupCwd ? { cwd: core.startupCwd } : {}),
+    });
+    const trimmedSessionId = importArgs.sessionId?.trim();
+    const importSessionId = trimmedSessionId && trimmedSessionId.length > 0
+      ? trimmedSessionId
+      : `thread-import-${randomSessionId()}`;
+    await persistence.ensureSession({
+      actor: core.actor,
+      sessionId: importSessionId,
+      threadId: ensuredThread.threadId,
+      lastEventCursor: 0,
+    });
+
+    const deltas = buildThreadImportDeltas({
+      snapshotId: randomSessionId(),
+      threadHandle: targetThreadHandle,
+      turns,
+    });
+    if (deltas.length === 0) {
+      return {
+        threadHandle: targetThreadHandle,
+        threadId: ensuredThread.threadId,
+        importedTurnCount,
+        importedMessageCount,
+        syncState: "synced",
+        warnings: [],
+      };
+    }
+
+    const ingest = await persistence.ingestSafe({
+      actor: core.actor,
+      sessionId: importSessionId,
+      threadId: ensuredThread.threadId,
+      deltas,
+    });
+    if (ingest.status === "rejected") {
+      const reason = ingest.errors.map((error: { code: string; message: string }) => `${error.code}:${error.message}`).join("; ");
+      throw new Error(`[E_IMPORT_THREAD_INGEST_FAILED] ${reason.length > 0 ? reason : "Ingest rejected."}`);
+    }
+    return {
+      threadHandle: targetThreadHandle,
+      threadId: ensuredThread.threadId,
+      importedTurnCount,
+      importedMessageCount,
+      syncState: ingest.status === "partial" ? "partial" : "synced",
+      warnings: ingest.errors.map((error: { code: string; message: string }) => `${error.code}:${error.message}`),
+    };
+  };
   const readAccount: CodexHostRuntime["readAccount"] = async (params) =>
     core.sendRequest(buildAccountReadRequest(core.requestIdFn(), params));
   const loginAccount: CodexHostRuntime["loginAccount"] = async (params) =>
@@ -331,7 +587,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   return {
     connect, openThread, stop, sendTurn, steerTurn, interrupt,
     resumeThread, forkThread, archiveThread, setThreadName, unarchiveThread, compactThread, rollbackThread,
-    readThread, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
+    readThread, importLocalThreadToPersistence, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
     readAccountRateLimits, listThreads, listLoadedThreads,
     listPendingServerRequests: core.listPendingServerRequests,
     respondCommandApproval, respondFileChangeApproval, respondToolUserInput,

@@ -35,6 +35,8 @@ pub struct HelperStartPayload {
 #[serde(rename_all = "camelCase")]
 pub struct BridgeStateSnapshot {
     pub running: bool,
+    pub persisted_thread_id: Option<String>,
+    pub runtime_thread_id: Option<String>,
     pub local_thread_id: Option<String>,
     pub thread_handle: Option<String>,
     pub turn_id: Option<String>,
@@ -188,6 +190,8 @@ impl BridgeRuntime {
             "codex:bridge_state",
             json!({
                 "running": false,
+                "persistedThreadId": null,
+                "runtimeThreadId": null,
                 "localThreadId": null,
                 "threadHandle": null,
                 "turnId": null,
@@ -257,6 +261,8 @@ impl BridgeRuntime {
         let disabled_tools = {
             let mut snapshot = self.snapshot.lock().await;
             snapshot.running = false;
+            snapshot.persisted_thread_id = None;
+            snapshot.runtime_thread_id = None;
             snapshot.local_thread_id = None;
             snapshot.turn_id = None;
             snapshot.pending_server_request_count = Some(0);
@@ -277,6 +283,8 @@ impl BridgeRuntime {
             "codex:bridge_state",
             json!({
                 "running": false,
+                "persistedThreadId": null,
+                "runtimeThreadId": null,
                 "localThreadId": null,
                 "threadHandle": null,
                 "turnId": null,

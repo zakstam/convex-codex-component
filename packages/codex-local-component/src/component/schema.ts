@@ -23,12 +23,27 @@ export default defineSchema({
     userScope: v.string(),
     userId: v.optional(v.string()),
     threadHandle: v.string(),
+    runtimeThreadId: v.optional(v.string()),
     threadId: v.string(),
     threadRef: v.id("codex_threads"),
+    syncState: v.optional(
+      v.union(
+        v.literal("unsynced"),
+        v.literal("syncing"),
+        v.literal("synced"),
+        v.literal("drifted"),
+      ),
+    ),
+    lastSyncedCursor: v.optional(v.number()),
+    lastSessionId: v.optional(v.string()),
+    rebindCount: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    lastErrorAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("userScope_userId_threadHandle", ["userScope", "userId", "threadHandle"])
+    .index("userScope_userId_runtimeThreadId", ["userScope", "userId", "runtimeThreadId"])
     .index("userScope_userId_threadId", ["userScope", "userId", "threadId"])
     .index("userScope_threadRef", ["userScope", "threadRef"]),
 

@@ -55,6 +55,7 @@ Runtime startup is transport-first:
 - Thread intent must be explicit via `openThread`/`lifecycle.openThread`.
 - `sendTurn`/`turns.send` fail closed until a thread is opened.
 - Optional `lifecycleSafeSend` only recovers transport startup; it never infers thread intent.
+- For local runtime threads that must be persisted for UI reads, call `importLocalThreadToPersistence(...)` and switch the UI to the returned persisted `threadHandle`.
 
 ## Minimal Host Wiring
 
@@ -65,6 +66,9 @@ import { defineCodexHostDefinitions } from "@zakstam/codex-local-component/host/
 
 const codex = defineCodexHostDefinitions({ components });
 
+export const syncOpenThreadBinding = mutation(codex.mutations.syncOpenThreadBinding);
+export const markThreadSyncProgress = mutation(codex.mutations.markThreadSyncProgress);
+export const forceRebindThreadSync = mutation(codex.mutations.forceRebindThreadSync);
 export const ensureThread = mutation(codex.mutations.ensureThread);
 export const ensureSession = mutation(codex.mutations.ensureSession);
 export const ingestBatch = mutation(codex.mutations.ingestBatch);
@@ -76,6 +80,8 @@ export const listThreadMessages = query(codex.queries.listThreadMessages);
 ```
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
+
+`syncOpenThreadBinding`, `markThreadSyncProgress`, and `forceRebindThreadSync` are the canonical host-side sync engine hooks for local runtime thread mapping + watermark progress.
 
 Thread-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByThreadHandle`, `listThreadMessages`, `listThreadMessagesByThreadHandle`, `listTurnMessages`, `listTurnMessagesByThreadHandle`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` and `listPendingServerRequestsByThreadHandle` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
 

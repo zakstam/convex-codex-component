@@ -68,10 +68,11 @@ Use this path in order:
 - Canonical bridge lifecycle contract is push + snapshot:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
-  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `threadHandle`, and `turnId`.
+  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `persistedThreadId`, `runtimeThreadId`, `threadHandle`, and `turnId`.
 - Runtime start contract is split:
   - `connect(...)`: transport/session only
   - `openThread({ strategy, threadHandle? })`: explicit thread start/resume/fork
+  - `importLocalThreadToPersistence({ runtimeThreadHandle, threadHandle? })`: canonical single-call local-thread import into persistence
   - `sendTurn(...)` fails closed until `openThread(...)` succeeds.
 - Tauri send behavior:
   - canonical sequence: `bridge.lifecycle.start(...)` -> `bridge.lifecycle.openThread(...)` -> `bridge.turns.send(...)`.
@@ -91,7 +92,11 @@ Use this path in order:
   - `listPendingServerRequestsByThreadHandle`
   These map `threadHandle` server-side to runtime `threadId` and preserve existing fallback contracts.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
-- Runtime thread control helpers include: `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
+- Runtime-owned sync mapping endpoints: `syncOpenThreadBinding`, `markThreadSyncProgress`, `forceRebindThreadSync`.
+- Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.
+- Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`threadHandle`, `preview`, `status`, `updatedAt`).
+- Runtime thread control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
+- Tauri lifecycle helper includes `refreshLocalThreads()` to emit a fresh local-thread snapshot without reopening the runtime.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.
 - For fail-fast setup diagnostics, run `pnpm --filter @zakstam/codex-local-component run doctor:integration`.

@@ -10,6 +10,7 @@ export type PendingAuthRefreshRequest = {
 };
 
 type RuntimeLogEntry = { id: string; line: string };
+type LocalThreadRow = { threadId: string; preview: string };
 
 type BridgeStateEvent = Partial<BridgeState>;
 type BridgeStateUnsubscribe = () => void;
@@ -20,6 +21,7 @@ type UseCodexTauriEventsOptions = {
   setAuthSummary: Dispatch<SetStateAction<string>>;
   setPendingAuthRefresh: Dispatch<SetStateAction<PendingAuthRefreshRequest[]>>;
   addToast: (type: ToastItem["type"], message: string) => void;
+  onLocalThreadsLoaded?: (threads: LocalThreadRow[]) => void;
   refreshBridgeState: () => Promise<Partial<BridgeState> | null | undefined>;
   subscribeBridgeLifecycle: (listener: (state: BridgeStateEvent) => void) => Promise<BridgeStateUnsubscribe>;
 };
@@ -34,6 +36,7 @@ export function useCodexTauriEvents({
   setAuthSummary,
   setPendingAuthRefresh,
   addToast,
+  onLocalThreadsLoaded,
   refreshBridgeState,
   subscribeBridgeLifecycle,
 }: UseCodexTauriEventsOptions) {
@@ -42,6 +45,7 @@ export function useCodexTauriEvents({
   const setAuthSummaryRef = useRef(setAuthSummary);
   const setPendingAuthRefreshRef = useRef(setPendingAuthRefresh);
   const addToastRef = useRef(addToast);
+  const onLocalThreadsLoadedRef = useRef(onLocalThreadsLoaded);
   const refreshBridgeStateRef = useRef(refreshBridgeState);
   const subscribeBridgeLifecycleRef = useRef(subscribeBridgeLifecycle);
   const lastRunningRef = useRef<boolean | null>(null);
@@ -52,9 +56,10 @@ export function useCodexTauriEvents({
     setAuthSummaryRef.current = setAuthSummary;
     setPendingAuthRefreshRef.current = setPendingAuthRefresh;
     addToastRef.current = addToast;
+    onLocalThreadsLoadedRef.current = onLocalThreadsLoaded;
     refreshBridgeStateRef.current = refreshBridgeState;
     subscribeBridgeLifecycleRef.current = subscribeBridgeLifecycle;
-  }, [addToast, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
+  }, [addToast, onLocalThreadsLoaded, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
 
   useEffect(() => {
     let disposed = false;
@@ -149,6 +154,34 @@ export function useCodexTauriEvents({
             record.kind === "account/rate_limits_read_result"
           ) {
             setAuthSummaryRef.current(JSON.stringify(record.response ?? {}, null, 2));
+            return;
+          }
+
+          if (record.kind === "bridge/local_threads_loaded") {
+            const threadsRaw = record.threads;
+            if (Array.isArray(threadsRaw)) {
+              const threads = threadsRaw
+                .map((value) => {
+                  const row = asRecord(value);
+                  const threadId = typeof row?.threadId === "string" ? row.threadId : null;
+                  const preview = typeof row?.preview === "string" ? row.preview : null;
+                  if (!threadId || !preview) {
+                    return null;
+                  }
+                  return { threadId, preview };
+                })
+                .filter((value): value is LocalThreadRow => value !== null);
+              onLocalThreadsLoadedRef.current?.(threads);
+              return;
+            }
+
+            const threadIdsRaw = record.threadIds;
+            const threadIds = Array.isArray(threadIdsRaw)
+              ? threadIdsRaw.filter((value): value is string => typeof value === "string")
+              : [];
+            onLocalThreadsLoadedRef.current?.(
+              threadIds.map((threadId) => ({ threadId, preview: "Untitled thread" })),
+            );
           }
         }),
       ]);

@@ -7,6 +7,8 @@
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "allow-start-bridge",
+    "allow-open-thread",
+    "allow-refresh-local-threads",
     "allow-send-user-turn",
     "allow-interrupt-turn",
     "allow-respond-command-approval",

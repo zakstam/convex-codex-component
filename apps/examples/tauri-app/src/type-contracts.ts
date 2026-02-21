@@ -13,6 +13,7 @@ type ScheduleDeleteThreadArgs = FunctionArgs<typeof api.chat.scheduleDeleteThrea
 type ScheduleDeleteTurnArgs = FunctionArgs<typeof api.chat.scheduleDeleteTurn>;
 type CancelDeletionArgs = FunctionArgs<typeof api.chat.cancelDeletion>;
 type GetDeletionStatusArgs = FunctionArgs<typeof api.chat.getDeletionStatus>;
+type ResolveOpenTargetArgs = FunctionArgs<typeof api.chat.resolveOpenTarget>;
 
 type _ListThreadMessagesArgsAreTyped = Assert<
   Extends<
@@ -99,6 +100,16 @@ type _GetDeletionStatusArgsAreTyped = Assert<
     {
       actor: ActorContext;
       deletionJobId: string;
+    }
+  >
+>;
+
+type _ResolveOpenTargetArgsAreTyped = Assert<
+  Extends<
+    ResolveOpenTargetArgs,
+    {
+      actor: ActorContext;
+      conversationHandle: string;
     }
   >
 >;

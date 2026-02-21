@@ -32,12 +32,14 @@ export const listThreadsForPicker = query({
       threadHandle: string;
       status: string;
       updatedAt: number;
+      preview: string;
     }>;
 
     const rows = page.map((thread) => ({
       threadHandle: thread.threadHandle,
       status: thread.status,
       updatedAt: thread.updatedAt,
+      preview: thread.preview,
     }));
 
     return {
@@ -48,20 +50,47 @@ export const listThreadsForPicker = query({
   },
 });
 
-export const resolveThreadHandleForStart = query({
+export const resolveOpenTarget = query({
   args: {
     actor: vHostActorContext,
-    threadId: v.string(),
+    conversationHandle: v.string(),
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
-    const mapping = await ctx.runQuery(components.codexLocal.threads.getThreadHandleMapping, {
+    const mapping = await ctx.runQuery(components.codexLocal.threads.resolveByThreadHandle, {
       actor: serverActor,
-      threadId: args.threadId,
+      threadHandle: args.conversationHandle,
     });
+    if (!mapping) {
+      return {
+        mode: "unbound" as const,
+        conversationHandle: args.conversationHandle,
+        runtimeThreadHandle: args.conversationHandle,
+      };
+    }
     return {
-      threadId: args.threadId,
-      threadHandleId: mapping?.threadHandle ?? args.threadId,
+      mode: "bound" as const,
+      conversationHandle: args.conversationHandle,
+      runtimeThreadHandle: mapping.threadHandle,
     };
+  },
+});
+
+export const listRuntimeThreadBindingsForPicker = query({
+  args: {
+    actor: vHostActorContext,
+    runtimeThreadIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    const rows = await ctx.runQuery(components.codexLocal.threads.listRuntimeThreadBindings, {
+      actor: serverActor,
+      runtimeThreadIds: args.runtimeThreadIds,
+    });
+    return rows as Array<{
+      runtimeThreadId: string;
+      threadId: string;
+      threadHandle: string;
+    }>;
   },
 });

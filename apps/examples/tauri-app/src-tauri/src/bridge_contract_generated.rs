@@ -3,6 +3,7 @@
 pub const BRIDGE_COMMANDS: &[&str] = &[
     "start_bridge",
     "open_thread",
+    "refresh_local_threads",
     "send_user_turn",
     "interrupt_turn",
     "respond_command_approval",
@@ -22,6 +23,7 @@ pub const BRIDGE_COMMANDS: &[&str] = &[
 pub const HELPER_COMMANDS: &[&str] = &[
     "start",
     "open_thread",
+    "refresh_local_threads",
     "send_turn",
     "interrupt",
     "respond_command_approval",

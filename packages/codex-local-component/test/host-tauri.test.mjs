@@ -11,10 +11,11 @@ import {
 } from "../dist/host/tauri.js";
 
 test("TAURI_BRIDGE_COMMANDS exposes stable command metadata", () => {
-  assert.equal(TAURI_BRIDGE_COMMANDS.length, 17);
+  assert.equal(TAURI_BRIDGE_COMMANDS.length, 18);
   const names = TAURI_BRIDGE_COMMANDS.map((command) => command.tauriCommand);
   assert.ok(names.includes("start_bridge"));
   assert.ok(names.includes("open_thread"));
+  assert.ok(names.includes("refresh_local_threads"));
   assert.ok(names.includes("get_bridge_state"));
 });
 
@@ -235,7 +236,7 @@ test("generateTauriArtifacts returns command-aligned rust and permission outputs
   assert.match(artifacts.rustDispatchSource, /helper_command_for_tauri_command/);
   assert.match(artifacts.rustInvokeHandlersSource, /tauri::generate_handler!/);
 
-  assert.equal(artifacts.permissionFiles.length, 16);
+  assert.equal(artifacts.permissionFiles.length, 17);
   const startPermission = artifacts.permissionFiles.find((file) => file.filename === "start_bridge.toml");
   assert.ok(startPermission);
   assert.match(startPermission.contents, /allow-start-bridge/);

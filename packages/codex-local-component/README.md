@@ -158,6 +158,7 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 `createCodexHostRuntime(...)` exposes thread control helpers:
 
 - `openThread` (`start|resume|fork`)
+- `importLocalThreadToPersistence`
 - `resumeThread`
 - `forkThread`
 - `archiveThread`
@@ -168,6 +169,8 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `readThread`
 - `listThreads`
 - `listLoadedThreads`
+
+`importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `threadHandle` for UI reads.
 
 ## Runtime Bridge Lifecycle APIs
 
@@ -183,6 +186,8 @@ The lifecycle state includes:
 - `phase` (`idle|starting|running|stopping|stopped|error`)
 - `source` (`runtime|bridge_event|protocol_error|process_exit`)
 - `updatedAtMs`
+- `persistedThreadId` (Convex-owned thread identity)
+- `runtimeThreadId` (Codex runtime thread identity)
 - `threadHandle`
 - `turnId`
 
@@ -195,6 +200,16 @@ Tauri bridge client send behavior:
   - `E_TAURI_SEND_START_CONFIG_MISSING`
   - `E_TAURI_SEND_AUTO_START_FAILED`
   - `E_TAURI_SEND_RETRY_EXHAUSTED`
+
+## Runtime Sync Mapping APIs
+
+Runtime-owned host definitions now expose explicit sync mapping mutations:
+
+- `syncOpenThreadBinding`
+- `markThreadSyncProgress`
+- `forceRebindThreadSync`
+
+These endpoints are used to persist local-runtime-to-Convex thread mapping state (`syncState`, `lastSyncedCursor`, session watermark, and rebind metadata) during `openThread` and ingest progression.
 
 ## Type Safety Checks
 

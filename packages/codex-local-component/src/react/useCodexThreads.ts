@@ -76,14 +76,19 @@ export function useCodexThreads<
 
     if (!items) return selectedThreadHandle;
 
-    const hasMatchingThreadId = (value: unknown, expected: string): boolean => {
-      if (typeof value !== "object" || value === null || !("threadId" in value)) {
+    const hasMatchingThreadHandle = (value: unknown, expected: string): boolean => {
+      if (typeof value !== "object" || value === null) {
         return false;
       }
-      return Reflect.get(value, "threadId") === expected;
+      const threadHandle = Reflect.get(value, "threadHandle");
+      if (typeof threadHandle === "string" && threadHandle === expected) {
+        return true;
+      }
+      const threadId = Reflect.get(value, "threadId");
+      return typeof threadId === "string" && threadId === expected;
     };
 
-    const found = items.some((item) => hasMatchingThreadId(item, selectedThreadHandle));
+    const found = items.some((item) => hasMatchingThreadHandle(item, selectedThreadHandle));
 
     return found ? selectedThreadHandle : null;
   }, [selectedThreadHandle, listed]);

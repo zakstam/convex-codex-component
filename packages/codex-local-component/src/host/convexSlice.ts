@@ -174,6 +174,14 @@ type CodexThreadsResolveComponent = {
   };
 };
 
+type CodexThreadsSyncBindingComponent = {
+  threads: {
+    syncOpenBinding?: FunctionReference<"mutation", "public" | "internal">;
+    markSyncProgress?: FunctionReference<"mutation", "public" | "internal">;
+    forceRebindSync?: FunctionReference<"mutation", "public" | "internal">;
+  };
+};
+
 type CodexThreadsResolveByThreadHandleComponent = {
   threads: {
     resolveByThreadHandle?: FunctionReference<
@@ -279,6 +287,7 @@ type CodexReasoningComponent = {
 export type CodexHostComponentRefs =
   & CodexThreadsCreateComponent
   & CodexThreadsResolveComponent
+  & CodexThreadsSyncBindingComponent
   & CodexThreadsResolveByThreadHandleComponent
   & CodexThreadsDeletionComponent
   & CodexTurnsComponent
@@ -307,6 +316,32 @@ type EnsureThreadResolveArgs = {
   threadHandle: string;
   model?: string;
   cwd?: string;
+};
+
+type SyncOpenThreadBindingArgs = {
+  actor: HostActorContext;
+  runtimeThreadId: string;
+  threadHandle: string;
+  model?: string;
+  cwd?: string;
+  sessionId?: string;
+};
+
+type MarkThreadSyncProgressArgs = {
+  actor: HostActorContext;
+  threadHandle: string;
+  runtimeThreadId?: string;
+  sessionId?: string;
+  cursor: number;
+  syncState?: "unsynced" | "syncing" | "synced" | "drifted";
+  errorCode?: string;
+};
+
+type ForceRebindThreadSyncArgs = {
+  actor: HostActorContext;
+  threadHandle: string;
+  runtimeThreadId: string;
+  reasonCode?: string;
 };
 
 type EnsureSessionArgs = {
@@ -509,6 +544,141 @@ export async function ensureThreadByResolve<
     localThreadId: args.threadHandle,
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+  });
+}
+
+export async function syncOpenThreadBindingForActor<
+  Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: SyncOpenThreadBindingArgs,
+): Promise<{
+  threadId: string;
+  threadHandle: string;
+  runtimeThreadId: string;
+  created: boolean;
+  rebindApplied: boolean;
+  syncState: "unsynced" | "syncing" | "synced" | "drifted";
+}> {
+  if (!component.threads.syncOpenBinding) {
+    const resolved = await ctx.runMutation(component.threads.resolve, {
+      actor: args.actor,
+      threadHandle: args.threadHandle,
+      localThreadId: args.runtimeThreadId,
+      ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+    });
+    const threadIdValue = typeof resolved === "object" && resolved !== null
+      ? Reflect.get(resolved, "threadId")
+      : null;
+    const createdValue = typeof resolved === "object" && resolved !== null
+      ? Reflect.get(resolved, "created")
+      : null;
+    if (typeof threadIdValue !== "string") {
+      throw new Error("threads.resolve fallback returned invalid threadId.");
+    }
+    return {
+      threadId: threadIdValue,
+      threadHandle: args.threadHandle,
+      runtimeThreadId: args.runtimeThreadId,
+      created: createdValue === true,
+      rebindApplied: false,
+      syncState: "syncing",
+    };
+  }
+  return ctx.runMutation(component.threads.syncOpenBinding, {
+    actor: args.actor,
+    runtimeThreadId: args.runtimeThreadId,
+    threadHandle: args.threadHandle,
+    ...(args.model !== undefined ? { model: args.model } : {}),
+    ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+    ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
+  });
+}
+
+export async function markThreadSyncProgressForActor<
+  Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: MarkThreadSyncProgressArgs,
+): Promise<{
+  threadId: string;
+  threadHandle: string;
+  runtimeThreadId?: string;
+  syncState: "unsynced" | "syncing" | "synced" | "drifted";
+  lastSyncedCursor: number;
+}> {
+  if (!component.threads.markSyncProgress) {
+    const resolved = await ctx.runMutation(component.threads.resolve, {
+      actor: args.actor,
+      threadHandle: args.threadHandle,
+      ...(args.runtimeThreadId !== undefined ? { localThreadId: args.runtimeThreadId } : {}),
+    });
+    const threadIdValue = typeof resolved === "object" && resolved !== null
+      ? Reflect.get(resolved, "threadId")
+      : null;
+    if (typeof threadIdValue !== "string") {
+      throw new Error("threads.resolve fallback returned invalid threadId.");
+    }
+    return {
+      threadId: threadIdValue,
+      threadHandle: args.threadHandle,
+      ...(args.runtimeThreadId !== undefined ? { runtimeThreadId: args.runtimeThreadId } : {}),
+      syncState: args.syncState === undefined ? "synced" : args.syncState,
+      lastSyncedCursor: args.cursor,
+    };
+  }
+  return ctx.runMutation(component.threads.markSyncProgress, {
+    actor: args.actor,
+    threadHandle: args.threadHandle,
+    ...(args.runtimeThreadId !== undefined ? { runtimeThreadId: args.runtimeThreadId } : {}),
+    ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
+    cursor: args.cursor,
+    ...(args.syncState !== undefined ? { syncState: args.syncState } : {}),
+    ...(args.errorCode !== undefined ? { errorCode: args.errorCode } : {}),
+  });
+}
+
+export async function forceRebindThreadSyncForActor<
+  Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: ForceRebindThreadSyncArgs,
+): Promise<{
+  threadId: string;
+  threadHandle: string;
+  runtimeThreadId: string;
+  syncState: "unsynced" | "syncing" | "synced" | "drifted";
+  rebindCount: number;
+}> {
+  if (!component.threads.forceRebindSync) {
+    const resolved = await ctx.runMutation(component.threads.resolve, {
+      actor: args.actor,
+      threadHandle: args.threadHandle,
+      localThreadId: args.runtimeThreadId,
+    });
+    const threadIdValue = typeof resolved === "object" && resolved !== null
+      ? Reflect.get(resolved, "threadId")
+      : null;
+    if (typeof threadIdValue !== "string") {
+      throw new Error("threads.resolve fallback returned invalid threadId.");
+    }
+    return {
+      threadId: threadIdValue,
+      threadHandle: args.threadHandle,
+      runtimeThreadId: args.runtimeThreadId,
+      syncState: "syncing",
+      rebindCount: 0,
+    };
+  }
+  return ctx.runMutation(component.threads.forceRebindSync, {
+    actor: args.actor,
+    threadHandle: args.threadHandle,
+    runtimeThreadId: args.runtimeThreadId,
+    ...(args.reasonCode !== undefined ? { reasonCode: args.reasonCode } : {}),
   });
 }
 

@@ -182,20 +182,8 @@ type CodexThreadsSyncBindingComponent = {
   };
 };
 
-type CodexThreadsResolveByThreadHandleComponent = {
+type CodexThreadsResolveByConversationComponent = {
   threads: {
-    resolveByThreadHandle?: FunctionReference<
-      "query",
-      "public" | "internal",
-      {
-        actor: HostActorContext;
-        threadHandle: string;
-      },
-      {
-        threadId: string;
-        threadHandle: string;
-      } | null
-    >;
     resolveByConversationId?: FunctionReference<
       "query",
       "public" | "internal",
@@ -206,7 +194,6 @@ type CodexThreadsResolveByThreadHandleComponent = {
       {
         conversationId: string;
         threadId: string;
-        threadHandle: string;
       } | null
     >;
   };
@@ -309,7 +296,7 @@ export type CodexHostComponentRefs =
   & CodexThreadsCreateComponent
   & CodexThreadsResolveComponent
   & CodexThreadsSyncBindingComponent
-  & CodexThreadsResolveByThreadHandleComponent
+  & CodexThreadsResolveByConversationComponent
   & CodexThreadsConversationComponent
   & CodexThreadsDeletionComponent
   & CodexTurnsComponent
@@ -342,8 +329,8 @@ type EnsureThreadResolveArgs = {
 
 type SyncOpenThreadBindingArgs = {
   actor: HostActorContext;
-  runtimeThreadId: string;
-  threadHandle: string;
+  runtimeConversationId: string;
+  conversationId: string;
   model?: string;
   cwd?: string;
   sessionId?: string;
@@ -351,8 +338,8 @@ type SyncOpenThreadBindingArgs = {
 
 type MarkThreadSyncProgressArgs = {
   actor: HostActorContext;
-  threadHandle: string;
-  runtimeThreadId?: string;
+  conversationId: string;
+  runtimeConversationId?: string;
   sessionId?: string;
   cursor: number;
   syncState?: "unsynced" | "syncing" | "synced" | "drifted";
@@ -361,8 +348,8 @@ type MarkThreadSyncProgressArgs = {
 
 type ForceRebindThreadSyncArgs = {
   actor: HostActorContext;
-  threadHandle: string;
-  runtimeThreadId: string;
+  conversationId: string;
+  runtimeConversationId: string;
   reasonCode?: string;
 };
 
@@ -406,11 +393,6 @@ type IngestBatchMixedArgs = {
 type ThreadSnapshotArgs = {
   actor: HostActorContext;
   threadId: string;
-};
-
-type ThreadHandleLookupArgs = {
-  actor: HostActorContext;
-  threadHandle: string;
 };
 
 type ConversationLookupArgs = {
@@ -582,8 +564,8 @@ export async function syncOpenConversationBindingForActor<
   args: SyncOpenThreadBindingArgs,
 ): Promise<{
   threadId: string;
-  threadHandle: string;
-  runtimeThreadId: string;
+  conversationId: string;
+  runtimeConversationId: string;
   created: boolean;
   rebindApplied: boolean;
   syncState: "unsynced" | "syncing" | "synced" | "drifted";
@@ -591,8 +573,8 @@ export async function syncOpenConversationBindingForActor<
   if (!component.threads.syncOpenBinding) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
       actor: args.actor,
-      conversationId: args.threadHandle,
-      localThreadId: args.runtimeThreadId,
+      conversationId: args.conversationId,
+      localThreadId: args.runtimeConversationId,
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
     });
@@ -607,8 +589,8 @@ export async function syncOpenConversationBindingForActor<
     }
     return {
       threadId: threadIdValue,
-      threadHandle: args.threadHandle,
-      runtimeThreadId: args.runtimeThreadId,
+      conversationId: args.conversationId,
+      runtimeConversationId: args.runtimeConversationId,
       created: createdValue === true,
       rebindApplied: false,
       syncState: "syncing",
@@ -616,8 +598,8 @@ export async function syncOpenConversationBindingForActor<
   }
   return ctx.runMutation(component.threads.syncOpenBinding, {
     actor: args.actor,
-    runtimeThreadId: args.runtimeThreadId,
-    threadHandle: args.threadHandle,
+    runtimeConversationId: args.runtimeConversationId,
+    conversationId: args.conversationId,
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
     ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
@@ -632,16 +614,16 @@ export async function markConversationSyncProgressForActor<
   args: MarkThreadSyncProgressArgs,
 ): Promise<{
   threadId: string;
-  threadHandle: string;
-  runtimeThreadId?: string;
+  conversationId: string;
+  runtimeConversationId?: string;
   syncState: "unsynced" | "syncing" | "synced" | "drifted";
   lastSyncedCursor: number;
 }> {
   if (!component.threads.markSyncProgress) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
       actor: args.actor,
-      conversationId: args.threadHandle,
-      ...(args.runtimeThreadId !== undefined ? { localThreadId: args.runtimeThreadId } : {}),
+      conversationId: args.conversationId,
+      ...(args.runtimeConversationId !== undefined ? { localThreadId: args.runtimeConversationId } : {}),
     });
     const threadIdValue = typeof resolved === "object" && resolved !== null
       ? Reflect.get(resolved, "threadId")
@@ -651,16 +633,16 @@ export async function markConversationSyncProgressForActor<
     }
     return {
       threadId: threadIdValue,
-      threadHandle: args.threadHandle,
-      ...(args.runtimeThreadId !== undefined ? { runtimeThreadId: args.runtimeThreadId } : {}),
+      conversationId: args.conversationId,
+      ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
       syncState: args.syncState === undefined ? "synced" : args.syncState,
       lastSyncedCursor: args.cursor,
     };
   }
   return ctx.runMutation(component.threads.markSyncProgress, {
     actor: args.actor,
-    threadHandle: args.threadHandle,
-    ...(args.runtimeThreadId !== undefined ? { runtimeThreadId: args.runtimeThreadId } : {}),
+    conversationId: args.conversationId,
+    ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
     ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
     cursor: args.cursor,
     ...(args.syncState !== undefined ? { syncState: args.syncState } : {}),
@@ -676,16 +658,16 @@ export async function forceRebindConversationSyncForActor<
   args: ForceRebindThreadSyncArgs,
 ): Promise<{
   threadId: string;
-  threadHandle: string;
-  runtimeThreadId: string;
+  conversationId: string;
+  runtimeConversationId: string;
   syncState: "unsynced" | "syncing" | "synced" | "drifted";
   rebindCount: number;
 }> {
   if (!component.threads.forceRebindSync) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
       actor: args.actor,
-      conversationId: args.threadHandle,
-      localThreadId: args.runtimeThreadId,
+      conversationId: args.conversationId,
+      localThreadId: args.runtimeConversationId,
     });
     const threadIdValue = typeof resolved === "object" && resolved !== null
       ? Reflect.get(resolved, "threadId")
@@ -695,16 +677,16 @@ export async function forceRebindConversationSyncForActor<
     }
     return {
       threadId: threadIdValue,
-      threadHandle: args.threadHandle,
-      runtimeThreadId: args.runtimeThreadId,
+      conversationId: args.conversationId,
+      runtimeConversationId: args.runtimeConversationId,
       syncState: "syncing",
       rebindCount: 0,
     };
   }
   return ctx.runMutation(component.threads.forceRebindSync, {
     actor: args.actor,
-    threadHandle: args.threadHandle,
-    runtimeThreadId: args.runtimeThreadId,
+    conversationId: args.conversationId,
+    runtimeConversationId: args.runtimeConversationId,
     ...(args.reasonCode !== undefined ? { reasonCode: args.reasonCode } : {}),
   });
 }
@@ -823,40 +805,8 @@ export async function threadSnapshot<
   return ctx.runQuery(component.threads.getState, typedArgs<Component["threads"]["getState"]>(toThreadStateQueryArgs(args)));
 }
 
-export async function resolveThreadByThreadHandleForActor<
-  Component extends CodexThreadsResolveByThreadHandleComponent,
->(
-  ctx: HostQueryRunner,
-  component: Component,
-  args: ThreadHandleLookupArgs,
-): Promise<{
-  threadId: string;
-  threadHandle: string;
-} | null> {
-  if (!component.threads.resolveByThreadHandle) {
-    throw new Error(
-      "Host component is missing threads.resolveByThreadHandle; this is required for thread handle lookup APIs.",
-    );
-  }
-  const resolveByThreadHandle = component.threads.resolveByThreadHandle;
-  const resolved = await ctx.runQuery(
-    resolveByThreadHandle,
-    typedArgs<typeof resolveByThreadHandle>({
-      actor: args.actor,
-      threadHandle: args.threadHandle,
-    }),
-  );
-  if (!resolved) {
-    return null;
-  }
-  return {
-    threadId: resolved.threadId,
-    threadHandle: resolved.threadHandle,
-  };
-}
-
 export async function resolveThreadByConversationIdForActor<
-  Component extends CodexThreadsResolveByThreadHandleComponent,
+  Component extends CodexThreadsResolveByConversationComponent,
 >(
   ctx: HostQueryRunner,
   component: Component,
@@ -864,7 +814,6 @@ export async function resolveThreadByConversationIdForActor<
 ): Promise<{
   conversationId: string;
   threadId: string;
-  threadHandle: string;
 } | null> {
   if (!component.threads.resolveByConversationId) {
     throw new Error(
@@ -885,7 +834,6 @@ export async function resolveThreadByConversationIdForActor<
   return {
     conversationId: resolved.conversationId,
     threadId: resolved.threadId,
-    threadHandle: resolved.threadHandle,
   };
 }
 

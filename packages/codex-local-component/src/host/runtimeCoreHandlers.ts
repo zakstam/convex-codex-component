@@ -45,7 +45,7 @@ export type HandlerCtx = {
   readonly actor: ActorContext | null;
   readonly sessionId: string | null;
   readonly threadId: string | null;
-  runtimeThreadId: string | null;
+  runtimeConversationId: string | null;
   readonly turnId: string | null;
   turnInFlight: boolean;
   turnSettled: boolean;
@@ -236,7 +236,7 @@ async function enqueueIngestDelta(ctx: HandlerCtx, delta: IngestDelta, forceFlus
 
 export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent): Promise<void> {
   if (!ctx.actor || !ctx.sessionId) return;
-  if (!ctx.runtimeThreadId || (!isUuidLikeThreadId(ctx.runtimeThreadId) && isUuidLikeThreadId(event.threadId))) ctx.runtimeThreadId = event.threadId;
+  if (!ctx.runtimeConversationId || (!isUuidLikeThreadId(ctx.runtimeConversationId) && isUuidLikeThreadId(event.threadId))) ctx.runtimeConversationId = event.threadId;
   await ctx.ensureThreadBinding(event.threadId);
 
   if (event.kind === "turn/started" && event.turnId) {
@@ -244,11 +244,11 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
     transitionTurnStarted(ctx, ptid);
     if (ctx.activeDispatch && ctx.actor && ctx.threadId) {
       ctx.dispatchByTurnId.set(event.turnId, { dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, persistedTurnId: ctx.activeDispatch.turnId });
-      await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, ...(ctx.runtimeThreadId ? { runtimeThreadId: ctx.runtimeThreadId } : {}), runtimeTurnId: event.turnId });
+      await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, ...(ctx.runtimeConversationId ? { runtimeConversationId: ctx.runtimeConversationId } : {}), runtimeTurnId: event.turnId });
       ctx.setActiveDispatch(null);
     }
     ctx.emitState();
-    if (ctx.interruptRequested) { if (!ctx.runtimeThreadId) return; ctx.sendMessage(buildTurnInterruptRequest(ctx.requestIdFn(), { threadId: ctx.runtimeThreadId, turnId: event.turnId }), "turn/interrupt"); ctx.interruptRequested = false; }
+    if (ctx.interruptRequested) { if (!ctx.runtimeConversationId) return; ctx.sendMessage(buildTurnInterruptRequest(ctx.requestIdFn(), { threadId: ctx.runtimeConversationId, turnId: event.turnId }), "turn/interrupt"); ctx.interruptRequested = false; }
   }
 
   if (event.kind === "turn/completed") {
@@ -339,7 +339,9 @@ export async function handleBridgeGlobalMessage(ctx: HandlerCtx, message: Server
     if (pending) {
       ctx.setRuntimeThreadFromResponse(message, pending.method);
       if (pending.method === "thread/start" || pending.method === "thread/resume" || pending.method === "thread/fork") {
-        await ctx.ensureThreadBinding(ctx.runtimeThreadId ?? undefined);
+        await ctx.ensureThreadBinding(
+          ctx.runtimeConversationId === null ? undefined : ctx.runtimeConversationId,
+        );
       }
     }
     if (message.error && pending?.method === "turn/start") {
@@ -365,7 +367,7 @@ export async function handleBridgeGlobalMessage(ctx: HandlerCtx, message: Server
       const ro = asObject(message.result);
       const to = ro && asObject(ro.turn);
       const rtid = typeof to?.id === "string" ? to.id : pending.turnId;
-      await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: pending.dispatchId, claimToken: pending.claimToken, ...(ctx.runtimeThreadId ? { runtimeThreadId: ctx.runtimeThreadId } : {}), ...(rtid ? { runtimeTurnId: rtid } : {}) });
+      await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: pending.dispatchId, claimToken: pending.claimToken, ...(ctx.runtimeConversationId ? { runtimeConversationId: ctx.runtimeConversationId } : {}), ...(rtid ? { runtimeTurnId: rtid } : {}) });
       if (rtid) ctx.dispatchByTurnId.set(rtid, { dispatchId: pending.dispatchId, claimToken: pending.claimToken, persistedTurnId: pending.turnId ?? rtid });
       ctx.setActiveDispatch(null);
     }

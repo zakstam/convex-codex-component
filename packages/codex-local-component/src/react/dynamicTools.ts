@@ -9,7 +9,7 @@ export type CodexDynamicToolServerRequest = {
     | "item/fileChange/requestApproval"
     | "item/tool/requestUserInput"
     | "item/tool/call";
-  threadId: string;
+  conversationId: string;
   turnId: string;
   itemId: string;
   payloadJson: string;
@@ -18,7 +18,7 @@ export type CodexDynamicToolServerRequest = {
 
 export type CodexDynamicToolCall = {
   requestId: string | number;
-  threadId: string;
+  conversationId: string;
   turnId: string;
   itemId: string;
   callId?: string;
@@ -84,7 +84,7 @@ export function deriveCodexDynamicToolCalls(
     }
     results.push({
       requestId: request.requestId,
-      threadId: request.threadId,
+      conversationId: request.conversationId,
       turnId: request.turnId,
       itemId: request.itemId,
       ...(parsed.callId ? { callId: parsed.callId } : {}),

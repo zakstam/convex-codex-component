@@ -98,20 +98,20 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 ## Host Surface Ownership
 
 - `convex/chat.ts`: generated app-owned public surface (`api.chat.*`) using `defineCodexHostDefinitions(...)` + explicit Convex `mutation/query` exports
-- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `listRuntimeThreadBindingsForPicker`, `getActorBindingForBootstrap`, `resolveOpenTarget`)
+- `convex/chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `listRuntimeConversationBindingsForPicker`, `getActorBindingForBootstrap`, `resolveOpenTarget`)
 - Host shim drift is enforced with `pnpm run sync:host-shim` and `pnpm run check:host-shim`.
 
 ## Thread API
 
 - Thread picker flow: `chat.listThreadsForPicker`.
-- Picker payloads expose canonical persisted rows (`threadHandle`, `preview`, status, timestamps).
+- Picker payloads expose canonical persisted rows (`conversationId`, `preview`, status, timestamps).
 - Local runtime-only thread visibility is opt-in (off by default) via the picker checkbox.
 - When enabled, local threads are loaded immediately (and cleared immediately when disabled) and shown as `local unsynced` until a persisted binding exists.
 - Local unsynced rows now use runtime-provided preview text when available (fallback: `Untitled thread`).
 - Selecting a `local unsynced` thread now calls package runtime `importLocalThreadToPersistence(...)` so history is imported into Convex and shown immediately without sending a new turn.
-- Runtime-owned `ensureThread` is single-path and requires `threadHandle`.
-- Sync engine host hooks are explicit: `chat.syncOpenThreadBinding`, `chat.markThreadSyncProgress`, `chat.forceRebindThreadSync`.
-- Bridge lifecycle state distinguishes `persistedThreadId` (Convex) and `runtimeThreadId` (Codex runtime).
+- Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
+- Sync engine host hooks are explicit: `chat.syncOpenConversationBinding`, `chat.markConversationSyncProgress`, `chat.forceRebindConversationSync`.
+- Bridge lifecycle state distinguishes `conversationId` (Convex) and `runtimeConversationId` (Codex runtime).
 
 Additional cleanup endpoints:
 

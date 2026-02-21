@@ -131,7 +131,7 @@ export function createConvexPersistence(
       const opened = await client.mutation(chatApi.syncOpenConversationBinding, {
         actor: args.actor,
         conversationId: args.conversationId,
-        runtimeThreadId: args.conversationId,
+        runtimeConversationId: args.conversationId,
         ...(args.model ? { model: args.model } : {}),
         ...(args.cwd ? { cwd: args.cwd } : {}),
       }) as { threadId: string; created?: boolean; rebindApplied?: boolean };
@@ -139,7 +139,7 @@ export function createConvexPersistence(
         await client.mutation(chatApi.forceRebindConversationSync, {
           actor: args.actor,
           conversationId: args.conversationId,
-          runtimeThreadId: args.conversationId,
+          runtimeConversationId: args.conversationId,
           reasonCode: "AUTO_FORCE_REBIND_ON_OPEN",
         });
       }
@@ -162,7 +162,7 @@ export function createConvexPersistence(
       await client.mutation(chatApi.markConversationSyncProgress, {
         actor: args.actor,
         conversationId: threadHandle,
-        runtimeThreadId: threadHandle,
+        runtimeConversationId: threadHandle,
         sessionId: args.sessionId,
         cursor: args.lastEventCursor,
         syncState: "syncing",
@@ -184,7 +184,7 @@ export function createConvexPersistence(
         await client.mutation(chatApi.markConversationSyncProgress, {
           actor: args.actor,
           conversationId: threadHandle,
-          runtimeThreadId: threadHandle,
+          runtimeConversationId: threadHandle,
           sessionId: args.sessionId,
           cursor: initialCursor,
           syncState: initial.status === "partial" ? "syncing" : "synced",
@@ -215,7 +215,7 @@ export function createConvexPersistence(
           await client.mutation(chatApi.markConversationSyncProgress, {
             actor: args.actor,
             conversationId: threadHandle,
-            runtimeThreadId: threadHandle,
+            runtimeConversationId: threadHandle,
             sessionId: nextSessionId,
             cursor: initialCursor,
             syncState: "drifted",
@@ -229,7 +229,7 @@ export function createConvexPersistence(
         await client.mutation(chatApi.markConversationSyncProgress, {
           actor: args.actor,
           conversationId: threadHandle,
-          runtimeThreadId: threadHandle,
+          runtimeConversationId: threadHandle,
           sessionId: nextSessionId,
           cursor: initialCursor,
           syncState: retried.status === "partial" ? "syncing" : "synced",
@@ -240,7 +240,7 @@ export function createConvexPersistence(
       await client.mutation(chatApi.markConversationSyncProgress, {
         actor: args.actor,
         conversationId: threadHandle,
-        runtimeThreadId: threadHandle,
+        runtimeConversationId: threadHandle,
         sessionId: args.sessionId,
         cursor: initialCursor,
         syncState: "drifted",

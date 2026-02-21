@@ -176,7 +176,7 @@ export function useCodex<
       : {}),
   });
 
-  // ── Derive effective thread handle ──────────────────────────────────────
+  // ── Derive effective conversation id ───────────────────────────────────
   // Priority: explicit conversationId wins. When omitted and threads is
   // configured, the picker's selection drives message loading.
   const effectiveConversationId = options.conversationId

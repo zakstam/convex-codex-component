@@ -900,23 +900,18 @@ export type RuntimeOwnedHostDefinitions = {
   };
   queries: {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
-    threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
     threadSnapshotByConversation: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotByConversation"];
     listThreadsForConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadsForConversation"];
     getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStats"];
     dataHygiene: RuntimeOwnedInternalDefinitions["queries"]["dataHygiene"];
-    listThreadMessages: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesForHooks"];
-    listTurnMessages: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesForHooks"];
     listThreadMessagesByConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesByConversation"];
     listTurnMessagesByConversation: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesByConversation"];
     listPendingServerRequestsByConversation: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsByConversation"];
     listPendingApprovals: RuntimeOwnedInternalDefinitions["queries"]["listPendingApprovalsForHooks"];
-    listTokenUsage: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageForHooks"];
     listTokenUsageByConversation: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageByConversation"];
-    listPendingServerRequests: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsForHooks"];
-    listThreadReasoning: RuntimeOwnedInternalDefinitions["queries"]["listThreadReasoningForHooks"];
+    listThreadReasoningByConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadReasoningForHooks"];
   };
 };
 
@@ -973,23 +968,18 @@ function toPublicRuntimeOwnedDefinitions(
     },
     queries: {
       validateHostWiring: defs.queries.validateHostWiring,
-      threadSnapshot: defs.queries.threadSnapshot,
       threadSnapshotByConversation: defs.queries.threadSnapshotByConversation,
       listThreadsForConversation: defs.queries.listThreadsForConversation,
       getDeletionStatus: defs.queries.getDeletionStatus,
       persistenceStats: defs.queries.persistenceStats,
       durableHistoryStats: defs.queries.durableHistoryStats,
       dataHygiene: defs.queries.dataHygiene,
-      listThreadMessages: defs.queries.listThreadMessagesForHooks,
-      listTurnMessages: defs.queries.listTurnMessagesForHooks,
       listThreadMessagesByConversation: defs.queries.listThreadMessagesByConversation,
       listTurnMessagesByConversation: defs.queries.listTurnMessagesByConversation,
       listPendingServerRequestsByConversation: defs.queries.listPendingServerRequestsByConversation,
       listPendingApprovals: defs.queries.listPendingApprovalsForHooks,
-      listTokenUsage: defs.queries.listTokenUsageForHooks,
       listTokenUsageByConversation: defs.queries.listTokenUsageByConversation,
-      listPendingServerRequests: defs.queries.listPendingServerRequestsForHooks,
-      listThreadReasoning: defs.queries.listThreadReasoningForHooks,
+      listThreadReasoningByConversation: defs.queries.listThreadReasoningForHooks,
     },
   };
 }

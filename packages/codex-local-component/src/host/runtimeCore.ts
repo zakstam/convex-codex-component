@@ -52,7 +52,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let actor: ActorContext | null = null;
   let sessionId: string | null = null;
   let threadId: string | null = null;
-  let runtimeThreadId: string | null = null;
+  let runtimeConversationId: string | null = null;
   let conversationId: string | null = null;
   let turnId: string | null = null;
   let turnInFlight = false;
@@ -103,9 +103,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       phase: lifecyclePhase,
       source: lifecycleSource,
       updatedAtMs: lifecycleUpdatedAtMs,
-      persistedThreadId: threadId,
-      runtimeThreadId,
-      threadId,
+      runtimeConversationId,
       conversationId,
       turnId,
       turnInFlight,
@@ -185,13 +183,13 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (!("thread" in message.result) || typeof message.result.thread !== "object" || message.result.thread === null) return;
     if (!("id" in message.result.thread) || typeof message.result.thread.id !== "string") return;
     if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
-      runtimeThreadId = message.result.thread.id; if (!conversationId) conversationId = message.result.thread.id; emitState();
+      runtimeConversationId = message.result.thread.id; if (!conversationId) conversationId = message.result.thread.id; emitState();
     }
   };
 
   const ensureThreadBinding = async (preferred?: string): Promise<void> => {
     if (!actor || !sessionId || threadId) return;
-    const next = preferred ?? runtimeThreadId; if (!next) return;
+    const next = preferred === undefined ? runtimeConversationId : preferred; if (!next) return;
     const binding = await args.persistence.ensureThread({
       actor,
       conversationId: conversationId === null ? next : conversationId,
@@ -205,12 +203,12 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   // ── Dispatch ────────────────────────────────────────────────────────
 
   const sendClaimedDispatch = async (claimed: { dispatchId: string; turnId: string; inputText: string; claimToken: string }) => {
-    if (!runtimeThreadId) throw new Error("Cannot dispatch turn before runtime thread is ready.");
+    if (!runtimeConversationId) throw new Error("Cannot dispatch turn before runtime thread is ready.");
     activeDispatch = { dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId, text: claimed.inputText };
     turnId = claimed.turnId; turnInFlight = true; turnSettled = false; emitState();
     const reqId = requestIdFn();
     pendingRequests.set(reqId, { method: "turn/start", dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId });
-    assertRuntimeReady().send(buildTurnStartTextRequest(reqId, { threadId: runtimeThreadId, text: claimed.inputText }));
+    assertRuntimeReady().send(buildTurnStartTextRequest(reqId, { threadId: runtimeConversationId, text: claimed.inputText }));
   };
 
   const processDispatchQueue = async (): Promise<void> => {
@@ -271,8 +269,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     get actor() { return actor; },
     get sessionId() { return sessionId; },
     get threadId() { return threadId; },
-    get runtimeThreadId() { return runtimeThreadId; },
-    set runtimeThreadId(v) { runtimeThreadId = v; },
+    get runtimeConversationId() { return runtimeConversationId; },
+    set runtimeConversationId(v) { runtimeConversationId = v; },
     get turnId() { return turnId; },
     get turnInFlight() { return turnInFlight; },
     set turnInFlight(v) { turnInFlight = v; },
@@ -328,7 +326,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     get conversationId() { return conversationId; },
     set conversationId(v) { conversationId = v; },
     get threadId() { return threadId; },
-    get runtimeThreadId() { return runtimeThreadId; },
+    get runtimeConversationId() { return runtimeConversationId; },
     get turnId() { return turnId; },
     get turnInFlight() { return turnInFlight; },
     get turnSettled() { return turnSettled; },
@@ -357,7 +355,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     handleBridgeGlobalMessage: (message: ServerInboundMessage) => bridgeGlobalHandler(handlerCtx, message),
 
     resetAll() {
-      bridge = null; actor = null; sessionId = null; threadId = null; runtimeThreadId = null;
+      bridge = null; actor = null; sessionId = null; threadId = null; runtimeConversationId = null;
       conversationId = null; turnId = null; turnInFlight = false; turnSettled = false;
       interruptRequested = false;
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
@@ -370,8 +368,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       lifecycleUpdatedAtMs = Date.now();
     },
     rejectAllPending() { for (const [, p] of pendingRequests) p.reject?.(new Error("Bridge stopped before request completed.")); },
-    listPendingServerRequests: async (threadIdFilter?: string): Promise<HostRuntimePersistedServerRequest[]> => {
-      if (actor) return args.persistence.listPendingServerRequests({ actor, ...(threadIdFilter ? { threadId: threadIdFilter } : {}) });
+    listPendingServerRequests: async (): Promise<HostRuntimePersistedServerRequest[]> => {
+      if (actor) return args.persistence.listPendingServerRequests({ actor });
       return [];
     },
     getState: (): HostRuntimeState => ({
@@ -379,9 +377,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       phase: lifecyclePhase,
       source: lifecycleSource,
       updatedAtMs: lifecycleUpdatedAtMs,
-      persistedThreadId: threadId,
-      runtimeThreadId,
-      threadId,
+      runtimeConversationId,
       conversationId,
       turnId,
       turnInFlight,

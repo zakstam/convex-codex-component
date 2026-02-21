@@ -14,7 +14,7 @@ type PendingServerRequest = {
     | "item/fileChange/requestApproval"
     | "item/tool/requestUserInput"
     | "item/tool/call";
-  threadId: string;
+  conversationId: string;
   turnId: string;
   itemId: string;
   reason?: string;

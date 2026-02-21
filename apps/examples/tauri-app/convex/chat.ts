@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
 import { defineCodexHostDefinitions } from "@zakstam/codex-local-component/host/convex";
 
-export { getActorBindingForBootstrap, listThreadsForPicker, listRuntimeThreadBindingsForPicker, resolveOpenTarget } from "./chat.extensions";
+export { getActorBindingForBootstrap, listThreadsForPicker, listRuntimeConversationBindingsForPicker, resolveOpenTarget } from "./chat.extensions";
 
 const codex = defineCodexHostDefinitions({ components });
 
@@ -32,20 +32,15 @@ export const acceptTurnSend = mutation(codex.mutations.acceptTurnSend);
 export const failAcceptedTurnSend = mutation(codex.mutations.failAcceptedTurnSend);
 
 export const validateHostWiring = query(codex.queries.validateHostWiring);
-export const threadSnapshot = query(codex.queries.threadSnapshot);
 export const listThreadsForConversation = query(codex.queries.listThreadsForConversation);
 export const getDeletionStatus = query(codex.queries.getDeletionStatus);
 export const persistenceStats = query(codex.queries.persistenceStats);
 export const durableHistoryStats = query(codex.queries.durableHistoryStats);
 export const dataHygiene = query(codex.queries.dataHygiene);
-export const listThreadMessages = query(codex.queries.listThreadMessages);
 export const threadSnapshotByConversation = query(codex.queries.threadSnapshotByConversation);
 export const listThreadMessagesByConversation = query(codex.queries.listThreadMessagesByConversation);
-export const listTurnMessages = query(codex.queries.listTurnMessages);
 export const listTurnMessagesByConversation = query(codex.queries.listTurnMessagesByConversation);
 export const listPendingApprovals = query(codex.queries.listPendingApprovals);
-export const listTokenUsage = query(codex.queries.listTokenUsage);
 export const listTokenUsageByConversation = query(codex.queries.listTokenUsageByConversation);
 export const listPendingServerRequestsByConversation = query(codex.queries.listPendingServerRequestsByConversation);
-export const listPendingServerRequests = query(codex.queries.listPendingServerRequests);
-export const listThreadReasoning = query(codex.queries.listThreadReasoning);
+export const listThreadReasoningByConversation = query(codex.queries.listThreadReasoningByConversation);

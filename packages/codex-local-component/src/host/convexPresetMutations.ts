@@ -238,7 +238,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       args: {
         actor: vHostActorContext,
         conversationId: v.string(),
-        runtimeThreadId: v.optional(v.string()),
+        runtimeConversationId: v.optional(v.string()),
         model: v.optional(v.string()),
         cwd: v.optional(v.string()),
         sessionId: v.optional(v.string()),
@@ -248,12 +248,12 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         created: v.boolean(),
         rebindApplied: v.boolean(),
         conversationId: v.string(),
-        runtimeThreadId: v.string(),
+        runtimeConversationId: v.string(),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; conversationId: string; runtimeThreadId?: string; model?: string; cwd?: string; sessionId?: string },
+        args: { actor: HostActorContext; conversationId: string; runtimeConversationId?: string; model?: string; cwd?: string; sessionId?: string },
       ) => {
         const result = await syncOpenConversationBindingForActor(
           ctx,
@@ -261,8 +261,8 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           withServerActor(
             {
               actor: args.actor,
-              threadHandle: args.conversationId,
-              runtimeThreadId: args.runtimeThreadId ?? args.conversationId,
+              conversationId: args.conversationId,
+              runtimeConversationId: args.runtimeConversationId === undefined ? args.conversationId : args.runtimeConversationId,
               ...(args.model !== undefined ? { model: args.model } : {}),
               ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
               ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
@@ -270,10 +270,8 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             resolveServerActor(args, serverActor),
           ),
         );
-        const resultWithoutThreadHandle: Omit<typeof result, "threadHandle"> & { threadHandle?: string } = { ...result };
-        delete resultWithoutThreadHandle.threadHandle;
         return {
-          ...resultWithoutThreadHandle,
+          ...result,
           conversationId: args.conversationId,
         };
       },
@@ -282,7 +280,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       args: {
         actor: vHostActorContext,
         conversationId: v.string(),
-        runtimeThreadId: v.optional(v.string()),
+        runtimeConversationId: v.optional(v.string()),
         sessionId: v.optional(v.string()),
         cursor: v.number(),
         syncState: v.optional(v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted"))),
@@ -291,26 +289,24 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       returns: v.object({
         threadId: v.string(),
         conversationId: v.string(),
-        runtimeThreadId: v.optional(v.string()),
+        runtimeConversationId: v.optional(v.string()),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
         lastSyncedCursor: v.number(),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; conversationId: string; runtimeThreadId?: string; sessionId?: string; cursor: number; syncState?: "unsynced" | "syncing" | "synced" | "drifted"; errorCode?: string },
+        args: { actor: HostActorContext; conversationId: string; runtimeConversationId?: string; sessionId?: string; cursor: number; syncState?: "unsynced" | "syncing" | "synced" | "drifted"; errorCode?: string },
       ) => {
         const result = await markConversationSyncProgressForActor(
           ctx,
           component,
           withServerActor(
-            { ...args, threadHandle: args.conversationId },
+            { ...args, conversationId: args.conversationId },
             resolveServerActor(args, serverActor),
           ),
         );
-        const resultWithoutThreadHandle: Omit<typeof result, "threadHandle"> & { threadHandle?: string } = { ...result };
-        delete resultWithoutThreadHandle.threadHandle;
         return {
-          ...resultWithoutThreadHandle,
+          ...result,
           conversationId: args.conversationId,
         };
       },
@@ -319,32 +315,30 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       args: {
         actor: vHostActorContext,
         conversationId: v.string(),
-        runtimeThreadId: v.string(),
+        runtimeConversationId: v.string(),
         reasonCode: v.optional(v.string()),
       },
       returns: v.object({
         threadId: v.string(),
         conversationId: v.string(),
-        runtimeThreadId: v.string(),
+        runtimeConversationId: v.string(),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
         rebindCount: v.number(),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; conversationId: string; runtimeThreadId: string; reasonCode?: string },
+        args: { actor: HostActorContext; conversationId: string; runtimeConversationId: string; reasonCode?: string },
       ) => {
         const result = await forceRebindConversationSyncForActor(
           ctx,
           component,
           withServerActor(
-            { ...args, threadHandle: args.conversationId },
+            { ...args, conversationId: args.conversationId },
             resolveServerActor(args, serverActor),
           ),
         );
-        const resultWithoutThreadHandle: Omit<typeof result, "threadHandle"> & { threadHandle?: string } = { ...result };
-        delete resultWithoutThreadHandle.threadHandle;
         return {
-          ...resultWithoutThreadHandle,
+          ...result,
           conversationId: args.conversationId,
         };
       },

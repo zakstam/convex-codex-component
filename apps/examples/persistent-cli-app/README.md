@@ -19,10 +19,10 @@ This README is operational guidance for this example app only; package docs defi
 - `convex/chat.ts`: generated host shim using `defineCodexHostDefinitions(...)`
 - `convex/chat.extensions.ts`: optional app-specific additions
 
-Thread contract note:
+Conversation contract note:
 
-- runtime-owned `ensureThread` is single-path (no mode branching)
-- provide `threadId` when resolving thread context
+- runtime-owned `ensureConversationBinding` is single-path (no mode branching)
+- provide `conversationId` when resolving conversation context
 
 Host shim workflow:
 

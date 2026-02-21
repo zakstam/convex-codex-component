@@ -68,7 +68,7 @@ Use this path in order:
 - Canonical bridge lifecycle contract is push + snapshot:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
-  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `persistedThreadId`, `runtimeThreadId`, and `turnId`.
+  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `conversationId`, `runtimeConversationId`, and `turnId`.
 - Runtime start contract is split:
   - `connect(...)`: transport/session only
   - `openThread({ strategy, conversationId? })`: explicit conversation start/resume/fork
@@ -84,19 +84,19 @@ Use this path in order:
     - `E_TAURI_SEND_RETRY_EXHAUSTED`
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
-- Thread-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread fallback to keep runtime request polling consumers on a stable array contract.
+- Conversation-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread reads to keep runtime request polling consumers on a stable array contract.
 - External identifier read aliases are also available:
   - `threadSnapshotByConversation`
   - `listThreadMessagesByConversation`
   - `listTurnMessagesByConversation`
   - `listPendingServerRequestsByConversation`
-  These map `conversationId` server-side to runtime `threadId` and preserve existing fallback contracts.
+  These use `conversationId` as the public identity while preserving runtime-owned persistence mapping internally.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
 - Conversation-scoped archive endpoints: `archiveConversation`, `unarchiveConversation`, `listThreadsForConversation`.
 - Runtime-owned sync mapping endpoints: `syncOpenConversationBinding`, `markConversationSyncProgress`, `forceRebindConversationSync`.
 - Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.
 - Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`conversationId`, `preview`, `status`, `updatedAt`).
-- Runtime thread control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
+- Runtime thread/conversation control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `setThreadName`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`, `archiveConversation`, `unarchiveConversation`.
 - Runtime conversation control helpers include: `newConversation`, `resumeConversation`, `listConversations`, `forkConversation`, `archiveConversation`, `interruptConversation`, `getConversationSummary`.
 - Tauri lifecycle helper includes `refreshLocalThreads()` to emit a fresh local-thread snapshot without reopening the runtime.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.

@@ -4,8 +4,8 @@ export type ThreadHandleIdentity = {
   threadHandle: ThreadHandle;
 };
 
-export type RuntimeThreadLocator = {
-  runtimeThreadId: string;
+export type RuntimeConversationLocator = {
+  runtimeConversationId: string;
 };
 
-export type ThreadLocator = ThreadHandleIdentity | RuntimeThreadLocator;
+export type ThreadLocator = ThreadHandleIdentity | RuntimeConversationLocator;

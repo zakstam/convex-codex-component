@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 type Thread = {
-  threadHandle: string;
+  conversationId: string;
   status: string;
   preview: string;
   updatedAt?: number;
@@ -11,7 +11,7 @@ type Thread = {
 type Props = {
   threads: Thread[];
   selected: string;
-  onSelect: (threadHandle: string) => void;
+  onSelect: (conversationId: string) => void;
   disabled: boolean;
   showLocalThreads: boolean;
   onToggleShowLocalThreads: (next: boolean) => void;
@@ -50,7 +50,7 @@ export function ThreadPicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedThread = threads.find((t) => t.threadHandle === selected);
+  const selectedThread = threads.find((t) => t.conversationId === selected);
   const displayLabel = selectedThread
     ? `${selectedThread.preview} • ${selectedThread.scope === "local_unsynced" ? "local unsynced" : selectedThread.status}`
     : "New thread";
@@ -101,14 +101,14 @@ export function ThreadPicker({
           </button>
           {persistedThreads.map((thread) => (
             <button
-              key={thread.threadHandle}
-              className={`thread-picker-option ${thread.threadHandle === selected ? "active" : ""}`}
+              key={thread.conversationId}
+              className={`thread-picker-option ${thread.conversationId === selected ? "active" : ""}`}
               onClick={() => {
-                onSelect(thread.threadHandle);
+                onSelect(thread.conversationId);
                 setOpen(false);
               }}
               role="option"
-              aria-selected={thread.threadHandle === selected}
+              aria-selected={thread.conversationId === selected}
             >
               <span
                 className={`status-dot ${thread.status === "active" ? "running" : "stopped"}`}
@@ -132,14 +132,14 @@ export function ThreadPicker({
               <p className="thread-picker-section-label">Local unsynced</p>
               {localUnsyncedThreads.map((thread) => (
                 <button
-                  key={thread.threadHandle}
-                  className={`thread-picker-option ${thread.threadHandle === selected ? "active" : ""}`}
+                  key={thread.conversationId}
+                  className={`thread-picker-option ${thread.conversationId === selected ? "active" : ""}`}
                   onClick={() => {
-                    onSelect(thread.threadHandle);
+                    onSelect(thread.conversationId);
                     setOpen(false);
                   }}
                   role="option"
-                  aria-selected={thread.threadHandle === selected}
+                  aria-selected={thread.conversationId === selected}
                 >
                   <span className="status-dot running" aria-hidden="true" />
                   <span className="thread-option-id">

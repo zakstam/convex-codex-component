@@ -510,15 +510,15 @@ export declare const components: {
         "internal",
         {
           actor: { userId?: string };
+          conversationId: string;
           reasonCode?: string;
-          runtimeThreadId: string;
-          threadHandle: string;
+          runtimeConversationId: string;
         },
         {
+          conversationId: string;
           rebindCount: number;
-          runtimeThreadId: string;
+          runtimeConversationId: string;
           syncState: "unsynced" | "syncing" | "synced" | "drifted";
-          threadHandle: string;
           threadId: string;
         }
       >;
@@ -613,12 +613,6 @@ export declare const components: {
           }>;
         }
       >;
-      getThreadHandleMapping: FunctionReference<
-        "query",
-        "internal",
-        { actor: { userId?: string }; threadId: string },
-        null | { threadHandle: string; threadId: string }
-      >;
       list: FunctionReference<
         "query",
         "internal",
@@ -638,9 +632,9 @@ export declare const components: {
           continueCursor: string;
           isDone: boolean;
           page: Array<{
+            conversationId: string;
             preview: string;
             status: "active" | "archived" | "failed";
-            threadHandle: string;
             updatedAt: number;
           }>;
         }
@@ -657,20 +651,20 @@ export declare const components: {
           continueCursor: string;
           isDone: boolean;
           page: Array<{
+            conversationId: string;
             preview: string;
             status: "active" | "archived" | "failed";
-            threadHandle: string;
             updatedAt: number;
           }>;
         }
       >;
-      listRuntimeThreadBindings: FunctionReference<
+      listRuntimeConversationBindings: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; runtimeThreadIds: Array<string> },
+        { actor: { userId?: string }; runtimeConversationIds: Array<string> },
         Array<{
           conversationId: string;
-          runtimeThreadId: string;
+          runtimeConversationId: string;
           threadId: string;
         }>
       >;
@@ -679,18 +673,18 @@ export declare const components: {
         "internal",
         {
           actor: { userId?: string };
+          conversationId: string;
           cursor: number;
           errorCode?: string;
-          runtimeThreadId?: string;
+          runtimeConversationId?: string;
           sessionId?: string;
           syncState?: "unsynced" | "syncing" | "synced" | "drifted";
-          threadHandle: string;
         },
         {
+          conversationId: string;
           lastSyncedCursor: number;
-          runtimeThreadId?: string;
+          runtimeConversationId?: string;
           syncState: "unsynced" | "syncing" | "synced" | "drifted";
-          threadHandle: string;
           threadId: string;
         }
       >;
@@ -717,21 +711,7 @@ export declare const components: {
         "query",
         "internal",
         { actor: { userId?: string }; conversationId: string },
-        null | {
-          conversationId: string;
-          threadHandle: string;
-          threadId: string;
-        }
-      >;
-      resolveByThreadHandle: FunctionReference<
-        "query",
-        "internal",
-        { actor: { userId?: string }; threadHandle: string },
-        null | {
-          conversationId?: string;
-          threadHandle: string;
-          threadId: string;
-        }
+        null | { conversationId: string; threadId: string }
       >;
       resume: FunctionReference<
         "mutation",
@@ -767,18 +747,18 @@ export declare const components: {
         "internal",
         {
           actor: { userId?: string };
+          conversationId: string;
           cwd?: string;
           model?: string;
-          runtimeThreadId: string;
+          runtimeConversationId: string;
           sessionId?: string;
-          threadHandle?: string;
         },
         {
+          conversationId: string;
           created: boolean;
           rebindApplied: boolean;
-          runtimeThreadId: string;
+          runtimeConversationId: string;
           syncState: "unsynced" | "syncing" | "synced" | "drifted";
-          threadHandle: string;
           threadId: string;
         }
       >;

@@ -10,7 +10,7 @@ export type PendingAuthRefreshRequest = {
 };
 
 type RuntimeLogEntry = { id: string; line: string };
-type LocalThreadRow = { threadId: string; preview: string };
+type LocalThreadRow = { conversationId: string; preview: string };
 
 type BridgeStateEvent = Partial<BridgeState>;
 type BridgeStateUnsubscribe = () => void;
@@ -91,9 +91,9 @@ export function useCodexTauriEvents({
           const line = `${event.payload.kind} (${event.payload.turnId ?? "-"})`;
           const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           setRuntimeLogRef.current((prev) => [{ id, line }, ...prev].slice(0, 8));
-          const threadId = event.payload.threadId;
-          if (typeof threadId === "string" && threadId.length > 0) {
-            setBridgeRef.current((prev) => ({ ...prev, conversationId: threadId }));
+          const conversationId = event.payload.threadId;
+          if (typeof conversationId === "string" && conversationId.length > 0) {
+            setBridgeRef.current((prev) => ({ ...prev, conversationId: conversationId }));
           }
         }),
         listen<{ message: string }>("codex:protocol_error", (event) => {
@@ -163,12 +163,12 @@ export function useCodexTauriEvents({
               const threads = threadsRaw
                 .map((value) => {
                   const row = asRecord(value);
-                  const threadId = typeof row?.threadId === "string" ? row.threadId : null;
+                  const conversationId = typeof row?.threadId === "string" ? row.threadId : null;
                   const preview = typeof row?.preview === "string" ? row.preview : null;
-                  if (!threadId || !preview) {
+                  if (!conversationId || !preview) {
                     return null;
                   }
-                  return { threadId, preview };
+                  return { conversationId, preview };
                 })
                 .filter((value): value is LocalThreadRow => value !== null);
               onLocalThreadsLoadedRef.current?.(threads);
@@ -180,7 +180,7 @@ export function useCodexTauriEvents({
               ? threadIdsRaw.filter((value): value is string => typeof value === "string")
               : [];
             onLocalThreadsLoadedRef.current?.(
-              threadIds.map((threadId) => ({ threadId, preview: "Untitled thread" })),
+              threadIds.map((conversationId) => ({ conversationId, preview: "Untitled thread" })),
             );
           }
         }),

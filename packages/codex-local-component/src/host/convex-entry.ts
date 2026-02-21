@@ -8,7 +8,7 @@ export {
   type RuntimeOwnedHostDefinitions,
 } from "./convexPreset.js";
 export type {
-  RuntimeThreadLocator,
+  RuntimeConversationLocator,
   ThreadLocator,
 } from "../shared/threadIdentity.js";
 export {

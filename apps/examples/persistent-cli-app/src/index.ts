@@ -266,7 +266,7 @@ const chatFns = {
   ingestBatch: api.chat.ingestBatch,
   persistenceStats: api.chat.persistenceStats,
   durableHistoryStats: api.chat.durableHistoryStats,
-  threadSnapshot: api.chat.threadSnapshot,
+  threadSnapshotByConversation: api.chat.threadSnapshotByConversation,
 } as const;
 
 function isThreadReadError(
@@ -332,7 +332,7 @@ function requestId(): number {
 function updateStatus(): void {
   const thread = threadId ?? "(starting)";
   const turn = turnInFlight ? `turn=${turnId ?? "pending"}` : "idle";
-  tui.setStatus(`[run-id] ${runId} | thread=${thread} | ${turn}`);
+  tui.setStatus(`[run-id] ${runId} | conversation=${thread} | ${turn}`);
 }
 
 function sendMessage(
@@ -576,14 +576,14 @@ async function logPersistenceStats(): Promise<void> {
   }
   const stats = await convex.query(chatFns.persistenceStats, {
     actor,
-    threadHandle: threadId,
+    conversationId: threadId,
   });
   const history = await convex.query(chatFns.durableHistoryStats, {
     actor,
-    threadHandle: threadId,
+    conversationId: threadId,
   });
   if (isThreadReadError(stats) || isThreadReadError(history)) {
-    tui.appendLine("persisted> thread missing");
+    tui.appendLine("persisted> conversation missing");
     return;
   }
   tui.appendLine(
@@ -633,7 +633,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
     updateStatus();
     await convex.mutation(chatFns.ensureConversationBinding, {
       actor,
-      threadHandle: threadId,
+      conversationId: threadId,
       ...(model ? { model } : {}),
       cwd,
     });
@@ -812,7 +812,7 @@ async function startFlow(): Promise<void> {
     });
   }
   updateStatus();
-  tui.appendLine(`thread> ready (${threadId}) session=${sessionId}`);
+  tui.appendLine(`conversation> ready (${threadId}) session=${sessionId}`);
   await logPersistenceStats();
   tui.appendLine("commands> /interrupt /state /exit");
 }
@@ -830,32 +830,32 @@ async function handleCommand(line: string): Promise<void> {
 
   if (line === "/state") {
     if (!threadId) {
-      tui.appendLine("state> no thread yet");
+      tui.appendLine("state> no conversation yet");
       return;
     }
-    const state = await convex.query(chatFns.threadSnapshot, {
+    const state = await convex.query(chatFns.threadSnapshotByConversation, {
       actor,
-      threadHandle: threadId,
+      conversationId: threadId,
     });
     const stats = await convex.query(chatFns.persistenceStats, {
       actor,
-      threadHandle: threadId,
+      conversationId: threadId,
     });
     const history = await convex.query(chatFns.durableHistoryStats, {
       actor,
-      threadHandle: threadId,
+      conversationId: threadId,
     });
     if (isThreadReadError(state)) {
-      tui.appendLine(`state> thread unavailable: ${state.message}`);
+      tui.appendLine(`state> conversation unavailable: ${state.message}`);
       return;
     }
     if (isThreadReadError(stats) || isThreadReadError(history)) {
-      tui.appendLine("state> thread health stats unavailable");
+      tui.appendLine("state> conversation health stats unavailable");
       return;
     }
     const snapshot = state.data;
     tui.appendLine(
-      `state> thread=${snapshot.threadId} turns=${snapshot.turns.length} activeStreams=${snapshot.activeStreams.length} pendingApprovals=${snapshot.pendingApprovals.length} deltas=${stats.deltaCount} messages=${history.messageCountInPage}`,
+      `state> conversation=${snapshot.threadId} turns=${snapshot.turns.length} activeStreams=${snapshot.activeStreams.length} pendingApprovals=${snapshot.pendingApprovals.length} deltas=${stats.deltaCount} messages=${history.messageCountInPage}`,
     );
     return;
   }

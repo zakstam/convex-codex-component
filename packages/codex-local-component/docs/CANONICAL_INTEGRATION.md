@@ -31,7 +31,7 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
 - Do not expose host identity alternatives in public app host APIs.
 - Use `threadSnapshotByConversation`, `listThreadMessagesByConversation`, `listTurnMessagesByConversation`, and `listPendingServerRequestsByConversation` for conversation-scoped reads. These preserve canonical thread-scoped safety contracts:
   - `threadSnapshotByConversation`, `listThreadMessagesByConversation`, `listTurnMessagesByConversation` return `threadStatus` payloads when the thread is missing or unauthorized.
-  - `listPendingServerRequestsByConversation` returns `[]` on missing-thread fallback to preserve poller array contracts.
+  - `listPendingServerRequestsByConversation` returns `[]` on missing-thread reads to preserve poller array contracts.
 
 ## Lifecycle Contract
 
@@ -83,7 +83,7 @@ For Convex `api.chat.*` generated typing, export each endpoint as a named consta
 
 `syncOpenConversationBinding`, `markConversationSyncProgress`, and `forceRebindConversationSync` are the canonical host-side sync engine hooks for local runtime thread mapping + watermark progress.
 
-Thread-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByConversation`, `listThreadMessages`, `listThreadMessagesByConversation`, `listTurnMessages`, `listTurnMessagesByConversation`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` and `listPendingServerRequestsByConversation` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
+Conversation-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByConversation`, `listThreadMessages`, `listThreadMessagesByConversation`, `listTurnMessages`, `listTurnMessagesByConversation`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for handled read failures. `listPendingServerRequests` and `listPendingServerRequestsByConversation` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
 
 ## Host Shim Generation
 
@@ -107,7 +107,7 @@ import { api } from "../convex/_generated/api";
 
 // In component:
 const conversation = useCodex({
-  threadId,
+  conversationId,
   composer: { onSend },
   interrupt: { onInterrupt },
 });

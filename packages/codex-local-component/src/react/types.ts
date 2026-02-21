@@ -61,7 +61,7 @@ export type CodexReasoningQuery<Args = Record<string, unknown>> = FunctionRefere
   "query",
   "public",
   {
-    threadId: string;
+    conversationId: string;
     paginationOpts: PaginationOptions;
     includeRaw?: boolean;
   } & Args,

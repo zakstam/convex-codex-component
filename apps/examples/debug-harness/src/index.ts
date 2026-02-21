@@ -140,7 +140,9 @@ class DebugHarness {
   }
 
   isReady(): boolean {
-    return this.snapshot.running && typeof this.snapshot.localThreadId === "string" && this.snapshot.localThreadId.length > 0;
+    return this.snapshot.running
+      && typeof this.snapshot.conversationId === "string"
+      && this.snapshot.conversationId.length > 0;
   }
 
   isRunning(): boolean {
@@ -166,7 +168,7 @@ class DebugHarness {
       }
       await new Promise((resolveWait) => setTimeout(resolveWait, 200));
     }
-    throw new Error("Timed out waiting for running bridge with localThreadId.");
+    throw new Error("Timed out waiting for running bridge with conversationId.");
   }
 
   async waitForTurnSignal(timeoutMs = 30_000): Promise<void> {

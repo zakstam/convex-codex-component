@@ -105,7 +105,7 @@ export class CodexLocalBridge {
         await this.handlers.onGlobalMessage(message, classification);
         return;
       }
-      const normalized = this.normalize(message, classification.threadId, classification.kind);
+      const normalized = this.normalize(message, classification.conversationId, classification.kind);
       await this.handlers.onEvent(normalized);
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error));
@@ -113,17 +113,17 @@ export class CodexLocalBridge {
     }
   }
 
-  private normalize(message: ServerInboundMessage, threadId: string, kind: string): NormalizedEvent {
+  private normalize(message: ServerInboundMessage, conversationId: string, kind: string): NormalizedEvent {
     const start = this.cursor;
     this.cursor += 1;
 
     const turnId = extractTurnId(message);
     const streamId = extractStreamId(message);
-    const resolvedStreamId = streamId ?? (turnId ? `${threadId}:${turnId}:0` : undefined);
+    const resolvedStreamId = streamId ?? (turnId ? `${conversationId}:${turnId}:0` : undefined);
 
     return {
       eventId: randomUUID(),
-      threadId,
+      threadId: conversationId,
       ...(turnId ? { turnId } : {}),
       ...(resolvedStreamId ? { streamId: resolvedStreamId } : {}),
       cursorStart: start,

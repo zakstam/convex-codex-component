@@ -29,14 +29,14 @@ export const listThreadsForPicker = query({
     });
 
     const page = listed.page as Array<{
-      threadHandle: string;
+      conversationId: string;
       status: string;
       updatedAt: number;
       preview: string;
     }>;
 
     const rows = page.map((thread) => ({
-      conversationId: thread.threadHandle,
+      conversationId: thread.conversationId,
       status: thread.status,
       updatedAt: thread.updatedAt,
       preview: thread.preview,
@@ -71,24 +71,24 @@ export const resolveOpenTarget = query({
     return {
       mode: "bound" as const,
       conversationHandle: args.conversationHandle,
-      runtimeThreadHandle: mapping.threadHandle,
+      runtimeThreadHandle: mapping.conversationId,
     };
   },
 });
 
-export const listRuntimeThreadBindingsForPicker = query({
+export const listRuntimeConversationBindingsForPicker = query({
   args: {
     actor: vHostActorContext,
-    runtimeThreadIds: v.array(v.string()),
+    runtimeConversationIds: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
-    const rows = await ctx.runQuery(components.codexLocal.threads.listRuntimeThreadBindings, {
+    const rows = await ctx.runQuery(components.codexLocal.threads.listRuntimeConversationBindings, {
       actor: serverActor,
-      runtimeThreadIds: args.runtimeThreadIds,
+      runtimeConversationIds: args.runtimeConversationIds,
     });
     return rows as Array<{
-      runtimeThreadId: string;
+      runtimeConversationId: string;
       threadId: string;
       conversationId: string;
     }>;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type CodexRuntimeBridgeState = {
   running: boolean;
-  threadId?: string | null;
+  conversationId?: string | null;
   turnId?: string | null;
   lastError?: string | null;
   [key: string]: unknown;
@@ -46,7 +46,7 @@ export function useCodexRuntimeBridge<
   },
 ) {
   const [state, setState] = useState<CodexRuntimeBridgeState>(
-    options?.initialState ?? { running: false, threadId: null, turnId: null, lastError: null },
+    options?.initialState ?? { running: false, conversationId: null, turnId: null, lastError: null },
   );
   const stateRef = useRef(state);
   const [busyAction, setBusyAction] = useState<null | "start" | "stop" | "refresh" | "send" | "interrupt">(null);

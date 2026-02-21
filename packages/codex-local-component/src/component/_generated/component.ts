@@ -360,13 +360,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         any,
         Name
       >;
-      getThreadHandleMapping: FunctionReference<
-        "query",
-        "internal",
-        { actor: { userId?: string }; threadId: string },
-        null | { threadHandle: string; threadId: string },
-        Name
-      >;
       getState: FunctionReference<
         "query",
         "internal",
@@ -455,20 +448,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           actor: { userId?: string };
+          conversationId?: string;
           cwd?: string;
-          threadHandle?: string;
           localThreadId?: string;
           model?: string;
           personality?: string;
         },
-        { created: boolean; threadHandle?: string; threadId: string },
-        Name
-      >;
-      resolveByThreadHandle: FunctionReference<
-        "query",
-        "internal",
-        { actor: { userId?: string }; threadHandle: string },
-        null | { threadHandle: string; threadId: string },
+        { conversationId?: string; created: boolean; threadId: string },
         Name
       >;
       resume: FunctionReference<

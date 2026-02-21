@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyMessage, extractStreamId, extractTurnId } from "../dist/protocol/classifier.js";
 
-test("classifyMessage keeps modern turn notifications thread-scoped", () => {
+test("classifyMessage keeps modern turn notifications conversation-scoped", () => {
   const message = {
     jsonrpc: "2.0",
     method: "turn/completed",
@@ -18,14 +18,14 @@ test("classifyMessage keeps modern turn notifications thread-scoped", () => {
   };
 
   assert.deepEqual(classifyMessage(message), {
-    scope: "thread",
+    scope: "conversation",
     kind: "turn/completed",
-    threadId: "thread-1",
+    conversationId: "thread-1",
   });
   assert.equal(extractTurnId(message), "turn-9");
 });
 
-test("classifyMessage reads thread id from thread/started params.thread.id", () => {
+test("classifyMessage reads conversation id from thread/started params.thread.id", () => {
   const message = {
     jsonrpc: "2.0",
     method: "thread/started",
@@ -47,9 +47,9 @@ test("classifyMessage reads thread id from thread/started params.thread.id", () 
   };
 
   assert.deepEqual(classifyMessage(message), {
-    scope: "thread",
+    scope: "conversation",
     kind: "thread/started",
-    threadId: "thread-from-object",
+    conversationId: "thread-from-object",
   });
 });
 
@@ -123,7 +123,7 @@ test("extractStreamId returns undefined for modern generated protocol", () => {
   assert.equal(extractStreamId(message), undefined);
 });
 
-test("classifyMessage rejects thread-scoped messages missing threadId", () => {
+test("classifyMessage rejects conversation-scoped messages missing threadId", () => {
   const message = {
     jsonrpc: "2.0",
     method: "item/started",
@@ -139,11 +139,11 @@ test("classifyMessage rejects thread-scoped messages missing threadId", () => {
 
   assert.throws(
     () => classifyMessage(message),
-    /Thread-scoped protocol message missing threadId/,
+    /Conversation-scoped protocol message missing threadId/,
   );
 });
 
-test("classifyMessage ignores unsupported conversationId fields", () => {
+test("classifyMessage ignores unsupported conversationId payload fields", () => {
   const message = {
     jsonrpc: "2.0",
     method: "turn/completed",
@@ -160,8 +160,8 @@ test("classifyMessage ignores unsupported conversationId fields", () => {
   };
 
   assert.deepEqual(classifyMessage(message), {
-    scope: "thread",
+    scope: "conversation",
     kind: "turn/completed",
-    threadId: "thread-modern-id",
+    conversationId: "thread-modern-id",
   });
 });

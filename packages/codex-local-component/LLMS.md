@@ -23,12 +23,12 @@ Do not use wrapper/facade host builders.
 - Present `userId` scopes to that user.
 - Missing `userId` scopes to anonymous-only rows.
 
-## Thread Contract
+## Conversation Contract
 
-- Runtime-owned `ensureThread` is single-path.
-- Provide `threadHandle`.
-- `threadHandle` is the canonical consumer identity for external thread mapping and `*ByThreadHandle` read APIs.
-- Do not expose alternate host identity shapes beyond canonical thread-handle contracts.
+- Runtime-owned `ensureConversationBinding` is single-path.
+- Provide `conversationId`.
+- `conversationId` is the canonical consumer identity for host/runtime operations.
+- Do not expose alternate host identity shapes at public app boundaries.
 
 ## Task-to-doc routing
 

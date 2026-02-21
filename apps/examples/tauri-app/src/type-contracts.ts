@@ -52,7 +52,7 @@ type _ValidateHostWiringArgsAreTyped = Assert<
     ValidateHostWiringArgs,
     {
       actor: ActorContext;
-      threadId?: string;
+      conversationId?: string;
     }
   >
 >;

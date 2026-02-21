@@ -22,11 +22,10 @@ export default defineSchema({
   codex_thread_bindings: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
-    conversationId: v.optional(v.string()),
-    threadHandle: v.string(),
-    runtimeThreadId: v.optional(v.string()),
+    conversationId: v.string(),
+    runtimeConversationId: v.optional(v.string()),
     threadId: v.string(),
-    threadRef: v.id("codex_threads"),
+    conversationRef: v.id("codex_threads"),
     syncState: v.optional(
       v.union(
         v.literal("unsynced"),
@@ -44,10 +43,9 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("userScope_userId_conversationId", ["userScope", "userId", "conversationId"])
-    .index("userScope_userId_threadHandle", ["userScope", "userId", "threadHandle"])
-    .index("userScope_userId_runtimeThreadId", ["userScope", "userId", "runtimeThreadId"])
+    .index("userScope_userId_runtimeConversationId", ["userScope", "userId", "runtimeConversationId"])
     .index("userScope_userId_threadId", ["userScope", "userId", "threadId"])
-    .index("userScope_threadRef", ["userScope", "threadRef"]),
+    .index("userScope_conversationRef", ["userScope", "conversationRef"]),
 
   codex_threads: defineTable({
     userScope: v.string(),

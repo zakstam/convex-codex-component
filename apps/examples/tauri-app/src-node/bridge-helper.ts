@@ -38,10 +38,8 @@ type HelperEvent =
         phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
         source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
         updatedAtMs: number;
-        persistedThreadId: string | null;
-        runtimeThreadId: string | null;
-        localThreadId: string | null;
         conversationId: string | null;
+        runtimeConversationId: string | null;
         turnId: string | null;
         lastErrorCode: string | null;
         lastError: string | null;
@@ -118,7 +116,7 @@ let runtime: CodexHostRuntime | null = null;
 let convex: ConvexHttpClient | null = null;
 let actor: ActorContext | null = null;
 let activeSessionId: string | null = null;
-let runtimeThreadId: string | null = null;
+let runtimeConversationId: string | null = null;
 let startRuntimeOptions: {
   saveStreamDeltas: boolean;
   maxDeltasPerStreamRead: number;
@@ -136,9 +134,8 @@ let bridgeState: {
   phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
   source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
   updatedAtMs: number;
-  persistedThreadId: string | null;
-  runtimeThreadId: string | null;
-  localThreadId: string | null;
+  conversationId: string | null;
+  runtimeConversationId: string | null;
   turnId: string | null;
   lastErrorCode: string | null;
   lastError: string | null;
@@ -153,9 +150,8 @@ let bridgeState: {
   phase: "idle",
   source: "runtime",
   updatedAtMs: Date.now(),
-  persistedThreadId: null,
-  runtimeThreadId: null,
-  localThreadId: null,
+  conversationId: null,
+  runtimeConversationId: null,
   turnId: null,
   lastErrorCode: null,
   lastError: null,
@@ -218,10 +214,8 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       phase: bridgeState.phase,
       source: bridgeState.source,
       updatedAtMs: bridgeState.updatedAtMs,
-      persistedThreadId: bridgeState.persistedThreadId,
-      runtimeThreadId: bridgeState.runtimeThreadId,
-      localThreadId: bridgeState.localThreadId,
-      conversationId: bridgeState.runtimeThreadId,
+      conversationId: bridgeState.conversationId,
+      runtimeConversationId: bridgeState.runtimeConversationId,
       turnId: bridgeState.turnId,
       lastErrorCode: bridgeState.lastErrorCode,
       lastError: bridgeState.lastError,
@@ -321,9 +315,7 @@ async function executeDynamicToolCall(
 
   let pendingSummary: Array<{ requestId: string | number; method: string }> = [];
   if (includePendingRequests && runtime) {
-    const pending = bridgeState.persistedThreadId
-      ? await runtime.listPendingServerRequests(bridgeState.persistedThreadId)
-      : await runtime.listPendingServerRequests();
+    const pending = await runtime.listPendingServerRequests();
     pendingSummary = pending.map((request) => ({
       requestId: request.requestId,
       method: request.method,
@@ -334,9 +326,8 @@ async function executeDynamicToolCall(
     tool: toolCall.tool,
     generatedAt: new Date().toISOString(),
     threadId: toolCall.threadId,
-    persistedThreadId: bridgeState.persistedThreadId,
-    runtimeThreadId: bridgeState.runtimeThreadId,
-    localThreadId: bridgeState.localThreadId,
+    conversationId: bridgeState.conversationId,
+    runtimeConversationId: bridgeState.runtimeConversationId,
     turnId: toolCall.turnId,
     helperPid: process.pid,
     cwd: process.cwd(),
@@ -432,7 +423,7 @@ async function setDisabledTools(tools: string[]): Promise<string[]> {
   };
   emitState();
   if (runtime && latestStartPayload) {
-    const restartThreadHandle = bridgeState.runtimeThreadId ?? null;
+    const restartThreadHandle = bridgeState.runtimeConversationId ?? null;
     const restartPayload: StartPayload = {
       ...latestStartPayload,
       disabledTools: normalized,
@@ -591,7 +582,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
   convex = new ConvexHttpClient(payload.convexUrl);
   actor = payload.actor;
   activeSessionId = payload.sessionId ? `${payload.sessionId}-${randomSessionId()}` : randomSessionId();
-  runtimeThreadId = null;
+  runtimeConversationId = null;
 
   const wiringValidation = await convex.query(
     requireDefined(chatApi.validateHostWiring, "api.chat.validateHostWiring"),
@@ -638,9 +629,8 @@ async function startBridge(payload: StartPayload): Promise<void> {
           phase: state.phase,
           source: state.source,
           updatedAtMs: state.updatedAtMs,
-          persistedThreadId: state.persistedThreadId,
-          runtimeThreadId: state.runtimeThreadId,
-          localThreadId: state.persistedThreadId,
+          conversationId: state.conversationId,
+          runtimeConversationId: state.runtimeConversationId,
           turnId: state.turnId,
           lastErrorCode: state.lastErrorCode,
           lastError: state.lastError,
@@ -652,8 +642,8 @@ async function startBridge(payload: StartPayload): Promise<void> {
         });
       },
       onEvent: (event) => {
-        runtimeThreadId = event.threadId;
-        emitState({ runtimeThreadId: event.threadId });
+        runtimeConversationId = event.threadId;
+        emitState({ runtimeConversationId: event.threadId });
         if (event.kind === "item/tool/call") {
           void handlePendingDynamicToolCalls(event.threadId);
         }
@@ -752,7 +742,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
   if (!runtime || !convex || !actor) {
     throw new Error("Bridge/runtime not ready. Start runtime first.");
   }
-  let runtimeThreadIdForOpen: string | undefined;
+  let runtimeConversationIdForOpen: string | undefined;
   let resolvedUnboundTarget: { conversationHandle: string; runtimeThreadHandle: string } | null = null;
   if (payload.strategy === "resume" || payload.strategy === "fork") {
     const conversationHandle = payload.conversationId?.trim();
@@ -766,7 +756,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
     );
     const canResumeLocally = await runtimeHasLocalRolloutThreadHandle(resolved.runtimeThreadHandle);
     if (canResumeLocally) {
-      runtimeThreadIdForOpen = resolved.runtimeThreadHandle;
+      runtimeConversationIdForOpen = resolved.runtimeThreadHandle;
       if (payload.strategy === "resume" && resolved.mode === "unbound") {
         resolvedUnboundTarget = {
           conversationHandle: resolved.conversationHandle,
@@ -782,7 +772,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
       });
       const startedRuntimeThreadHandle =
         getThreadHandleFromCodexResponse(started) ??
-        runtimeThreadId ??
+        runtimeConversationId ??
         null;
       if (!startedRuntimeThreadHandle) {
         throw new Error("[E_OPEN_TARGET_RESOLUTION_FAILED] Could not determine runtime thread handle during rebind.");
@@ -792,7 +782,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
         {
           actor,
           conversationId: resolved.conversationHandle,
-          runtimeThreadId: startedRuntimeThreadHandle,
+          runtimeConversationId: startedRuntimeThreadHandle,
           ...(payload.model ? { model: payload.model } : {}),
           ...(payload.cwd ? { cwd: payload.cwd } : {}),
           ...(activeSessionId ? { sessionId: activeSessionId } : {}),
@@ -818,7 +808,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
   }
   await runtime.openThread({
     strategy: payload.strategy,
-    ...(runtimeThreadIdForOpen ? { conversationId: runtimeThreadIdForOpen } : {}),
+    ...(runtimeConversationIdForOpen ? { conversationId: runtimeConversationIdForOpen } : {}),
     ...(payload.model ? { model: payload.model } : {}),
     ...(payload.cwd ? { cwd: payload.cwd } : {}),
     ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),
@@ -972,14 +962,13 @@ async function stopCurrentBridge(): Promise<void> {
     convex = null;
     actor = null;
     activeSessionId = null;
-    runtimeThreadId = null;
+    runtimeConversationId = null;
     emitState({
       running: false,
       phase: "stopped",
       source: "runtime",
-      persistedThreadId: null,
-      runtimeThreadId: null,
-      localThreadId: null,
+      conversationId: null,
+      runtimeConversationId: null,
       turnId: null,
       lastErrorCode: null,
       lastError: null,

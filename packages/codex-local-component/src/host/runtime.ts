@@ -402,9 +402,9 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
   const sendTurn: CodexHostRuntime["sendTurn"] = async (text) => {
     if (!core.bridge) throw new Error("Bridge/thread not ready. Start runtime first.");
-    if (!core.runtimeThreadId) throw core.runtimeError("E_RUNTIME_THREAD_NOT_OPEN", "Cannot send turn before opening a thread.");
+    if (!core.runtimeConversationId) throw core.runtimeError("E_RUNTIME_THREAD_NOT_OPEN", "Cannot send turn before opening a thread.");
     if (core.turnInFlight && !core.turnSettled) throw core.runtimeError("E_RUNTIME_DISPATCH_TURN_IN_FLIGHT", "A turn is already in flight.");
-    await core.ensureThreadBinding(core.runtimeThreadId);
+    await core.ensureThreadBinding(core.runtimeConversationId);
     const accepted = await core.acceptTurnSend(text);
     await core.processDispatchQueue();
     return accepted;
@@ -424,7 +424,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     if (expectedTurnId !== activeTurnId) {
       throw new Error(`Cannot steer turn ${expectedTurnId}; active turn is ${activeTurnId}.`);
     }
-    let threadId = core.runtimeThreadId;
+    let threadId = core.runtimeConversationId;
     if (threadId === undefined || threadId === null) {
       threadId = core.threadId;
     }
@@ -438,9 +438,9 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   };
 
   const interrupt = () => {
-    if (!core.bridge || !core.runtimeThreadId) return;
+    if (!core.bridge || !core.runtimeConversationId) return;
     if (!core.turnId) { core.interruptRequested = true; return; }
-    core.sendMessage(buildTurnInterruptRequest(core.requestIdFn(), { threadId: core.runtimeThreadId, turnId: core.turnId }), "turn/interrupt");
+    core.sendMessage(buildTurnInterruptRequest(core.requestIdFn(), { threadId: core.runtimeConversationId, turnId: core.turnId }), "turn/interrupt");
   };
 
   const resumeThread: CodexHostRuntime["resumeThread"] = async (tid, params) => {

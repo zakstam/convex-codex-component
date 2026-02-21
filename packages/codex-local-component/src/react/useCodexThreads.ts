@@ -59,14 +59,14 @@ export function useCodexThreads<
   }, []);
 
   // ── Stale selection guard ────────────────────────────────────────────
-  // When the selected thread is deleted, the list query updates reactively
+  // When the selected conversation is deleted, the list query updates reactively
   // but selectedConversationId state is stale. Convex's useQuery throws server
   // errors during render, so we must validate BEFORE the return value
   // reaches useCodex (which would subscribe to listThreadMessages).
   const validatedSelectedConversationId = useMemo(() => {
     if (!selectedConversationId || listed === undefined) return selectedConversationId;
 
-    // Extract thread items — supports { threads: [...] } (standard shape)
+    // Extract conversation items — supports { threads: [...] } (standard shape)
     // and direct array shapes.
     const items: unknown[] | undefined = Array.isArray(listed)
       ? listed
@@ -81,11 +81,7 @@ export function useCodexThreads<
         return false;
       }
       const conversationId = Reflect.get(value, "conversationId");
-      if (typeof conversationId === "string" && conversationId === expected) {
-        return true;
-      }
-      const threadId = Reflect.get(value, "threadId");
-      return typeof threadId === "string" && threadId === expected;
+      return typeof conversationId === "string" && conversationId === expected;
     };
 
     const found = items.some((item) => hasMatchingConversationId(item, selectedConversationId));

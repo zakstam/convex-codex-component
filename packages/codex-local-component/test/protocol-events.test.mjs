@@ -82,7 +82,7 @@ test("payload helpers extract turn id, durable message, and item snapshot", () =
   });
 });
 
-test("classifyMessage accepts global and thread scoped methods", () => {
+test("classifyMessage accepts global and conversation scoped methods", () => {
   assert.deepEqual(
     classifyMessage({
       jsonrpc: "2.0",
@@ -90,9 +90,9 @@ test("classifyMessage accepts global and thread scoped methods", () => {
       params: { threadId: "thread-1", turnId: "turn-1" },
     }),
     {
-      scope: "thread",
+      scope: "conversation",
       kind: "item/started",
-      threadId: "thread-1",
+      conversationId: "thread-1",
     },
   );
 
@@ -108,7 +108,7 @@ test("classifyMessage accepts global and thread scoped methods", () => {
   );
 });
 
-test("classifyMessage rejects thread-scoped messages missing threadId", () => {
+test("classifyMessage rejects conversation-scoped messages missing threadId", () => {
   assert.throws(
     () =>
       classifyMessage({
@@ -116,7 +116,7 @@ test("classifyMessage rejects thread-scoped messages missing threadId", () => {
         method: "item/started",
         params: {},
       }),
-    /Thread-scoped protocol message missing threadId/,
+    /Conversation-scoped protocol message missing threadId/,
   );
 });
 

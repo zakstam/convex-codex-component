@@ -50,6 +50,6 @@ export * from "../app-server/index.js";
 export type {
   ThreadHandle,
   ThreadHandleIdentity,
-  RuntimeThreadLocator,
+  RuntimeConversationLocator,
   ThreadLocator,
 } from "../shared/threadIdentity.js";

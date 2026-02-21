@@ -12,7 +12,7 @@ const expected = renderCodexHostShim({
   extensionExports: [
     "getActorBindingForBootstrap",
     "listThreadsForPicker",
-    "listRuntimeThreadBindingsForPicker",
+    "listRuntimeConversationBindingsForPicker",
     "resolveOpenTarget",
   ],
 });

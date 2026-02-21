@@ -14,10 +14,7 @@ export type BridgeState = {
   phase?: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
   source?: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
   updatedAtMs?: number;
-  persistedThreadId: string | null;
-  runtimeThreadId: string | null;
-  // Back-compat alias for persisted thread id.
-  localThreadId: string | null;
+  runtimeConversationId: string | null;
   conversationId: string | null;
   turnId: string | null;
   lastErrorCode?: string | null;
@@ -321,11 +318,15 @@ const LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS = 8_000;
 const LIFECYCLE_SAFE_SEND_POLL_MS = 200;
 
 function isBridgeReadyForTurnSend(state: BridgeState): boolean {
+  const legacyPersistedThreadId = Reflect.get(state, "persistedThreadId");
+  const legacyLocalThreadId = Reflect.get(state, "localThreadId");
   return (
     state.running === true
     && (
-      (typeof state.persistedThreadId === "string" && state.persistedThreadId.length > 0)
-      || (typeof state.localThreadId === "string" && state.localThreadId.length > 0)
+      (typeof state.conversationId === "string" && state.conversationId.length > 0)
+      || (typeof state.runtimeConversationId === "string" && state.runtimeConversationId.length > 0)
+      || (typeof legacyPersistedThreadId === "string" && legacyPersistedThreadId.length > 0)
+      || (typeof legacyLocalThreadId === "string" && legacyLocalThreadId.length > 0)
     )
   );
 }
@@ -376,7 +377,7 @@ export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBrid
       }
       await new Promise((resolve) => setTimeout(resolve, LIFECYCLE_SAFE_SEND_POLL_MS));
     }
-    throw new Error(`Bridge started, but no persisted thread became ready within ${LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS}ms.`);
+    throw new Error(`Bridge started, but no conversation became ready within ${LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS}ms.`);
   };
   const ensureReadyForLifecycleSafeSend = async (): Promise<void> => {
     if (!cachedStartConfig) {

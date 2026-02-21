@@ -26,7 +26,7 @@ import type { ArchiveConversationParams } from "../protocol/schemas/ArchiveConve
 import type { InterruptConversationParams } from "../protocol/schemas/InterruptConversationParams.js";
 import type { GetConversationSummaryParams } from "../protocol/schemas/GetConversationSummaryParams.js";
 import type { CodexLocalBridge } from "../local-adapter/bridge.js";
-import type { RuntimeThreadLocator, ThreadHandle } from "../shared/threadIdentity.js";
+import type { RuntimeConversationLocator, ThreadHandle } from "../shared/threadIdentity.js";
 
 // ── Public types ──────────────────────────────────────────────────────
 
@@ -40,9 +40,7 @@ export type HostRuntimeState = {
   phase: HostRuntimeLifecyclePhase;
   source: HostRuntimeLifecycleSource;
   updatedAtMs: number;
-  persistedThreadId: string | null;
-  runtimeThreadId: string | null;
-  threadId: string | null;
+  runtimeConversationId: string | null;
   conversationId: string | null;
   turnId: string | null;
   turnInFlight: boolean;
@@ -198,7 +196,7 @@ export type HostRuntimePersistence = {
     threadId: string;
     dispatchId: string;
     claimToken: string;
-    runtimeThreadId?: string;
+    runtimeConversationId?: string;
     runtimeTurnId?: string;
   }) => Promise<void>;
   markTurnDispatchCompleted: (args: {
@@ -257,20 +255,20 @@ export type CodexHostRuntime = {
   steerTurn: (text: string, options?: { expectedTurnId?: string }) => Promise<void>;
   interrupt: () => void;
   resumeThread: (
-    conversationId: RuntimeThreadLocator["runtimeThreadId"],
+    conversationId: RuntimeConversationLocator["runtimeConversationId"],
     params?: Omit<ThreadResumeParams, "threadId"> & { dynamicTools?: DynamicToolSpec[] },
   ) => Promise<CodexResponse>;
   forkThread: (
-    conversationId: RuntimeThreadLocator["runtimeThreadId"],
+    conversationId: RuntimeConversationLocator["runtimeConversationId"],
     params?: Omit<ThreadForkParams, "threadId">,
   ) => Promise<CodexResponse>;
-  archiveThread: (conversationId: RuntimeThreadLocator["runtimeThreadId"]) => Promise<CodexResponse>;
-  setThreadName: (conversationId: RuntimeThreadLocator["runtimeThreadId"], name: string) => Promise<CodexResponse>;
-  unarchiveThread: (conversationId: RuntimeThreadLocator["runtimeThreadId"]) => Promise<CodexResponse>;
-  compactThread: (conversationId: RuntimeThreadLocator["runtimeThreadId"]) => Promise<CodexResponse>;
-  rollbackThread: (conversationId: RuntimeThreadLocator["runtimeThreadId"], numTurns: number) => Promise<CodexResponse>;
+  archiveThread: (conversationId: RuntimeConversationLocator["runtimeConversationId"]) => Promise<CodexResponse>;
+  setThreadName: (conversationId: RuntimeConversationLocator["runtimeConversationId"], name: string) => Promise<CodexResponse>;
+  unarchiveThread: (conversationId: RuntimeConversationLocator["runtimeConversationId"]) => Promise<CodexResponse>;
+  compactThread: (conversationId: RuntimeConversationLocator["runtimeConversationId"]) => Promise<CodexResponse>;
+  rollbackThread: (conversationId: RuntimeConversationLocator["runtimeConversationId"], numTurns: number) => Promise<CodexResponse>;
   readThread: (
-    conversationId: RuntimeThreadLocator["runtimeThreadId"],
+    conversationId: RuntimeConversationLocator["runtimeConversationId"],
     includeTurns?: boolean,
   ) => Promise<CodexResponse>;
   importLocalThreadToPersistence: (
@@ -290,7 +288,7 @@ export type CodexHostRuntime = {
   archiveConversation: (params: ArchiveConversationParams) => Promise<CodexResponse>;
   interruptConversation: (params: InterruptConversationParams) => Promise<CodexResponse>;
   getConversationSummary: (params: GetConversationSummaryParams) => Promise<CodexResponse>;
-  listPendingServerRequests: (threadId?: string) => Promise<HostRuntimePersistedServerRequest[]>;
+  listPendingServerRequests: () => Promise<HostRuntimePersistedServerRequest[]>;
   respondCommandApproval: (args: {
     requestId: RpcId;
     decision: CommandExecutionApprovalDecision;

@@ -190,9 +190,8 @@ impl BridgeRuntime {
             "codex:bridge_state",
             json!({
                 "running": false,
-                "persistedThreadId": null,
-                "runtimeThreadId": null,
-                "localThreadId": null,
+                "conversationId": null,
+                "runtimeConversationId": null,
                 "conversationId": null,
                 "turnId": null,
                 "pendingServerRequestCount": 0,
@@ -283,9 +282,8 @@ impl BridgeRuntime {
             "codex:bridge_state",
             json!({
                 "running": false,
-                "persistedThreadId": null,
-                "runtimeThreadId": null,
-                "localThreadId": null,
+                "conversationId": null,
+                "runtimeConversationId": null,
                 "conversationId": null,
                 "turnId": null,
                 "pendingServerRequestCount": 0,

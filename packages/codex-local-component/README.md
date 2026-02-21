@@ -159,30 +159,27 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `forceRunDeletion`
 - `getDeletionStatus`
 
-## Runtime Thread Control APIs
+## Runtime Conversation Control APIs
 
-`createCodexHostRuntime(...)` exposes thread control helpers:
+`createCodexHostRuntime(...)` exposes conversation control helpers:
 
-- `openThread` (`start|resume|fork`)
+- `openThread` (`start|resume|fork`, conversation-scoped intent)
 - `importLocalThreadToPersistence`
 - `resumeThread`
 - `forkThread`
-- `archiveThread`
 - `setThreadName`
-- `unarchiveThread`
 - `compactThread`
 - `rollbackThread`
 - `readThread`
 - `listThreads`
 - `listLoadedThreads`
 
-`createCodexHostRuntime(...)` also exposes conversation control helpers:
-
 - `newConversation`
 - `resumeConversation`
 - `listConversations`
 - `forkConversation`
 - `archiveConversation`
+- `unarchiveConversation`
 - `interruptConversation`
 - `getConversationSummary`
 
@@ -202,8 +199,8 @@ The lifecycle state includes:
 - `phase` (`idle|starting|running|stopping|stopped|error`)
 - `source` (`runtime|bridge_event|protocol_error|process_exit`)
 - `updatedAtMs`
-- `persistedThreadId` (Convex-owned thread identity)
-- `runtimeThreadId` (Codex runtime thread identity)
+- `conversationId` (Convex-owned conversation identity)
+- `runtimeConversationId` (Codex runtime conversation identity)
 - `conversationId`
 - `turnId`
 

@@ -32,14 +32,14 @@ test("defineCodexHostDefinitions returns deterministic runtime-owned surface wit
   assert.ok(defs.mutations.interruptTurn);
 
   assert.ok(defs.queries.validateHostWiring);
-  assert.ok(defs.queries.threadSnapshot);
+  assert.ok(defs.queries.threadSnapshotByConversation);
   assert.ok(defs.queries.getDeletionStatus);
   assert.ok(defs.queries.dataHygiene);
-  assert.ok(defs.queries.listThreadMessages);
-  assert.ok(defs.queries.listTurnMessages);
+  assert.ok(defs.queries.listThreadMessagesByConversation);
+  assert.ok(defs.queries.listTurnMessagesByConversation);
   assert.ok(defs.queries.listPendingApprovals);
-  assert.ok(defs.queries.listTokenUsage);
-  assert.ok(defs.queries.listThreadReasoning);
+  assert.ok(defs.queries.listTokenUsageByConversation);
+  assert.ok(defs.queries.listThreadReasoningByConversation);
 });
 
 test("defineCodexHostDefinitions output keys match HOST_SURFACE_MANIFEST keys", () => {
@@ -153,15 +153,33 @@ test("ensureConversationBinding rejects threadId-only input", async () => {
   );
 });
 
-test("threadSnapshot safe query returns missing_thread status for missing thread errors", async () => {
+test("threadSnapshotByConversation safe query returns missing_thread status for missing thread errors", async () => {
+  const baseComponents = createComponentRefs();
+  const resolveByConversationIdRef = Symbol("threads.resolveByConversationId");
+  const getStateRef = Symbol("threads.getState");
   const defs = host.defineCodexHostDefinitions({
-    components: createComponentRefs(),
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByConversationId: resolveByConversationIdRef,
+          getState: getStateRef,
+        },
+      },
+    },
   });
 
-  const result = await defs.queries.threadSnapshot.handler(
+  const result = await defs.queries.threadSnapshotByConversation.handler(
     {
-      runQuery: async () => {
-        throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+      runQuery: async (ref) => {
+        if (ref === resolveByConversationIdRef) {
+          return { threadId: "runtime-thread-1", conversationId: "missing-thread" };
+        }
+        if (ref === getStateRef) {
+          throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+        }
+        throw new Error("Unexpected query call");
       },
     },
     { actor: {}, conversationId: "missing-thread" },
@@ -171,15 +189,33 @@ test("threadSnapshot safe query returns missing_thread status for missing thread
   assert.equal(result.code, "E_THREAD_NOT_FOUND");
 });
 
-test("threadSnapshot returns forbidden state safely", async () => {
+test("threadSnapshotByConversation returns forbidden state safely", async () => {
+  const baseComponents = createComponentRefs();
+  const resolveByConversationIdRef = Symbol("threads.resolveByConversationId");
+  const getStateRef = Symbol("threads.getState");
   const defs = host.defineCodexHostDefinitions({
-    components: createComponentRefs(),
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByConversationId: resolveByConversationIdRef,
+          getState: getStateRef,
+        },
+      },
+    },
   });
 
-  const result = await defs.queries.threadSnapshot.handler(
+  const result = await defs.queries.threadSnapshotByConversation.handler(
     {
-      runQuery: async () => {
-        throw new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed");
+      runQuery: async (ref) => {
+        if (ref === resolveByConversationIdRef) {
+          return { threadId: "runtime-thread-1", conversationId: "missing-thread" };
+        }
+        if (ref === getStateRef) {
+          throw new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed");
+        }
+        throw new Error("Unexpected query call");
       },
     },
     { actor: {}, conversationId: "missing-thread" },
@@ -451,15 +487,36 @@ test("listPendingServerRequestsByConversation returns [] when legacy thread is u
   assert.deepEqual(result, []);
 });
 
-test("listPendingServerRequests returns [] when thread is missing", async () => {
+test("listPendingServerRequestsByConversation returns [] when thread is missing", async () => {
+  const baseComponents = createComponentRefs();
+  const resolveByConversationIdRef = Symbol("threads.resolveByConversationId");
+  const pendingServerRequestRef = Symbol("serverRequests.listPending");
   const defs = host.defineCodexHostDefinitions({
-    components: createComponentRefs(),
+    components: {
+      codexLocal: {
+        ...baseComponents.codexLocal,
+        threads: {
+          ...baseComponents.codexLocal.threads,
+          resolveByConversationId: resolveByConversationIdRef,
+        },
+        serverRequests: {
+          ...baseComponents.codexLocal.serverRequests,
+          listPending: pendingServerRequestRef,
+        },
+      },
+    },
   });
 
-  const result = await defs.queries.listPendingServerRequests.handler(
+  const result = await defs.queries.listPendingServerRequestsByConversation.handler(
     {
-      runQuery: async () => {
-        throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+      runQuery: async (ref) => {
+        if (ref === resolveByConversationIdRef) {
+          return { threadId: "thread-1", conversationId: "missing-thread" };
+        }
+        if (ref === pendingServerRequestRef) {
+          throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
+        }
+        throw new Error("Unexpected query call");
       },
     },
     { actor: {}, conversationId: "missing-thread" },
@@ -468,14 +525,14 @@ test("listPendingServerRequests returns [] when thread is missing", async () => 
   assert.deepEqual(result, []);
 });
 
-test("listPendingServerRequests rethrows non-thread-read errors", async () => {
+test("listPendingServerRequestsByConversation rethrows non-thread-read errors", async () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),
   });
 
   await assert.rejects(
       () =>
-      defs.queries.listPendingServerRequests.handler(
+      defs.queries.listPendingServerRequestsByConversation.handler(
         {
           runQuery: async () => {
             throw new Error("database write failed");
@@ -504,6 +561,6 @@ test("renderCodexHostShim emits deterministic explicit endpoint exports", () => 
 
   assert.ok(source.includes("defineCodexHostDefinitions"));
   assert.ok(source.includes("export const ensureConversationBinding = mutation(codex.mutations.ensureConversationBinding);"));
-  assert.ok(source.includes("export const listThreadReasoning = query(codex.queries.listThreadReasoning);"));
+  assert.ok(source.includes("export const listThreadReasoningByConversation = query(codex.queries.listThreadReasoningByConversation);"));
   assert.ok(source.includes("export { getActorBindingForBootstrap, listThreadsForPicker } from \"./chat.extensions\";"));
 });

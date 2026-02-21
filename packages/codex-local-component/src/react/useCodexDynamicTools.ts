@@ -35,13 +35,13 @@ function requestKey(requestId: string | number): string {
   return `${typeof requestId}:${String(requestId)}`;
 }
 
-function isDynamicToolServerRequest(value: unknown): value is CodexDynamicToolServerRequest {
+function parseDynamicToolServerRequest(value: unknown): CodexDynamicToolServerRequest | null {
   if (typeof value !== "object" || value === null) {
-    return false;
+    return null;
   }
   const requestId = Reflect.get(value, "requestId");
   const method = Reflect.get(value, "method");
-  const threadId = Reflect.get(value, "threadId");
+  const conversationId = Reflect.get(value, "conversationId");
   const turnId = Reflect.get(value, "turnId");
   const itemId = Reflect.get(value, "itemId");
   const payloadJson = Reflect.get(value, "payloadJson");
@@ -50,22 +50,35 @@ function isDynamicToolServerRequest(value: unknown): value is CodexDynamicToolSe
     method === "item/fileChange/requestApproval" ||
     method === "item/tool/requestUserInput" ||
     method === "item/tool/call";
-  return (
-    (typeof requestId === "string" || typeof requestId === "number") &&
-    methodIsSupported &&
-    typeof threadId === "string" &&
-    typeof turnId === "string" &&
-    typeof itemId === "string" &&
-    typeof payloadJson === "string" &&
-    (createdAt === undefined || typeof createdAt === "number")
-  );
+  if (
+    (typeof requestId !== "string" && typeof requestId !== "number") ||
+    !methodIsSupported ||
+    typeof conversationId !== "string" ||
+    typeof turnId !== "string" ||
+    typeof itemId !== "string" ||
+    typeof payloadJson !== "string" ||
+    (createdAt !== undefined && typeof createdAt !== "number")
+  ) {
+    return null;
+  }
+  return {
+    requestId,
+    method,
+    conversationId,
+    turnId,
+    itemId,
+    payloadJson,
+    ...(createdAt !== undefined ? { createdAt } : {}),
+  };
 }
 
 function coerceDynamicToolServerRequests(value: unknown): CodexDynamicToolServerRequest[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.filter(isDynamicToolServerRequest);
+  return value
+    .map((entry) => parseDynamicToolServerRequest(entry))
+    .filter((entry): entry is CodexDynamicToolServerRequest => entry !== null);
 }
 
 export function useCodexDynamicTools<

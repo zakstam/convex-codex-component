@@ -22,6 +22,7 @@ function createBaseContext(overrides = {}) {
   const context = {
     actor: { userId: "u" },
     sessionId: "session-1",
+    runtimeConversationId: "runtime-thread",
     runtimeThreadId: "runtime-thread",
     threadId: "thread-1",
     turnId: null,
@@ -307,7 +308,7 @@ test("handleBridgeGlobalMessage handles thread/start response and pending callba
     setRuntimeThreadFromResponse: (message, method) => {
       calls.setRuntimeThreadFromResponse += 1;
       assert.equal(method, "thread/start");
-      ctx.runtimeThreadId = message.result?.thread?.id ?? ctx.runtimeThreadId;
+      ctx.runtimeConversationId = message.result?.thread?.id ?? ctx.runtimeConversationId;
     },
     ensureThreadBinding: async (threadId) => {
       calls.ensureThreadBinding += 1;
@@ -330,7 +331,7 @@ test("handleBridgeGlobalMessage handles thread/start response and pending callba
     },
   });
 
-  assert.equal(ctx.runtimeThreadId, "thread-1");
+  assert.equal(ctx.runtimeConversationId, "thread-1");
   assert.equal(calls.setRuntimeThreadFromResponse, 1);
   assert.equal(calls.ensureThreadBinding, 1);
 });

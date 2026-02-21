@@ -28,23 +28,18 @@ export const HOST_SURFACE_MANIFEST = {
     ],
     queries: [
       "validateHostWiring",
-      "threadSnapshot",
       "listThreadsForConversation",
       "getDeletionStatus",
       "persistenceStats",
       "durableHistoryStats",
       "dataHygiene",
-      "listThreadMessages",
       "threadSnapshotByConversation",
       "listThreadMessagesByConversation",
-      "listTurnMessages",
       "listTurnMessagesByConversation",
       "listPendingApprovals",
-      "listTokenUsage",
       "listTokenUsageByConversation",
       "listPendingServerRequestsByConversation",
-      "listPendingServerRequests",
-      "listThreadReasoning",
+      "listThreadReasoningByConversation",
     ],
   },
 } as const;
@@ -74,10 +69,6 @@ export const HOST_MUTATION_INTERNAL_ALIASES = {
  * Maps internal defineCodexHostSlice query keys to clean public names.
  */
 export const HOST_QUERY_INTERNAL_ALIASES = {
-  listThreadMessagesForHooks: "listThreadMessages",
-  listTurnMessagesForHooks: "listTurnMessages",
   listPendingApprovalsForHooks: "listPendingApprovals",
-  listTokenUsageForHooks: "listTokenUsage",
-  listPendingServerRequestsForHooks: "listPendingServerRequests",
-  listThreadReasoningForHooks: "listThreadReasoning",
+  listThreadReasoningForHooks: "listThreadReasoningByConversation",
 } as const;

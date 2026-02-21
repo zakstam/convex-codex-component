@@ -18,7 +18,7 @@ import {
 export type CodexConversationApprovalDecision = "accepted" | "declined";
 
 export type CodexConversationApprovalItem = {
-  threadId: string;
+  conversationId: string;
   turnId: string;
   itemId: string;
   kind: string;
@@ -71,13 +71,13 @@ function isApprovalLike(value: unknown): value is CodexConversationApprovalItem 
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const threadId = Reflect.get(value, "threadId");
+  const conversationId = Reflect.get(value, "conversationId");
   const turnId = Reflect.get(value, "turnId");
   const itemId = Reflect.get(value, "itemId");
   const kind = Reflect.get(value, "kind");
   const createdAt = Reflect.get(value, "createdAt");
   return (
-    typeof threadId === "string" &&
+    typeof conversationId === "string" &&
     typeof turnId === "string" &&
     typeof itemId === "string" &&
     typeof kind === "string" &&

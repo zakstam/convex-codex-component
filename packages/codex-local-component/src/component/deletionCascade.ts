@@ -666,7 +666,7 @@ function createActorSteps(args: {
       run: async (limit) => {
         const docs = await args.ctx.db
           .query("codex_thread_bindings")
-          .withIndex("userScope_userId_threadHandle", (q) =>
+          .withIndex("userScope_userId_conversationId", (q) =>
             q.eq("userScope", args.job.userScope),
           )
           .take(limit);

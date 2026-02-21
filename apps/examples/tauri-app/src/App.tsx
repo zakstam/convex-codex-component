@@ -71,7 +71,7 @@ type PendingServerRequest = {
     | "item/fileChange/requestApproval"
     | "item/tool/requestUserInput"
     | "item/tool/call";
-  threadId: string;
+  conversationId: string;
   turnId: string;
   itemId: string;
   reason?: string;
@@ -79,13 +79,12 @@ type PendingServerRequest = {
 };
 
 type RuntimeThreadBindingRow = {
-  runtimeThreadId: string;
-  threadId: string;
+  runtimeConversationId: string;
   conversationId: string;
 };
 
 type LocalRuntimeThreadRow = {
-  threadId: string;
+  conversationId: string;
   preview: string;
 };
 
@@ -144,10 +143,8 @@ function AppContent({
   const actorUserId = actor.userId ?? "";
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
-    persistedThreadId: null,
-    runtimeThreadId: null,
-    localThreadId: null,
     conversationId: null,
+    runtimeConversationId: null,
     turnId: null,
     disabledTools: [],
     lastError: null,
@@ -176,7 +173,7 @@ function AppContent({
     return window.localStorage.getItem(SHOW_LOCAL_THREADS_STORAGE_KEY) === "1";
   });
   const [localRuntimeThreads, setLocalRuntimeThreads] = useState<LocalRuntimeThreadRow[]>([]);
-  const [selectedLocalThreadHandle, setSelectedLocalThreadHandle] = useState<string | null>(null);
+  const [selectedLocalConversationId, setSelectedLocalConversationId] = useState<string | null>(null);
 
   const addToast = useCallback((type: ToastItem["type"], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -232,7 +229,7 @@ function AppContent({
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const state = await tauriBridge.lifecycle.getState();
-      if (state.running && typeof state.persistedThreadId === "string" && state.persistedThreadId.length > 0) {
+      if (state.running && typeof state.conversationId === "string" && state.conversationId.length > 0) {
         return state;
       }
       await new Promise((resolve) => setTimeout(resolve, pollMs));
@@ -260,9 +257,8 @@ function AppContent({
       setBridge((prev) => ({
         ...prev,
         running: state.running,
-        persistedThreadId: state.persistedThreadId ?? null,
-        runtimeThreadId: state.runtimeThreadId ?? null,
-        localThreadId: state.localThreadId ?? null,
+        conversationId: state.conversationId ?? null,
+        runtimeConversationId: state.runtimeConversationId ?? null,
         turnId: state.turnId ?? null,
         lastError: state.lastError ?? null,
       }));
@@ -272,20 +268,19 @@ function AppContent({
 
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry" | "auto_startup") => {
-      const resumeThreadHandle = selectedConversationIdRef.current.trim() || undefined;
+      const resumeConversationId = selectedConversationIdRef.current.trim() || undefined;
       await connectBridge(startSource);
       await tauriBridge.lifecycle.openThread(
-        resumeThreadHandle
-          ? { strategy: "resume", conversationId: resumeThreadHandle }
+        resumeConversationId
+          ? { strategy: "resume", conversationId: resumeConversationId }
           : { strategy: "start" },
       );
       const readyState = await waitForBridgeReady();
       setBridge((prev) => ({
         ...prev,
         running: readyState.running,
-        persistedThreadId: readyState.persistedThreadId ?? null,
-        runtimeThreadId: readyState.runtimeThreadId ?? null,
-        localThreadId: readyState.localThreadId ?? null,
+        conversationId: readyState.conversationId ?? null,
+        runtimeConversationId: readyState.runtimeConversationId ?? null,
         turnId: readyState.turnId ?? null,
         lastError: readyState.lastError ?? null,
       }));
@@ -296,7 +291,7 @@ function AppContent({
 
   const conversation = useCodex({
     actorReady,
-    ...(selectedLocalThreadHandle ? { conversationId: selectedLocalThreadHandle } : {}),
+    ...(selectedLocalConversationId ? { conversationId: selectedLocalConversationId } : {}),
     threads: {
       list: {
         query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
@@ -312,7 +307,7 @@ function AppContent({
             await connectBridge("composer_retry");
             stateBeforeSend = await tauriBridge.lifecycle.getState();
           }
-          if (!stateBeforeSend.persistedThreadId) {
+          if (!stateBeforeSend.conversationId) {
             await startBridgeWithSelection("composer_retry");
           }
           await tauriBridge.turns.send(text);
@@ -334,29 +329,29 @@ function AppContent({
 
   // ── Derive picker values from composed threads ──────────────────────
   const threads = conversation.threads!;
-  const selectedConversationId = selectedLocalThreadHandle ?? (threads.selectedConversationId ?? "");
-  const localRuntimeThreadIds = useMemo(
-    () => localRuntimeThreads.map((thread) => thread.threadId),
+  const selectedConversationId = selectedLocalConversationId ?? (threads.selectedConversationId ?? "");
+  const localRuntimeConversationIds = useMemo(
+    () => localRuntimeThreads.map((thread) => thread.conversationId),
     [localRuntimeThreads],
   );
-  const localRuntimeThreadPreviewById = useMemo(() => {
+  const localRuntimeConversationPreviewById = useMemo(() => {
     const map = new Map<string, string>();
     for (const thread of localRuntimeThreads) {
-      map.set(thread.threadId, thread.preview);
+      map.set(thread.conversationId, thread.preview);
     }
     return map;
   }, [localRuntimeThreads]);
   const localBindingsRaw = useQuery(
-    requireDefined(chatApi.listRuntimeThreadBindingsForPicker, "api.chat.listRuntimeThreadBindingsForPicker"),
-    actorReady && showLocalThreads && localRuntimeThreadIds.length > 0
-      ? { actor, runtimeThreadIds: localRuntimeThreadIds }
+    requireDefined(chatApi.listRuntimeConversationBindingsForPicker, "api.chat.listRuntimeConversationBindingsForPicker"),
+    actorReady && showLocalThreads && localRuntimeConversationIds.length > 0
+      ? { actor, runtimeConversationIds: localRuntimeConversationIds }
       : "skip",
   );
   const localBindings = (localBindingsRaw ?? []) as RuntimeThreadBindingRow[];
   const localBindingByRuntimeThreadId = useMemo(() => {
     const map = new Map<string, RuntimeThreadBindingRow>();
     for (const row of localBindings) {
-      map.set(row.runtimeThreadId, row);
+      map.set(row.runtimeConversationId, row);
     }
     return map;
   }, [localBindings]);
@@ -365,7 +360,7 @@ function AppContent({
       const persisted =
         (((threads.threads as { threads?: Array<{ conversationId: string; status: string; updatedAt?: number; preview: string }> } | undefined)?.threads ?? [])
           .map((thread) => ({
-            threadHandle: thread.conversationId,
+            conversationId: thread.conversationId,
             status: thread.status,
             preview: thread.preview,
             scope: "persisted" as const,
@@ -376,26 +371,26 @@ function AppContent({
         return persisted;
       }
 
-      const persistedHandles = new Set(persisted.map((thread) => thread.threadHandle));
-      const localUnsynced = localRuntimeThreadIds
-        .filter((runtimeThreadId) => !localBindingByRuntimeThreadId.has(runtimeThreadId))
-        .filter((runtimeThreadId) => !persistedHandles.has(runtimeThreadId))
-        .map((runtimeThreadId) => ({
-          threadHandle: runtimeThreadId,
+      const persistedHandles = new Set(persisted.map((thread) => thread.conversationId));
+      const localUnsynced = localRuntimeConversationIds
+        .filter((runtimeConversationId) => !localBindingByRuntimeThreadId.has(runtimeConversationId))
+        .filter((runtimeConversationId) => !persistedHandles.has(runtimeConversationId))
+        .map((runtimeConversationId) => ({
+          conversationId: runtimeConversationId,
           status: "local-unsynced",
-          preview: localRuntimeThreadPreviewById.get(runtimeThreadId) ?? "Untitled thread",
+          preview: localRuntimeConversationPreviewById.get(runtimeConversationId) ?? "Untitled thread",
           scope: "local_unsynced" as const,
         }));
 
       return [...persisted, ...localUnsynced];
     },
-    [localBindingByRuntimeThreadId, localRuntimeThreadIds, localRuntimeThreadPreviewById, showLocalThreads, threads.threads],
+    [localBindingByRuntimeThreadId, localRuntimeConversationIds, localRuntimeConversationPreviewById, showLocalThreads, threads.threads],
   );
-  const localUnsyncedHandleSet = useMemo(() => {
+  const localUnsyncedConversationIdSet = useMemo(() => {
     const set = new Set<string>();
     for (const thread of pickerThreads) {
       if (thread.scope === "local_unsynced") {
-        set.add(thread.threadHandle);
+        set.add(thread.conversationId);
       }
     }
     return set;
@@ -432,7 +427,7 @@ function AppContent({
     });
   }, [actorReady, addToast, bridge.running, connectBridge]);
 
-  const cleanupThreadHandle = conversation.effectiveConversationId || null;
+  const cleanupConversationId = conversation.effectiveConversationId || null;
 
   const messages = conversation.messages;
   const displayMessages = useMemo(
@@ -514,7 +509,7 @@ function AppContent({
   );
   const cleanupThreadState = useCodexThreadState(
     requireDefined(chatApi.threadSnapshotByConversation, "api.chat.threadSnapshotByConversation"),
-    cleanupThreadHandle && actorReady ? { actor, conversationId: cleanupThreadHandle } : "skip",
+    cleanupConversationId && actorReady ? { actor, conversationId: cleanupConversationId } : "skip",
   );
   const cleanupThreadStateTurns = cleanupThreadState?.threadStatus === "ok" ? cleanupThreadState.data.turns : null;
   const latestThreadTurnId = useMemo(() => {
@@ -596,7 +591,7 @@ function AppContent({
       setShowLocalThreads(next);
       if (!next) {
         setLocalRuntimeThreads([]);
-        setSelectedLocalThreadHandle(null);
+        setSelectedLocalConversationId(null);
         return;
       }
       if (!bridge.running) {
@@ -632,29 +627,28 @@ function AppContent({
     }
   };
 
-  const onSelectThreadHandle = useCallback(
-    async (nextThreadHandle: string) => {
-      const normalizedThreadHandle = nextThreadHandle.trim();
+  const onSelectConversationId = useCallback(
+    async (nextConversationId: string) => {
+      const normalizedConversationId = nextConversationId.trim();
       const isLocalUnsyncedSelection =
-        normalizedThreadHandle.length > 0 && localUnsyncedHandleSet.has(normalizedThreadHandle);
-      setSelectedLocalThreadHandle(isLocalUnsyncedSelection ? normalizedThreadHandle : null);
-      threads.setSelectedConversationId(normalizedThreadHandle);
+        normalizedConversationId.length > 0 && localUnsyncedConversationIdSet.has(normalizedConversationId);
+      setSelectedLocalConversationId(isLocalUnsyncedSelection ? normalizedConversationId : null);
+      threads.setSelectedConversationId(normalizedConversationId);
       if (!bridge.running) {
         return;
       }
       try {
         await tauriBridge.lifecycle.openThread(
-          normalizedThreadHandle.length > 0
-            ? { strategy: "resume", conversationId: normalizedThreadHandle }
+          normalizedConversationId.length > 0
+            ? { strategy: "resume", conversationId: normalizedConversationId }
             : { strategy: "start" },
         );
         const state = await tauriBridge.lifecycle.getState();
         setBridge((prev) => ({
           ...prev,
           running: state.running,
-          persistedThreadId: state.persistedThreadId ?? null,
-          runtimeThreadId: state.runtimeThreadId ?? null,
-          localThreadId: state.localThreadId ?? null,
+          conversationId: state.conversationId ?? null,
+          runtimeConversationId: state.runtimeConversationId ?? null,
           turnId: state.turnId ?? null,
           lastError: state.lastError ?? null,
         }));
@@ -664,7 +658,7 @@ function AppContent({
         addToast("error", message);
       }
     },
-    [addToast, bridge.running, localUnsyncedHandleSet, threads],
+    [addToast, bridge.running, localUnsyncedConversationIdSet, threads],
   );
 
   const onRespondCommandOrFile = async (
@@ -866,11 +860,11 @@ function AppContent({
   };
 
   const onDeleteCurrentThread = async () => {
-    if (!cleanupThreadHandle || !actorReady || bridge.running) {
+    if (!cleanupConversationId || !actorReady || bridge.running) {
       return;
     }
     const confirmed = window.confirm(
-      `Delete persisted Codex data for thread ${cleanupThreadHandle.slice(0, 12)}...?`,
+      `Delete persisted Codex data for thread ${cleanupConversationId.slice(0, 12)}...?`,
     );
     if (!confirmed) {
       return;
@@ -878,7 +872,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteThreadMutation({
         actor,
-        conversationId: cleanupThreadHandle,
+        conversationId: cleanupConversationId,
         reason: "tauri-ui-delete-thread",
         delayMs: DEFAULT_DELETE_DELAY_MS,
       });
@@ -892,7 +886,7 @@ function AppContent({
   };
 
   const onDeleteLatestTurn = async () => {
-    if (!cleanupThreadHandle || !latestThreadTurnId || !actorReady || bridge.running) {
+    if (!cleanupConversationId || !latestThreadTurnId || !actorReady || bridge.running) {
       return;
     }
     const confirmed = window.confirm(
@@ -904,7 +898,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteTurnMutation({
         actor,
-        conversationId: cleanupThreadHandle,
+        conversationId: cleanupConversationId,
         turnId: latestThreadTurnId,
         reason: "tauri-ui-delete-turn",
         delayMs: DEFAULT_DELETE_DELAY_MS,
@@ -1002,7 +996,7 @@ function AppContent({
         <ThreadPicker
           threads={pickerThreads}
           selected={selectedConversationId}
-          onSelect={(nextThreadId) => void onSelectThreadHandle(nextThreadId)}
+          onSelect={(nextConversationId) => void onSelectConversationId(nextConversationId)}
           disabled={!actorReady}
           showLocalThreads={showLocalThreads}
           onToggleShowLocalThreads={(next) => void onToggleShowLocalThreads(next)}
@@ -1057,14 +1051,14 @@ function AppContent({
               <button
                 className="danger"
                 onClick={() => void onDeleteCurrentThread()}
-                disabled={!cleanupThreadHandle || !actorReady || bridge.running}
+                disabled={!cleanupConversationId || !actorReady || bridge.running}
               >
                 Schedule Thread Delete
               </button>
               <button
                 className="danger"
                 onClick={() => void onDeleteLatestTurn()}
-                disabled={!cleanupThreadHandle || !latestThreadTurnId || !actorReady || bridge.running}
+                disabled={!cleanupConversationId || !latestThreadTurnId || !actorReady || bridge.running}
               >
                 Schedule Turn Delete
               </button>

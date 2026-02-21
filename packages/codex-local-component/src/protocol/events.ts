@@ -3,7 +3,7 @@ import type { ThreadItem } from "./schemas/v2/ThreadItem.js";
 import type { UserInput } from "./schemas/v2/UserInput.js";
 
 export type ClassifiedMessage =
-  | { scope: "thread"; kind: string; threadId: string }
+  | { scope: "conversation"; kind: string; conversationId: string }
   | { scope: "global"; kind: string };
 
 export type CanonicalTerminalErrorCode =
@@ -492,12 +492,12 @@ export function extractThreadId(message: ServerInboundMessage): string | undefin
 
 export function classifyMessage(message: ServerInboundMessage): ClassifiedMessage {
   const kind = kindOf(message);
-  const threadId = extractThreadId(message);
-  if (threadId) {
-    return { scope: "thread", kind, threadId };
+  const conversationId = extractThreadId(message);
+  if (conversationId) {
+    return { scope: "conversation", kind, conversationId };
   }
   if (isThreadScopedByKind(kind)) {
-    throw new Error(`Thread-scoped protocol message missing threadId (kind=${kind})`);
+    throw new Error(`Conversation-scoped protocol message missing threadId (kind=${kind})`);
   }
   return { scope: "global", kind };
 }

@@ -64,12 +64,6 @@ export type {
   CodexStreamsResult,
 } from "./types.js";
 export type {
-  ThreadHandle,
-  ThreadHandleIdentity,
-  RuntimeThreadLocator,
-  ThreadLocator,
-} from "../shared/threadIdentity.js";
-export type {
   CodexThreadStateQuery,
 } from "./useCodexThreadState.js";
 export type {

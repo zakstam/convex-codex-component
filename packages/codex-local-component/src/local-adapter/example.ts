@@ -7,8 +7,8 @@ const bridge = new CodexLocalBridge(
   },
   {
     onEvent: async (event) => {
-      // Persist thread-scoped stream events to Convex sync APIs.
-      console.log("thread-event", event.kind, event.threadId, event.cursorEnd);
+      // Persist conversation-scoped stream events to Convex sync APIs.
+      console.log("conversation-event", event.kind, event.threadId, event.cursorEnd);
     },
     onGlobalMessage: async (message, classification) => {
       // Handle account/config/global notifications separately.

@@ -57,7 +57,7 @@ test("deriveCodexDynamicToolCalls filters and maps pending tool calls", () => {
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], {
     requestId: 200,
-    threadId: "thread-1",
+    conversationId: undefined,
     turnId: "turn-1",
     itemId: "item-1",
     callId: "call-1",

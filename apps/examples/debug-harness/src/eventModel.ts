@@ -5,7 +5,7 @@ export type HelperStateEvent = {
     phase: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
     source: "runtime" | "bridge_event" | "protocol_error" | "process_exit";
     updatedAtMs: number;
-    localThreadId: string | null;
+    runtimeConversationId: string | null;
     conversationId: string | null;
     turnId: string | null;
     lastErrorCode: string | null;
@@ -72,7 +72,7 @@ export const EMPTY_SNAPSHOT: BridgeSnapshot = {
   phase: "idle",
   source: "runtime",
   updatedAtMs: 0,
-  localThreadId: null,
+  runtimeConversationId: null,
   conversationId: null,
   turnId: null,
   lastErrorCode: null,

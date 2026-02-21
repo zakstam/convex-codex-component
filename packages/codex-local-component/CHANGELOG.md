@@ -1,5 +1,35 @@
 # @zakstam/codex-local-component
 
+## 1.6.0
+
+### Minor Changes
+
+- 6b7aa8c: Add a canonical runtime API `importLocalThreadToPersistence(...)` for single-call import of local runtime thread history into Convex persistence, and update docs/examples to use this package-owned path instead of app-level hydration logic.
+- 6b7aa8c: Introduce explicit runtime-vs-persisted thread identity and durable sync mapping lifecycle support.
+
+  ### Added
+  - New runtime-owned host mutations for sync lifecycle:
+    - `syncOpenThreadBinding`
+    - `markThreadSyncProgress`
+    - `forceRebindThreadSync`
+  - Durable sync metadata on thread bindings (`syncState`, `lastSyncedCursor`, session/rebind/error markers).
+  - Explicit lifecycle state fields for bridge/runtime consumers:
+    - `persistedThreadId`
+    - `runtimeThreadId`
+
+  ### Changed
+  - Convex persistence adapter now drives sync-on-open and sync progress watermark updates through the new host mutations.
+  - Tauri bridge/helper state payloads now expose explicit persisted/runtime thread IDs in addition to existing compatibility fields.
+
+  ### Docs
+  - Updated integration and API reference docs for sync mapping endpoints and identity semantics.
+
+- 6b7aa8c: Add runtime thread binding lookup support for opt-in local thread visibility in the Tauri example, including a new component query (`threads.listRuntimeThreadBindings`) and related host/app wiring for local-unsynced labeling.
+- 6b7aa8c: Expose display-friendly `preview` in `components.codexLocal.threads.list` rows so consumers can render stable thread labels without ID slicing.
+  - `threads.list` rows now include required `preview` (`threadHandle`, `preview`, `status`, `updatedAt`).
+  - Preview derivation is name-first (from `thread/name/updated` lifecycle events) with fallback to first user message text, then `"Untitled thread"`.
+  - Tauri example picker now consumes the shared `preview` contract instead of rendering truncated IDs.
+
 ## 1.5.0
 
 ### Minor Changes

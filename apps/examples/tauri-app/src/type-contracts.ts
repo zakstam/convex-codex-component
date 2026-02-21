@@ -5,9 +5,9 @@ import type { ActorContext } from "./lib/tauriBridge";
 type Assert<T extends true> = T;
 type Extends<A, B> = A extends B ? true : false;
 
-type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessagesByThreadHandle>;
-type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshotByThreadHandle>;
-type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequestsByThreadHandle>;
+type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessagesByConversation>;
+type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshotByConversation>;
+type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequestsByConversation>;
 type ValidateHostWiringArgs = FunctionArgs<typeof api.chat.validateHostWiring>;
 type ScheduleDeleteThreadArgs = FunctionArgs<typeof api.chat.scheduleDeleteThread>;
 type ScheduleDeleteTurnArgs = FunctionArgs<typeof api.chat.scheduleDeleteTurn>;
@@ -20,7 +20,7 @@ type _ListThreadMessagesArgsAreTyped = Assert<
     ListThreadMessagesArgs,
     {
       actor: ActorContext;
-      threadHandle: string;
+      conversationId: string;
       paginationOpts: { cursor: string | null; numItems: number };
     }
   >
@@ -31,7 +31,7 @@ type _ThreadSnapshotArgsAreTyped = Assert<
     ThreadSnapshotArgs,
     {
       actor: ActorContext;
-      threadHandle: string;
+      conversationId: string;
     }
   >
 >;
@@ -41,7 +41,7 @@ type _ListPendingServerRequestsArgsAreTyped = Assert<
     ListPendingServerRequestsArgs,
     {
       actor: ActorContext;
-      threadHandle: string;
+      conversationId: string;
       limit?: number;
     }
   >
@@ -62,7 +62,7 @@ type _ScheduleDeleteThreadArgsAreTyped = Assert<
     ScheduleDeleteThreadArgs,
     {
       actor: ActorContext;
-      threadHandle: string;
+      conversationId: string;
       reason?: string;
       batchSize?: number;
       delayMs?: number;
@@ -75,7 +75,7 @@ type _ScheduleDeleteTurnArgsAreTyped = Assert<
     ScheduleDeleteTurnArgs,
     {
       actor: ActorContext;
-      threadHandle: string;
+      conversationId: string;
       turnId: string;
       reason?: string;
       batchSize?: number;

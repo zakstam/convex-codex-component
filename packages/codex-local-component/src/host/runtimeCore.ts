@@ -53,7 +53,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let sessionId: string | null = null;
   let threadId: string | null = null;
   let runtimeThreadId: string | null = null;
-  let threadHandle: string | null = null;
+  let conversationId: string | null = null;
   let turnId: string | null = null;
   let turnInFlight = false;
   let turnSettled = false;
@@ -106,7 +106,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       persistedThreadId: threadId,
       runtimeThreadId,
       threadId,
-      threadHandle,
+      conversationId,
       turnId,
       turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,
@@ -185,7 +185,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (!("thread" in message.result) || typeof message.result.thread !== "object" || message.result.thread === null) return;
     if (!("id" in message.result.thread) || typeof message.result.thread.id !== "string") return;
     if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
-      runtimeThreadId = message.result.thread.id; if (!threadHandle) threadHandle = message.result.thread.id; emitState();
+      runtimeThreadId = message.result.thread.id; if (!conversationId) conversationId = message.result.thread.id; emitState();
     }
   };
 
@@ -194,11 +194,11 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     const next = preferred ?? runtimeThreadId; if (!next) return;
     const binding = await args.persistence.ensureThread({
       actor,
-      threadHandle: threadHandle === null ? next : threadHandle,
+      conversationId: conversationId === null ? next : conversationId,
       ...(startupModel !== undefined ? { model: startupModel } : {}),
       ...(startupCwd !== undefined ? { cwd: startupCwd } : {}),
     });
-    threadId = binding.threadId; if (!threadHandle) threadHandle = next;
+    threadId = binding.threadId; if (!conversationId) conversationId = next;
     await args.persistence.ensureSession({ actor, sessionId, threadId, lastEventCursor: 0 }); emitState();
   };
 
@@ -325,8 +325,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     set actor(v) { actor = v; },
     get sessionId() { return sessionId; },
     set sessionId(v) { sessionId = v; },
-    get threadHandle() { return threadHandle; },
-    set threadHandle(v) { threadHandle = v; },
+    get conversationId() { return conversationId; },
+    set conversationId(v) { conversationId = v; },
     get threadId() { return threadId; },
     get runtimeThreadId() { return runtimeThreadId; },
     get turnId() { return turnId; },
@@ -358,7 +358,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
 
     resetAll() {
       bridge = null; actor = null; sessionId = null; threadId = null; runtimeThreadId = null;
-      threadHandle = null; turnId = null; turnInFlight = false; turnSettled = false;
+      conversationId = null; turnId = null; turnInFlight = false; turnSettled = false;
       interruptRequested = false;
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
       startupModel = undefined; startupCwd = undefined; pendingRequests.clear();
@@ -382,7 +382,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       persistedThreadId: threadId,
       runtimeThreadId,
       threadId,
-      threadHandle,
+      conversationId,
       turnId,
       turnInFlight,
       pendingServerRequestCount: pendingServerRequests.size,

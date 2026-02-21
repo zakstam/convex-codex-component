@@ -4,8 +4,8 @@ import {
   computeDataHygiene,
   computeDurableHistoryStats,
   computePersistenceStats,
-  ensureThreadByCreate,
-  ensureThreadByResolve,
+  ensureConversationBindingByCreate,
+  ensureConversationBindingByResolve,
   ingestBatchMixed,
   listPendingServerRequestsForHooksForActor,
   listThreadMessagesForHooks,
@@ -14,9 +14,9 @@ import {
   threadSnapshot,
   upsertPendingServerRequestForHooksForActor,
 } from "../dist/host/index.js";
-import { resolveThreadByThreadHandleForActor } from "../dist/host/convexSlice.js";
+import { resolveThreadByConversationIdForActor } from "../dist/host/convexSlice.js";
 
-test("ensureThreadByCreate writes localThreadId and threadId", async () => {
+test("ensureConversationBindingByCreate writes localThreadId and threadId", async () => {
   const createRef = {};
   const calls = [];
   const ctx = {
@@ -31,7 +31,7 @@ test("ensureThreadByCreate writes localThreadId and threadId", async () => {
     },
   };
 
-  await ensureThreadByCreate(ctx, component, {
+  await ensureConversationBindingByCreate(ctx, component, {
     actor: { userId: "ignored" },
     threadId: "thread-1",
     model: "m",
@@ -47,7 +47,7 @@ test("ensureThreadByCreate writes localThreadId and threadId", async () => {
   assert.equal(typeof calls[0].args.actor.userId, "string");
 });
 
-test("ensureThreadByResolve derives external and local identity from threadHandle", async () => {
+test("ensureConversationBindingByResolve derives external and local identity from conversationId", async () => {
   const resolveRef = {};
   const calls = [];
   const ctx = {
@@ -62,68 +62,68 @@ test("ensureThreadByResolve derives external and local identity from threadHandl
     },
   };
 
-  await ensureThreadByResolve(ctx, component, {
+  await ensureConversationBindingByResolve(ctx, component, {
     actor: { userId: "ignored" },
-    threadHandle: "thread-1",
+    conversationId: "thread-1",
     model: "m",
     cwd: "/tmp",
   });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].ref, resolveRef);
-  assert.equal(calls[0].args.threadHandle, "thread-1");
+  assert.equal(calls[0].args.conversationId, "thread-1");
   assert.equal(calls[0].args.localThreadId, "thread-1");
   assert.equal(calls[0].args.model, "m");
   assert.equal(calls[0].args.cwd, "/tmp");
 });
 
-test("resolveThreadByThreadHandleForActor returns mapping for known external id", async () => {
-  const resolveByThreadHandleRef = {};
+test("resolveThreadByConversationIdForActor returns mapping for known external id", async () => {
+  const resolveByConversationIdRef = {};
   const calls = [];
   const ctx = {
     runQuery: async (ref, args) => {
       calls.push({ ref, args });
-      return { threadId: "runtime-thread-7", threadHandle: "legacy-thread-7" };
+      return { threadId: "runtime-thread-7", conversationId: "legacy-thread-7" };
     },
   };
   const component = {
     threads: {
-      resolveByThreadHandle: resolveByThreadHandleRef,
+      resolveByConversationId: resolveByConversationIdRef,
     },
   };
 
-  const result = await resolveThreadByThreadHandleForActor(ctx, component, {
+  const result = await resolveThreadByConversationIdForActor(ctx, component, {
     actor: { userId: "actor-user" },
-    threadHandle: "legacy-thread-7",
+    conversationId: "legacy-thread-7",
   });
 
   assert.equal(result?.threadId, "runtime-thread-7");
-  assert.equal(result?.threadHandle, "legacy-thread-7");
+  assert.equal(result?.conversationId, "legacy-thread-7");
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].ref, resolveByThreadHandleRef);
-  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, threadHandle: "legacy-thread-7" });
+  assert.equal(calls[0].ref, resolveByConversationIdRef);
+  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, conversationId: "legacy-thread-7" });
 });
 
-test("resolveThreadByThreadHandleForActor returns null when mapping is missing", async () => {
-  const resolveByThreadHandleRef = {};
+test("resolveThreadByConversationIdForActor returns null when mapping is missing", async () => {
+  const resolveByConversationIdRef = {};
   const ctx = {
     runQuery: async () => null,
   };
   const component = {
     threads: {
-      resolveByThreadHandle: resolveByThreadHandleRef,
+      resolveByConversationId: resolveByConversationIdRef,
     },
   };
 
-  const result = await resolveThreadByThreadHandleForActor(ctx, component, {
+  const result = await resolveThreadByConversationIdForActor(ctx, component, {
     actor: { userId: "actor-user" },
-    threadHandle: "legacy-thread-7",
+    conversationId: "legacy-thread-7",
   });
 
   assert.equal(result, null);
 });
 
-test("resolveThreadByThreadHandleForActor throws when component lacks resolveByThreadHandle", async () => {
+test("resolveThreadByConversationIdForActor throws when component lacks resolveByConversationId", async () => {
   const component = {
     threads: {},
   };
@@ -135,11 +135,11 @@ test("resolveThreadByThreadHandleForActor throws when component lacks resolveByT
 
   await assert.rejects(
     () =>
-      resolveThreadByThreadHandleForActor(ctx, component, {
+      resolveThreadByConversationIdForActor(ctx, component, {
         actor: { userId: "actor-user" },
-        threadHandle: "legacy-thread-7",
+        conversationId: "legacy-thread-7",
       }),
-    /Host component is missing threads.resolveByThreadHandle/,
+    /Host component is missing threads.resolveByConversationId/,
   );
 });
 

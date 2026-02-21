@@ -261,7 +261,7 @@ const convex = new ConvexHttpClient(convexUrl);
 
 const chatFns = {
   validateHostWiring: api.chat.validateHostWiring,
-  ensureThread: api.chat.ensureThread,
+  ensureConversationBinding: api.chat.ensureConversationBinding,
   ensureSession: api.chat.ensureSession,
   ingestBatch: api.chat.ingestBatch,
   persistenceStats: api.chat.persistenceStats,
@@ -631,7 +631,7 @@ async function handleEvent(event: NormalizedEvent): Promise<void> {
   if (threadId === null) {
     threadId = event.threadId;
     updateStatus();
-    await convex.mutation(chatFns.ensureThread, {
+    await convex.mutation(chatFns.ensureConversationBinding, {
       actor,
       threadHandle: threadId,
       ...(model ? { model } : {}),

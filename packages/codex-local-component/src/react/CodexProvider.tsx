@@ -7,16 +7,16 @@ import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
 
-export type CodexRuntimeOwnedThreadHandleApi<
+export type CodexRuntimeOwnedConversationApi<
   Actor extends Record<string, unknown> = Record<string, unknown>,
 > = {
-  listThreadMessagesByThreadHandle: CodexMessagesQuery<{ actor: Actor }>;
-  threadSnapshotByThreadHandle: CodexThreadStateQuery<
+  listThreadMessagesByConversation: CodexMessagesQuery<{ actor: Actor }>;
+  threadSnapshotByConversation: CodexThreadStateQuery<
     { actor: Actor },
     CodexThreadReadResult<CodexThreadActivityThreadState>
   >;
-  listPendingServerRequestsByThreadHandle?: unknown;
-  listTokenUsageByThreadHandle?: CodexTokenUsageQuery<{ actor: Actor }>;
+  listPendingServerRequestsByConversation?: unknown;
+  listTokenUsageByConversation?: CodexTokenUsageQuery<{ actor: Actor }>;
 } & Record<string, unknown>;
 
 export type CodexProviderApi<Actor extends Record<string, unknown> = Record<string, unknown>> = {
@@ -40,12 +40,12 @@ export type CodexProviderProps<Actor extends Record<string, unknown> = Record<st
 export function createCodexReactPreset<
   Actor extends Record<string, unknown> = Record<string, unknown>,
 >(
-  api: CodexRuntimeOwnedThreadHandleApi<Actor>,
+  api: CodexRuntimeOwnedConversationApi<Actor>,
 ): CodexProviderApi<Actor> {
-  const listThreadMessages = api.listThreadMessagesByThreadHandle;
-  const threadSnapshot = api.threadSnapshotByThreadHandle;
-  const listPendingServerRequests = api.listPendingServerRequestsByThreadHandle;
-  const listTokenUsage = api.listTokenUsageByThreadHandle;
+  const listThreadMessages = api.listThreadMessagesByConversation;
+  const threadSnapshot = api.threadSnapshotByConversation;
+  const listPendingServerRequests = api.listPendingServerRequestsByConversation;
+  const listTokenUsage = api.listTokenUsageByConversation;
 
   return {
     listThreadMessages,

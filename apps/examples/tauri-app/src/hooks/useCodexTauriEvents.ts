@@ -72,10 +72,10 @@ export function useCodexTauriEvents({
             const next = {
               ...prev,
               ...payload,
-              threadHandle: payload.threadHandle ?? prev.threadHandle ?? null,
+              conversationId: payload.conversationId ?? prev.conversationId ?? null,
             };
             if (!next.running) {
-              next.threadHandle = null;
+              next.conversationId = null;
             }
             const previousRunning = lastRunningRef.current ?? prev.running;
             if (previousRunning === false && next.running === true) {
@@ -93,7 +93,7 @@ export function useCodexTauriEvents({
           setRuntimeLogRef.current((prev) => [{ id, line }, ...prev].slice(0, 8));
           const threadId = event.payload.threadId;
           if (typeof threadId === "string" && threadId.length > 0) {
-            setBridgeRef.current((prev) => ({ ...prev, threadHandle: threadId }));
+            setBridgeRef.current((prev) => ({ ...prev, conversationId: threadId }));
           }
         }),
         listen<{ message: string }>("codex:protocol_error", (event) => {

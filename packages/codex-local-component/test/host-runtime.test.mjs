@@ -128,7 +128,7 @@ function createHarness(options = {}) {
       });
       void runtime.openThread({
         strategy: startArgs.threadStrategy ?? "start",
-        threadHandle: startArgs.threadHandle,
+        conversationId: startArgs.conversationId,
         model: startArgs.model,
         cwd: startArgs.cwd,
         dynamicTools: startArgs.dynamicTools,
@@ -180,7 +180,7 @@ test("runtime can import local thread history into persistence using a single ca
 
   const importPromise = runtime.importLocalThreadToPersistence({
     runtimeThreadHandle: runtimeThreadId,
-    threadHandle: persistedThreadHandle,
+    conversationId: persistedThreadHandle,
   });
   const threadReadRequest = await waitForMessage(sent, (message) => message.method === "thread/read");
   await emitResponse({
@@ -204,7 +204,7 @@ test("runtime can import local thread history into persistence using a single ca
   });
 
   const imported = await importPromise;
-  assert.equal(imported.threadHandle, persistedThreadHandle);
+  assert.equal(imported.conversationId, persistedThreadHandle);
   assert.equal(imported.importedTurnCount, 1);
   assert.equal(imported.importedMessageCount, 2);
   assert.equal(imported.syncState, "synced");
@@ -235,7 +235,7 @@ test("runtime start supports threadStrategy=resume", async () => {
     actor: { userId: "u" },
     sessionId: "s",
     threadStrategy: "resume",
-    threadHandle: threadId,
+    conversationId: threadId,
   });
 
   const methods = sent.map((message) => message.method);

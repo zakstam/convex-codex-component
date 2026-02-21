@@ -89,7 +89,7 @@ export type UseCodexThreadsConfig<
     args: FunctionArgs<Query> | "skip";
   };
   controls?: CodexThreadsControls<CreateResult, ResolveResult, ResumeResult>;
-  initialSelectedThreadHandle?: string | null;
+  initialSelectedConversationId?: string | null;
 };
 
 export type UseCodexOptions<
@@ -98,7 +98,7 @@ export type UseCodexOptions<
   InterruptResult = unknown,
   DynamicToolsRespondResult = unknown,
 > = {
-  threadHandle?: string | null;
+  conversationId?: string | null;
   actorReady?: boolean;
   initialNumItems?: number;
   stream?: boolean;
@@ -146,7 +146,7 @@ export type UseCodexResult<
   tokenUsage: CodexTokenUsage | null;
   threads: ReturnType<typeof useCodexThreads> | null;
   threadState: CodexThreadActivityThreadState | null;
-  effectiveThreadHandle: string | null;
+  effectiveConversationId: string | null;
 };
 
 export function useCodex<
@@ -162,8 +162,8 @@ export function useCodex<
   const stream = options.stream ?? ctx.defaultStream;
 
   // ── Threads ──────────────────────────────────────────────────────────
-  // Runs BEFORE chat so that the picker's selectedThreadHandle can drive
-  // message loading when the caller omits an explicit threadHandle.
+  // Runs BEFORE chat so that the picker's selectedConversationId can drive
+  // message loading when the caller omits an explicit conversationId.
   const threadsConfig = options.threads;
   const threadsResult = useCodexThreads({
     list: threadsConfig?.list ?? {
@@ -171,28 +171,28 @@ export function useCodex<
       args: "skip",
     },
     ...(threadsConfig?.controls ? { controls: threadsConfig.controls } : {}),
-    ...(threadsConfig?.initialSelectedThreadHandle != null
-      ? { initialSelectedThreadHandle: threadsConfig.initialSelectedThreadHandle }
+    ...(threadsConfig?.initialSelectedConversationId != null
+      ? { initialSelectedConversationId: threadsConfig.initialSelectedConversationId }
       : {}),
   });
 
   // ── Derive effective thread handle ──────────────────────────────────────
-  // Priority: explicit threadHandle wins. When omitted and threads is
+  // Priority: explicit conversationId wins. When omitted and threads is
   // configured, the picker's selection drives message loading.
-  const effectiveThreadHandle = options.threadHandle
-    ?? (threadsConfig ? threadsResult.selectedThreadHandle : null)
+  const effectiveConversationId = options.conversationId
+    ?? (threadsConfig ? threadsResult.selectedConversationId : null)
     ?? null;
-  const shouldSkip = !effectiveThreadHandle || !actorReady;
+  const shouldSkip = !effectiveConversationId || !actorReady;
 
   // The context stores type-erased query refs (CodexMessagesQuery<unknown>, etc.)
   // so the inferred args types lose the `actor` field. We cast through `never`
   // because the provider guarantees the runtime shapes match.
   const messagesArgs = shouldSkip
     ? ("skip" as const)
-    : { actor: ctx.actor, threadHandle: effectiveThreadHandle };
+    : { actor: ctx.actor, conversationId: effectiveConversationId };
   const threadStateArgs = shouldSkip
     ? ("skip" as const)
-    : { actor: ctx.actor, threadHandle: effectiveThreadHandle };
+    : { actor: ctx.actor, conversationId: effectiveConversationId };
 
   const chat = useCodexChat({
     messages: {
@@ -219,7 +219,7 @@ export function useCodex<
     ctx.threadSnapshot,
     shouldSkip
       ? "skip"
-      : { actor: ctx.actor, threadHandle: effectiveThreadHandle },
+      : { actor: ctx.actor, conversationId: effectiveConversationId },
   );
   const threadState = useMemo(
     () => unwrapThreadSnapshot(threadStateRaw),
@@ -232,7 +232,7 @@ export function useCodex<
   const tokenUsageQueryRef = ctx.listTokenUsage;
   const tokenUsageActive = !!tokenUsageQueryRef && !shouldSkip;
   const tokenUsageArgs: Record<string, unknown> | "skip" = tokenUsageActive
-    ? { actor: ctx.actor, threadHandle: effectiveThreadHandle }
+    ? { actor: ctx.actor, conversationId: effectiveConversationId }
     : ("skip" as const);
   const tokenUsageQuery: FunctionReference<
     "query",
@@ -261,8 +261,8 @@ export function useCodex<
       tokenUsage,
       threads: threadsConfig ? threadsResult : null,
       threadState: threadState ?? null,
-      effectiveThreadHandle,
+      effectiveConversationId,
     }),
-    [chat, tokenUsage, threadsConfig, threadsResult, threadState, effectiveThreadHandle],
+    [chat, tokenUsage, threadsConfig, threadsResult, threadState, effectiveConversationId],
   );
 }

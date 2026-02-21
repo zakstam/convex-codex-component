@@ -36,7 +36,7 @@ export const listThreadsForPicker = query({
     }>;
 
     const rows = page.map((thread) => ({
-      threadHandle: thread.threadHandle,
+      conversationId: thread.threadHandle,
       status: thread.status,
       updatedAt: thread.updatedAt,
       preview: thread.preview,
@@ -57,9 +57,9 @@ export const resolveOpenTarget = query({
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
-    const mapping = await ctx.runQuery(components.codexLocal.threads.resolveByThreadHandle, {
+    const mapping = await ctx.runQuery(components.codexLocal.threads.resolveByConversationId, {
       actor: serverActor,
-      threadHandle: args.conversationHandle,
+      conversationId: args.conversationHandle,
     });
     if (!mapping) {
       return {
@@ -90,7 +90,7 @@ export const listRuntimeThreadBindingsForPicker = query({
     return rows as Array<{
       runtimeThreadId: string;
       threadId: string;
-      threadHandle: string;
+      conversationId: string;
     }>;
   },
 });

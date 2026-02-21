@@ -8,7 +8,7 @@ import type { CodexMessagesQuery, CodexMessagesQueryArgs } from "./types.js";
 import { toOptionalRestArgsOrSkip } from "./queryArgs.js";
 
 type StreamOverlayState = {
-  threadHandle: string | undefined;
+  conversationId: string | undefined;
   streamIds: string[];
   cursorsByStreamId: Record<string, number>;
   deltas: CodexStreamDeltaLike[];
@@ -153,7 +153,7 @@ function applyDeltaBatch(
   }
 
   const nextState: StreamOverlayState = {
-    threadHandle: state.threadHandle,
+    conversationId: state.conversationId,
     streamIds: nextStreamIds,
     cursorsByStreamId: nextCursors,
     deltas: nextDeltas.slice(-5000),
@@ -179,27 +179,27 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
   cursorsByStreamId: Record<string, number>;
   reset: () => void;
 } {
-  const extractThreadHandle = (value: unknown): string | undefined => {
+  const extractConversationId = (value: unknown): string | undefined => {
     if (typeof value !== "object" || value === null) {
       return undefined;
     }
-    const candidate = Reflect.get(value, "threadHandle");
+    const candidate = Reflect.get(value, "conversationId");
     return typeof candidate === "string" ? candidate : undefined;
   };
 
-  const threadHandle = args === "skip"
+  const conversationId = args === "skip"
     ? undefined
-    : extractThreadHandle(args);
+    : extractConversationId(args);
   const [overlayState, setOverlayState] = useState<StreamOverlayState>({
-    threadHandle,
+    conversationId,
     streamIds: [],
     cursorsByStreamId: {},
     deltas: [],
   });
 
   useEffect(() => {
-    setOverlayState({ threadHandle, streamIds: [], cursorsByStreamId: {}, deltas: [] });
-  }, [threadHandle]);
+    setOverlayState({ conversationId, streamIds: [], cursorsByStreamId: {}, deltas: [] });
+  }, [conversationId]);
 
   const toQueryArgs = (): FunctionArgs<Query> | "skip" => {
     if (!enabled || args === "skip") {
@@ -251,6 +251,6 @@ export function useCodexStreamOverlay<Query extends CodexMessagesQuery<unknown>>
     deltas: overlayState.deltas,
     streamIds: overlayState.streamIds,
     cursorsByStreamId: overlayState.cursorsByStreamId,
-    reset: () => setOverlayState({ threadHandle, streamIds: [], cursorsByStreamId: {}, deltas: [] }),
+    reset: () => setOverlayState({ conversationId, streamIds: [], cursorsByStreamId: {}, deltas: [] }),
   };
 }

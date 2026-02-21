@@ -24,14 +24,14 @@ Use `actor: { userId?: string }` at host/runtime/hook boundaries.
 - Authentication and actor binding are app-owned concerns.
 - Prefer `resolveActorFromAuth(ctx, requestedActor?)` from `@zakstam/codex-local-component/host/convex` to derive canonical host actors from `ctx.auth.getUserIdentity()`.
 
-## Thread Contract
+## Conversation Contract
 
-- Runtime-owned `ensureThread` is single-path.
-- Provide `threadHandle`.
+- Runtime-owned `ensureConversationBinding` is single-path.
+- Provide `conversationId`.
 - Do not expose host identity alternatives in public app host APIs.
-- Use `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle`, and `listPendingServerRequestsByThreadHandle` when the runtime is started from an external thread identifier. These preserve canonical thread-scoped safety contracts:
-  - `threadSnapshotByThreadHandle`, `listThreadMessagesByThreadHandle`, `listTurnMessagesByThreadHandle` return `threadStatus` payloads when the thread is missing or unauthorized.
-  - `listPendingServerRequestsByThreadHandle` returns `[]` on missing-thread fallback to preserve poller array contracts.
+- Use `threadSnapshotByConversation`, `listThreadMessagesByConversation`, `listTurnMessagesByConversation`, and `listPendingServerRequestsByConversation` for conversation-scoped reads. These preserve canonical thread-scoped safety contracts:
+  - `threadSnapshotByConversation`, `listThreadMessagesByConversation`, `listTurnMessagesByConversation` return `threadStatus` payloads when the thread is missing or unauthorized.
+  - `listPendingServerRequestsByConversation` returns `[]` on missing-thread fallback to preserve poller array contracts.
 
 ## Lifecycle Contract
 
@@ -44,7 +44,7 @@ Bridge lifecycle tracking is canonicalized as push + snapshot:
   - `phase` (`idle|starting|running|stopping|stopped|error`)
   - `source` (`runtime|bridge_event|protocol_error|process_exit`)
   - `updatedAtMs`
-  - `threadHandle`
+  - `conversationId`
   - `turnId`
 
 Consumer rule: subscribe first, then fetch a snapshot to reconcile missed events.
@@ -55,7 +55,7 @@ Runtime startup is transport-first:
 - Thread intent must be explicit via `openThread`/`lifecycle.openThread`.
 - `sendTurn`/`turns.send` fail closed until a thread is opened.
 - Optional `lifecycleSafeSend` only recovers transport startup; it never infers thread intent.
-- For local runtime threads that must be persisted for UI reads, call `importLocalThreadToPersistence(...)` and switch the UI to the returned persisted `threadHandle`.
+- For local runtime threads that must be persisted for UI reads, call `importLocalThreadToPersistence(...)` and switch the UI to the returned persisted `conversationId`.
 
 ## Minimal Host Wiring
 
@@ -66,10 +66,10 @@ import { defineCodexHostDefinitions } from "@zakstam/codex-local-component/host/
 
 const codex = defineCodexHostDefinitions({ components });
 
-export const syncOpenThreadBinding = mutation(codex.mutations.syncOpenThreadBinding);
-export const markThreadSyncProgress = mutation(codex.mutations.markThreadSyncProgress);
-export const forceRebindThreadSync = mutation(codex.mutations.forceRebindThreadSync);
-export const ensureThread = mutation(codex.mutations.ensureThread);
+export const syncOpenConversationBinding = mutation(codex.mutations.syncOpenConversationBinding);
+export const markConversationSyncProgress = mutation(codex.mutations.markConversationSyncProgress);
+export const forceRebindConversationSync = mutation(codex.mutations.forceRebindConversationSync);
+export const ensureConversationBinding = mutation(codex.mutations.ensureConversationBinding);
 export const ensureSession = mutation(codex.mutations.ensureSession);
 export const ingestBatch = mutation(codex.mutations.ingestBatch);
 export const scheduleDeleteThread = mutation(codex.mutations.scheduleDeleteThread);
@@ -81,9 +81,9 @@ export const listThreadMessages = query(codex.queries.listThreadMessages);
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
 
-`syncOpenThreadBinding`, `markThreadSyncProgress`, and `forceRebindThreadSync` are the canonical host-side sync engine hooks for local runtime thread mapping + watermark progress.
+`syncOpenConversationBinding`, `markConversationSyncProgress`, and `forceRebindConversationSync` are the canonical host-side sync engine hooks for local runtime thread mapping + watermark progress.
 
-Thread-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByThreadHandle`, `listThreadMessages`, `listThreadMessagesByThreadHandle`, `listTurnMessages`, `listTurnMessagesByThreadHandle`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` and `listPendingServerRequestsByThreadHandle` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
+Thread-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByConversation`, `listThreadMessages`, `listThreadMessagesByConversation`, `listTurnMessages`, `listTurnMessagesByConversation`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for safe fallback behavior. `listPendingServerRequests` and `listPendingServerRequestsByConversation` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
 
 ## Host Shim Generation
 

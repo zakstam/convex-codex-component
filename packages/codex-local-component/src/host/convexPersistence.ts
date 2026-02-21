@@ -12,10 +12,9 @@ type ConvexHttpClientLike = {
 };
 
 export type ConvexPersistenceChatApi = {
-  syncOpenThreadBinding: FunctionReference<"mutation", "public">;
-  markThreadSyncProgress: FunctionReference<"mutation", "public">;
-  forceRebindThreadSync: FunctionReference<"mutation", "public">;
-  ensureThread: FunctionReference<"mutation", "public">;
+  syncOpenConversationBinding: FunctionReference<"mutation", "public">;
+  markConversationSyncProgress: FunctionReference<"mutation", "public">;
+  forceRebindConversationSync: FunctionReference<"mutation", "public">;
   ensureSession: FunctionReference<"mutation", "public">;
   ingestBatch: FunctionReference<"mutation", "public">;
   upsertPendingServerRequest: FunctionReference<"mutation", "public">;
@@ -129,22 +128,22 @@ export function createConvexPersistence(
 
   const persistence: HostRuntimePersistence = {
     ensureThread: async (args) => {
-      const opened = await client.mutation(chatApi.syncOpenThreadBinding, {
+      const opened = await client.mutation(chatApi.syncOpenConversationBinding, {
         actor: args.actor,
-        threadHandle: args.threadHandle,
-        runtimeThreadId: args.threadHandle,
+        conversationId: args.conversationId,
+        runtimeThreadId: args.conversationId,
         ...(args.model ? { model: args.model } : {}),
         ...(args.cwd ? { cwd: args.cwd } : {}),
       }) as { threadId: string; created?: boolean; rebindApplied?: boolean };
       if (opened.rebindApplied) {
-        await client.mutation(chatApi.forceRebindThreadSync, {
+        await client.mutation(chatApi.forceRebindConversationSync, {
           actor: args.actor,
-          threadHandle: args.threadHandle,
-          runtimeThreadId: args.threadHandle,
+          conversationId: args.conversationId,
+          runtimeThreadId: args.conversationId,
           reasonCode: "AUTO_FORCE_REBIND_ON_OPEN",
         });
       }
-      threadHandleByPersistedThreadId.set(opened.threadId, args.threadHandle);
+      threadHandleByPersistedThreadId.set(opened.threadId, args.conversationId);
       return {
         threadId: opened.threadId,
         ...(typeof opened.created === "boolean" ? { created: opened.created } : {}),
@@ -160,9 +159,9 @@ export function createConvexPersistence(
         threadId: args.threadId,
         lastEventCursor: args.lastEventCursor,
       }) as { sessionId: string; threadId: string; status: "created" | "active" };
-      await client.mutation(chatApi.markThreadSyncProgress, {
+      await client.mutation(chatApi.markConversationSyncProgress, {
         actor: args.actor,
-        threadHandle,
+        conversationId: threadHandle,
         runtimeThreadId: threadHandle,
         sessionId: args.sessionId,
         cursor: args.lastEventCursor,
@@ -182,9 +181,9 @@ export function createConvexPersistence(
       const initialCursor = maxCursorEnd(args.deltas);
       const threadHandle = threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId;
       if (initial.status !== "rejected") {
-        await client.mutation(chatApi.markThreadSyncProgress, {
+        await client.mutation(chatApi.markConversationSyncProgress, {
           actor: args.actor,
-          threadHandle,
+          conversationId: threadHandle,
           runtimeThreadId: threadHandle,
           sessionId: args.sessionId,
           cursor: initialCursor,
@@ -213,9 +212,9 @@ export function createConvexPersistence(
 
         const retried = await runIngest(nextSessionId);
         if (retried.status === "rejected") {
-          await client.mutation(chatApi.markThreadSyncProgress, {
+          await client.mutation(chatApi.markConversationSyncProgress, {
             actor: args.actor,
-            threadHandle,
+            conversationId: threadHandle,
             runtimeThreadId: threadHandle,
             sessionId: nextSessionId,
             cursor: initialCursor,
@@ -227,9 +226,9 @@ export function createConvexPersistence(
             errors: mapIngestErrors(retried.errors).map((e) => ({ ...e, recoverable: true })),
           };
         }
-        await client.mutation(chatApi.markThreadSyncProgress, {
+        await client.mutation(chatApi.markConversationSyncProgress, {
           actor: args.actor,
-          threadHandle,
+          conversationId: threadHandle,
           runtimeThreadId: threadHandle,
           sessionId: nextSessionId,
           cursor: initialCursor,
@@ -238,9 +237,9 @@ export function createConvexPersistence(
         return { status: retried.status, errors: mapIngestErrors(retried.errors) };
       }
 
-      await client.mutation(chatApi.markThreadSyncProgress, {
+      await client.mutation(chatApi.markConversationSyncProgress, {
         actor: args.actor,
-        threadHandle,
+        conversationId: threadHandle,
         runtimeThreadId: threadHandle,
         sessionId: args.sessionId,
         cursor: initialCursor,

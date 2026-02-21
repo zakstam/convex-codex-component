@@ -6,7 +6,7 @@ export {
   createCodexReactPreset,
   type CodexProviderProps,
   type CodexProviderApi,
-  type CodexRuntimeOwnedThreadHandleApi,
+  type CodexRuntimeOwnedConversationApi,
 } from "./CodexProvider.js";
 export {
   useCodex,

@@ -18,7 +18,7 @@ export type BridgeState = {
   runtimeThreadId: string | null;
   // Back-compat alias for persisted thread id.
   localThreadId: string | null;
-  threadHandle: string | null;
+  conversationId: string | null;
   turnId: string | null;
   lastErrorCode?: string | null;
   lastError: string | null;
@@ -58,7 +58,7 @@ export type StartPayload = {
 
 export type OpenThreadConfig = {
   strategy: "start" | "resume" | "fork";
-  threadHandle?: ThreadHandle;
+  conversationId?: ThreadHandle;
   model?: string;
   cwd?: string;
   dynamicTools?: DynamicToolSpec[];
@@ -66,7 +66,7 @@ export type OpenThreadConfig = {
 
 export type OpenThreadPayload = {
   strategy: "start" | "resume" | "fork";
-  threadHandle?: ThreadHandle;
+  conversationId?: ThreadHandle;
   model?: string;
   cwd?: string;
   dynamicTools?: DynamicToolSpec[];
@@ -336,8 +336,8 @@ function toBridgeStartInvokeConfig(config: StartBridgeConfig): Record<string, un
 
 function toOpenThreadInvokeConfig(config: OpenThreadConfig): Record<string, unknown> {
   const invokeConfig: Record<string, unknown> = { ...config };
-  if (typeof config.threadHandle === "string" && config.threadHandle.length > 0) {
-    invokeConfig.threadId = config.threadHandle;
+  if (typeof config.conversationId === "string" && config.conversationId.length > 0) {
+    invokeConfig.threadId = config.conversationId;
   }
   return invokeConfig;
 }

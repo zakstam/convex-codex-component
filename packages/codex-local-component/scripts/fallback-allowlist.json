@@ -389,13 +389,13 @@
       "description": "TODO: add manual description",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "FB_daf485742699",
+      "id": "FB_9951d1b5c12a",
       "file": "src/component/threads.ts",
       "line": 126,
       "col": 27,
       "kind": "nullish-coalescing",
-      "snippet": "binding.conversationId ?? threadHandle",
-      "context": "await ctx.db.patch(binding._id, { conversationId: binding.conversationId ?? threadHandle, threadRef: touched.threadRef, runtimeThreadId: threadHandle, syncState: \"syncing\", last..."
+      "snippet": "binding.conversationId ?? conversationId",
+      "context": "await ctx.db.patch(binding._id, { conversationId: binding.conversationId ?? conversationId, threadRef: touched.threadRef, runtimeThreadId: conversationId, syncState: \"syncing\", ..."
     },
     {
       "description": "TODO: add manual description",
@@ -408,6 +408,18 @@
       "kind": "nullish-coalescing",
       "snippet": "binding.conversationId ?? binding.threadHandle",
       "context": "return { conversationId: String(binding.conversationId ?? binding.threadHandle), threadId: String(binding.threadId), threadHandle: String(binding.threadHandle), };"
+    },
+    {
+      "description": "TODO: add manual description",
+      "userApproved": false,
+      "riskLevel": "default",
+      "id": "FB_64e8d14e9d65",
+      "file": "src/component/threads.ts",
+      "line": 384,
+      "col": 32,
+      "kind": "nullish-coalescing",
+      "snippet": "binding.conversationId ?? binding.threadHandle",
+      "context": "out.push({ runtimeThreadId, threadId: String(binding.threadId), conversationId: String(binding.conversationId ?? binding.threadHandle), });"
     },
     {
       "description": "TODO: add manual description",
@@ -523,7 +535,7 @@
       "riskLevel": "default",
       "id": "FB_08e33af8d1fb",
       "file": "src/host/convexPersistence.ts",
-      "line": 88,
+      "line": 87,
       "col": 23,
       "kind": "nullish-coalescing",
       "snippet": "options?.runtimeOptions ?? {}",
@@ -535,7 +547,7 @@
       "riskLevel": "default",
       "id": "FB_d69c3c4c852a",
       "file": "src/host/convexPersistence.ts",
-      "line": 156,
+      "line": 155,
       "col": 28,
       "kind": "nullish-coalescing",
       "snippet": "threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId",
@@ -547,7 +559,7 @@
       "riskLevel": "default",
       "id": "FB_bb90a17b8637",
       "file": "src/host/convexPersistence.ts",
-      "line": 183,
+      "line": 182,
       "col": 28,
       "kind": "nullish-coalescing",
       "snippet": "threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId",
@@ -665,13 +677,13 @@
       "description": "TODO: add manual description",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "FB_0fc680096a6f",
+      "id": "FB_4de993a11a1d",
       "file": "src/host/convexPresetMutations.ts",
-      "line": 256,
-      "col": 30,
+      "line": 265,
+      "col": 32,
       "kind": "nullish-coalescing",
-      "snippet": "args.runtimeThreadId ?? args.threadHandle",
-      "context": "async ( ctx: HostMutationRunner & HostQueryRunner, args: { actor: HostActorContext; threadHandle: string; runtimeThreadId?: string; model?: string; cwd?: string; sessionId?: str..."
+      "snippet": "args.runtimeThreadId ?? args.conversationId",
+      "context": "result = await syncOpenConversationBindingForActor( ctx, component, withServerActor( { actor: args.actor, threadHandle: args.conversationId, runtimeThreadId: args.runtimeThreadI..."
     },
     {
       "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
@@ -679,7 +691,7 @@
       "riskLevel": "default",
       "id": "FB_73adf8ff7b0a",
       "file": "src/host/convexPresetMutations.ts",
-      "line": 807,
+      "line": 835,
       "col": 23,
       "kind": "nullish-coalescing",
       "snippet": "args.dispatchId ?? args.turnId",
@@ -2021,25 +2033,25 @@
       "description": "TODO: add manual description",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "FB_8c8522b84746",
+      "id": "FB_2d65925752e8",
       "file": "src/react/useCodex.ts",
       "line": 182,
-      "col": 33,
+      "col": 35,
       "kind": "nullish-coalescing",
-      "snippet": "options.threadHandle ?? (threadsConfig ? threadsResult.selectedThreadHandle : null) ?? null",
-      "context": "effectiveThreadHandle = options.threadHandle ?? (threadsConfig ? threadsResult.selectedThreadHandle : null) ?? null"
+      "snippet": "options.conversationId ?? (threadsConfig ? threadsResult.selectedConversationId : null) ?? null",
+      "context": "effectiveConversationId = options.conversationId ?? (threadsConfig ? threadsResult.selectedConversationId : null) ?? null"
     },
     {
       "description": "TODO: add manual description",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "FB_411ae0029251",
+      "id": "FB_68b265ca9dd1",
       "file": "src/react/useCodex.ts",
       "line": 182,
-      "col": 33,
+      "col": 35,
       "kind": "nullish-coalescing",
-      "snippet": "options.threadHandle ?? (threadsConfig ? threadsResult.selectedThreadHandle : null)",
-      "context": "effectiveThreadHandle = options.threadHandle ?? (threadsConfig ? threadsResult.selectedThreadHandle : null) ?? null"
+      "snippet": "options.conversationId ?? (threadsConfig ? threadsResult.selectedConversationId : null)",
+      "context": "effectiveConversationId = options.conversationId ?? (threadsConfig ? threadsResult.selectedConversationId : null) ?? null"
     },
     {
       "description": "Manual review pending: fallback intentionally allowlisted; refine this description.",
@@ -2057,13 +2069,13 @@
       "description": "TODO: add manual description",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "FB_562108d2b08a",
+      "id": "FB_dff77057ebc6",
       "file": "src/react/useCodex.ts",
       "line": 263,
       "col": 20,
       "kind": "nullish-coalescing",
       "snippet": "threadState ?? null",
-      "context": "() => ({ ...chat, tokenUsage, threads: threadsConfig ? threadsResult : null, threadState: threadState ?? null, effectiveThreadHandle, })"
+      "context": "() => ({ ...chat, tokenUsage, threads: threadsConfig ? threadsResult : null, threadState: threadState ?? null, effectiveConversationId, })"
     },
     {
       "description": "useCodexChat initializes disabledTools from config, defaulting to empty list.",
@@ -2285,13 +2297,13 @@
       "description": "TODO: add manual description",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "FB_45e39b5a0879",
+      "id": "FB_79878bf30643",
       "file": "src/react/useCodexThreads.ts",
       "line": 42,
       "col": 5,
       "kind": "nullish-coalescing",
-      "snippet": "config.initialSelectedThreadHandle ?? null",
-      "context": "[selectedThreadHandle, setSelectedThreadHandle] = useState<string | null>( config.initialSelectedThreadHandle ?? null, )"
+      "snippet": "config.initialSelectedConversationId ?? null",
+      "context": "[selectedConversationId, setSelectedConversationId] = useState<string | null>( config.initialSelectedConversationId ?? null, )"
     }
   ]
 }

@@ -7,7 +7,7 @@ import {
   listPendingServerRequestsForHooksForActor,
   listTokenUsageForHooksForActor,
   listThreadMessagesForHooksForActor,
-  resolveThreadByThreadHandleForActor,
+  resolveThreadByConversationIdForActor,
   listThreadReasoningForHooksForActor,
   listTurnMessagesForHooksForActor,
   persistenceStats,
@@ -69,11 +69,11 @@ function missingThreadPayload(error: unknown): ThreadReadSafeError | null {
   return classifyThreadReadError(error);
 }
 
-function missingThreadPayloadFromThreadHandle(threadHandle: string): ThreadReadSafeError {
+function missingThreadPayloadFromConversationId(conversationId: string): ThreadReadSafeError {
   return {
     threadStatus: "missing_thread",
     code: "E_THREAD_NOT_FOUND",
-    message: `[E_THREAD_NOT_FOUND] Thread not found: ${threadHandle}`,
+    message: `[E_THREAD_NOT_FOUND] Thread not found: ${conversationId}`,
   };
 }
 
@@ -179,11 +179,11 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     features,
   });
 
-  const resolveThreadIdByThreadHandle = async (
+  const resolveThreadIdByConversationId = async (
     ctx: HostQueryRunner,
-    args: { actor: HostActorContext; threadHandle: string },
+    args: { actor: HostActorContext; conversationId: string },
   ) => {
-    const mapping = await resolveThreadByThreadHandleForActor(
+    const mapping = await resolveThreadByConversationIdForActor(
       ctx,
       component,
       withServerActor(args, resolveServerActor(args, options.serverActor)),
@@ -197,12 +197,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
   const queries = {
     validateHostWiring,
     threadSnapshot: {
-      args: { actor: vHostActorContext, threadHandle: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
+      args: { actor: vHostActorContext, conversationId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
         try {
-          const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+          const threadId = await resolveThreadIdByConversationId(ctx, args);
           if (threadId === null) {
-            return missingThreadPayloadFromThreadHandle(args.threadHandle);
+            return missingThreadPayloadFromConversationId(args.conversationId);
           }
           const snapshot = await threadSnapshot(
             ctx,
@@ -222,12 +222,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         }
       },
     },
-    threadSnapshotByThreadHandle: {
-      args: { actor: vHostActorContext, threadHandle: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
-        const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+    threadSnapshotByConversation: {
+      args: { actor: vHostActorContext, conversationId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
+        const threadId = await resolveThreadIdByConversationId(ctx, args);
         if (threadId === null) {
-          return missingThreadPayloadFromThreadHandle(args.threadHandle);
+          return missingThreadPayloadFromConversationId(args.conversationId);
         }
         try {
           const snapshot = await threadSnapshot(
@@ -284,12 +284,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       },
     },
     persistenceStats: {
-      args: { actor: vHostActorContext, threadHandle: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
-        const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+      args: { actor: vHostActorContext, conversationId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
+        const threadId = await resolveThreadIdByConversationId(ctx, args);
         if (threadId === null) {
           return {
-            ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+            ...missingThreadPayloadFromConversationId(args.conversationId),
             streamCount: 0,
             deltaCount: 0,
             latestCursorByStream: [],
@@ -318,12 +318,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       },
     },
     durableHistoryStats: {
-      args: { actor: vHostActorContext, threadHandle: v.string() },
-      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
-        const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+      args: { actor: vHostActorContext, conversationId: v.string() },
+      handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
+        const threadId = await resolveThreadIdByConversationId(ctx, args);
         if (threadId === null) {
           return {
-            ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+            ...missingThreadPayloadFromConversationId(args.conversationId),
             messageCountInPage: 0,
             latest: [],
           };
@@ -352,12 +352,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.hygiene
       ? {
           dataHygiene: {
-            args: { actor: vHostActorContext, threadHandle: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+            args: { actor: vHostActorContext, conversationId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 return {
-                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  ...missingThreadPayloadFromConversationId(args.conversationId),
                   scannedStreamStats: 0,
                   streamStatOrphans: 0,
                   orphanStreamIds: [],
@@ -392,7 +392,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           listThreadMessagesForHooks: {
             args: {
               actor: vHostActorContext,
-              threadHandle: v.string(),
+              conversationId: v.string(),
               paginationOpts: paginationOptsValidator,
               streamArgs: vHostStreamArgs,
               runtime: v.optional(vHostSyncRuntimeOptions),
@@ -401,13 +401,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               ctx: HostQueryRunner,
               args: {
                 actor: HostActorContext;
-                threadHandle: string;
+                conversationId: string;
                 paginationOpts: { cursor: string | null; numItems: number };
                 streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
                 runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
               },
             ) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 const streams =
                   args.streamArgs?.kind === "deltas"
@@ -425,7 +425,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                         }
                       : undefined;
                 return {
-                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  ...missingThreadPayloadFromConversationId(args.conversationId),
                   page: [],
                   isDone: true,
                   continueCursor: args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
@@ -479,10 +479,10 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               }
             },
           },
-          listThreadMessagesByThreadHandle: {
+          listThreadMessagesByConversation: {
             args: {
               actor: vHostActorContext,
-              threadHandle: v.string(),
+              conversationId: v.string(),
               paginationOpts: paginationOptsValidator,
               streamArgs: vHostStreamArgs,
               runtime: v.optional(vHostSyncRuntimeOptions),
@@ -491,13 +491,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               ctx: HostQueryRunner,
               args: {
                 actor: HostActorContext;
-                threadHandle: string;
+                conversationId: string;
                 paginationOpts: { cursor: string | null; numItems: number };
                 streamArgs?: { kind: "list"; startOrder?: number } | { kind: "deltas"; cursors: Array<{ streamId: string; cursor: number }> };
                 runtime?: { saveStreamDeltas?: boolean; saveReasoningDeltas?: boolean; exposeRawReasoningDeltas?: boolean; maxDeltasPerStreamRead?: number; maxDeltasPerRequestRead?: number; finishedStreamDeleteDelayMs?: number };
               },
             ) => {
-                const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+                const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 const streams =
                   args.streamArgs?.kind === "deltas"
@@ -515,7 +515,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                         }
                       : undefined;
                 return {
-                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  ...missingThreadPayloadFromConversationId(args.conversationId),
                   page: [],
                   isDone: true,
                   continueCursor: args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
@@ -571,12 +571,12 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             },
           },
           listTurnMessagesForHooks: {
-            args: { actor: vHostActorContext, threadHandle: v.string(), turnId: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string; turnId: string }) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+            args: { actor: vHostActorContext, conversationId: v.string(), turnId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string; turnId: string }) => {
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 return {
-                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  ...missingThreadPayloadFromConversationId(args.conversationId),
                   data: [],
                 };
               }
@@ -601,13 +601,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               }
             },
           },
-          listTurnMessagesByThreadHandle: {
-            args: { actor: vHostActorContext, threadHandle: v.string(), turnId: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string; turnId: string }) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+          listTurnMessagesByConversation: {
+            args: { actor: vHostActorContext, conversationId: v.string(), turnId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string; turnId: string }) => {
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 return {
-                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  ...missingThreadPayloadFromConversationId(args.conversationId),
                   data: [],
                 };
               }
@@ -644,15 +644,15 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.reasoning
       ? {
           listThreadReasoningForHooks: {
-            args: { actor: vHostActorContext, threadHandle: v.string(), paginationOpts: paginationOptsValidator, includeRaw: v.optional(v.boolean()) },
+            args: { actor: vHostActorContext, conversationId: v.string(), paginationOpts: paginationOptsValidator, includeRaw: v.optional(v.boolean()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadHandle: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
+              args: { actor: HostActorContext; conversationId: string; paginationOpts: { cursor: string | null; numItems: number }; includeRaw?: boolean },
             ) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 return {
-                  ...missingThreadPayloadFromThreadHandle(args.threadHandle),
+                  ...missingThreadPayloadFromConversationId(args.conversationId),
                   page: [],
                   isDone: true,
                   continueCursor: args.paginationOpts.cursor === null ? "" : args.paginationOpts.cursor,
@@ -699,16 +699,16 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.serverRequests
       ? {
           listPendingServerRequestsForHooks: {
-            args: { actor: vHostActorContext, threadHandle: v.optional(v.string()), limit: v.optional(v.number()) },
+            args: { actor: vHostActorContext, conversationId: v.optional(v.string()), limit: v.optional(v.number()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadHandle?: string; limit?: number },
+              args: { actor: HostActorContext; conversationId?: string; limit?: number },
             ) => {
               try {
-                const threadId = args.threadHandle
-                  ? await resolveThreadIdByThreadHandle(ctx, { actor: args.actor, threadHandle: args.threadHandle })
+                const threadId = args.conversationId
+                  ? await resolveThreadIdByConversationId(ctx, { actor: args.actor, conversationId: args.conversationId })
                   : null;
-                if (args.threadHandle && threadId === null) {
+                if (args.conversationId && threadId === null) {
                   return [];
                 }
                 return await listPendingServerRequestsForHooksForActor(
@@ -731,13 +731,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               }
             }
           },
-          listPendingServerRequestsByThreadHandle: {
-            args: { actor: vHostActorContext, threadHandle: v.string(), limit: v.optional(v.number()) },
+          listPendingServerRequestsByConversation: {
+            args: { actor: vHostActorContext, conversationId: v.string(), limit: v.optional(v.number()) },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadHandle: string; limit?: number },
+              args: { actor: HostActorContext; conversationId: string; limit?: number },
             ) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (threadId === null) {
                 return [];
               }
@@ -767,9 +767,9 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     ...(features.tokenUsage
       ? {
           listTokenUsageForHooks: {
-            args: { actor: vHostActorContext, threadHandle: v.string() },
-            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+            args: { actor: vHostActorContext, conversationId: v.string() },
+            handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (!threadId) {
                 return [];
               }
@@ -780,13 +780,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               );
             },
           },
-          listTokenUsageByThreadHandle: {
-            args: { actor: vHostActorContext, threadHandle: v.string() },
+          listTokenUsageByConversation: {
+            args: { actor: vHostActorContext, conversationId: v.string() },
             handler: async (
               ctx: HostQueryRunner,
-              args: { actor: HostActorContext; threadHandle: string },
+              args: { actor: HostActorContext; conversationId: string },
             ) => {
-              const threadId = await resolveThreadIdByThreadHandle(ctx, args);
+              const threadId = await resolveThreadIdByConversationId(ctx, args);
               if (!threadId) {
                 return [];
               }
@@ -823,12 +823,12 @@ type RuntimeOwnedQueryKeys = (typeof HOST_SURFACE_MANIFEST.runtimeOwned.queries)
 type RuntimeOwnedInternalDefinitions = {
   profile: "runtimeOwned";
   mutations: {
-    syncOpenThreadBinding: CodexHostSliceDefinitions["mutations"]["syncOpenThreadBinding"];
-    markThreadSyncProgress: CodexHostSliceDefinitions["mutations"]["markThreadSyncProgress"];
-    forceRebindThreadSync: CodexHostSliceDefinitions["mutations"]["forceRebindThreadSync"];
-    ensureThread: CodexHostSliceDefinitions["mutations"]["ensureThread"];
-    archiveConversationThread: CodexHostSliceDefinitions["mutations"]["archiveConversationThread"];
-    unarchiveConversationThread: CodexHostSliceDefinitions["mutations"]["unarchiveConversationThread"];
+    syncOpenConversationBinding: CodexHostSliceDefinitions["mutations"]["syncOpenConversationBinding"];
+    markConversationSyncProgress: CodexHostSliceDefinitions["mutations"]["markConversationSyncProgress"];
+    forceRebindConversationSync: CodexHostSliceDefinitions["mutations"]["forceRebindConversationSync"];
+    ensureConversationBinding: CodexHostSliceDefinitions["mutations"]["ensureConversationBinding"];
+    archiveConversation: CodexHostSliceDefinitions["mutations"]["archiveConversation"];
+    unarchiveConversation: CodexHostSliceDefinitions["mutations"]["unarchiveConversation"];
     ensureSession: CodexHostSliceDefinitions["mutations"]["ensureSession"];
     ingestEvent: CodexHostSliceDefinitions["mutations"]["ingestEvent"];
     ingestBatch: CodexHostSliceDefinitions["mutations"]["ingestBatch"];
@@ -851,7 +851,7 @@ type RuntimeOwnedInternalDefinitions = {
   queries: {
     validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
-    threadSnapshotByThreadHandle: CodexHostSliceDefinitions["queries"]["threadSnapshotByThreadHandle"];
+    threadSnapshotByConversation: CodexHostSliceDefinitions["queries"]["threadSnapshotByConversation"];
     listThreadsForConversation: CodexHostSliceDefinitions["queries"]["listThreadsForConversation"];
     getDeletionStatus: CodexHostSliceDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: CodexHostSliceDefinitions["queries"]["persistenceStats"];
@@ -859,12 +859,12 @@ type RuntimeOwnedInternalDefinitions = {
     dataHygiene: NonNullable<CodexHostSliceDefinitions["queries"]["dataHygiene"]>;
     listThreadMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesForHooks"]>;
     listTurnMessagesForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesForHooks"]>;
-    listThreadMessagesByThreadHandle: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesByThreadHandle"]>;
-    listTurnMessagesByThreadHandle: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesByThreadHandle"]>;
+    listThreadMessagesByConversation: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadMessagesByConversation"]>;
+    listTurnMessagesByConversation: NonNullable<CodexHostSliceDefinitions["queries"]["listTurnMessagesByConversation"]>;
     listPendingApprovalsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingApprovalsForHooks"]>;
-    listPendingServerRequestsByThreadHandle: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsByThreadHandle"]>;
+    listPendingServerRequestsByConversation: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsByConversation"]>;
     listTokenUsageForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listTokenUsageForHooks"]>;
-    listTokenUsageByThreadHandle: NonNullable<CodexHostSliceDefinitions["queries"]["listTokenUsageByThreadHandle"]>;
+    listTokenUsageByConversation: NonNullable<CodexHostSliceDefinitions["queries"]["listTokenUsageByConversation"]>;
     listPendingServerRequestsForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listPendingServerRequestsForHooks"]>;
     listThreadReasoningForHooks: NonNullable<CodexHostSliceDefinitions["queries"]["listThreadReasoningForHooks"]>;
   };
@@ -873,12 +873,12 @@ type RuntimeOwnedInternalDefinitions = {
 export type RuntimeOwnedHostDefinitions = {
   profile: "runtimeOwned";
   mutations: {
-    syncOpenThreadBinding: RuntimeOwnedInternalDefinitions["mutations"]["syncOpenThreadBinding"];
-    markThreadSyncProgress: RuntimeOwnedInternalDefinitions["mutations"]["markThreadSyncProgress"];
-    forceRebindThreadSync: RuntimeOwnedInternalDefinitions["mutations"]["forceRebindThreadSync"];
-    ensureThread: RuntimeOwnedInternalDefinitions["mutations"]["ensureThread"];
-    archiveConversationThread: RuntimeOwnedInternalDefinitions["mutations"]["archiveConversationThread"];
-    unarchiveConversationThread: RuntimeOwnedInternalDefinitions["mutations"]["unarchiveConversationThread"];
+    syncOpenConversationBinding: RuntimeOwnedInternalDefinitions["mutations"]["syncOpenConversationBinding"];
+    markConversationSyncProgress: RuntimeOwnedInternalDefinitions["mutations"]["markConversationSyncProgress"];
+    forceRebindConversationSync: RuntimeOwnedInternalDefinitions["mutations"]["forceRebindConversationSync"];
+    ensureConversationBinding: RuntimeOwnedInternalDefinitions["mutations"]["ensureConversationBinding"];
+    archiveConversation: RuntimeOwnedInternalDefinitions["mutations"]["archiveConversation"];
+    unarchiveConversation: RuntimeOwnedInternalDefinitions["mutations"]["unarchiveConversation"];
     ensureSession: RuntimeOwnedInternalDefinitions["mutations"]["ensureSession"];
     ingestEvent: RuntimeOwnedInternalDefinitions["mutations"]["ingestEvent"];
     ingestBatch: RuntimeOwnedInternalDefinitions["mutations"]["ingestBatch"];
@@ -901,7 +901,7 @@ export type RuntimeOwnedHostDefinitions = {
   queries: {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
-    threadSnapshotByThreadHandle: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotByThreadHandle"];
+    threadSnapshotByConversation: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotByConversation"];
     listThreadsForConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadsForConversation"];
     getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
@@ -909,12 +909,12 @@ export type RuntimeOwnedHostDefinitions = {
     dataHygiene: RuntimeOwnedInternalDefinitions["queries"]["dataHygiene"];
     listThreadMessages: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesForHooks"];
     listTurnMessages: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesForHooks"];
-    listThreadMessagesByThreadHandle: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesByThreadHandle"];
-    listTurnMessagesByThreadHandle: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesByThreadHandle"];
-    listPendingServerRequestsByThreadHandle: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsByThreadHandle"];
+    listThreadMessagesByConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadMessagesByConversation"];
+    listTurnMessagesByConversation: RuntimeOwnedInternalDefinitions["queries"]["listTurnMessagesByConversation"];
+    listPendingServerRequestsByConversation: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsByConversation"];
     listPendingApprovals: RuntimeOwnedInternalDefinitions["queries"]["listPendingApprovalsForHooks"];
     listTokenUsage: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageForHooks"];
-    listTokenUsageByThreadHandle: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageByThreadHandle"];
+    listTokenUsageByConversation: RuntimeOwnedInternalDefinitions["queries"]["listTokenUsageByConversation"];
     listPendingServerRequests: RuntimeOwnedInternalDefinitions["queries"]["listPendingServerRequestsForHooks"];
     listThreadReasoning: RuntimeOwnedInternalDefinitions["queries"]["listThreadReasoningForHooks"];
   };
@@ -946,12 +946,12 @@ function toPublicRuntimeOwnedDefinitions(
   return {
     profile: defs.profile,
     mutations: {
-      syncOpenThreadBinding: defs.mutations.syncOpenThreadBinding,
-      markThreadSyncProgress: defs.mutations.markThreadSyncProgress,
-      forceRebindThreadSync: defs.mutations.forceRebindThreadSync,
-      ensureThread: defs.mutations.ensureThread,
-      archiveConversationThread: defs.mutations.archiveConversationThread,
-      unarchiveConversationThread: defs.mutations.unarchiveConversationThread,
+      syncOpenConversationBinding: defs.mutations.syncOpenConversationBinding,
+      markConversationSyncProgress: defs.mutations.markConversationSyncProgress,
+      forceRebindConversationSync: defs.mutations.forceRebindConversationSync,
+      ensureConversationBinding: defs.mutations.ensureConversationBinding,
+      archiveConversation: defs.mutations.archiveConversation,
+      unarchiveConversation: defs.mutations.unarchiveConversation,
       ensureSession: defs.mutations.ensureSession,
       ingestEvent: defs.mutations.ingestEvent,
       ingestBatch: defs.mutations.ingestBatch,
@@ -974,7 +974,7 @@ function toPublicRuntimeOwnedDefinitions(
     queries: {
       validateHostWiring: defs.queries.validateHostWiring,
       threadSnapshot: defs.queries.threadSnapshot,
-      threadSnapshotByThreadHandle: defs.queries.threadSnapshotByThreadHandle,
+      threadSnapshotByConversation: defs.queries.threadSnapshotByConversation,
       listThreadsForConversation: defs.queries.listThreadsForConversation,
       getDeletionStatus: defs.queries.getDeletionStatus,
       persistenceStats: defs.queries.persistenceStats,
@@ -982,12 +982,12 @@ function toPublicRuntimeOwnedDefinitions(
       dataHygiene: defs.queries.dataHygiene,
       listThreadMessages: defs.queries.listThreadMessagesForHooks,
       listTurnMessages: defs.queries.listTurnMessagesForHooks,
-      listThreadMessagesByThreadHandle: defs.queries.listThreadMessagesByThreadHandle,
-      listTurnMessagesByThreadHandle: defs.queries.listTurnMessagesByThreadHandle,
-      listPendingServerRequestsByThreadHandle: defs.queries.listPendingServerRequestsByThreadHandle,
+      listThreadMessagesByConversation: defs.queries.listThreadMessagesByConversation,
+      listTurnMessagesByConversation: defs.queries.listTurnMessagesByConversation,
+      listPendingServerRequestsByConversation: defs.queries.listPendingServerRequestsByConversation,
       listPendingApprovals: defs.queries.listPendingApprovalsForHooks,
       listTokenUsage: defs.queries.listTokenUsageForHooks,
-      listTokenUsageByThreadHandle: defs.queries.listTokenUsageByThreadHandle,
+      listTokenUsageByConversation: defs.queries.listTokenUsageByConversation,
       listPendingServerRequests: defs.queries.listPendingServerRequestsForHooks,
       listThreadReasoning: defs.queries.listThreadReasoningForHooks,
     },
@@ -1010,12 +1010,12 @@ function toRuntimeOwnedInternalDefinitions(
   return {
     profile: "runtimeOwned",
     mutations: {
-      syncOpenThreadBinding: rawSlice.mutations.syncOpenThreadBinding,
-      markThreadSyncProgress: rawSlice.mutations.markThreadSyncProgress,
-      forceRebindThreadSync: rawSlice.mutations.forceRebindThreadSync,
-      ensureThread: rawSlice.mutations.ensureThread,
-      archiveConversationThread: rawSlice.mutations.archiveConversationThread,
-      unarchiveConversationThread: rawSlice.mutations.unarchiveConversationThread,
+      syncOpenConversationBinding: rawSlice.mutations.syncOpenConversationBinding,
+      markConversationSyncProgress: rawSlice.mutations.markConversationSyncProgress,
+      forceRebindConversationSync: rawSlice.mutations.forceRebindConversationSync,
+      ensureConversationBinding: rawSlice.mutations.ensureConversationBinding,
+      archiveConversation: rawSlice.mutations.archiveConversation,
+      unarchiveConversation: rawSlice.mutations.unarchiveConversation,
       ensureSession: rawSlice.mutations.ensureSession,
       ingestEvent: rawSlice.mutations.ingestEvent,
       ingestBatch: rawSlice.mutations.ingestBatch,
@@ -1038,7 +1038,7 @@ function toRuntimeOwnedInternalDefinitions(
     queries: {
       validateHostWiring: rawSlice.queries.validateHostWiring,
       threadSnapshot: rawSlice.queries.threadSnapshot,
-      threadSnapshotByThreadHandle: requireHostDefinition(rawSlice.queries.threadSnapshotByThreadHandle, "threadSnapshotByThreadHandle"),
+      threadSnapshotByConversation: requireHostDefinition(rawSlice.queries.threadSnapshotByConversation, "threadSnapshotByConversation"),
       listThreadsForConversation: requireHostDefinition(rawSlice.queries.listThreadsForConversation, "listThreadsForConversation"),
       getDeletionStatus: rawSlice.queries.getDeletionStatus,
       persistenceStats: rawSlice.queries.persistenceStats,
@@ -1046,12 +1046,12 @@ function toRuntimeOwnedInternalDefinitions(
       dataHygiene: requireHostDefinition(rawSlice.queries.dataHygiene, "dataHygiene"),
       listThreadMessagesForHooks: requireHostDefinition(rawSlice.queries.listThreadMessagesForHooks, "listThreadMessagesForHooks"),
       listTurnMessagesForHooks: requireHostDefinition(rawSlice.queries.listTurnMessagesForHooks, "listTurnMessagesForHooks"),
-      listThreadMessagesByThreadHandle: requireHostDefinition(rawSlice.queries.listThreadMessagesByThreadHandle, "listThreadMessagesByThreadHandle"),
-      listTurnMessagesByThreadHandle: requireHostDefinition(rawSlice.queries.listTurnMessagesByThreadHandle, "listTurnMessagesByThreadHandle"),
+      listThreadMessagesByConversation: requireHostDefinition(rawSlice.queries.listThreadMessagesByConversation, "listThreadMessagesByConversation"),
+      listTurnMessagesByConversation: requireHostDefinition(rawSlice.queries.listTurnMessagesByConversation, "listTurnMessagesByConversation"),
       listPendingApprovalsForHooks: requireHostDefinition(rawSlice.queries.listPendingApprovalsForHooks, "listPendingApprovalsForHooks"),
       listTokenUsageForHooks: requireHostDefinition(rawSlice.queries.listTokenUsageForHooks, "listTokenUsageForHooks"),
-      listTokenUsageByThreadHandle: requireHostDefinition(rawSlice.queries.listTokenUsageByThreadHandle, "listTokenUsageByThreadHandle"),
-      listPendingServerRequestsByThreadHandle: requireHostDefinition(rawSlice.queries.listPendingServerRequestsByThreadHandle, "listPendingServerRequestsByThreadHandle"),
+      listTokenUsageByConversation: requireHostDefinition(rawSlice.queries.listTokenUsageByConversation, "listTokenUsageByConversation"),
+      listPendingServerRequestsByConversation: requireHostDefinition(rawSlice.queries.listPendingServerRequestsByConversation, "listPendingServerRequestsByConversation"),
       listPendingServerRequestsForHooks: requireHostDefinition(rawSlice.queries.listPendingServerRequestsForHooks, "listPendingServerRequestsForHooks"),
       listThreadReasoningForHooks: requireHostDefinition(rawSlice.queries.listThreadReasoningForHooks, "listThreadReasoningForHooks"),
     },

@@ -669,8 +669,8 @@ export declare const components: {
         "internal",
         { actor: { userId?: string }; runtimeThreadIds: Array<string> },
         Array<{
+          conversationId: string;
           runtimeThreadId: string;
-          threadHandle: string;
           threadId: string;
         }>
       >;
@@ -705,13 +705,13 @@ export declare const components: {
         "internal",
         {
           actor: { userId?: string };
+          conversationId?: string;
           cwd?: string;
           localThreadId?: string;
           model?: string;
           personality?: string;
-          threadHandle?: string;
         },
-        { created: boolean; threadHandle?: string; threadId: string }
+        { conversationId?: string; created: boolean; threadId: string }
       >;
       resolveByConversationId: FunctionReference<
         "query",

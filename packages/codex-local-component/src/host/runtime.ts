@@ -162,7 +162,7 @@ function normalizeTurnError(
 
 function buildThreadImportDeltas(args: {
   snapshotId: string;
-  threadHandle: string;
+  conversationId: string;
   turns: SnapshotTurn[];
 }): IngestDelta[] {
   const deltas: IngestDelta[] = [];
@@ -180,9 +180,9 @@ function buildThreadImportDeltas(args: {
     cursor = cursorEnd;
     deltas.push({
       type: "stream_delta",
-      eventId: `thread-import:${args.snapshotId}:${args.threadHandle}:${deltaArgs.turnId}:${cursorEnd}`,
+      eventId: `thread-import:${args.snapshotId}:${args.conversationId}:${deltaArgs.turnId}:${cursorEnd}`,
       turnId: deltaArgs.turnId,
-      streamId: `thread-import:${args.snapshotId}:${args.threadHandle}:${deltaArgs.turnId}:${deltaArgs.streamSuffix}`,
+      streamId: `thread-import:${args.snapshotId}:${args.conversationId}:${deltaArgs.turnId}:${deltaArgs.streamSuffix}`,
       kind: deltaArgs.kind,
       payloadJson: JSON.stringify({
         method: deltaArgs.kind,
@@ -191,7 +191,7 @@ function buildThreadImportDeltas(args: {
       cursorStart,
       cursorEnd,
       createdAt: createdAtMs++,
-      threadId: args.threadHandle,
+      threadId: args.conversationId,
     });
   };
 
@@ -213,7 +213,7 @@ function buildThreadImportDeltas(args: {
       streamSuffix: "turn",
       kind: "turn/started",
       payload: {
-        threadId: args.threadHandle,
+        threadId: args.conversationId,
         turn: turnPayload,
       },
     });
@@ -229,7 +229,7 @@ function buildThreadImportDeltas(args: {
         streamSuffix: `item:${itemId}`,
         kind: "item/completed",
         payload: {
-          threadId: args.threadHandle,
+          threadId: args.conversationId,
           turnId,
           item,
         },
@@ -241,7 +241,7 @@ function buildThreadImportDeltas(args: {
         streamSuffix: "terminal",
         kind: "turn/completed",
         payload: {
-          threadId: args.threadHandle,
+          threadId: args.conversationId,
           turn: turnPayload,
         },
       });
@@ -316,7 +316,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.actor = connectArgs.actor ?? defaultActor ?? { userId: "anonymous" };
     const rawSessionId = connectArgs.sessionId ?? defaultSessionId;
     core.sessionId = rawSessionId ? `${rawSessionId}-${randomSessionId()}` : randomSessionId();
-    core.threadHandle = null;
+    core.conversationId = null;
     core.startupModel = connectArgs.model;
     core.startupCwd = connectArgs.cwd;
     core.ingestFlushMs = connectArgs.ingestFlushMs ?? 250;
@@ -359,8 +359,8 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   const openThread: CodexHostRuntime["openThread"] = async (openArgs: HostRuntimeOpenThreadArgs) => {
     if (!core.bridge) throw new Error("Bridge not started. Connect runtime first.");
     const strategy = openArgs.strategy;
-    if ((strategy === "resume" || strategy === "fork") && !openArgs.threadHandle) {
-      throw new Error(`threadHandle is required when strategy="${strategy}".`);
+    if ((strategy === "resume" || strategy === "fork") && !openArgs.conversationId) {
+      throw new Error(`conversationId is required when strategy="${strategy}".`);
     }
     if (strategy === "start") {
       const response = await core.sendRequest(buildThreadStartRequest(core.requestIdFn(), {
@@ -372,7 +372,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     }
     if (strategy === "resume") {
       const response = await core.sendRequest(buildThreadResumeRequest(core.requestIdFn(), {
-        threadId: openArgs.threadHandle!,
+        threadId: openArgs.conversationId!,
         ...(openArgs.model ? { model: openArgs.model } : {}),
         ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
         ...(openArgs.dynamicTools ? { dynamicTools: openArgs.dynamicTools } : {}),
@@ -380,7 +380,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       return response;
     }
     return core.sendRequest(buildThreadForkRequest(core.requestIdFn(), {
-      threadId: openArgs.threadHandle!,
+      threadId: openArgs.conversationId!,
       ...(openArgs.model ? { model: openArgs.model } : {}),
       ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
     }));
@@ -486,7 +486,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     if (runtimeThreadHandle.length === 0) {
       throw new Error("[E_IMPORT_THREAD_HANDLE_REQUIRED] runtimeThreadHandle is required.");
     }
-    const targetThreadHandle = importArgs.threadHandle?.trim() || runtimeThreadHandle;
+    const targetConversationId = importArgs.conversationId?.trim() || runtimeThreadHandle;
     const snapshotResponse = await readThread(runtimeThreadHandle, true);
     const turns = extractThreadReadTurns(snapshotResponse);
     const importedTurnCount = turns.filter((turn) => typeof turn.id === "string").length;
@@ -500,7 +500,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
     const ensuredThread = await persistence.ensureThread({
       actor: core.actor,
-      threadHandle: targetThreadHandle,
+      conversationId: targetConversationId,
       ...(core.startupModel ? { model: core.startupModel } : {}),
       ...(core.startupCwd ? { cwd: core.startupCwd } : {}),
     });
@@ -517,12 +517,12 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
     const deltas = buildThreadImportDeltas({
       snapshotId: randomSessionId(),
-      threadHandle: targetThreadHandle,
+      conversationId: targetConversationId,
       turns,
     });
     if (deltas.length === 0) {
       return {
-        threadHandle: targetThreadHandle,
+        conversationId: targetConversationId,
         threadId: ensuredThread.threadId,
         importedTurnCount,
         importedMessageCount,
@@ -542,7 +542,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       throw new Error(`[E_IMPORT_THREAD_INGEST_FAILED] ${reason.length > 0 ? reason : "Ingest rejected."}`);
     }
     return {
-      threadHandle: targetThreadHandle,
+      conversationId: targetConversationId,
       threadId: ensuredThread.threadId,
       importedTurnCount,
       importedMessageCount,

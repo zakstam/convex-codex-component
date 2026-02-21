@@ -130,7 +130,7 @@ Use these failure classes to unblock quickly:
 
 - `E_DOCTOR_MISSING_FILE`: required canonical docs are missing. Fix by restoring expected docs.
 - `E_DOCTOR_CANONICAL_MARKER`: canonical marker drift in package docs. Fix by restoring canonical marker text.
-- `E_DOCTOR_LEGACY_ALIAS`: legacy alias symbols leaked into public docs. Fix by replacing with canonical `threadHandle` naming.
+- `E_DOCTOR_LEGACY_ALIAS`: legacy alias symbols leaked into public docs. Fix by replacing with canonical `conversationId` naming.
 - `E_DOCTOR_README_ROUTING`: example README not routing to package `LLMS.md`. Fix by restoring canonical routing section.
 
 ## Data Lifecycle APIs
@@ -186,7 +186,7 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `interruptConversation`
 - `getConversationSummary`
 
-`importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `threadHandle` for UI reads.
+`importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
 
 ## Runtime Bridge Lifecycle APIs
 
@@ -204,7 +204,7 @@ The lifecycle state includes:
 - `updatedAtMs`
 - `persistedThreadId` (Convex-owned thread identity)
 - `runtimeThreadId` (Codex runtime thread identity)
-- `threadHandle`
+- `conversationId`
 - `turnId`
 
 Tauri bridge client send behavior:
@@ -221,16 +221,16 @@ Tauri bridge client send behavior:
 
 Runtime-owned host definitions now expose explicit sync mapping mutations:
 
-- `syncOpenThreadBinding`
-- `markThreadSyncProgress`
-- `forceRebindThreadSync`
+- `syncOpenConversationBinding`
+- `markConversationSyncProgress`
+- `forceRebindConversationSync`
 
 These endpoints are used to persist local-runtime-to-Convex thread mapping state (`syncState`, `lastSyncedCursor`, session watermark, and rebind metadata) during `openThread` and ingest progression.
 
 Runtime-owned host definitions also expose conversation-scoped archive mutations:
 
-- `archiveConversationThread` (`actor`, `conversationId`, `threadId`)
-- `unarchiveConversationThread` (`actor`, `conversationId`, `threadId`)
+- `archiveConversation` (`actor`, `conversationId`)
+- `unarchiveConversation` (`actor`, `conversationId`)
 
 Conversation-scoped thread listing query:
 

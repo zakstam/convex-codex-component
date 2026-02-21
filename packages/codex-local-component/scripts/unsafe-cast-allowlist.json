@@ -7,7 +7,7 @@
       "riskLevel": "default",
       "id": "UC_0da31f32eecc",
       "file": "src/app-server/client.ts",
-      "line": 59,
+      "line": 66,
       "col": 32,
       "snippet": "return { method, id, params } as RequestFor<M>;",
       "context": "prev:): RequestFor<M> { | next:}"
@@ -62,7 +62,7 @@
       "riskLevel": "default",
       "id": "UC_fa6f7396a01b",
       "file": "src/component/threads.ts",
-      "line": 833,
+      "line": 1096,
       "col": 55,
       "snippet": "const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };",
       "context": "prev:try { | next:if (typeof parsed.streamId === \"string\") {"
@@ -84,7 +84,7 @@
       "riskLevel": "default",
       "id": "UC_0f895b0bee65",
       "file": "src/host/convexPersistence.ts",
-      "line": 138,
+      "line": 137,
       "col": 9,
       "snippet": "}) as { threadId: string; created?: boolean; rebindApplied?: boolean };",
       "context": "prev:...(args.cwd ? { cwd: args.cwd } : {}), | next:if (opened.rebindApplied) {"
@@ -93,12 +93,12 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_e4893cba309f",
+      "id": "UC_80693f8e1b19",
       "file": "src/host/convexPersistence.ts",
-      "line": 162,
+      "line": 161,
       "col": 9,
       "snippet": "}) as { sessionId: string; threadId: string; status: \"created\" | \"active\" };",
-      "context": "prev:lastEventCursor: args.lastEventCursor, | next:await client.mutation(chatApi.markThreadSyncProgress, {"
+      "context": "prev:lastEventCursor: args.lastEventCursor, | next:await client.mutation(chatApi.markConversationSyncProgress, {"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -106,7 +106,7 @@
       "riskLevel": "default",
       "id": "UC_0511ea914b28",
       "file": "src/host/convexPersistence.ts",
-      "line": 176,
+      "line": 175,
       "col": 113,
       "snippet": "client.mutation(chatApi.ingestBatch, toIngestPayload(args.actor, sessionId, args.threadId, args.deltas)) as Promise<{",
       "context": "prev:const runIngest = async (sessionId: string) => | next:status: \"ok\" | \"partial\" | \"session_recovered\" | \"rejected\";"
@@ -117,7 +117,7 @@
       "riskLevel": "default",
       "id": "UC_1753ffab9faf",
       "file": "src/host/convexPersistence.ts",
-      "line": 254,
+      "line": 253,
       "col": 35,
       "snippet": "const requestedAt = (request as { createdAt?: number }).createdAt;",
       "context": "prev:upsertPendingServerRequest: async ({ actor, request }) => { | next:await client.mutation(chatApi.upsertPendingServerRequest, {"
@@ -128,7 +128,7 @@
       "riskLevel": "default",
       "id": "UC_18ee97430829",
       "file": "src/host/convexPersistence.ts",
-      "line": 285,
+      "line": 284,
       "col": 9,
       "snippet": "}) as Promise<HostRuntimePersistence[\"listPendingServerRequests\"] extends (...a: never[]) => infer R ? Awaited<R> : never>;",
       "context": "prev:limit: 100, | next:},"
@@ -139,7 +139,7 @@
       "riskLevel": "default",
       "id": "UC_7ed65984e01e",
       "file": "src/host/convexPersistence.ts",
-      "line": 296,
+      "line": 295,
       "col": 9,
       "snippet": "}) as { dispatchId: string; turnId: string; accepted: true };",
       "context": "prev:...(args.dispatchId ? { dispatchId: args.dispatchId } : {}), | next:const claimToken = randomSessionId();"
@@ -148,12 +148,12 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_4690fb6c9e57",
+      "id": "UC_f1eabe056b3d",
       "file": "src/host/convexPresetMutations.ts",
       "line": 7,
       "col": 16,
       "snippet": "ensureSession as ensureSessionHandler,",
-      "context": "prev:import { | next:ensureThreadByResolve,"
+      "context": "prev:import { | next:ensureConversationBindingByResolve,"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -161,7 +161,7 @@
       "riskLevel": "default",
       "id": "UC_b7420ba788a0",
       "file": "src/host/convexSlice.ts",
-      "line": 426,
+      "line": 453,
       "col": 23,
       "snippet": "const record = value as Record<string, unknown>;",
       "context": "prev:} | next:return ("
@@ -172,7 +172,7 @@
       "riskLevel": "default",
       "id": "UC_04b0b409a61b",
       "file": "src/host/convexSlice.ts",
-      "line": 438,
+      "line": 465,
       "col": 29,
       "snippet": "const streamStats = (state as { streamStats?: unknown[] | null }).streamStats;",
       "context": "prev:} | next:return Array.isArray(streamStats) ? streamStats : null;"
@@ -183,7 +183,7 @@
       "riskLevel": "default",
       "id": "UC_2a0ca5600914",
       "file": "src/host/convexSlice.ts",
-      "line": 446,
+      "line": 473,
       "col": 32,
       "snippet": "const recentMessages = (state as { recentMessages?: DurableHistoryMessage[] | null }).recentMessages;",
       "context": "prev:} | next:return Array.isArray(recentMessages) ? recentMessages : null;"
@@ -194,7 +194,7 @@
       "riskLevel": "default",
       "id": "UC_b5a6cdf49ed2",
       "file": "src/host/convexSlice.ts",
-      "line": 454,
+      "line": 481,
       "col": 28,
       "snippet": "const allStreams = (state as { allStreams?: Array<{ streamId: string }> | null }).allStreams;",
       "context": "prev:} | next:return Array.isArray(allStreams) ? allStreams : null;"
@@ -205,7 +205,7 @@
       "riskLevel": "default",
       "id": "UC_3184e187a07a",
       "file": "src/host/runtime.ts",
-      "line": 94,
+      "line": 280,
       "col": 59,
       "snippet": "const { ConvexHttpClient } = require(\"convex/browser\") as { ConvexHttpClient: new (url: string) => { mutation: (...a: unknown[]) => Promise<unknown>; query: (...a: unknown[]) => Promise<unknown> } };",
       "context": "prev:if (isConvexIntegrated(args)) { | next:const client = new ConvexHttpClient(args.convexUrl);"
@@ -293,7 +293,7 @@
       "riskLevel": "default",
       "id": "UC_42e66eb43cb2",
       "file": "src/host/tauri.ts",
-      "line": 234,
+      "line": 244,
       "col": 34,
       "snippet": "const parsed = JSON.parse(line) as { type?: unknown; payload?: unknown };",
       "context": "prev:export function parseHelperCommand(line: string): HelperCommand { | next:if (typeof parsed !== \"object\" || parsed === null) {"
@@ -304,7 +304,7 @@
       "riskLevel": "default",
       "id": "UC_55861db3a58c",
       "file": "src/host/tauri.ts",
-      "line": 238,
+      "line": 248,
       "col": 82,
       "snippet": "if (typeof parsed.type !== \"string\" || !HELPER_COMMAND_TYPE_SET.has(parsed.type as HelperCommandType)) {",
       "context": "prev:} | next:throw new Error(`Unsupported helper command: ${String(parsed.type)}`);"
@@ -315,7 +315,7 @@
       "riskLevel": "default",
       "id": "UC_2a9aaee19f0f",
       "file": "src/host/tauri.ts",
-      "line": 242,
+      "line": 252,
       "col": 33,
       "snippet": "return { type: parsed.type } as HelperCommand;",
       "context": "prev:if (parsed.type === \"interrupt\" || parsed.type === \"stop\" || parsed.type === \"status\") { | next:}"
@@ -326,7 +326,7 @@
       "riskLevel": "default",
       "id": "UC_5cf7482544d0",
       "file": "src/host/tauri.ts",
-      "line": 247,
+      "line": 257,
       "col": 16,
       "snippet": "return parsed as HelperCommand;",
       "context": "prev:} | next:}"

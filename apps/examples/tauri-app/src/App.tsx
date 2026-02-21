@@ -81,7 +81,7 @@ type PendingServerRequest = {
 type RuntimeThreadBindingRow = {
   runtimeThreadId: string;
   threadId: string;
-  threadHandle: string;
+  conversationId: string;
 };
 
 type LocalRuntimeThreadRow = {
@@ -147,7 +147,7 @@ function AppContent({
     persistedThreadId: null,
     runtimeThreadId: null,
     localThreadId: null,
-    threadHandle: null,
+    conversationId: null,
     turnId: null,
     disabledTools: [],
     lastError: null,
@@ -223,9 +223,9 @@ function AppContent({
     respondChatgptAuthTokensRefresh: tauriBridge.account.respondChatgptAuthTokensRefresh,
   });
 
-  // Ref breaks the circular dependency: startBridgeWithSelection → selectedThreadHandle
+  // Ref breaks the circular dependency: startBridgeWithSelection → selectedConversationId
   // → conversation.threads → useCodex() → composer.onSend → startBridgeWithSelection
-  const selectedThreadHandleRef = useRef("");
+  const selectedConversationIdRef = useRef("");
   const waitForBridgeReady = useCallback(async () => {
     const timeoutMs = 12_000;
     const pollMs = 200;
@@ -272,11 +272,11 @@ function AppContent({
 
   const startBridgeWithSelection = useCallback(
     async (startSource: "manual_start_button" | "composer_retry" | "auto_startup") => {
-      const resumeThreadHandle = selectedThreadHandleRef.current.trim() || undefined;
+      const resumeThreadHandle = selectedConversationIdRef.current.trim() || undefined;
       await connectBridge(startSource);
       await tauriBridge.lifecycle.openThread(
         resumeThreadHandle
-          ? { strategy: "resume", threadHandle: resumeThreadHandle }
+          ? { strategy: "resume", conversationId: resumeThreadHandle }
           : { strategy: "start" },
       );
       const readyState = await waitForBridgeReady();
@@ -296,13 +296,13 @@ function AppContent({
 
   const conversation = useCodex({
     actorReady,
-    ...(selectedLocalThreadHandle ? { threadHandle: selectedLocalThreadHandle } : {}),
+    ...(selectedLocalThreadHandle ? { conversationId: selectedLocalThreadHandle } : {}),
     threads: {
       list: {
         query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
         args: actorReady ? { actor, limit: 25 } : "skip",
       },
-      initialSelectedThreadHandle: "",
+      initialSelectedConversationId: "",
     },
     composer: {
       onSend: async (text: string) => {
@@ -334,7 +334,7 @@ function AppContent({
 
   // ── Derive picker values from composed threads ──────────────────────
   const threads = conversation.threads!;
-  const selectedThreadHandle = selectedLocalThreadHandle ?? (threads.selectedThreadHandle ?? "");
+  const selectedConversationId = selectedLocalThreadHandle ?? (threads.selectedConversationId ?? "");
   const localRuntimeThreadIds = useMemo(
     () => localRuntimeThreads.map((thread) => thread.threadId),
     [localRuntimeThreads],
@@ -363,9 +363,9 @@ function AppContent({
   const pickerThreads = useMemo(
     () => {
       const persisted =
-        (((threads.threads as { threads?: Array<{ threadHandle: string; status: string; updatedAt?: number; preview: string }> } | undefined)?.threads ?? [])
+        (((threads.threads as { threads?: Array<{ conversationId: string; status: string; updatedAt?: number; preview: string }> } | undefined)?.threads ?? [])
           .map((thread) => ({
-            threadHandle: thread.threadHandle,
+            threadHandle: thread.conversationId,
             status: thread.status,
             preview: thread.preview,
             scope: "persisted" as const,
@@ -400,7 +400,7 @@ function AppContent({
     }
     return set;
   }, [pickerThreads]);
-  selectedThreadHandleRef.current = selectedThreadHandle;
+  selectedConversationIdRef.current = selectedConversationId;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -432,7 +432,7 @@ function AppContent({
     });
   }, [actorReady, addToast, bridge.running, connectBridge]);
 
-  const cleanupThreadHandle = conversation.effectiveThreadHandle || null;
+  const cleanupThreadHandle = conversation.effectiveConversationId || null;
 
   const messages = conversation.messages;
   const displayMessages = useMemo(
@@ -484,9 +484,9 @@ function AppContent({
   }, [tokenUsage]);
 
   const pendingServerRequestsRaw = useQuery(
-    requireDefined(chatApi.listPendingServerRequestsByThreadHandle, "api.chat.listPendingServerRequestsByThreadHandle"),
-    conversation.effectiveThreadHandle && actorReady
-      ? { actor, threadHandle: conversation.effectiveThreadHandle, limit: 50 }
+    requireDefined(chatApi.listPendingServerRequestsByConversation, "api.chat.listPendingServerRequestsByConversation"),
+    conversation.effectiveConversationId && actorReady
+      ? { actor, conversationId: conversation.effectiveConversationId, limit: 50 }
       : "skip",
   );
   const pendingServerRequests = (pendingServerRequestsRaw ?? []) as PendingServerRequest[];
@@ -513,8 +513,8 @@ function AppContent({
     activeDeletionJobId && actorReady ? { actor, deletionJobId: activeDeletionJobId } : "skip",
   );
   const cleanupThreadState = useCodexThreadState(
-    requireDefined(chatApi.threadSnapshotByThreadHandle, "api.chat.threadSnapshotByThreadHandle"),
-    cleanupThreadHandle && actorReady ? { actor, threadHandle: cleanupThreadHandle } : "skip",
+    requireDefined(chatApi.threadSnapshotByConversation, "api.chat.threadSnapshotByConversation"),
+    cleanupThreadHandle && actorReady ? { actor, conversationId: cleanupThreadHandle } : "skip",
   );
   const cleanupThreadStateTurns = cleanupThreadState?.threadStatus === "ok" ? cleanupThreadState.data.turns : null;
   const latestThreadTurnId = useMemo(() => {
@@ -638,14 +638,14 @@ function AppContent({
       const isLocalUnsyncedSelection =
         normalizedThreadHandle.length > 0 && localUnsyncedHandleSet.has(normalizedThreadHandle);
       setSelectedLocalThreadHandle(isLocalUnsyncedSelection ? normalizedThreadHandle : null);
-      threads.setSelectedThreadHandle(normalizedThreadHandle);
+      threads.setSelectedConversationId(normalizedThreadHandle);
       if (!bridge.running) {
         return;
       }
       try {
         await tauriBridge.lifecycle.openThread(
           normalizedThreadHandle.length > 0
-            ? { strategy: "resume", threadHandle: normalizedThreadHandle }
+            ? { strategy: "resume", conversationId: normalizedThreadHandle }
             : { strategy: "start" },
         );
         const state = await tauriBridge.lifecycle.getState();
@@ -878,7 +878,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteThreadMutation({
         actor,
-        threadHandle: cleanupThreadHandle,
+        conversationId: cleanupThreadHandle,
         reason: "tauri-ui-delete-thread",
         delayMs: DEFAULT_DELETE_DELAY_MS,
       });
@@ -904,7 +904,7 @@ function AppContent({
     try {
       const result = await scheduleDeleteTurnMutation({
         actor,
-        threadHandle: cleanupThreadHandle,
+        conversationId: cleanupThreadHandle,
         turnId: latestThreadTurnId,
         reason: "tauri-ui-delete-turn",
         delayMs: DEFAULT_DELETE_DELAY_MS,
@@ -1001,7 +1001,7 @@ function AppContent({
         />
         <ThreadPicker
           threads={pickerThreads}
-          selected={selectedThreadHandle}
+          selected={selectedConversationId}
           onSelect={(nextThreadId) => void onSelectThreadHandle(nextThreadId)}
           disabled={!actorReady}
           showLocalThreads={showLocalThreads}

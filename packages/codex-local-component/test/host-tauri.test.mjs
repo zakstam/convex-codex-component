@@ -195,7 +195,7 @@ test("createTauriBridgeClient exposes lifecycle subscription when configured", a
   const client = createTauriBridgeClient(
     async (command) => {
       if (command === "get_bridge_state") {
-        return { running: false, localThreadId: null, threadHandle: null, turnId: null, lastError: null };
+        return { running: false, localThreadId: null, conversationId: null, turnId: null, lastError: null };
       }
       return { ok: true };
     },
@@ -217,13 +217,13 @@ test("createTauriBridgeClient exposes lifecycle subscription when configured", a
   listeners[0]({
     running: true,
     localThreadId: "thread-1",
-    threadHandle: "thread-1",
+    conversationId: "thread-1",
     turnId: "turn-1",
     lastError: null,
   });
   assert.equal(states.length, 1);
   assert.equal(states[0].running, true);
-  assert.equal(states[0].threadHandle, "thread-1");
+  assert.equal(states[0].conversationId, "thread-1");
 
   off();
   assert.equal(unsubscribed.length, 1);

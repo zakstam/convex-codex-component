@@ -46,14 +46,14 @@ export function parseCommand(input: string, defaults: {
     const strategy = rest[0] === "resume" || rest[0] === "fork" || rest[0] === "start"
       ? rest[0]
       : "start";
-    const threadHandle = strategy !== "start" ? rest[1] : undefined;
+    const conversationId = strategy !== "start" ? rest[1] : undefined;
     return {
       kind: "helper",
       helper: {
         type: "open_thread",
         payload: {
           strategy,
-          ...(threadHandle ? { threadHandle } : {}),
+          ...(conversationId ? { conversationId } : {}),
         },
       },
     };

@@ -41,7 +41,7 @@ type HelperEvent =
         persistedThreadId: string | null;
         runtimeThreadId: string | null;
         localThreadId: string | null;
-        threadHandle: string | null;
+        conversationId: string | null;
         turnId: string | null;
         lastErrorCode: string | null;
         lastError: string | null;
@@ -221,7 +221,7 @@ function emitState(next?: Partial<typeof bridgeState>): void {
       persistedThreadId: bridgeState.persistedThreadId,
       runtimeThreadId: bridgeState.runtimeThreadId,
       localThreadId: bridgeState.localThreadId,
-      threadHandle: bridgeState.runtimeThreadId,
+      conversationId: bridgeState.runtimeThreadId,
       turnId: bridgeState.turnId,
       lastErrorCode: bridgeState.lastErrorCode,
       lastError: bridgeState.lastError,
@@ -390,7 +390,7 @@ async function resolveOpenTarget(
   return result;
 }
 
-async function runtimeHasLocalRolloutThreadHandle(threadHandle: string): Promise<boolean> {
+async function runtimeHasLocalRolloutThreadHandle(conversationId: string): Promise<boolean> {
   if (!runtime) {
     return false;
   }
@@ -402,7 +402,7 @@ async function runtimeHasLocalRolloutThreadHandle(threadHandle: string): Promise
     const data = Array.isArray(result?.data) ? result.data : [];
     for (const row of data) {
       const thread = asRecord(row);
-      if (typeof thread?.id === "string" && thread.id === threadHandle) {
+      if (typeof thread?.id === "string" && thread.id === conversationId) {
         return true;
       }
     }
@@ -442,7 +442,7 @@ async function setDisabledTools(tools: string[]): Promise<string[]> {
     if (restartThreadHandle) {
       await openThread({
         strategy: "resume",
-        threadHandle: restartThreadHandle,
+        conversationId: restartThreadHandle,
       });
     }
   }
@@ -755,9 +755,9 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
   let runtimeThreadIdForOpen: string | undefined;
   let resolvedUnboundTarget: { conversationHandle: string; runtimeThreadHandle: string } | null = null;
   if (payload.strategy === "resume" || payload.strategy === "fork") {
-    const conversationHandle = payload.threadHandle?.trim();
+    const conversationHandle = payload.conversationId?.trim();
     if (!conversationHandle) {
-      throw new Error(`threadHandle is required when strategy="${payload.strategy}".`);
+      throw new Error(`conversationId is required when strategy="${payload.strategy}".`);
     }
     const resolved = await resolveOpenTarget(
       convex,
@@ -788,10 +788,10 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
         throw new Error("[E_OPEN_TARGET_RESOLUTION_FAILED] Could not determine runtime thread handle during rebind.");
       }
       await convex.mutation(
-        requireDefined(chatApi.syncOpenThreadBinding, "api.chat.syncOpenThreadBinding"),
+        requireDefined(chatApi.syncOpenConversationBinding, "api.chat.syncOpenConversationBinding"),
         {
           actor,
-          threadHandle: resolved.conversationHandle,
+          conversationId: resolved.conversationHandle,
           runtimeThreadId: startedRuntimeThreadHandle,
           ...(payload.model ? { model: payload.model } : {}),
           ...(payload.cwd ? { cwd: payload.cwd } : {}),
@@ -818,7 +818,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
   }
   await runtime.openThread({
     strategy: payload.strategy,
-    ...(runtimeThreadIdForOpen ? { threadHandle: runtimeThreadIdForOpen } : {}),
+    ...(runtimeThreadIdForOpen ? { conversationId: runtimeThreadIdForOpen } : {}),
     ...(payload.model ? { model: payload.model } : {}),
     ...(payload.cwd ? { cwd: payload.cwd } : {}),
     ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),
@@ -827,13 +827,13 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
     try {
       await runtime.importLocalThreadToPersistence({
         runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
-        threadHandle: resolvedUnboundTarget.conversationHandle,
+        conversationId: resolvedUnboundTarget.conversationHandle,
       });
       emit({
         type: "global",
         payload: {
           kind: "bridge/local_thread_synced",
-          threadHandle: resolvedUnboundTarget.conversationHandle,
+          conversationId: resolvedUnboundTarget.conversationHandle,
           runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
         },
       });
@@ -843,7 +843,7 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
         type: "global",
         payload: {
           kind: "bridge/local_thread_sync_failed",
-          threadHandle: resolvedUnboundTarget.conversationHandle,
+          conversationId: resolvedUnboundTarget.conversationHandle,
           runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
           message,
         },

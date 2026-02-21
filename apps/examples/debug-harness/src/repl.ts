@@ -4,7 +4,7 @@ export function printHelp(): void {
   console.log([
     "Commands:",
     "  start",
-    "  open-thread [start|resume|fork] [threadHandle]",
+    "  open-thread [start|resume|fork] [conversationId]",
     "  send <text>",
     "  interrupt",
     "  status",

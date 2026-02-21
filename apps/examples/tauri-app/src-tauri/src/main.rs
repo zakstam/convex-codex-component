@@ -137,7 +137,7 @@ async fn open_thread(
             "open_thread",
             json!({
                 "strategy": config.strategy,
-                "threadHandle": config.thread_id,
+                "conversationId": config.thread_id,
                 "model": config.model,
                 "cwd": config.cwd,
                 "dynamicTools": config.dynamic_tools,

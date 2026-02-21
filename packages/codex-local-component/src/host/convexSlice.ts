@@ -335,7 +335,7 @@ type EnsureThreadCreateArgs = {
 
 type EnsureThreadResolveArgs = {
   actor: HostActorContext;
-  threadHandle: string;
+  conversationId: string;
   model?: string;
   cwd?: string;
 };
@@ -542,7 +542,7 @@ export function computeDataHygiene(state: {
   };
 }
 
-export async function ensureThreadByCreate<
+export async function ensureConversationBindingByCreate<
   Component extends CodexThreadsCreateComponent,
 >(
   ctx: HostMutationRunner,
@@ -558,7 +558,7 @@ export async function ensureThreadByCreate<
   });
 }
 
-export async function ensureThreadByResolve<
+export async function ensureConversationBindingByResolve<
   Component extends CodexThreadsResolveComponent,
 >(
   ctx: HostMutationRunner,
@@ -567,14 +567,14 @@ export async function ensureThreadByResolve<
 ): Promise<FunctionReturnType<Component["threads"]["resolve"]>> {
   return ctx.runMutation(component.threads.resolve, {
     actor: args.actor,
-    threadHandle: args.threadHandle,
-    localThreadId: args.threadHandle,
+    conversationId: args.conversationId,
+    localThreadId: args.conversationId,
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
   });
 }
 
-export async function syncOpenThreadBindingForActor<
+export async function syncOpenConversationBindingForActor<
   Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
 >(
   ctx: HostMutationRunner,
@@ -591,7 +591,7 @@ export async function syncOpenThreadBindingForActor<
   if (!component.threads.syncOpenBinding) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
       actor: args.actor,
-      threadHandle: args.threadHandle,
+      conversationId: args.threadHandle,
       localThreadId: args.runtimeThreadId,
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
@@ -624,7 +624,7 @@ export async function syncOpenThreadBindingForActor<
   });
 }
 
-export async function markThreadSyncProgressForActor<
+export async function markConversationSyncProgressForActor<
   Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
 >(
   ctx: HostMutationRunner,
@@ -640,7 +640,7 @@ export async function markThreadSyncProgressForActor<
   if (!component.threads.markSyncProgress) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
       actor: args.actor,
-      threadHandle: args.threadHandle,
+      conversationId: args.threadHandle,
       ...(args.runtimeThreadId !== undefined ? { localThreadId: args.runtimeThreadId } : {}),
     });
     const threadIdValue = typeof resolved === "object" && resolved !== null
@@ -668,7 +668,7 @@ export async function markThreadSyncProgressForActor<
   });
 }
 
-export async function forceRebindThreadSyncForActor<
+export async function forceRebindConversationSyncForActor<
   Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
 >(
   ctx: HostMutationRunner,
@@ -684,7 +684,7 @@ export async function forceRebindThreadSyncForActor<
   if (!component.threads.forceRebindSync) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
       actor: args.actor,
-      threadHandle: args.threadHandle,
+      conversationId: args.threadHandle,
       localThreadId: args.runtimeThreadId,
     });
     const threadIdValue = typeof resolved === "object" && resolved !== null

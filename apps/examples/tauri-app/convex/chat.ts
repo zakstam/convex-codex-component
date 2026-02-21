@@ -6,12 +6,12 @@ export { getActorBindingForBootstrap, listThreadsForPicker, listRuntimeThreadBin
 
 const codex = defineCodexHostDefinitions({ components });
 
-export const syncOpenThreadBinding = mutation(codex.mutations.syncOpenThreadBinding);
-export const markThreadSyncProgress = mutation(codex.mutations.markThreadSyncProgress);
-export const forceRebindThreadSync = mutation(codex.mutations.forceRebindThreadSync);
-export const ensureThread = mutation(codex.mutations.ensureThread);
-export const archiveConversationThread = mutation(codex.mutations.archiveConversationThread);
-export const unarchiveConversationThread = mutation(codex.mutations.unarchiveConversationThread);
+export const syncOpenConversationBinding = mutation(codex.mutations.syncOpenConversationBinding);
+export const markConversationSyncProgress = mutation(codex.mutations.markConversationSyncProgress);
+export const forceRebindConversationSync = mutation(codex.mutations.forceRebindConversationSync);
+export const ensureConversationBinding = mutation(codex.mutations.ensureConversationBinding);
+export const archiveConversation = mutation(codex.mutations.archiveConversation);
+export const unarchiveConversation = mutation(codex.mutations.unarchiveConversation);
 export const ensureSession = mutation(codex.mutations.ensureSession);
 export const ingestEvent = mutation(codex.mutations.ingestEvent);
 export const ingestBatch = mutation(codex.mutations.ingestBatch);
@@ -39,13 +39,13 @@ export const persistenceStats = query(codex.queries.persistenceStats);
 export const durableHistoryStats = query(codex.queries.durableHistoryStats);
 export const dataHygiene = query(codex.queries.dataHygiene);
 export const listThreadMessages = query(codex.queries.listThreadMessages);
-export const threadSnapshotByThreadHandle = query(codex.queries.threadSnapshotByThreadHandle);
-export const listThreadMessagesByThreadHandle = query(codex.queries.listThreadMessagesByThreadHandle);
+export const threadSnapshotByConversation = query(codex.queries.threadSnapshotByConversation);
+export const listThreadMessagesByConversation = query(codex.queries.listThreadMessagesByConversation);
 export const listTurnMessages = query(codex.queries.listTurnMessages);
-export const listTurnMessagesByThreadHandle = query(codex.queries.listTurnMessagesByThreadHandle);
+export const listTurnMessagesByConversation = query(codex.queries.listTurnMessagesByConversation);
 export const listPendingApprovals = query(codex.queries.listPendingApprovals);
 export const listTokenUsage = query(codex.queries.listTokenUsage);
-export const listTokenUsageByThreadHandle = query(codex.queries.listTokenUsageByThreadHandle);
-export const listPendingServerRequestsByThreadHandle = query(codex.queries.listPendingServerRequestsByThreadHandle);
+export const listTokenUsageByConversation = query(codex.queries.listTokenUsageByConversation);
+export const listPendingServerRequestsByConversation = query(codex.queries.listPendingServerRequestsByConversation);
 export const listPendingServerRequests = query(codex.queries.listPendingServerRequests);
 export const listThreadReasoning = query(codex.queries.listThreadReasoning);

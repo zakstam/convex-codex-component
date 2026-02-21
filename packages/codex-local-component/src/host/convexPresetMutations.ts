@@ -5,18 +5,18 @@
 import { v } from "convex/values";
 import {
   ensureSession as ensureSessionHandler,
-  ensureThreadByResolve,
-  forceRebindThreadSyncForActor,
+  ensureConversationBindingByResolve,
+  forceRebindConversationSyncForActor,
   ingestBatchMixed,
   ingestBatchStreamOnly,
   ingestEventMixed,
   ingestEventStreamOnly,
   interruptTurnForHooksForActor,
-  markThreadSyncProgressForActor,
-  resolveThreadByThreadHandleForActor,
+  markConversationSyncProgressForActor,
+  resolveThreadByConversationIdForActor,
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
-  syncOpenThreadBindingForActor,
+  syncOpenConversationBindingForActor,
   upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
   vHostActorContext,
@@ -54,23 +54,23 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
   const { component, serverActor, ingestMode, features } = opts;
   const resolveThreadIdOrThrow = async (
     ctx: HostQueryRunner,
-    args: { actor: HostActorContext; threadHandle: string },
+    args: { actor: HostActorContext; conversationId: string },
   ): Promise<string> => {
-    const mapping = await resolveThreadByThreadHandleForActor(
+    const mapping = await resolveThreadByConversationIdForActor(
       ctx,
       component,
       withServerActor(args, resolveServerActor(args, serverActor)),
     );
     if (!mapping) {
-      throw new Error(`[E_THREAD_NOT_FOUND] Thread not found: ${args.threadHandle}`);
+      throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
     }
     return mapping.threadId;
   };
 
-  const ensureThread = {
+  const ensureConversationBinding = {
     args: {
       actor: vHostActorContext,
-      threadHandle: v.string(),
+      conversationId: v.string(),
       model: v.optional(v.string()),
       cwd: v.optional(v.string()),
     },
@@ -80,17 +80,25 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     }),
     handler: async (ctx: HostMutationRunner & HostQueryRunner, args: {
       actor: HostActorContext;
-      threadHandle: string;
+      conversationId: string;
       model?: string;
       cwd?: string;
     }) => {
-      if (!args.threadHandle) {
-        throw new Error("ensureThread requires threadHandle.");
+      if (!args.conversationId) {
+        throw new Error("ensureConversationBinding requires conversationId.");
       }
-      const resolved = await ensureThreadByResolve(
+      const resolved = await ensureConversationBindingByResolve(
         ctx,
         component,
-        withServerActor(args, resolveServerActor(args, serverActor)),
+        withServerActor(
+          {
+            actor: args.actor,
+            conversationId: args.conversationId,
+            ...(args.model !== undefined ? { model: args.model } : {}),
+            ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+          },
+          resolveServerActor(args, serverActor),
+        ),
       );
       return {
         threadId: resolved.threadId,
@@ -226,10 +234,10 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
   };
 
   return {
-    syncOpenThreadBinding: {
+    syncOpenConversationBinding: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         runtimeThreadId: v.optional(v.string()),
         model: v.optional(v.string()),
         cwd: v.optional(v.string()),
@@ -239,33 +247,41 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         threadId: v.string(),
         created: v.boolean(),
         rebindApplied: v.boolean(),
-        threadHandle: v.string(),
+        conversationId: v.string(),
         runtimeThreadId: v.string(),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadHandle: string; runtimeThreadId?: string; model?: string; cwd?: string; sessionId?: string },
-      ) => syncOpenThreadBindingForActor(
-        ctx,
-        component,
-        withServerActor(
-          {
-            actor: args.actor,
-            threadHandle: args.threadHandle,
-            runtimeThreadId: args.runtimeThreadId ?? args.threadHandle,
-            ...(args.model !== undefined ? { model: args.model } : {}),
-            ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
-            ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
-          },
-          resolveServerActor(args, serverActor),
-        ),
-      ),
+        args: { actor: HostActorContext; conversationId: string; runtimeThreadId?: string; model?: string; cwd?: string; sessionId?: string },
+      ) => {
+        const result = await syncOpenConversationBindingForActor(
+          ctx,
+          component,
+          withServerActor(
+            {
+              actor: args.actor,
+              threadHandle: args.conversationId,
+              runtimeThreadId: args.runtimeThreadId ?? args.conversationId,
+              ...(args.model !== undefined ? { model: args.model } : {}),
+              ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
+              ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
+            },
+            resolveServerActor(args, serverActor),
+          ),
+        );
+        const resultWithoutThreadHandle: Omit<typeof result, "threadHandle"> & { threadHandle?: string } = { ...result };
+        delete resultWithoutThreadHandle.threadHandle;
+        return {
+          ...resultWithoutThreadHandle,
+          conversationId: args.conversationId,
+        };
+      },
     },
-    markThreadSyncProgress: {
+    markConversationSyncProgress: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         runtimeThreadId: v.optional(v.string()),
         sessionId: v.optional(v.string()),
         cursor: v.number(),
@@ -274,58 +290,78 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       },
       returns: v.object({
         threadId: v.string(),
-        threadHandle: v.string(),
+        conversationId: v.string(),
         runtimeThreadId: v.optional(v.string()),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
         lastSyncedCursor: v.number(),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadHandle: string; runtimeThreadId?: string; sessionId?: string; cursor: number; syncState?: "unsynced" | "syncing" | "synced" | "drifted"; errorCode?: string },
-      ) => markThreadSyncProgressForActor(
-        ctx,
-        component,
-        withServerActor(args, resolveServerActor(args, serverActor)),
-      ),
+        args: { actor: HostActorContext; conversationId: string; runtimeThreadId?: string; sessionId?: string; cursor: number; syncState?: "unsynced" | "syncing" | "synced" | "drifted"; errorCode?: string },
+      ) => {
+        const result = await markConversationSyncProgressForActor(
+          ctx,
+          component,
+          withServerActor(
+            { ...args, threadHandle: args.conversationId },
+            resolveServerActor(args, serverActor),
+          ),
+        );
+        const resultWithoutThreadHandle: Omit<typeof result, "threadHandle"> & { threadHandle?: string } = { ...result };
+        delete resultWithoutThreadHandle.threadHandle;
+        return {
+          ...resultWithoutThreadHandle,
+          conversationId: args.conversationId,
+        };
+      },
     },
-    forceRebindThreadSync: {
+    forceRebindConversationSync: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         runtimeThreadId: v.string(),
         reasonCode: v.optional(v.string()),
       },
       returns: v.object({
         threadId: v.string(),
-        threadHandle: v.string(),
+        conversationId: v.string(),
         runtimeThreadId: v.string(),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
         rebindCount: v.number(),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadHandle: string; runtimeThreadId: string; reasonCode?: string },
-      ) => forceRebindThreadSyncForActor(
-        ctx,
-        component,
-        withServerActor(args, resolveServerActor(args, serverActor)),
-      ),
+        args: { actor: HostActorContext; conversationId: string; runtimeThreadId: string; reasonCode?: string },
+      ) => {
+        const result = await forceRebindConversationSyncForActor(
+          ctx,
+          component,
+          withServerActor(
+            { ...args, threadHandle: args.conversationId },
+            resolveServerActor(args, serverActor),
+          ),
+        );
+        const resultWithoutThreadHandle: Omit<typeof result, "threadHandle"> & { threadHandle?: string } = { ...result };
+        delete resultWithoutThreadHandle.threadHandle;
+        return {
+          ...resultWithoutThreadHandle,
+          conversationId: args.conversationId,
+        };
+      },
     },
-    ensureThread,
-    archiveConversationThread: {
+    ensureConversationBinding,
+    archiveConversation: {
       args: {
         actor: vHostActorContext,
         conversationId: v.string(),
-        threadId: v.string(),
       },
       returns: v.object({
         conversationId: v.string(),
-        threadId: v.string(),
         status: v.literal("archived"),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; conversationId: string; threadId: string },
+        args: { actor: HostActorContext; conversationId: string },
       ) => {
         const actor = resolveServerActor(args, serverActor);
         if (!component.threads.resolveByConversationId) {
@@ -341,30 +377,25 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         if (!mapping) {
           throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
         }
-        if (mapping.threadId !== args.threadId) {
-          throw new Error(`[E_CONVERSATION_THREAD_MISMATCH] Conversation ${args.conversationId} is not bound to thread ${args.threadId}`);
-        }
         return ctx.runMutation(component.threads.archiveByConversation, {
           actor,
           conversationId: args.conversationId,
-          threadId: args.threadId,
+          threadId: mapping.threadId,
         });
       },
     },
-    unarchiveConversationThread: {
+    unarchiveConversation: {
       args: {
         actor: vHostActorContext,
         conversationId: v.string(),
-        threadId: v.string(),
       },
       returns: v.object({
         conversationId: v.string(),
-        threadId: v.string(),
         status: v.literal("active"),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; conversationId: string; threadId: string },
+        args: { actor: HostActorContext; conversationId: string },
       ) => {
         const actor = resolveServerActor(args, serverActor);
         if (!component.threads.resolveByConversationId) {
@@ -380,13 +411,10 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         if (!mapping) {
           throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
         }
-        if (mapping.threadId !== args.threadId) {
-          throw new Error(`[E_CONVERSATION_THREAD_MISMATCH] Conversation ${args.conversationId} is not bound to thread ${args.threadId}`);
-        }
         return ctx.runMutation(component.threads.unarchiveByConversation, {
           actor,
           conversationId: args.conversationId,
-          threadId: args.threadId,
+          threadId: mapping.threadId,
         });
       },
     },
@@ -408,14 +436,14 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     deleteThread: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
       },
       returns: v.object({ deletionJobId: v.string() }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadHandle: string; reason?: string; batchSize?: number },
+        args: { actor: HostActorContext; conversationId: string; reason?: string; batchSize?: number },
       ) => {
         const actor = resolveServerActor(args, serverActor);
         const threadId = await resolveThreadIdOrThrow(ctx, args);
@@ -430,7 +458,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     scheduleDeleteThread: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
         delayMs: v.optional(v.number()),
@@ -441,7 +469,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; threadHandle: string; reason?: string; batchSize?: number; delayMs?: number },
+        args: { actor: HostActorContext; conversationId: string; reason?: string; batchSize?: number; delayMs?: number },
       ) => {
         const actor = resolveServerActor(args, serverActor);
         const threadId = await resolveThreadIdOrThrow(ctx, args);
@@ -457,7 +485,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     deleteTurn: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         turnId: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
@@ -467,7 +495,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: {
           actor: HostActorContext;
-          threadHandle: string;
+          conversationId: string;
           turnId: string;
           reason?: string;
           batchSize?: number;
@@ -487,7 +515,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     scheduleDeleteTurn: {
       args: {
         actor: vHostActorContext,
-        threadHandle: v.string(),
+        conversationId: v.string(),
         turnId: v.string(),
         reason: v.optional(v.string()),
         batchSize: v.optional(v.number()),
@@ -501,7 +529,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: {
           actor: HostActorContext;
-          threadHandle: string;
+          conversationId: string;
           turnId: string;
           reason?: string;
           batchSize?: number;
@@ -608,7 +636,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           respondApprovalForHooks: {
             args: {
               actor: vHostActorContext,
-              threadHandle: v.string(),
+              conversationId: v.string(),
               turnId: v.string(),
               itemId: v.string(),
               decision: v.union(v.literal("accepted"), v.literal("declined")),
@@ -616,7 +644,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
             returns: v.null(),
             handler: async (
               ctx: HostMutationRunner & HostQueryRunner,
-              args: { actor: HostActorContext; threadHandle: string; turnId: string; itemId: string; decision: "accepted" | "declined" },
+              args: { actor: HostActorContext; conversationId: string; turnId: string; itemId: string; decision: "accepted" | "declined" },
             ) => {
               const threadId = await resolveThreadIdOrThrow(ctx, args);
               return respondApprovalForHooksForActor(
@@ -704,14 +732,14 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           interruptTurnForHooks: {
             args: {
               actor: vHostActorContext,
-              threadHandle: v.string(),
+              conversationId: v.string(),
               turnId: v.string(),
               reason: v.optional(v.string()),
             },
             returns: v.null(),
             handler: async (
               ctx: HostMutationRunner & HostQueryRunner,
-              args: { actor: HostActorContext; threadHandle: string; turnId: string; reason?: string },
+              args: { actor: HostActorContext; conversationId: string; turnId: string; reason?: string },
             ) => {
               const threadId = await resolveThreadIdOrThrow(ctx, args);
               return interruptTurnForHooksForActor(

@@ -11,7 +11,7 @@ function createComponentRefs() {
       serverRequests: {},
       sync: {},
       threads: {
-        resolveByThreadHandle: Symbol("threads.resolveByThreadHandle"),
+        resolveByConversationId: Symbol("threads.resolveByConversationId"),
       },
       turns: {},
     },
@@ -23,7 +23,7 @@ test("defineCodexHostDefinitions returns deterministic runtime-owned surface wit
     components: createComponentRefs(),
   });
 
-  assert.ok(defs.mutations.ensureThread);
+  assert.ok(defs.mutations.ensureConversationBinding);
   assert.ok(defs.mutations.ensureSession);
   assert.ok(defs.mutations.ingestEvent);
   assert.ok(defs.mutations.scheduleDeleteThread);
@@ -100,48 +100,48 @@ test("resolves codexLocal refs when components uses proxy-like property traps", 
   });
 
   await assert.doesNotReject(
-    defs.mutations.ensureThread.handler(
+    defs.mutations.ensureConversationBinding.handler(
       {
         runMutation: async (ref, args) => {
           assert.equal(ref, componentRefs.threads.resolve);
-          assert.equal(args.threadHandle, "thread-1");
+          assert.equal(args.conversationId, "thread-1");
           return { threadId: "thread-1", created: false };
         },
       },
       {
         actor: {},
-        threadHandle: "thread-1",
+        conversationId: "thread-1",
       },
     ),
   );
 });
 
-test("ensureThread strips internal mapping fields from resolve result", async () => {
+test("ensureConversationBinding strips internal mapping fields from resolve result", async () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),
   });
 
-  const result = await defs.mutations.ensureThread.handler(
+  const result = await defs.mutations.ensureConversationBinding.handler(
     {
       runMutation: async () => ({
         threadId: "thread-1",
         created: true,
-        threadHandle: "runtime-handle-1",
+        conversationId: "runtime-handle-1",
       }),
     },
-    { actor: {}, threadHandle: "thread-1" },
+    { actor: {}, conversationId: "thread-1" },
   );
 
   assert.deepEqual(result, { threadId: "thread-1", created: true });
 });
 
-test("ensureThread rejects threadId-only input", async () => {
+test("ensureConversationBinding rejects threadId-only input", async () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),
   });
 
   await assert.rejects(
-    defs.mutations.ensureThread.handler(
+    defs.mutations.ensureConversationBinding.handler(
       {
         runMutation: async () => {
           throw new Error("should not run");
@@ -149,7 +149,7 @@ test("ensureThread rejects threadId-only input", async () => {
       },
       { actor: {}, threadId: "legacy-id" },
     ),
-    /ensureThread requires threadHandle/,
+    /ensureConversationBinding requires conversationId/,
   );
 });
 
@@ -164,7 +164,7 @@ test("threadSnapshot safe query returns missing_thread status for missing thread
         throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
       },
     },
-    { actor: {}, threadHandle: "missing-thread" },
+    { actor: {}, conversationId: "missing-thread" },
   );
 
   assert.equal(result.threadStatus, "missing_thread");
@@ -182,16 +182,16 @@ test("threadSnapshot returns forbidden state safely", async () => {
         throw new Error("[E_AUTH_THREAD_FORBIDDEN] authorization failed");
       },
     },
-    { actor: {}, threadHandle: "missing-thread" },
+    { actor: {}, conversationId: "missing-thread" },
   );
 
   assert.equal(result.threadStatus, "forbidden_thread");
   assert.equal(result.code, "E_AUTH_THREAD_FORBIDDEN");
 });
 
-test("threadSnapshotByThreadHandle resolves legacy id to runtime thread and returns safe snapshot", async () => {
+test("threadSnapshotByConversation resolves legacy id to runtime thread and returns safe snapshot", async () => {
   const baseComponents = createComponentRefs();
-  const resolveByThreadHandleRef = Symbol("threads.resolveByThreadHandle");
+  const resolveByConversationIdRef = Symbol("threads.resolveByConversationId");
   const getStateRef = Symbol("threads.getState");
   const defs = host.defineCodexHostDefinitions({
     components: {
@@ -199,19 +199,19 @@ test("threadSnapshotByThreadHandle resolves legacy id to runtime thread and retu
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: resolveByThreadHandleRef,
+          resolveByConversationId: resolveByConversationIdRef,
           getState: getStateRef,
         },
       },
     },
   });
   const calls = [];
-  const result = await defs.queries.threadSnapshotByThreadHandle.handler(
+  const result = await defs.queries.threadSnapshotByConversation.handler(
     {
       runQuery: async (ref, args) => {
-        if (ref === resolveByThreadHandleRef) {
+        if (ref === resolveByConversationIdRef) {
           calls.push({ ref, args });
-          return { threadId: "runtime-thread-1", threadHandle: "legacy-thread-1" };
+          return { threadId: "runtime-thread-1", conversationId: "legacy-thread-1" };
         }
         if (ref === getStateRef) {
           calls.push({ ref, args });
@@ -220,45 +220,45 @@ test("threadSnapshotByThreadHandle resolves legacy id to runtime thread and retu
         throw new Error("Unexpected query call");
       },
     },
-    { actor: { userId: "actor-user" }, threadHandle: "legacy-thread-1" },
+    { actor: { userId: "actor-user" }, conversationId: "legacy-thread-1" },
   );
   assert.equal(calls.length, 2);
-  assert.equal(calls[0].ref, resolveByThreadHandleRef);
-  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, threadHandle: "legacy-thread-1" });
+  assert.equal(calls[0].ref, resolveByConversationIdRef);
+  assert.deepEqual(calls[0].args, { actor: { userId: "actor-user" }, conversationId: "legacy-thread-1" });
   assert.equal(calls[1].ref, getStateRef);
   assert.deepEqual(calls[1].args, { actor: { userId: "actor-user" }, threadId: "runtime-thread-1" });
   assert.equal(result.threadStatus, "ok");
   assert.deepEqual(result.data, { threadName: "legacy-name", threadId: "runtime-thread-1" });
 });
 
-test("threadSnapshotByThreadHandle returns missing thread fallback for unmapped legacy id", async () => {
+test("threadSnapshotByConversation returns missing thread fallback for unmapped legacy id", async () => {
   const baseComponents = createComponentRefs();
-  const resolveByThreadHandleRef = Symbol("threads.resolveByThreadHandle");
+  const resolveByConversationIdRef = Symbol("threads.resolveByConversationId");
   const defs = host.defineCodexHostDefinitions({
     components: {
       codexLocal: {
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: resolveByThreadHandleRef,
+          resolveByConversationId: resolveByConversationIdRef,
         },
       },
     },
   });
-  const result = await defs.queries.threadSnapshotByThreadHandle.handler(
+  const result = await defs.queries.threadSnapshotByConversation.handler(
     {
       runQuery: async () => null,
     },
-    { actor: {}, threadHandle: "legacy-thread-2" },
+    { actor: {}, conversationId: "legacy-thread-2" },
   );
   assert.equal(result.threadStatus, "missing_thread");
   assert.equal(result.code, "E_THREAD_NOT_FOUND");
   assert.equal(result.message, "[E_THREAD_NOT_FOUND] Thread not found: legacy-thread-2");
 });
 
-test("listThreadMessagesByThreadHandle resolves thread and returns safe payload", async () => {
+test("listThreadMessagesByConversation resolves thread and returns safe payload", async () => {
   const baseComponents = createComponentRefs();
-  const threadMessagesByThreadHandleRef = Symbol("threads.resolveByThreadHandle");
+  const threadMessagesByThreadHandleRef = Symbol("threads.resolveByConversationId");
   const threadMessagesRef = Symbol("messages.listByThread");
   const defs = host.defineCodexHostDefinitions({
     components: {
@@ -266,7 +266,7 @@ test("listThreadMessagesByThreadHandle resolves thread and returns safe payload"
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: threadMessagesByThreadHandleRef,
+          resolveByConversationId: threadMessagesByThreadHandleRef,
         },
         messages: {
           ...baseComponents.codexLocal.messages,
@@ -275,12 +275,12 @@ test("listThreadMessagesByThreadHandle resolves thread and returns safe payload"
       },
     },
   });
-  const result = await defs.queries.listThreadMessagesByThreadHandle.handler(
+  const result = await defs.queries.listThreadMessagesByConversation.handler(
     {
       runQuery: async (ref, args) => {
         if (ref === threadMessagesByThreadHandleRef) {
-          assert.deepEqual(args, { actor: {}, threadHandle: "legacy-thread-3" });
-          return { threadId: "thread-3", threadHandle: "legacy-thread-3" };
+          assert.deepEqual(args, { actor: {}, conversationId: "legacy-thread-3" });
+          return { threadId: "thread-3", conversationId: "legacy-thread-3" };
         }
         if (ref === threadMessagesRef) {
           assert.deepEqual(args, {
@@ -293,31 +293,31 @@ test("listThreadMessagesByThreadHandle resolves thread and returns safe payload"
         throw new Error("Unexpected query call");
       },
     },
-    { actor: {}, threadHandle: "legacy-thread-3", paginationOpts: { cursor: null, numItems: 10 } },
+    { actor: {}, conversationId: "legacy-thread-3", paginationOpts: { cursor: null, numItems: 10 } },
   );
   assert.equal(result.threadStatus, "ok");
   assert.equal(result.page.length, 1);
 });
 
-test("listThreadMessagesByThreadHandle returns missing-thread fallback payload", async () => {
+test("listThreadMessagesByConversation returns missing-thread fallback payload", async () => {
   const baseComponents = createComponentRefs();
-  const threadMessagesByThreadHandleRef = Symbol("threads.resolveByThreadHandle");
+  const threadMessagesByThreadHandleRef = Symbol("threads.resolveByConversationId");
   const defs = host.defineCodexHostDefinitions({
     components: {
       codexLocal: {
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: threadMessagesByThreadHandleRef,
+          resolveByConversationId: threadMessagesByThreadHandleRef,
         },
       },
     },
   });
-  const result = await defs.queries.listThreadMessagesByThreadHandle.handler(
+  const result = await defs.queries.listThreadMessagesByConversation.handler(
     {
       runQuery: async () => null,
     },
-    { actor: {}, threadHandle: "legacy-thread-4", paginationOpts: { cursor: null, numItems: 10 } },
+    { actor: {}, conversationId: "legacy-thread-4", paginationOpts: { cursor: null, numItems: 10 } },
   );
   assert.equal(result.threadStatus, "missing_thread");
   assert.equal(result.code, "E_THREAD_NOT_FOUND");
@@ -326,9 +326,9 @@ test("listThreadMessagesByThreadHandle returns missing-thread fallback payload",
   assert.deepEqual(result.page, []);
 });
 
-test("listTurnMessagesByThreadHandle resolves thread and returns safe payload", async () => {
+test("listTurnMessagesByConversation resolves thread and returns safe payload", async () => {
   const baseComponents = createComponentRefs();
-  const threadTurnRef = Symbol("threads.resolveByThreadHandle");
+  const threadTurnRef = Symbol("threads.resolveByConversationId");
   const turnMessagesRef = Symbol("messages.getByTurn");
   const defs = host.defineCodexHostDefinitions({
     components: {
@@ -336,7 +336,7 @@ test("listTurnMessagesByThreadHandle resolves thread and returns safe payload", 
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: threadTurnRef,
+          resolveByConversationId: threadTurnRef,
         },
         messages: {
           ...baseComponents.codexLocal.messages,
@@ -345,12 +345,12 @@ test("listTurnMessagesByThreadHandle resolves thread and returns safe payload", 
       },
     },
   });
-  const result = await defs.queries.listTurnMessagesByThreadHandle.handler(
+  const result = await defs.queries.listTurnMessagesByConversation.handler(
     {
       runQuery: async (ref, args) => {
         if (ref === threadTurnRef) {
-          assert.deepEqual(args, { actor: {}, threadHandle: "legacy-thread-5" });
-          return { threadId: "thread-5", threadHandle: "legacy-thread-5" };
+          assert.deepEqual(args, { actor: {}, conversationId: "legacy-thread-5" });
+          return { threadId: "thread-5", conversationId: "legacy-thread-5" };
         }
         if (ref === turnMessagesRef) {
           assert.deepEqual(args, { actor: {}, threadId: "thread-5", turnId: "turn-5" });
@@ -359,40 +359,40 @@ test("listTurnMessagesByThreadHandle resolves thread and returns safe payload", 
         throw new Error("Unexpected query call");
       },
     },
-    { actor: {}, threadHandle: "legacy-thread-5", turnId: "turn-5" },
+    { actor: {}, conversationId: "legacy-thread-5", turnId: "turn-5" },
   );
   assert.equal(result.threadStatus, "ok");
   assert.deepEqual(result.data, [{ messageId: "m-1" }]);
 });
 
-test("listTurnMessagesByThreadHandle returns missing-thread fallback payload", async () => {
+test("listTurnMessagesByConversation returns missing-thread fallback payload", async () => {
   const baseComponents = createComponentRefs();
-  const threadTurnRef = Symbol("threads.resolveByThreadHandle");
+  const threadTurnRef = Symbol("threads.resolveByConversationId");
   const defs = host.defineCodexHostDefinitions({
     components: {
       codexLocal: {
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: threadTurnRef,
+          resolveByConversationId: threadTurnRef,
         },
       },
     },
   });
-  const result = await defs.queries.listTurnMessagesByThreadHandle.handler(
+  const result = await defs.queries.listTurnMessagesByConversation.handler(
     {
       runQuery: async () => null,
     },
-    { actor: {}, threadHandle: "legacy-thread-6", turnId: "turn-6" },
+    { actor: {}, conversationId: "legacy-thread-6", turnId: "turn-6" },
   );
   assert.equal(result.threadStatus, "missing_thread");
   assert.equal(result.code, "E_THREAD_NOT_FOUND");
   assert.deepEqual(result.data, []);
 });
 
-test("listPendingServerRequestsByThreadHandle resolves thread and returns request payload", async () => {
+test("listPendingServerRequestsByConversation resolves thread and returns request payload", async () => {
   const baseComponents = createComponentRefs();
-  const threadServerRequestRef = Symbol("threads.resolveByThreadHandle");
+  const threadServerRequestRef = Symbol("threads.resolveByConversationId");
   const pendingServerRequestRef = Symbol("serverRequests.listPending");
   const defs = host.defineCodexHostDefinitions({
     components: {
@@ -400,7 +400,7 @@ test("listPendingServerRequestsByThreadHandle resolves thread and returns reques
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: threadServerRequestRef,
+          resolveByConversationId: threadServerRequestRef,
         },
         serverRequests: {
           ...baseComponents.codexLocal.serverRequests,
@@ -409,12 +409,12 @@ test("listPendingServerRequestsByThreadHandle resolves thread and returns reques
       },
     },
   });
-  const result = await defs.queries.listPendingServerRequestsByThreadHandle.handler(
+  const result = await defs.queries.listPendingServerRequestsByConversation.handler(
     {
       runQuery: async (ref, args) => {
         if (ref === threadServerRequestRef) {
-          assert.deepEqual(args, { actor: {}, threadHandle: "legacy-thread-7" });
-          return { threadId: "thread-7", threadHandle: "legacy-thread-7" };
+          assert.deepEqual(args, { actor: {}, conversationId: "legacy-thread-7" });
+          return { threadId: "thread-7", conversationId: "legacy-thread-7" };
         }
         if (ref === pendingServerRequestRef) {
           assert.deepEqual(args, { actor: {}, threadId: "thread-7", limit: 2 });
@@ -423,30 +423,30 @@ test("listPendingServerRequestsByThreadHandle resolves thread and returns reques
         throw new Error("Unexpected query call");
       },
     },
-    { actor: {}, threadHandle: "legacy-thread-7", limit: 2 },
+    { actor: {}, conversationId: "legacy-thread-7", limit: 2 },
   );
   assert.deepEqual(result, [{ requestId: 1 }]);
 });
 
-test("listPendingServerRequestsByThreadHandle returns [] when legacy thread is unmapped", async () => {
+test("listPendingServerRequestsByConversation returns [] when legacy thread is unmapped", async () => {
   const baseComponents = createComponentRefs();
-  const threadServerRequestRef = Symbol("threads.resolveByThreadHandle");
+  const threadServerRequestRef = Symbol("threads.resolveByConversationId");
   const defs = host.defineCodexHostDefinitions({
     components: {
       codexLocal: {
         ...baseComponents.codexLocal,
         threads: {
           ...baseComponents.codexLocal.threads,
-          resolveByThreadHandle: threadServerRequestRef,
+          resolveByConversationId: threadServerRequestRef,
         },
       },
     },
   });
-  const result = await defs.queries.listPendingServerRequestsByThreadHandle.handler(
+  const result = await defs.queries.listPendingServerRequestsByConversation.handler(
     {
       runQuery: async () => null,
     },
-    { actor: {}, threadHandle: "legacy-thread-8" },
+    { actor: {}, conversationId: "legacy-thread-8" },
   );
   assert.deepEqual(result, []);
 });
@@ -462,7 +462,7 @@ test("listPendingServerRequests returns [] when thread is missing", async () => 
         throw new Error("[E_THREAD_NOT_FOUND] Thread not found: missing-thread");
       },
     },
-    { actor: {}, threadHandle: "missing-thread" },
+    { actor: {}, conversationId: "missing-thread" },
   );
 
   assert.deepEqual(result, []);
@@ -481,7 +481,7 @@ test("listPendingServerRequests rethrows non-thread-read errors", async () => {
             throw new Error("database write failed");
           },
         },
-        { actor: {}, threadHandle: "thread-1" },
+        { actor: {}, conversationId: "thread-1" },
       ),
     /database write failed/,
   );
@@ -503,7 +503,7 @@ test("renderCodexHostShim emits deterministic explicit endpoint exports", () => 
   });
 
   assert.ok(source.includes("defineCodexHostDefinitions"));
-  assert.ok(source.includes("export const ensureThread = mutation(codex.mutations.ensureThread);"));
+  assert.ok(source.includes("export const ensureConversationBinding = mutation(codex.mutations.ensureConversationBinding);"));
   assert.ok(source.includes("export const listThreadReasoning = query(codex.queries.listThreadReasoning);"));
   assert.ok(source.includes("export { getActorBindingForBootstrap, listThreadsForPicker } from \"./chat.extensions\";"));
 });

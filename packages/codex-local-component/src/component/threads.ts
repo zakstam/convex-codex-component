@@ -86,7 +86,7 @@ export const create = mutation({
 export const resolve = mutation({
   args: {
     actor: vActorContext,
-    threadHandle: v.optional(v.string()),
+    conversationId: v.optional(v.string()),
     model: v.optional(v.string()),
     cwd: v.optional(v.string()),
     personality: v.optional(v.string()),
@@ -94,21 +94,21 @@ export const resolve = mutation({
   },
   returns: v.object({
     threadId: v.string(),
-    threadHandle: v.optional(v.string()),
+    conversationId: v.optional(v.string()),
     created: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const ts = now();
-    const threadHandle = args.threadHandle;
+    const conversationId = args.conversationId;
 
-    if (threadHandle !== undefined) {
+    if (conversationId !== undefined) {
       const binding = await ctx.db
         .query("codex_thread_bindings")
-        .withIndex("userScope_userId_threadHandle", (q) =>
+        .withIndex("userScope_userId_conversationId", (q) =>
           q
             .eq("userScope", userScopeFromActor(args.actor))
             .eq("userId", args.actor.userId)
-            .eq("threadHandle", threadHandle),
+            .eq("conversationId", conversationId),
         )
         .first();
 
@@ -123,9 +123,9 @@ export const resolve = mutation({
         });
 
         await ctx.db.patch(binding._id, {
-          conversationId: binding.conversationId ?? threadHandle,
+          conversationId: binding.conversationId ?? conversationId,
           threadRef: touched.threadRef,
-          runtimeThreadId: threadHandle,
+          runtimeThreadId: conversationId,
           syncState: "syncing",
           lastErrorCode: undefined,
           lastErrorAt: undefined,
@@ -134,7 +134,7 @@ export const resolve = mutation({
 
         return {
           threadId: touched.threadId,
-          threadHandle,
+          conversationId,
           created: false,
         };
       }
@@ -150,13 +150,13 @@ export const resolve = mutation({
       ...(args.localThreadId !== undefined ? { localThreadId: args.localThreadId } : {}),
     });
 
-    if (threadHandle !== undefined) {
+    if (conversationId !== undefined) {
       await ctx.db.insert("codex_thread_bindings", {
         userScope: userScopeFromActor(args.actor),
         ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
-        conversationId: threadHandle,
-        threadHandle,
-        runtimeThreadId: threadHandle,
+        conversationId,
+        threadHandle: conversationId,
+        runtimeThreadId: conversationId,
         threadId: touched.threadId,
         threadRef: touched.threadRef,
         syncState: "syncing",
@@ -168,7 +168,7 @@ export const resolve = mutation({
 
     return {
       threadId: touched.threadId,
-      ...(threadHandle !== undefined ? { threadHandle } : {}),
+      ...(conversationId !== undefined ? { conversationId } : {}),
       created: true,
     };
   },
@@ -353,13 +353,13 @@ export const listRuntimeThreadBindings = query({
     v.object({
       runtimeThreadId: v.string(),
       threadId: v.string(),
-      threadHandle: v.string(),
+      conversationId: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
     const userScope = userScopeFromActor(args.actor);
     const seen = new Set<string>();
-    const out: Array<{ runtimeThreadId: string; threadId: string; threadHandle: string }> = [];
+    const out: Array<{ runtimeThreadId: string; threadId: string; conversationId: string }> = [];
 
     for (const runtimeThreadId of args.runtimeThreadIds) {
       if (seen.has(runtimeThreadId)) {
@@ -381,7 +381,7 @@ export const listRuntimeThreadBindings = query({
       out.push({
         runtimeThreadId,
         threadId: String(binding.threadId),
-        threadHandle: String(binding.threadHandle),
+        conversationId: String(binding.conversationId ?? binding.threadHandle),
       });
     }
 

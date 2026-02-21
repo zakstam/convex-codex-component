@@ -29,8 +29,8 @@ export function BridgeStatus({ bridge }: Props) {
           <span className="code">{bridge.turnId ?? "—"}</span>
         </div>
         <div className="bridge-field">
-          <span className="bridge-field-label">Thread Handle</span>
-          <span className="code">{bridge.threadHandle ?? "—"}</span>
+          <span className="bridge-field-label">Conversation ID</span>
+          <span className="code">{bridge.conversationId ?? "—"}</span>
         </div>
         <div className="bridge-field">
           <span className="bridge-field-label">Pending</span>

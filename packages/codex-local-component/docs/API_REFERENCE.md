@@ -68,11 +68,11 @@ Use this path in order:
 - Canonical bridge lifecycle contract is push + snapshot:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
-  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `persistedThreadId`, `runtimeThreadId`, `threadHandle`, and `turnId`.
+  - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `persistedThreadId`, `runtimeThreadId`, and `turnId`.
 - Runtime start contract is split:
   - `connect(...)`: transport/session only
-  - `openThread({ strategy, threadHandle? })`: explicit thread start/resume/fork
-  - `importLocalThreadToPersistence({ runtimeThreadHandle, threadHandle? })`: canonical single-call local-thread import into persistence
+  - `openThread({ strategy, conversationId? })`: explicit conversation start/resume/fork
+  - `importLocalThreadToPersistence({ runtimeThreadHandle, conversationId? })`: canonical single-call local-thread import into persistence
   - `sendTurn(...)` fails closed until `openThread(...)` succeeds.
 - Tauri send behavior:
   - canonical sequence: `bridge.lifecycle.start(...)` -> `bridge.lifecycle.openThread(...)` -> `bridge.turns.send(...)`.
@@ -83,19 +83,19 @@ Use this path in order:
     - `E_TAURI_SEND_AUTO_START_FAILED`
     - `E_TAURI_SEND_RETRY_EXHAUSTED`
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
-- Runtime-owned `ensureThread` is single-path and requires `threadHandle`.
+- Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
 - Thread-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread fallback to keep runtime request polling consumers on a stable array contract.
 - External identifier read aliases are also available:
-  - `threadSnapshotByThreadHandle`
-  - `listThreadMessagesByThreadHandle`
-  - `listTurnMessagesByThreadHandle`
-  - `listPendingServerRequestsByThreadHandle`
-  These map `threadHandle` server-side to runtime `threadId` and preserve existing fallback contracts.
+  - `threadSnapshotByConversation`
+  - `listThreadMessagesByConversation`
+  - `listTurnMessagesByConversation`
+  - `listPendingServerRequestsByConversation`
+  These map `conversationId` server-side to runtime `threadId` and preserve existing fallback contracts.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
-- Conversation-scoped archive endpoints: `archiveConversationThread`, `unarchiveConversationThread`, `listThreadsForConversation`.
-- Runtime-owned sync mapping endpoints: `syncOpenThreadBinding`, `markThreadSyncProgress`, `forceRebindThreadSync`.
+- Conversation-scoped archive endpoints: `archiveConversation`, `unarchiveConversation`, `listThreadsForConversation`.
+- Runtime-owned sync mapping endpoints: `syncOpenConversationBinding`, `markConversationSyncProgress`, `forceRebindConversationSync`.
 - Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.
-- Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`threadHandle`, `preview`, `status`, `updatedAt`).
+- Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`conversationId`, `preview`, `status`, `updatedAt`).
 - Runtime thread control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
 - Runtime conversation control helpers include: `newConversation`, `resumeConversation`, `listConversations`, `forkConversation`, `archiveConversation`, `interruptConversation`, `getConversationSummary`.
 - Tauri lifecycle helper includes `refreshLocalThreads()` to emit a fresh local-thread snapshot without reopening the runtime.

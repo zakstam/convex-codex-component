@@ -8,12 +8,14 @@
     "start": "pnpm run prepare:component && pnpm run prepare:helper && tsx src/index.ts",
     "dev": "pnpm run start",
     "repro:no-response": "pnpm run prepare:component && pnpm run prepare:helper && tsx src/index.ts --scenario src/scenarios/no-response-repro.json",
-    "typecheck": "pnpm run prepare:component && tsc --noEmit"
+    "typecheck": "pnpm run prepare:component && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:component && tsc --noEmit"
   },
   "dependencies": {
     "@zakstam/codex-local-component": "workspace:*"
   },
   "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260221.1",
     "@types/node": "^22.19.11",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3"

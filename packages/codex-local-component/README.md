@@ -18,6 +18,12 @@ pnpm add @zakstam/codex-local-component convex
 
 React hooks require `react` peer dependency (`^18` or `^19`).
 
+## Typecheck Default (TS7 Preview)
+
+- `pnpm run typecheck` now uses TypeScript 7 preview (`tsgo`) by default.
+- `pnpm run build` now uses TypeScript 7 preview (`tsgo`) for emit.
+- Use `pnpm run typecheck:tsc` to run the legacy TypeScript compiler (`tsc --noEmit`) when needed.
+
 ## Canonical Implementation
 
 Use one source of truth for implementation steps:
@@ -216,6 +222,7 @@ These endpoints are used to persist local-runtime-to-Convex thread mapping state
 - `pnpm --filter @zakstam/codex-local-component run codegen:component`
 - `pnpm --filter @zakstam/codex-local-component run lint`
 - `pnpm --filter @zakstam/codex-local-component run typecheck`
+- `pnpm --filter @zakstam/codex-local-component run typecheck:tsc`
 - `pnpm --filter @zakstam/codex-local-component run schema:check`
 - `pnpm --filter @zakstam/codex-local-component run check:unsafe-types`
 - `pnpm --filter @zakstam/codex-local-component run check:fallback-policy`

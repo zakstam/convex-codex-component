@@ -31,3 +31,4 @@ If this gate fails or cannot run due to missing prerequisites, treat verificatio
 - It auto-loads defaults from `apps/examples/tauri-app/.env.local` when present, with process env taking precedence.
 - It logs a timeline and classifies stalls like missing acks or missing `turn/*` events after `send_turn`.
 - Use `save-trace` in REPL to write a JSONL artifact under `./.tmp/traces/`.
+- Workspace `typecheck` defaults to TS7 preview (`tsgo`); use `typecheck:tsc` for legacy `tsc --noEmit`.

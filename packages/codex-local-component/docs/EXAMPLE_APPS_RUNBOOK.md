@@ -15,6 +15,11 @@ pnpm run component:build
 
 For app-level commands, change into the example app directory first.
 
+Typecheck default:
+
+- `pnpm run typecheck` uses TypeScript 7 preview (`tsgo`).
+- `pnpm run typecheck:tsc` runs legacy `tsc --noEmit`.
+
 ## Shared Validation Gates (Convex-Backed Examples)
 
 Run these in the target app directory for Convex-backed examples (Persistent CLI and Tauri):

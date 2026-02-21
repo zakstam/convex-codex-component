@@ -9,13 +9,15 @@
     "dev:convex": "pnpm run prepare:component && convex dev",
     "dev:convex:once": "pnpm run prepare:component && convex dev --once",
     "start": "pnpm run prepare:component && tsx src/index.ts",
-    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && tsc --noEmit"
+    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:component && pnpm run check:host-shim && tsc --noEmit"
   },
   "dependencies": {
     "@zakstam/codex-local-component": "workspace:*",
     "convex": "^1.32.0"
   },
   "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260221.1",
     "@types/node": "^22.13.1",
     "tsx": "^4.20.3",
     "typescript": "^5.7.3"

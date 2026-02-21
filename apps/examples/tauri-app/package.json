@@ -20,8 +20,10 @@
     "build": "pnpm run build:tauri",
     "build:tauri": "pnpm run prepare:component && pnpm run prepare:tauri-assets && pnpm run build:node && tauri build --bundles deb,rpm",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && pnpm run check:generated:convex && tsc --noEmit",
-    "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:host-shim && pnpm run check:generated:convex && tsc --noEmit",
+    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && pnpm run check:generated:convex && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:component && pnpm run check:host-shim && pnpm run check:generated:convex && tsc --noEmit",
+    "typecheck:convex": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:host-shim && pnpm run check:generated:convex && tsgo --noEmit",
+    "typecheck:convex:tsc": "pnpm run prepare:component && pnpm run dev:convex:once && pnpm run check:host-shim && pnpm run check:generated:convex && tsc --noEmit",
     "tauri:check": "pnpm run prepare:component && pnpm run prepare:tauri-assets && (cd src-tauri && cargo check)"
   },
   "dependencies": {
@@ -33,6 +35,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",
+    "@typescript/native-preview": "7.0.0-dev.20260221.1",
     "@types/node": "^22.19.11",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

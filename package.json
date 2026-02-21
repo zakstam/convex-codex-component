@@ -34,6 +34,7 @@
     "build": "pnpm -r --if-present run build",
     "build:tauri": "pnpm --filter codex-local-tauri-example run build:tauri",
     "typecheck": "pnpm -r --if-present run typecheck",
+    "typecheck:tsc": "pnpm -r --if-present run typecheck:tsc",
     "test": "pnpm -r --if-present run test",
     "ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-persistent-cli-example run typecheck"
   },

@@ -5,12 +5,14 @@
   "scripts": {
     "prepare:component": "pnpm --filter @zakstam/codex-local-component run build",
     "start": "pnpm run prepare:component && tsx src/index.ts",
-    "typecheck": "pnpm run prepare:component && tsc --noEmit"
+    "typecheck": "pnpm run prepare:component && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:component && tsc --noEmit"
   },
   "dependencies": {
     "@zakstam/codex-local-component": "workspace:*"
   },
   "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260221.1",
     "@types/node": "^22.13.1",
     "tsx": "^4.20.3",
     "typescript": "^5.7.3"

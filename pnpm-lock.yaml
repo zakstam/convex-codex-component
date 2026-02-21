@@ -30,6 +30,9 @@ importers:
       '@types/node':
         specifier: ^22.13.1
         version: 22.19.10
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260221.1
+        version: 7.0.0-dev.20260221.1
       tsx:
         specifier: ^4.20.3
         version: 4.21.0
@@ -46,6 +49,9 @@ importers:
       '@types/node':
         specifier: ^22.19.11
         version: 22.19.11
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260221.1
+        version: 7.0.0-dev.20260221.1
       tsx:
         specifier: ^4.20.5
         version: 4.21.0
@@ -65,6 +71,9 @@ importers:
       '@types/node':
         specifier: ^22.13.1
         version: 22.19.10
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260221.1
+        version: 7.0.0-dev.20260221.1
       tsx:
         specifier: ^4.20.3
         version: 4.21.0
@@ -102,6 +111,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260221.1
+        version: 7.0.0-dev.20260221.1
       '@vitejs/plugin-react':
         specifier: ^4.7.0
         version: 4.7.0(vite@6.4.1(@types/node@22.19.11)(tsx@4.21.0))
@@ -133,6 +145,9 @@ importers:
       '@types/react':
         specifier: ^18.3.18
         version: 18.3.28
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260221.1
+        version: 7.0.0-dev.20260221.1
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -1147,6 +1162,45 @@ packages:
   '@typescript-eslint/visitor-keys@8.55.0':
     resolution: {integrity: sha512-AxNRwEie8Nn4eFS1FzDMJWIISMGoXMb037sgCBJ3UR6o0fQTzr2tqN9WT+DkWJPhIdQCfV7T6D387566VtnCJA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-m3ttEpK+eXV7P06RVZZuSuUvNDj8psXODrMJRRQWpTNsk3qITbIdBSgOx2Q/M3tbQ9Mo2IBHt6jUjqOdRW9oZQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-BNaNe3rox2rpkh5sWcnZZob6sDA/at9KK55/WSRAH4W+9dFReOLFAR9YXhKxrLGZ1QpleuIBahKbV8o037S+pA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-Y4jsvwDq86LXq63UYRLqCAd+nD1r6C2NVaGNR39H+c6D8SgOBkPLJa8quTH0Ir8E5bsR8vTN4E6xHY9jD4J2PA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-+/uyIw7vg4FyAnNpsCJHmSOhMiR2m56lqaEo1J5pMAstJmfLTTKQdJ1muIWCDCqc24k2U30IStHOaCqUerp/nQ==}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-7agd5FtVLPp+gRMvsecSDmdQ/XM80q/uaQ6+Kahan9uNrCuPJIyMiAtJvCoYYgT1nXX2AjwZk39DH63fRaw/Mg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-lXbsy5vDzS//oE0evX+QwZBwpKselXTd8H18lT42CBQo2hL2r0+w9YBguaYXrnGkAoHjDXEfKA2xii8yVZKVUg==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-O02pfQlVlRTsBmp0hODs/bOHm2ic2kXZpIchBP5Qm0wKCp1Ytz/7i3SNT1gN47I+KC4axn/AHhFmkWQyIu9kRQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@typescript/native-preview@7.0.0-dev.20260221.1':
+    resolution: {integrity: sha512-tEUzcnj6pD+z1vANchRzhpPl+3RMD+xQRvIN//0+qjtP5zyYB5T+MIaAWycpKDwlHP9C13JnQgcgYnC+LlNkrg==}
+    hasBin: true
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -2791,6 +2845,37 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.55.0
       eslint-visitor-keys: 4.2.1
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260221.1':
+    optional: true
+
+  '@typescript/native-preview@7.0.0-dev.20260221.1':
+    optionalDependencies:
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260221.1
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260221.1
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260221.1
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260221.1
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260221.1
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260221.1
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260221.1
 
   '@vitejs/plugin-react@4.7.0(vite@6.4.1(@types/node@22.19.11)(tsx@4.21.0))':
     dependencies:

@@ -465,6 +465,16 @@ export declare const components: {
       >;
     };
     threads: {
+      archiveByConversation: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          conversationId: string;
+          threadId: string;
+        },
+        { conversationId: string; status: "archived"; threadId: string }
+      >;
       cancelScheduledDeletion: FunctionReference<
         "mutation",
         "internal",
@@ -614,6 +624,7 @@ export declare const components: {
         "internal",
         {
           actor: { userId?: string };
+          includeArchived?: boolean;
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -622,6 +633,25 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
+        },
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            preview: string;
+            status: "active" | "archived" | "failed";
+            threadHandle: string;
+            updatedAt: number;
+          }>;
+        }
+      >;
+      listByConversation: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { userId?: string };
+          conversationId: string;
+          includeArchived?: boolean;
         },
         {
           continueCursor: string;
@@ -683,11 +713,25 @@ export declare const components: {
         },
         { created: boolean; threadHandle?: string; threadId: string }
       >;
+      resolveByConversationId: FunctionReference<
+        "query",
+        "internal",
+        { actor: { userId?: string }; conversationId: string },
+        null | {
+          conversationId: string;
+          threadHandle: string;
+          threadId: string;
+        }
+      >;
       resolveByThreadHandle: FunctionReference<
         "query",
         "internal",
         { actor: { userId?: string }; threadHandle: string },
-        null | { threadHandle: string; threadId: string }
+        null | {
+          conversationId?: string;
+          threadHandle: string;
+          threadId: string;
+        }
       >;
       resume: FunctionReference<
         "mutation",
@@ -737,6 +781,16 @@ export declare const components: {
           threadHandle: string;
           threadId: string;
         }
+      >;
+      unarchiveByConversation: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          conversationId: string;
+          threadId: string;
+        },
+        { conversationId: string; status: "active"; threadId: string }
       >;
     };
     tokenUsage: {

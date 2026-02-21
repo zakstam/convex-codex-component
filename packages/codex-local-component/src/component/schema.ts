@@ -22,6 +22,7 @@ export default defineSchema({
   codex_thread_bindings: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
+    conversationId: v.optional(v.string()),
     threadHandle: v.string(),
     runtimeThreadId: v.optional(v.string()),
     threadId: v.string(),
@@ -42,6 +43,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("userScope_userId_conversationId", ["userScope", "userId", "conversationId"])
     .index("userScope_userId_threadHandle", ["userScope", "userId", "threadHandle"])
     .index("userScope_userId_runtimeThreadId", ["userScope", "userId", "runtimeThreadId"])
     .index("userScope_userId_threadId", ["userScope", "userId", "threadId"])

@@ -8,6 +8,8 @@ export const syncOpenThreadBinding = mutation(codex.mutations.syncOpenThreadBind
 export const markThreadSyncProgress = mutation(codex.mutations.markThreadSyncProgress);
 export const forceRebindThreadSync = mutation(codex.mutations.forceRebindThreadSync);
 export const ensureThread = mutation(codex.mutations.ensureThread);
+export const archiveConversationThread = mutation(codex.mutations.archiveConversationThread);
+export const unarchiveConversationThread = mutation(codex.mutations.unarchiveConversationThread);
 export const ensureSession = mutation(codex.mutations.ensureSession);
 export const ingestEvent = mutation(codex.mutations.ingestEvent);
 export const ingestBatch = mutation(codex.mutations.ingestBatch);
@@ -29,6 +31,7 @@ export const failAcceptedTurnSend = mutation(codex.mutations.failAcceptedTurnSen
 
 export const validateHostWiring = query(codex.queries.validateHostWiring);
 export const threadSnapshot = query(codex.queries.threadSnapshot);
+export const listThreadsForConversation = query(codex.queries.listThreadsForConversation);
 export const getDeletionStatus = query(codex.queries.getDeletionStatus);
 export const persistenceStats = query(codex.queries.persistenceStats);
 export const durableHistoryStats = query(codex.queries.durableHistoryStats);

@@ -7,6 +7,7 @@ import {
   buildAccountLoginStartRequest,
   buildAccountLogoutRequest,
   buildAccountRateLimitsReadRequest,
+  buildArchiveConversationRequest,
   buildAccountReadRequest,
   buildChatgptAuthTokensRefreshResponse,
   buildCommandExecutionApprovalResponse,
@@ -17,7 +18,13 @@ import {
   buildThreadForkRequest,
   buildThreadListRequest,
   buildThreadLoadedListRequest,
+  buildGetConversationSummaryRequest,
   buildThreadReadRequest,
+  buildInterruptConversationRequest,
+  buildListConversationsRequest,
+  buildNewConversationRequest,
+  buildResumeConversationRequest,
+  buildForkConversationRequest,
   buildThreadResumeRequest,
   buildThreadRollbackRequest,
   buildThreadSetNameRequest,
@@ -557,6 +564,20 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.sendRequest(buildThreadListRequest(core.requestIdFn(), params));
   const listLoadedThreads: CodexHostRuntime["listLoadedThreads"] = async (params) =>
     core.sendRequest(buildThreadLoadedListRequest(core.requestIdFn(), params));
+  const newConversation: CodexHostRuntime["newConversation"] = async (params) =>
+    core.sendRequest(buildNewConversationRequest(core.requestIdFn(), params));
+  const resumeConversation: CodexHostRuntime["resumeConversation"] = async (params) =>
+    core.sendRequest(buildResumeConversationRequest(core.requestIdFn(), params));
+  const listConversations: CodexHostRuntime["listConversations"] = async (params) =>
+    core.sendRequest(buildListConversationsRequest(core.requestIdFn(), params));
+  const forkConversation: CodexHostRuntime["forkConversation"] = async (params) =>
+    core.sendRequest(buildForkConversationRequest(core.requestIdFn(), params));
+  const archiveConversation: CodexHostRuntime["archiveConversation"] = async (params) =>
+    core.sendRequest(buildArchiveConversationRequest(core.requestIdFn(), params));
+  const interruptConversation: CodexHostRuntime["interruptConversation"] = async (params) =>
+    core.sendRequest(buildInterruptConversationRequest(core.requestIdFn(), params));
+  const getConversationSummary: CodexHostRuntime["getConversationSummary"] = async (params) =>
+    core.sendRequest(buildGetConversationSummaryRequest(core.requestIdFn(), params));
 
   const respondCommandApproval: CodexHostRuntime["respondCommandApproval"] = async (a) => {
     const p = core.getPendingServerRequest(a.requestId);
@@ -589,6 +610,8 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     resumeThread, forkThread, archiveThread, setThreadName, unarchiveThread, compactThread, rollbackThread,
     readThread, importLocalThreadToPersistence, readAccount, loginAccount, cancelAccountLogin, logoutAccount,
     readAccountRateLimits, listThreads, listLoadedThreads,
+    newConversation, resumeConversation, listConversations, forkConversation, archiveConversation,
+    interruptConversation, getConversationSummary,
     listPendingServerRequests: core.listPendingServerRequests,
     respondCommandApproval, respondFileChangeApproval, respondToolUserInput,
     respondDynamicToolCall, respondChatgptAuthTokensRefresh,

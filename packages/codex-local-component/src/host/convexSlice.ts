@@ -196,6 +196,27 @@ type CodexThreadsResolveByThreadHandleComponent = {
         threadHandle: string;
       } | null
     >;
+    resolveByConversationId?: FunctionReference<
+      "query",
+      "public" | "internal",
+      {
+        actor: HostActorContext;
+        conversationId: string;
+      },
+      {
+        conversationId: string;
+        threadId: string;
+        threadHandle: string;
+      } | null
+    >;
+  };
+};
+
+type CodexThreadsConversationComponent = {
+  threads: {
+    listByConversation?: FunctionReference<"query", "public" | "internal">;
+    archiveByConversation?: FunctionReference<"mutation", "public" | "internal">;
+    unarchiveByConversation?: FunctionReference<"mutation", "public" | "internal">;
   };
 };
 
@@ -289,6 +310,7 @@ export type CodexHostComponentRefs =
   & CodexThreadsResolveComponent
   & CodexThreadsSyncBindingComponent
   & CodexThreadsResolveByThreadHandleComponent
+  & CodexThreadsConversationComponent
   & CodexThreadsDeletionComponent
   & CodexTurnsComponent
   & CodexTurnsDeletionComponent
@@ -389,6 +411,11 @@ type ThreadSnapshotArgs = {
 type ThreadHandleLookupArgs = {
   actor: HostActorContext;
   threadHandle: string;
+};
+
+type ConversationLookupArgs = {
+  actor: HostActorContext;
+  conversationId: string;
 };
 
 type DurableHistoryMessage = {
@@ -823,6 +850,40 @@ export async function resolveThreadByThreadHandleForActor<
     return null;
   }
   return {
+    threadId: resolved.threadId,
+    threadHandle: resolved.threadHandle,
+  };
+}
+
+export async function resolveThreadByConversationIdForActor<
+  Component extends CodexThreadsResolveByThreadHandleComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: ConversationLookupArgs,
+): Promise<{
+  conversationId: string;
+  threadId: string;
+  threadHandle: string;
+} | null> {
+  if (!component.threads.resolveByConversationId) {
+    throw new Error(
+      "Host component is missing threads.resolveByConversationId; this is required for conversation scoped APIs.",
+    );
+  }
+  const resolveByConversationId = component.threads.resolveByConversationId;
+  const resolved = await ctx.runQuery(
+    resolveByConversationId,
+    typedArgs<typeof resolveByConversationId>({
+      actor: args.actor,
+      conversationId: args.conversationId,
+    }),
+  );
+  if (!resolved) {
+    return null;
+  }
+  return {
+    conversationId: resolved.conversationId,
     threadId: resolved.threadId,
     threadHandle: resolved.threadHandle,
   };

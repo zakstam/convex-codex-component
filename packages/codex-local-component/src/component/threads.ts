@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api.js";
-import { mutation, query } from "./_generated/server.js";
+import { mutation, query, type MutationCtx } from "./_generated/server.js";
 import { decodeKeysetCursor, keysetPageResult } from "./pagination.js";
 import { vActorContext } from "./types.js";
 import { userScopeFromActor } from "./scope.js";
@@ -47,6 +47,25 @@ const vThreadListResult = v.object({
   isDone: v.boolean(),
   continueCursor: v.string(),
 });
+
+async function requireThreadBindingByConversation(
+  ctx: MutationCtx,
+  args: { actor: { userId?: string }; conversationId: string },
+) {
+  const binding = await ctx.db
+    .query("codex_thread_bindings")
+    .withIndex("userScope_userId_conversationId", (q) =>
+      q
+        .eq("userScope", userScopeFromActor(args.actor))
+        .eq("userId", args.actor.userId)
+        .eq("conversationId", args.conversationId),
+    )
+    .first();
+  if (!binding) {
+    throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
+  }
+  return binding;
+}
 
 export const create = mutation({
   args: {
@@ -104,6 +123,7 @@ export const resolve = mutation({
         });
 
         await ctx.db.patch(binding._id, {
+          conversationId: binding.conversationId ?? threadHandle,
           threadRef: touched.threadRef,
           runtimeThreadId: threadHandle,
           syncState: "syncing",
@@ -134,6 +154,7 @@ export const resolve = mutation({
       await ctx.db.insert("codex_thread_bindings", {
         userScope: userScopeFromActor(args.actor),
         ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+        conversationId: threadHandle,
         threadHandle,
         runtimeThreadId: threadHandle,
         threadId: touched.threadId,
@@ -161,6 +182,7 @@ export const resolveByThreadHandle = query({
   returns: v.union(
     v.null(),
     v.object({
+      conversationId: v.optional(v.string()),
       threadId: v.string(),
       threadHandle: v.string(),
     }),
@@ -181,8 +203,107 @@ export const resolveByThreadHandle = query({
     }
 
     return {
+      ...(binding.conversationId !== undefined ? { conversationId: String(binding.conversationId) } : {}),
       threadId: String(binding.threadId),
       threadHandle: String(binding.threadHandle),
+    };
+  },
+});
+
+export const resolveByConversationId = query({
+  args: {
+    actor: vActorContext,
+    conversationId: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      conversationId: v.string(),
+      threadId: v.string(),
+      threadHandle: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const binding = await ctx.db
+      .query("codex_thread_bindings")
+      .withIndex("userScope_userId_conversationId", (q) =>
+        q
+          .eq("userScope", userScopeFromActor(args.actor))
+          .eq("userId", args.actor.userId)
+          .eq("conversationId", args.conversationId),
+      )
+      .first();
+
+    if (!binding) {
+      return null;
+    }
+
+    return {
+      conversationId: String(binding.conversationId ?? binding.threadHandle),
+      threadId: String(binding.threadId),
+      threadHandle: String(binding.threadHandle),
+    };
+  },
+});
+
+export const listByConversation = query({
+  args: {
+    actor: vActorContext,
+    conversationId: v.string(),
+    includeArchived: v.optional(v.boolean()),
+  },
+  returns: vThreadListResult,
+  handler: async (ctx, args) => {
+    const binding = await ctx.db
+      .query("codex_thread_bindings")
+      .withIndex("userScope_userId_conversationId", (q) =>
+        q
+          .eq("userScope", userScopeFromActor(args.actor))
+          .eq("userId", args.actor.userId)
+          .eq("conversationId", args.conversationId),
+      )
+      .first();
+    if (!binding) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const thread = await requireThreadForActor(ctx, args.actor, String(binding.threadId));
+    if (args.includeArchived !== true && thread.status === "archived") {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const threadId = String(thread.threadId);
+    const [lifecycleEvents, earliestMessages] = await Promise.all([
+      ctx.db
+        .query("codex_lifecycle_events")
+        .withIndex("userScope_threadId_createdAt", (q) =>
+          q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", threadId),
+        )
+        .order("desc")
+        .take(20),
+      ctx.db
+        .query("codex_messages")
+        .withIndex("userScope_threadId_createdAt", (q) =>
+          q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", threadId),
+        )
+        .order("asc")
+        .take(30),
+    ]);
+    const firstUserMessage = earliestMessages.find((message) => message.role === "user");
+    const preview = deriveThreadPreview({
+      lifecycleEvents: lifecycleEvents.map((event) => ({
+        kind: String(event.kind),
+        payloadJson: String(event.payloadJson),
+      })),
+      firstUserMessageText: firstUserMessage ? String(firstUserMessage.text) : null,
+    });
+    return {
+      page: [{
+        threadHandle: String(binding.threadHandle),
+        status: thread.status,
+        updatedAt: Number(thread.updatedAt),
+        preview,
+      }],
+      isDone: true,
+      continueCursor: "",
     };
   },
 });
@@ -276,7 +397,69 @@ export const resume = mutation({
   returns: vResumeResult,
   handler: async (ctx, args) => {
     const thread = await requireThreadForActor(ctx, args.actor, args.threadId);
+    await ctx.db.patch(thread._id, {
+      status: "active",
+      updatedAt: now(),
+    });
     return { threadId: String(thread.threadId), status: "active" as const };
+  },
+});
+
+export const archiveByConversation = mutation({
+  args: {
+    actor: vActorContext,
+    conversationId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.object({
+    conversationId: v.string(),
+    threadId: v.string(),
+    status: v.literal("archived"),
+  }),
+  handler: async (ctx, args) => {
+    const binding = await requireThreadBindingByConversation(ctx, args);
+    if (String(binding.threadId) !== args.threadId) {
+      throw new Error(`[E_CONVERSATION_THREAD_MISMATCH] Conversation ${args.conversationId} is not bound to thread ${args.threadId}`);
+    }
+    const { thread } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
+    await ctx.db.patch(thread._id, {
+      status: "archived",
+      updatedAt: now(),
+    });
+    return {
+      conversationId: args.conversationId,
+      threadId: args.threadId,
+      status: "archived" as const,
+    };
+  },
+});
+
+export const unarchiveByConversation = mutation({
+  args: {
+    actor: vActorContext,
+    conversationId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.object({
+    conversationId: v.string(),
+    threadId: v.string(),
+    status: v.literal("active"),
+  }),
+  handler: async (ctx, args) => {
+    const binding = await requireThreadBindingByConversation(ctx, args);
+    if (String(binding.threadId) !== args.threadId) {
+      throw new Error(`[E_CONVERSATION_THREAD_MISMATCH] Conversation ${args.conversationId} is not bound to thread ${args.threadId}`);
+    }
+    const { thread } = await requireThreadRefForActor(ctx, args.actor, args.threadId);
+    await ctx.db.patch(thread._id, {
+      status: "active",
+      updatedAt: now(),
+    });
+    return {
+      conversationId: args.conversationId,
+      threadId: args.threadId,
+      status: "active" as const,
+    };
   },
 });
 
@@ -320,6 +503,7 @@ export const syncOpenBinding = mutation({
       const rebindApplied = existing.runtimeThreadId !== args.runtimeThreadId;
       const syncState: SyncState = "syncing";
       await ctx.db.patch(existing._id, {
+        conversationId: existing.conversationId ?? threadHandle,
         threadRef: touched.threadRef,
         runtimeThreadId: args.runtimeThreadId,
         syncState,
@@ -352,6 +536,7 @@ export const syncOpenBinding = mutation({
     await ctx.db.insert("codex_thread_bindings", {
       userScope,
       ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      conversationId: threadHandle,
       threadHandle,
       runtimeThreadId: args.runtimeThreadId,
       threadId: touched.threadId,
@@ -778,6 +963,7 @@ export const list = query({
   args: {
     actor: vActorContext,
     paginationOpts: paginationOptsValidator,
+    includeArchived: v.optional(v.boolean()),
   },
   returns: vThreadListResult,
   handler: async (ctx, args) => {
@@ -791,15 +977,20 @@ export const list = query({
         q.eq("userScope", userScopeFromActor(args.actor)).eq("userId", args.actor.userId),
       )
       .filter((q) =>
-        cursor
-          ? q.or(
-              q.lt(q.field("updatedAt"), cursor.updatedAt),
-              q.and(
-                q.eq(q.field("updatedAt"), cursor.updatedAt),
-                q.lt(q.field("threadId"), cursor.threadId),
-              ),
-            )
-          : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
+        q.and(
+          args.includeArchived === true
+            ? q.eq(q.field("userScope"), userScopeFromActor(args.actor))
+            : q.neq(q.field("status"), "archived"),
+          cursor
+            ? q.or(
+                q.lt(q.field("updatedAt"), cursor.updatedAt),
+                q.and(
+                  q.eq(q.field("updatedAt"), cursor.updatedAt),
+                  q.lt(q.field("threadId"), cursor.threadId),
+                ),
+              )
+            : q.eq(q.field("userScope"), userScopeFromActor(args.actor)),
+        ),
       )
       .order("desc")
       .take(args.paginationOpts.numItems + 1);

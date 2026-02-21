@@ -18,6 +18,13 @@ import type { ThreadForkParams } from "../protocol/schemas/v2/ThreadForkParams.j
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
+import type { NewConversationParams } from "../protocol/schemas/NewConversationParams.js";
+import type { ResumeConversationParams } from "../protocol/schemas/ResumeConversationParams.js";
+import type { ListConversationsParams } from "../protocol/schemas/ListConversationsParams.js";
+import type { ForkConversationParams } from "../protocol/schemas/ForkConversationParams.js";
+import type { ArchiveConversationParams } from "../protocol/schemas/ArchiveConversationParams.js";
+import type { InterruptConversationParams } from "../protocol/schemas/InterruptConversationParams.js";
+import type { GetConversationSummaryParams } from "../protocol/schemas/GetConversationSummaryParams.js";
 import type { CodexLocalBridge } from "../local-adapter/bridge.js";
 import type { RuntimeThreadLocator, ThreadHandle } from "../shared/threadIdentity.js";
 
@@ -277,6 +284,13 @@ export type CodexHostRuntime = {
   readAccountRateLimits: () => Promise<CodexResponse>;
   listThreads: (params?: ThreadListParams) => Promise<CodexResponse>;
   listLoadedThreads: (params?: ThreadLoadedListParams) => Promise<CodexResponse>;
+  newConversation: (params: NewConversationParams) => Promise<CodexResponse>;
+  resumeConversation: (params: ResumeConversationParams) => Promise<CodexResponse>;
+  listConversations: (params: ListConversationsParams) => Promise<CodexResponse>;
+  forkConversation: (params: ForkConversationParams) => Promise<CodexResponse>;
+  archiveConversation: (params: ArchiveConversationParams) => Promise<CodexResponse>;
+  interruptConversation: (params: InterruptConversationParams) => Promise<CodexResponse>;
+  getConversationSummary: (params: GetConversationSummaryParams) => Promise<CodexResponse>;
   listPendingServerRequests: (threadId?: string) => Promise<HostRuntimePersistedServerRequest[]>;
   respondCommandApproval: (args: {
     requestId: RpcId;

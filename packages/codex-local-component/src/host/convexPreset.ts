@@ -256,6 +256,33 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           withServerActor(args, resolveServerActor(args, options.serverActor)),
         ),
     },
+    listThreadsForConversation: {
+      args: {
+        actor: vHostActorContext,
+        conversationId: v.string(),
+        includeArchived: v.optional(v.boolean()),
+      },
+      handler: async (
+        ctx: HostQueryRunner,
+        args: { actor: HostActorContext; conversationId: string; includeArchived?: boolean },
+      ) => {
+        const listByConversation = component.threads.listByConversation;
+        if (!listByConversation) {
+          throw new Error("Host component is missing threads.listByConversation.");
+        }
+        return ctx.runQuery(
+          listByConversation,
+          withServerActor(
+            {
+              actor: args.actor,
+              conversationId: args.conversationId,
+              ...(args.includeArchived !== undefined ? { includeArchived: args.includeArchived } : {}),
+            },
+            resolveServerActor(args, options.serverActor),
+          ),
+        );
+      },
+    },
     persistenceStats: {
       args: { actor: vHostActorContext, threadHandle: v.string() },
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; threadHandle: string }) => {
@@ -800,6 +827,8 @@ type RuntimeOwnedInternalDefinitions = {
     markThreadSyncProgress: CodexHostSliceDefinitions["mutations"]["markThreadSyncProgress"];
     forceRebindThreadSync: CodexHostSliceDefinitions["mutations"]["forceRebindThreadSync"];
     ensureThread: CodexHostSliceDefinitions["mutations"]["ensureThread"];
+    archiveConversationThread: CodexHostSliceDefinitions["mutations"]["archiveConversationThread"];
+    unarchiveConversationThread: CodexHostSliceDefinitions["mutations"]["unarchiveConversationThread"];
     ensureSession: CodexHostSliceDefinitions["mutations"]["ensureSession"];
     ingestEvent: CodexHostSliceDefinitions["mutations"]["ingestEvent"];
     ingestBatch: CodexHostSliceDefinitions["mutations"]["ingestBatch"];
@@ -823,6 +852,7 @@ type RuntimeOwnedInternalDefinitions = {
     validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
     threadSnapshotByThreadHandle: CodexHostSliceDefinitions["queries"]["threadSnapshotByThreadHandle"];
+    listThreadsForConversation: CodexHostSliceDefinitions["queries"]["listThreadsForConversation"];
     getDeletionStatus: CodexHostSliceDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: CodexHostSliceDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: CodexHostSliceDefinitions["queries"]["durableHistoryStats"];
@@ -847,6 +877,8 @@ export type RuntimeOwnedHostDefinitions = {
     markThreadSyncProgress: RuntimeOwnedInternalDefinitions["mutations"]["markThreadSyncProgress"];
     forceRebindThreadSync: RuntimeOwnedInternalDefinitions["mutations"]["forceRebindThreadSync"];
     ensureThread: RuntimeOwnedInternalDefinitions["mutations"]["ensureThread"];
+    archiveConversationThread: RuntimeOwnedInternalDefinitions["mutations"]["archiveConversationThread"];
+    unarchiveConversationThread: RuntimeOwnedInternalDefinitions["mutations"]["unarchiveConversationThread"];
     ensureSession: RuntimeOwnedInternalDefinitions["mutations"]["ensureSession"];
     ingestEvent: RuntimeOwnedInternalDefinitions["mutations"]["ingestEvent"];
     ingestBatch: RuntimeOwnedInternalDefinitions["mutations"]["ingestBatch"];
@@ -870,6 +902,7 @@ export type RuntimeOwnedHostDefinitions = {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
     threadSnapshot: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshot"];
     threadSnapshotByThreadHandle: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotByThreadHandle"];
+    listThreadsForConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadsForConversation"];
     getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
     persistenceStats: RuntimeOwnedInternalDefinitions["queries"]["persistenceStats"];
     durableHistoryStats: RuntimeOwnedInternalDefinitions["queries"]["durableHistoryStats"];
@@ -917,6 +950,8 @@ function toPublicRuntimeOwnedDefinitions(
       markThreadSyncProgress: defs.mutations.markThreadSyncProgress,
       forceRebindThreadSync: defs.mutations.forceRebindThreadSync,
       ensureThread: defs.mutations.ensureThread,
+      archiveConversationThread: defs.mutations.archiveConversationThread,
+      unarchiveConversationThread: defs.mutations.unarchiveConversationThread,
       ensureSession: defs.mutations.ensureSession,
       ingestEvent: defs.mutations.ingestEvent,
       ingestBatch: defs.mutations.ingestBatch,
@@ -940,6 +975,7 @@ function toPublicRuntimeOwnedDefinitions(
       validateHostWiring: defs.queries.validateHostWiring,
       threadSnapshot: defs.queries.threadSnapshot,
       threadSnapshotByThreadHandle: defs.queries.threadSnapshotByThreadHandle,
+      listThreadsForConversation: defs.queries.listThreadsForConversation,
       getDeletionStatus: defs.queries.getDeletionStatus,
       persistenceStats: defs.queries.persistenceStats,
       durableHistoryStats: defs.queries.durableHistoryStats,
@@ -978,6 +1014,8 @@ function toRuntimeOwnedInternalDefinitions(
       markThreadSyncProgress: rawSlice.mutations.markThreadSyncProgress,
       forceRebindThreadSync: rawSlice.mutations.forceRebindThreadSync,
       ensureThread: rawSlice.mutations.ensureThread,
+      archiveConversationThread: rawSlice.mutations.archiveConversationThread,
+      unarchiveConversationThread: rawSlice.mutations.unarchiveConversationThread,
       ensureSession: rawSlice.mutations.ensureSession,
       ingestEvent: rawSlice.mutations.ingestEvent,
       ingestBatch: rawSlice.mutations.ingestBatch,
@@ -1001,6 +1039,7 @@ function toRuntimeOwnedInternalDefinitions(
       validateHostWiring: rawSlice.queries.validateHostWiring,
       threadSnapshot: rawSlice.queries.threadSnapshot,
       threadSnapshotByThreadHandle: requireHostDefinition(rawSlice.queries.threadSnapshotByThreadHandle, "threadSnapshotByThreadHandle"),
+      listThreadsForConversation: requireHostDefinition(rawSlice.queries.listThreadsForConversation, "listThreadsForConversation"),
       getDeletionStatus: rawSlice.queries.getDeletionStatus,
       persistenceStats: rawSlice.queries.persistenceStats,
       durableHistoryStats: rawSlice.queries.durableHistoryStats,

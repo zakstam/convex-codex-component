@@ -327,6 +327,33 @@ test("setThreadName and compactThread send thread requests and resolve responses
   await runtime.stop();
 });
 
+test("conversation lifecycle helpers send conversation-scoped requests", async () => {
+  const { runtime, sent, emitResponse } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  const listPromise = runtime.listConversations({ pageSize: null, cursor: null, modelProviders: null });
+  const listRequest = sent.find((message) => message.method === "listConversations");
+  assert.ok(listRequest);
+  await emitResponse({ id: listRequest.id, result: { items: [] } });
+  await listPromise;
+
+  const archivePromise = runtime.archiveConversation({ conversationId: "conv-1", rolloutPath: "/tmp/rollout" });
+  const archiveRequest = sent.find((message) => message.method === "archiveConversation");
+  assert.ok(archiveRequest);
+  assert.equal(archiveRequest.params.conversationId, "conv-1");
+  await emitResponse({ id: archiveRequest.id, result: {} });
+  await archivePromise;
+
+  await runtime.stop();
+});
+
 test("resumeThread updates active runtime thread id after response", async () => {
   const { runtime, sent, emitResponse } = createHarness();
   const initialThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";

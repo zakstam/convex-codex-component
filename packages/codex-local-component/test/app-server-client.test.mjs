@@ -6,10 +6,17 @@ import {
   buildAccountLogoutRequest,
   buildAccountRateLimitsReadRequest,
   buildAccountReadRequest,
+  buildArchiveConversationRequest,
   buildChatgptAuthTokensRefreshResponse,
   buildCommandExecutionApprovalResponse,
   buildDynamicToolCallResponse,
   buildFileChangeApprovalResponse,
+  buildForkConversationRequest,
+  buildGetConversationSummaryRequest,
+  buildInterruptConversationRequest,
+  buildListConversationsRequest,
+  buildNewConversationRequest,
+  buildResumeConversationRequest,
   buildThreadArchiveRequest,
   buildThreadCompactStartRequest,
   buildThreadForkRequest,
@@ -56,6 +63,54 @@ test("app-server thread lifecycle builders create typed request envelopes", () =
   assert.deepEqual(buildThreadReadRequest(9, { threadId, includeTurns: true }).params.includeTurns, true);
   assert.deepEqual(buildThreadListRequest(10, {}).method, "thread/list");
   assert.deepEqual(buildThreadLoadedListRequest(11, {}).method, "thread/loaded/list");
+});
+
+test("app-server conversation lifecycle builders create typed request envelopes", () => {
+  assert.deepEqual(
+    buildNewConversationRequest(12, {
+      model: null,
+      modelProvider: null,
+      profile: null,
+      cwd: null,
+      approvalPolicy: null,
+      sandbox: null,
+      config: null,
+      baseInstructions: null,
+      developerInstructions: null,
+      compactPrompt: null,
+      includeApplyPatchTool: null,
+    }).method,
+    "newConversation",
+  );
+  assert.deepEqual(
+    buildResumeConversationRequest(13, {
+      path: null,
+      conversationId: null,
+      history: null,
+      overrides: null,
+    }).method,
+    "resumeConversation",
+  );
+  assert.deepEqual(
+    buildListConversationsRequest(14, { pageSize: null, cursor: null, modelProviders: null }).method,
+    "listConversations",
+  );
+  assert.deepEqual(
+    buildForkConversationRequest(15, { path: null, conversationId: null, overrides: null }).method,
+    "forkConversation",
+  );
+  assert.deepEqual(
+    buildArchiveConversationRequest(16, { conversationId: "c-1", rolloutPath: "/tmp/r" }).method,
+    "archiveConversation",
+  );
+  assert.deepEqual(
+    buildInterruptConversationRequest(17, { conversationId: "c-1" }).method,
+    "interruptConversation",
+  );
+  assert.deepEqual(
+    buildGetConversationSummaryRequest(18, { conversationId: "c-1" }).method,
+    "getConversationSummary",
+  );
 });
 
 test("app-server thread lifecycle builders pass dynamicTools on start and resume", () => {

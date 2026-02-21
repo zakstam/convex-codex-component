@@ -9,6 +9,13 @@ import type { GetAccountParams } from "../protocol/schemas/v2/GetAccountParams.j
 import type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 import type { ThreadListParams } from "../protocol/schemas/v2/ThreadListParams.js";
 import type { ThreadLoadedListParams } from "../protocol/schemas/v2/ThreadLoadedListParams.js";
+import type { NewConversationParams } from "../protocol/schemas/NewConversationParams.js";
+import type { ResumeConversationParams } from "../protocol/schemas/ResumeConversationParams.js";
+import type { ListConversationsParams } from "../protocol/schemas/ListConversationsParams.js";
+import type { ForkConversationParams } from "../protocol/schemas/ForkConversationParams.js";
+import type { ArchiveConversationParams } from "../protocol/schemas/ArchiveConversationParams.js";
+import type { InterruptConversationParams } from "../protocol/schemas/InterruptConversationParams.js";
+import type { GetConversationSummaryParams } from "../protocol/schemas/GetConversationSummaryParams.js";
 import type { ThreadCompactStartParams } from "../protocol/schemas/v2/ThreadCompactStartParams.js";
 import type { ThreadReadParams } from "../protocol/schemas/v2/ThreadReadParams.js";
 import type { ThreadResumeParams } from "../protocol/schemas/v2/ThreadResumeParams.js";
@@ -133,6 +140,55 @@ export function buildThreadLoadedListRequest(
   params: ThreadLoadedListParams = {},
 ): RequestFor<"thread/loaded/list"> {
   return buildClientRequest("thread/loaded/list", id, params);
+}
+
+export function buildNewConversationRequest(
+  id: number,
+  params: NewConversationParams,
+): RequestFor<"newConversation"> {
+  return buildClientRequest("newConversation", id, params);
+}
+
+export function buildResumeConversationRequest(
+  id: number,
+  params: ResumeConversationParams,
+): RequestFor<"resumeConversation"> {
+  return buildClientRequest("resumeConversation", id, params);
+}
+
+export function buildListConversationsRequest(
+  id: number,
+  params: ListConversationsParams,
+): RequestFor<"listConversations"> {
+  return buildClientRequest("listConversations", id, params);
+}
+
+export function buildForkConversationRequest(
+  id: number,
+  params: ForkConversationParams,
+): RequestFor<"forkConversation"> {
+  return buildClientRequest("forkConversation", id, params);
+}
+
+export function buildArchiveConversationRequest(
+  id: number,
+  params: ArchiveConversationParams,
+): RequestFor<"archiveConversation"> {
+  return buildClientRequest("archiveConversation", id, params);
+}
+
+export function buildInterruptConversationRequest(
+  id: number,
+  params: InterruptConversationParams,
+): RequestFor<"interruptConversation"> {
+  return buildClientRequest("interruptConversation", id, params);
+}
+
+export function buildGetConversationSummaryRequest(
+  id: number,
+  params: GetConversationSummaryParams,
+): RequestFor<"getConversationSummary"> {
+  return buildClientRequest("getConversationSummary", id, params);
 }
 
 export function buildThreadArchiveRequest(

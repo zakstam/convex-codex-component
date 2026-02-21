@@ -312,6 +312,84 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       ),
     },
     ensureThread,
+    archiveConversationThread: {
+      args: {
+        actor: vHostActorContext,
+        conversationId: v.string(),
+        threadId: v.string(),
+      },
+      returns: v.object({
+        conversationId: v.string(),
+        threadId: v.string(),
+        status: v.literal("archived"),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; conversationId: string; threadId: string },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        if (!component.threads.resolveByConversationId) {
+          throw new Error("Host component is missing threads.resolveByConversationId.");
+        }
+        if (!component.threads.archiveByConversation) {
+          throw new Error("Host component is missing threads.archiveByConversation.");
+        }
+        const mapping = await ctx.runQuery(component.threads.resolveByConversationId, {
+          actor,
+          conversationId: args.conversationId,
+        });
+        if (!mapping) {
+          throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
+        }
+        if (mapping.threadId !== args.threadId) {
+          throw new Error(`[E_CONVERSATION_THREAD_MISMATCH] Conversation ${args.conversationId} is not bound to thread ${args.threadId}`);
+        }
+        return ctx.runMutation(component.threads.archiveByConversation, {
+          actor,
+          conversationId: args.conversationId,
+          threadId: args.threadId,
+        });
+      },
+    },
+    unarchiveConversationThread: {
+      args: {
+        actor: vHostActorContext,
+        conversationId: v.string(),
+        threadId: v.string(),
+      },
+      returns: v.object({
+        conversationId: v.string(),
+        threadId: v.string(),
+        status: v.literal("active"),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; conversationId: string; threadId: string },
+      ) => {
+        const actor = resolveServerActor(args, serverActor);
+        if (!component.threads.resolveByConversationId) {
+          throw new Error("Host component is missing threads.resolveByConversationId.");
+        }
+        if (!component.threads.unarchiveByConversation) {
+          throw new Error("Host component is missing threads.unarchiveByConversation.");
+        }
+        const mapping = await ctx.runQuery(component.threads.resolveByConversationId, {
+          actor,
+          conversationId: args.conversationId,
+        });
+        if (!mapping) {
+          throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
+        }
+        if (mapping.threadId !== args.threadId) {
+          throw new Error(`[E_CONVERSATION_THREAD_MISMATCH] Conversation ${args.conversationId} is not bound to thread ${args.threadId}`);
+        }
+        return ctx.runMutation(component.threads.unarchiveByConversation, {
+          actor,
+          conversationId: args.conversationId,
+          threadId: args.threadId,
+        });
+      },
+    },
     ensureSession: {
       args: {
         actor: vHostActorContext,

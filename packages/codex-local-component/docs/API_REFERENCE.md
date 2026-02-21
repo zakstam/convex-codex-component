@@ -92,10 +92,12 @@ Use this path in order:
   - `listPendingServerRequestsByThreadHandle`
   These map `threadHandle` server-side to runtime `threadId` and preserve existing fallback contracts.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
+- Conversation-scoped archive endpoints: `archiveConversationThread`, `unarchiveConversationThread`, `listThreadsForConversation`.
 - Runtime-owned sync mapping endpoints: `syncOpenThreadBinding`, `markThreadSyncProgress`, `forceRebindThreadSync`.
 - Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.
 - Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`threadHandle`, `preview`, `status`, `updatedAt`).
 - Runtime thread control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `archiveThread`, `setThreadName`, `unarchiveThread`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`.
+- Runtime conversation control helpers include: `newConversation`, `resumeConversation`, `listConversations`, `forkConversation`, `archiveConversation`, `interruptConversation`, `getConversationSummary`.
 - Tauri lifecycle helper includes `refreshLocalThreads()` to emit a fresh local-thread snapshot without reopening the runtime.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.

@@ -41,7 +41,6 @@ export async function touchThread(
       );
     }
     await ctx.db.patch(existing._id, {
-      status: "active",
       updatedAt: ts,
       model: args.model ?? existing.model,
       cwd: args.cwd ?? existing.cwd,

@@ -176,6 +176,16 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `listThreads`
 - `listLoadedThreads`
 
+`createCodexHostRuntime(...)` also exposes conversation control helpers:
+
+- `newConversation`
+- `resumeConversation`
+- `listConversations`
+- `forkConversation`
+- `archiveConversation`
+- `interruptConversation`
+- `getConversationSummary`
+
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `threadHandle` for UI reads.
 
 ## Runtime Bridge Lifecycle APIs
@@ -216,6 +226,15 @@ Runtime-owned host definitions now expose explicit sync mapping mutations:
 - `forceRebindThreadSync`
 
 These endpoints are used to persist local-runtime-to-Convex thread mapping state (`syncState`, `lastSyncedCursor`, session watermark, and rebind metadata) during `openThread` and ingest progression.
+
+Runtime-owned host definitions also expose conversation-scoped archive mutations:
+
+- `archiveConversationThread` (`actor`, `conversationId`, `threadId`)
+- `unarchiveConversationThread` (`actor`, `conversationId`, `threadId`)
+
+Conversation-scoped thread listing query:
+
+- `listThreadsForConversation` (`actor`, `conversationId`, `includeArchived?`)
 
 ## Type Safety Checks
 

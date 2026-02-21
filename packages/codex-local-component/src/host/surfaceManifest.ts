@@ -5,6 +5,8 @@ export const HOST_SURFACE_MANIFEST = {
       "markThreadSyncProgress",
       "forceRebindThreadSync",
       "ensureThread",
+      "archiveConversationThread",
+      "unarchiveConversationThread",
       "ensureSession",
       "ingestEvent",
       "ingestBatch",
@@ -27,6 +29,7 @@ export const HOST_SURFACE_MANIFEST = {
     queries: [
       "validateHostWiring",
       "threadSnapshot",
+      "listThreadsForConversation",
       "getDeletionStatus",
       "persistenceStats",
       "durableHistoryStats",

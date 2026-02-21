@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FunctionArgs, FunctionReference } from "convex/server";
+import type { CodexUIMessage } from "../shared/types.js";
 import { useCodexMessages } from "./useCodexMessages.js";
 import type { CodexMessagesQuery, CodexMessagesQueryArgs, CodexThreadReadResult } from "./types.js";
 import { useCodexThreadState, type CodexThreadStateQuery } from "./useCodexThreadState.js";
@@ -24,6 +25,17 @@ export type CodexConversationApprovalItem = {
   kind: string;
   reason?: string;
   createdAt: number;
+};
+
+type CodexConversationComposerOptimisticConfig = {
+  enabled?: boolean;
+  includeAssistantPlaceholder?: boolean;
+};
+
+type CodexOptimisticComposerGroup = {
+  user: CodexUIMessage;
+  assistantPlaceholder?: CodexUIMessage;
+  durableUserTextBaselineCount: number;
 };
 
 export type CodexConversationControllerConfig<
@@ -50,6 +62,7 @@ export type CodexConversationControllerConfig<
   composer?: {
     initialValue?: string;
     onSend: (text: string) => Promise<ComposerResult>;
+    optimistic?: CodexConversationComposerOptimisticConfig;
   };
   approvals?: {
     onResolve: (approval: CodexConversationApprovalItem, decision: CodexConversationApprovalDecision) => Promise<ApprovalResult>;
@@ -83,6 +96,99 @@ function isApprovalLike(value: unknown): value is CodexConversationApprovalItem 
     typeof kind === "string" &&
     typeof createdAt === "number"
   );
+}
+
+function randomId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
+
+function flattenCodexOptimisticGroups(
+  pendingBySendId: Record<string, CodexOptimisticComposerGroup>,
+): CodexUIMessage[] {
+  const merged: CodexUIMessage[] = [];
+  for (const group of Object.values(pendingBySendId)) {
+    merged.push(group.user);
+    if (group.assistantPlaceholder) {
+      merged.push(group.assistantPlaceholder);
+    }
+  }
+  return merged;
+}
+
+function countDurableUserMessagesWithText(
+  durableMessages: CodexUIMessage[],
+  text: string,
+): number {
+  let count = 0;
+  for (const message of durableMessages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    if (message.messageId.startsWith("optimistic:")) {
+      continue;
+    }
+    if (message.text === text) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function sortCodexMessagesChronologically(left: CodexUIMessage, right: CodexUIMessage): number {
+  if (left.createdAt !== right.createdAt) {
+    return left.createdAt - right.createdAt;
+  }
+  if (left.turnId !== right.turnId) {
+    return left.turnId < right.turnId ? -1 : 1;
+  }
+  if (left.orderInTurn !== right.orderInTurn) {
+    return left.orderInTurn - right.orderInTurn;
+  }
+  if (left.messageId === right.messageId) {
+    return 0;
+  }
+  return left.messageId < right.messageId ? -1 : 1;
+}
+
+function mergeCodexMessagesWithOptimisticComposer(
+  durableMessages: CodexUIMessage[],
+  optimisticMessages: CodexUIMessage[],
+): CodexUIMessage[] {
+  if (optimisticMessages.length === 0) {
+    return durableMessages;
+  }
+  const byMessageId = new Map<string, CodexUIMessage>();
+  for (const message of durableMessages) {
+    byMessageId.set(message.messageId, message);
+  }
+  for (const message of optimisticMessages) {
+    if (!byMessageId.has(message.messageId)) {
+      byMessageId.set(message.messageId, message);
+    }
+  }
+  return Array.from(byMessageId.values()).sort(sortCodexMessagesChronologically);
+}
+
+function nextCodexOrderInTurn(
+  turnId: string,
+  durableMessages: CodexUIMessage[],
+  optimisticMessages: CodexUIMessage[],
+): number {
+  let maxOrderInTurn = -1;
+  for (const message of durableMessages) {
+    if (message.turnId === turnId) {
+      maxOrderInTurn = Math.max(maxOrderInTurn, message.orderInTurn);
+    }
+  }
+  for (const message of optimisticMessages) {
+    if (message.turnId === turnId) {
+      maxOrderInTurn = Math.max(maxOrderInTurn, message.orderInTurn);
+    }
+  }
+  return maxOrderInTurn + 1;
 }
 
 export function useCodexConversationController<
@@ -138,6 +244,9 @@ export function useCodexConversationController<
   const [composerValue, setComposerValue] = useState(config.composer?.initialValue ?? "");
   const [composerError, setComposerError] = useState<string | null>(null);
   const [composerSending, setComposerSending] = useState(false);
+  const [pendingOptimisticComposerBySendId, setPendingOptimisticComposerBySendId] = useState<
+    Record<string, CodexOptimisticComposerGroup>
+  >({});
   const [approvalError, setApprovalError] = useState<string | null>(null);
   const [approvingItemId, setApprovingItemId] = useState<string | null>(null);
   const [interrupting, setInterrupting] = useState(false);
@@ -146,6 +255,40 @@ export function useCodexConversationController<
     const raw = threadStateData?.pendingApprovals ?? [];
     return raw.filter(isApprovalLike);
   }, [threadStateData]);
+
+  const optimisticComposerMessages = useMemo(
+    () => flattenCodexOptimisticGroups(pendingOptimisticComposerBySendId),
+    [pendingOptimisticComposerBySendId],
+  );
+
+  useEffect(() => {
+    if (Object.keys(pendingOptimisticComposerBySendId).length === 0) {
+      return;
+    }
+    setPendingOptimisticComposerBySendId((current) => {
+      let changed = false;
+      const next: Record<string, CodexOptimisticComposerGroup> = {};
+      for (const [sendId, group] of Object.entries(current)) {
+        const durableCount = countDurableUserMessagesWithText(messages.results, group.user.text);
+        if (durableCount > group.durableUserTextBaselineCount) {
+          changed = true;
+          continue;
+        }
+        next[sendId] = group;
+      }
+      return changed ? next : current;
+    });
+  }, [messages.results, pendingOptimisticComposerBySendId]);
+
+  const mergedMessages = useMemo(() => {
+    if (optimisticComposerMessages.length === 0) {
+      return messages;
+    }
+    return {
+      ...messages,
+      results: mergeCodexMessagesWithOptimisticComposer(messages.results, optimisticComposerMessages),
+    };
+  }, [messages, optimisticComposerMessages]);
 
   const send = useCallback(
     async (overrideText?: string) => {
@@ -156,6 +299,54 @@ export function useCodexConversationController<
       if (!text) {
         return undefined;
       }
+      const optimisticEnabled = config.composer.optimistic?.enabled ?? false;
+      const includeAssistantPlaceholder =
+        config.composer.optimistic?.includeAssistantPlaceholder ?? true;
+      const sendId = randomId();
+      if (optimisticEnabled) {
+        setPendingOptimisticComposerBySendId((current) => {
+          const existingOptimistic = flattenCodexOptimisticGroups(current);
+          const nextTurnId = `optimistic:${sendId}`;
+          const userOrder = nextCodexOrderInTurn(nextTurnId, messages.results, existingOptimistic);
+          const now = Date.now();
+          const userMessageId = `optimistic:user:${sendId}`;
+          const userMessage: CodexUIMessage = {
+            messageId: userMessageId,
+            turnId: nextTurnId,
+            role: "user",
+            status: "completed",
+            sourceItemType: "userMessage",
+            text,
+            orderInTurn: userOrder,
+            createdAt: now,
+            updatedAt: now,
+            completedAt: now,
+          };
+          const optimisticGroup: CodexOptimisticComposerGroup = {
+            user: userMessage,
+            durableUserTextBaselineCount: countDurableUserMessagesWithText(messages.results, text),
+            ...(includeAssistantPlaceholder
+              ? {
+                  assistantPlaceholder: {
+                    messageId: `optimistic:assistant:${sendId}`,
+                    turnId: nextTurnId,
+                    role: "assistant",
+                    status: "streaming",
+                    sourceItemType: "agentMessage",
+                    text: "",
+                    orderInTurn: userOrder + 1,
+                    createdAt: now,
+                    updatedAt: now,
+                  },
+                }
+              : {}),
+          };
+          return {
+            ...current,
+            [sendId]: optimisticGroup,
+          };
+        });
+      }
       setComposerSending(true);
       setComposerError(null);
       try {
@@ -165,12 +356,20 @@ export function useCodexConversationController<
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setComposerError(message);
+        setPendingOptimisticComposerBySendId((current) => {
+          if (!Object.hasOwn(current, sendId)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[sendId];
+          return next;
+        });
         throw error;
       } finally {
         setComposerSending(false);
       }
     },
-    [composerValue, config.composer],
+    [composerValue, config.composer, messages.results],
   );
 
   const resolveApproval = useCallback(
@@ -210,7 +409,7 @@ export function useCodexConversationController<
 
   return useMemo(
     () => ({
-      messages,
+      messages: mergedMessages,
       activity,
       ingestHealth,
       branchActivity,
@@ -258,8 +457,9 @@ export function useCodexConversationController<
       ingestHealth,
       interrupt,
       interrupting,
-      messages,
+      mergedMessages,
       pendingApprovals,
+      pendingOptimisticComposerBySendId,
       resolveApproval,
       send,
     ],

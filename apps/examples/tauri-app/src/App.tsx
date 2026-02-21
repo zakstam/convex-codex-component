@@ -2,9 +2,11 @@ import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   CodexProvider,
+  codexOptimisticPresets,
   createCodexReactPreset,
   useCodex,
   useCodexAccountAuth,
+  useCodexOptimisticMutation,
   useCodexRuntimeBridge,
   useCodexThreadState,
 } from "@zakstam/codex-local-component/react";
@@ -288,18 +290,9 @@ function AppContent({
     [connectBridge, waitForBridgeReady],
   );
   const autoStartAttemptedRef = useRef(false);
-
-  const conversation = useCodex({
-    actorReady,
-    ...(selectedLocalConversationId ? { conversationId: selectedLocalConversationId } : {}),
-    threads: {
-      list: {
-        query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
-        args: actorReady ? { actor, limit: 25 } : "skip",
-      },
-      initialSelectedConversationId: "",
-    },
-    composer: {
+  const composerConfig = useMemo(
+    () => ({
+      optimistic: { enabled: true },
       onSend: async (text: string) => {
         try {
           let stateBeforeSend = await tauriBridge.lifecycle.getState();
@@ -307,7 +300,16 @@ function AppContent({
             await connectBridge("composer_retry");
             stateBeforeSend = await tauriBridge.lifecycle.getState();
           }
-          if (!stateBeforeSend.conversationId) {
+          const selectedConversationId = selectedConversationIdRef.current.trim();
+          if (selectedConversationId.length > 0) {
+            if (stateBeforeSend.conversationId !== selectedConversationId) {
+              await tauriBridge.lifecycle.openThread({
+                strategy: "resume",
+                conversationId: selectedConversationId,
+              });
+              stateBeforeSend = await waitForBridgeReady();
+            }
+          } else if (!stateBeforeSend.conversationId) {
             await startBridgeWithSelection("composer_retry");
           }
           await tauriBridge.turns.send(text);
@@ -319,7 +321,21 @@ function AppContent({
           throw error;
         }
       },
+    }),
+    [addToast, connectBridge, startBridgeWithSelection, waitForBridgeReady],
+  );
+
+  const conversation = useCodex({
+    actorReady,
+    ...(selectedLocalConversationId ? { conversationId: selectedLocalConversationId } : {}),
+    threads: {
+      list: {
+        query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
+        args: actorReady ? { actor, limit: 25 } : "skip",
+      },
+      initialSelectedConversationId: "",
     },
+    composer: composerConfig,
     interrupt: {
       onInterrupt: async () => {
         await runtimeBridge.interrupt();
@@ -494,11 +510,14 @@ function AppContent({
   const purgeActorDataMutation = useMutation(
     requireDefined(chatApi.schedulePurgeActorData, "api.chat.schedulePurgeActorData"),
   );
-  const cancelDeletionMutation = useMutation(
+  const deletionStatusQuery = requireDefined(chatApi.getDeletionStatus, "api.chat.getDeletionStatus");
+  const cancelDeletionMutation = useCodexOptimisticMutation(
     requireDefined(chatApi.cancelDeletion, "api.chat.cancelDeletion"),
+    codexOptimisticPresets.deletionStatus.cancel(deletionStatusQuery),
   );
-  const forceRunDeletionMutation = useMutation(
+  const forceRunDeletionMutation = useCodexOptimisticMutation(
     requireDefined(chatApi.forceRunDeletion, "api.chat.forceRunDeletion"),
+    codexOptimisticPresets.deletionStatus.forceRun(deletionStatusQuery),
   );
   const [activeDeletionJobId, setActiveDeletionJobId] = useState<string | null>(null);
   const [activeDeletionLabel, setActiveDeletionLabel] = useState<string | null>(null);

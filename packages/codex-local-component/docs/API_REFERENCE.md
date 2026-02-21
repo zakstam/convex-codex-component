@@ -27,6 +27,10 @@ Use this path in order:
 | `CodexProvider` | `component` | React provider for host API + actor context. |
 | `useCodex` | `hook` | Canonical high-level hook for conversation/runtime. |
 | `useCodexRuntimeBridge` | `hook` | Runtime bridge controls/state for host-driven UIs. |
+| `useCodexOptimisticMutation` | `hook` | Wraps `useMutation(...).withOptimisticUpdate(...)` with strict codex typing. |
+| `createCodexOptimisticUpdate` | `function` | Compose optimistic operations into one update callback. |
+| `codexOptimisticOps` | `object` | Generic optimistic operations: `insert`, `replace`, `remove`, `set`, `custom`. |
+| `codexOptimisticPresets` | `object` | Codex presets for optimistic message send and deletion-status updates. |
 
 ## `@zakstam/codex-local-component/host`
 
@@ -92,6 +96,10 @@ Use this path in order:
   - `listPendingServerRequestsByConversation`
   These use `conversationId` as the public identity while preserving runtime-owned persistence mapping internally.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
+- React composer optimistic config: `useCodex({ composer: { optimistic: { enabled: true }, onSend } })` (assistant placeholder is enabled by default when optimism is enabled).
+- For deletion controls, prefer codex optimistic helpers against `getDeletionStatus`:
+  - `useCodexOptimisticMutation(api.chat.cancelDeletion, codexOptimisticPresets.deletionStatus.cancel(api.chat.getDeletionStatus))`
+  - `useCodexOptimisticMutation(api.chat.forceRunDeletion, codexOptimisticPresets.deletionStatus.forceRun(api.chat.getDeletionStatus))`
 - Conversation-scoped archive endpoints: `archiveConversation`, `unarchiveConversation`, `listThreadsForConversation`.
 - Runtime-owned sync mapping endpoints: `syncOpenConversationBinding`, `markConversationSyncProgress`, `forceRebindConversationSync`.
 - Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.

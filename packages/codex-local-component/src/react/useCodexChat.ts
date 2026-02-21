@@ -49,8 +49,17 @@ export type CodexChatConfig<
     InterruptResult,
     DynamicToolsRespondResult
   >,
-  "dynamicTools"
+  "composer" | "dynamicTools"
 > & {
+  composer?: CodexConversationControllerConfig<
+    MessagesQuery,
+    ThreadStateQuery,
+    DynamicToolsQuery,
+    ComposerResult,
+    ApprovalResult,
+    InterruptResult,
+    DynamicToolsRespondResult
+  >["composer"];
   dynamicTools?: CodexChatDynamicToolsConfig<DynamicToolsQuery, DynamicToolsRespondResult>;
 };
 

@@ -108,9 +108,21 @@ import { api } from "../convex/_generated/api";
 // In component:
 const conversation = useCodex({
   conversationId,
-  composer: { onSend },
+  composer: {
+    optimistic: { enabled: true }, // assistant placeholder defaults to enabled
+    onSend,
+  },
   interrupt: { onInterrupt },
 });
+```
+
+For deletion lifecycle actions, keep UI fail-closed but responsive with optimistic mutation updates keyed by `getDeletionStatus`:
+
+```tsx
+const cancelDeletion = useCodexOptimisticMutation(
+  api.chat.cancelDeletion,
+  codexOptimisticPresets.deletionStatus.cancel(api.chat.getDeletionStatus),
+);
 ```
 
 ## Validation

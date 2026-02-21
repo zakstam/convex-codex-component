@@ -161,6 +161,12 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `forceRunDeletion`
 - `getDeletionStatus`
 
+React consumers can apply optimistic updates for these lifecycle operations with codex helpers:
+
+- `useCodexOptimisticMutation(...)`
+- `codexOptimisticPresets.deletionStatus.cancel(...)`
+- `codexOptimisticPresets.deletionStatus.forceRun(...)`
+
 ## Runtime Conversation Control APIs
 
 `createCodexHostRuntime(...)` exposes conversation control helpers:
@@ -186,6 +192,26 @@ Runtime-owned host endpoints expose the same lifecycle operations as:
 - `getConversationSummary`
 
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
+
+## Composer Optimistic UI
+
+`useCodex({ composer })` supports optimistic composer settings:
+
+```tsx
+const conversation = useCodex({
+  composer: {
+    optimistic: { enabled: true }, // assistant placeholder defaults to enabled
+    onSend: async (text) => {
+      await bridge.turns.send(text);
+    },
+  },
+});
+```
+
+For custom optimistic logic, compose updates with:
+
+- `createCodexOptimisticUpdate(...)`
+- `codexOptimisticOps.insert / replace / remove / set / custom`
 
 ## Runtime Bridge Lifecycle APIs
 

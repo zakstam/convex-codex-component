@@ -33,8 +33,12 @@ export {
 
 // ── Utilities ────────────────────────────────────────────────────────
 export {
-  optimisticallySendCodexMessage,
-} from "./optimisticallySendCodexMessage.js";
+  createCodexOptimisticUpdate,
+  codexOptimisticOps,
+  codexOptimisticPresets,
+  useCodexOptimisticMutation,
+  type CodexOptimisticOperation,
+} from "./codexOptimistic.js";
 
 // ── Derive functions ─────────────────────────────────────────────────
 export {

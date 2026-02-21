@@ -513,7 +513,7 @@ async function handlePendingDynamicToolCalls(threadId: string): Promise<void> {
   }
 }
 
-async function emitLoadedRuntimeThreadsSnapshot(source: "start" | "open_thread"): Promise<void> {
+async function emitLoadedRuntimeThreadsSnapshot(source: "start" | "refresh_local_threads"): Promise<void> {
   if (!runtime) {
     return;
   }
@@ -788,19 +788,6 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
           ...(activeSessionId ? { sessionId: activeSessionId } : {}),
         },
       );
-      try {
-        await emitLoadedRuntimeThreadsSnapshot("open_thread");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        emit({
-          type: "global",
-          payload: {
-            kind: "bridge/local_threads_load_failed",
-            source: "open_thread",
-            message,
-          },
-        });
-      }
       return;
     } else {
       throw new Error(`[E_OPEN_TARGET_NOT_FOUND] No local rollout found for conversation handle: ${conversationHandle}`);
@@ -841,23 +828,10 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
       throw error;
     }
   }
-  try {
-    await emitLoadedRuntimeThreadsSnapshot("open_thread");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    emit({
-      type: "global",
-      payload: {
-        kind: "bridge/local_threads_load_failed",
-        source: "open_thread",
-        message,
-      },
-    });
-  }
 }
 
 async function refreshLocalThreads(): Promise<void> {
-  await emitLoadedRuntimeThreadsSnapshot("open_thread");
+  await emitLoadedRuntimeThreadsSnapshot("refresh_local_threads");
 }
 
 async function sendTurn(text: string): Promise<void> {

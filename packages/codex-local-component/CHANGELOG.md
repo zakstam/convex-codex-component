@@ -1,5 +1,12 @@
 # @zakstam/codex-local-component
 
+## 1.6.1
+
+### Patch Changes
+
+- 5a5fb7c: Add a changelog-only changeset entry to trigger CI verification for the TypeScript 7 workflow updates.
+- 017a331: Make TypeScript 7 preview (`tsgo` from `@typescript/native-preview`) the default for package `typecheck` and `build` workflows, and add explicit `typecheck:tsc` fallback scripts for legacy compiler verification.
+
 ## 1.6.0
 
 ### Minor Changes

@@ -333,6 +333,7 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("userScope_streamId_cursorStart", ["userScope", "streamId", "cursorStart"])
+    .index("userScope_streamRef_cursorStart", ["userScope", "streamRef", "cursorStart"])
     .index("userScope_streamId_eventId", ["userScope", "streamId", "eventId"])
     .index("expiresAt", ["expiresAt"]),
 

@@ -13,7 +13,7 @@ import { authzError, now } from "./utils.js";
 export async function touchThread(
   ctx: MutationCtx,
   args: {
-    actor: { userId?: string };
+    actor: { userId?: string; anonymousId?: string };
     threadId: string;
     model?: string;
     cwd?: string;
@@ -68,7 +68,7 @@ export async function touchThread(
 
 export async function getDeletionJobForActor(args: {
   ctx: MutationCtx | QueryCtx;
-  actor: { userId?: string };
+  actor: { userId?: string; anonymousId?: string };
   deletionJobId: string;
 }) {
   const job = await args.ctx.db

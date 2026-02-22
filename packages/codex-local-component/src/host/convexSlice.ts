@@ -32,10 +32,12 @@ function typedArgs<Fn extends FunctionReference<"query" | "mutation", "public" |
 
 export type HostActorContext = {
   userId?: string;
+  anonymousId?: string;
 };
 
 export const vHostActorContext = v.object({
   userId: v.optional(v.string()),
+  anonymousId: v.optional(v.string()),
 });
 
 export const vHostStreamInboundEvent = v.object({

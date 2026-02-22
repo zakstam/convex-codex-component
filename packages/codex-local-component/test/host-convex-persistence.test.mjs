@@ -168,3 +168,30 @@ test("createConvexPersistence.listPendingServerRequests maps persisted thread id
     limit: 100,
   });
 });
+
+test("createConvexPersistence.listPendingServerRequests returns [] for missing thread read errors", async () => {
+  const chatApi = createChatApi();
+  const client = {
+    mutation: async (fn) => {
+      if (fn === chatApi.syncOpenConversationBinding) {
+        return { threadId: "persisted-thread-1", created: true, rebindApplied: false };
+      }
+      return null;
+    },
+    query: async () => {
+      throw new Error("[E_THREAD_NOT_FOUND] Thread not found: conv-1");
+    },
+  };
+  const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
+
+  await persistence.ensureThread({
+    actor: { userId: "u-1" },
+    conversationId: "conv-1",
+  });
+  const pending = await persistence.listPendingServerRequests({
+    actor: { userId: "u-1" },
+    threadId: "persisted-thread-1",
+  });
+
+  assert.deepEqual(pending, []);
+});

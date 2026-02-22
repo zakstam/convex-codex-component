@@ -63,7 +63,7 @@ const vThreadListResult = v.object({
 
 async function requireThreadBindingByConversation(
   ctx: MutationCtx,
-  args: { actor: { userId?: string }; conversationId: string },
+  args: { actor: { userId?: string; anonymousId?: string }; conversationId: string },
 ) {
   const binding = await ctx.db
     .query("codex_thread_bindings")
@@ -82,7 +82,7 @@ async function requireThreadBindingByConversation(
 
 function buildSyncActorFromJob(job: {
   userId?: string;
-}): { userId?: string } {
+}): { userId?: string; anonymousId?: string } {
   return job.userId !== undefined ? { userId: String(job.userId) } : {};
 }
 
@@ -275,7 +275,7 @@ function splitInboundEvents(events: InboundEvent[]): {
 async function processSyncEventsWithAdaptiveSplit(
   ctx: MutationCtx,
   args: {
-    actor: { userId?: string };
+    actor: { userId?: string; anonymousId?: string };
     sessionId: string;
     threadId: string;
     events: InboundEvent[];

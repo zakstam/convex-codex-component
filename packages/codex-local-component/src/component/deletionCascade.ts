@@ -37,32 +37,38 @@ async function deleteThreadStreamDeltasBatch(args: {
       q.eq("userScope", args.userScope).eq("threadId", args.threadId),
     )
     .take(DELETION_QUERY_LIMITS.threadStreamScan);
-  const streamStatRows = await args.ctx.db
-    .query("codex_stream_stats")
-    .withIndex("userScope_threadId", (q) =>
-      q.eq("userScope", args.userScope).eq("threadId", args.threadId),
-    )
-    .take(DELETION_QUERY_LIMITS.threadStreamScan);
-  const streamIds = new Set<string>([
-    ...streamRows.map((row) => String(row.streamId)),
-    ...streamStatRows.map((row) => String(row.streamId)),
-  ]);
 
   let remaining = args.limit;
   let deleted = 0;
-  for (const streamId of streamIds) {
+  for (const stream of streamRows) {
     if (remaining <= 0) {
       break;
     }
     const batch = await args.ctx.db
       .query("codex_stream_deltas_ttl")
-      .withIndex("userScope_streamId_cursorStart", (q) =>
-        q.eq("userScope", args.userScope).eq("streamId", streamId),
+      .withIndex("userScope_streamRef_cursorStart", (q) =>
+        q.eq("userScope", args.userScope).eq("streamRef", stream._id),
       )
       .take(remaining);
     const removed = await deleteDocs(args.ctx, batch);
     deleted += removed;
     remaining -= removed;
+    const leftover = await args.ctx.db
+      .query("codex_stream_deltas_ttl")
+      .withIndex("userScope_streamRef_cursorStart", (q) =>
+        q.eq("userScope", args.userScope).eq("streamRef", stream._id),
+      )
+      .take(1);
+    if (leftover.length === 0) {
+      const statRows = await args.ctx.db
+        .query("codex_stream_stats")
+        .withIndex("userScope_streamRef", (q) =>
+          q.eq("userScope", args.userScope).eq("streamRef", stream._id),
+        )
+        .take(DELETION_QUERY_LIMITS.threadStreamScan);
+      await deleteDocs(args.ctx, statRows);
+      await args.ctx.db.delete(stream._id);
+    }
   }
   return deleted;
 }
@@ -80,33 +86,38 @@ async function deleteTurnStreamDeltasBatch(args: {
       q.eq("userScope", args.userScope).eq("threadId", args.threadId).eq("turnId", args.turnId),
     )
     .take(DELETION_QUERY_LIMITS.turnStreamScan);
-  const streamStatRows = await args.ctx.db
-    .query("codex_stream_stats")
-    .withIndex("userScope_threadId", (q) =>
-      q.eq("userScope", args.userScope).eq("threadId", args.threadId),
-    )
-    .filter((q) => q.eq(q.field("turnId"), args.turnId))
-    .take(DELETION_QUERY_LIMITS.turnStreamScan);
-  const streamIds = new Set<string>([
-    ...streamRows.map((row) => String(row.streamId)),
-    ...streamStatRows.map((row) => String(row.streamId)),
-  ]);
 
   let remaining = args.limit;
   let deleted = 0;
-  for (const streamId of streamIds) {
+  for (const stream of streamRows) {
     if (remaining <= 0) {
       break;
     }
     const batch = await args.ctx.db
       .query("codex_stream_deltas_ttl")
-      .withIndex("userScope_streamId_cursorStart", (q) =>
-        q.eq("userScope", args.userScope).eq("streamId", streamId),
+      .withIndex("userScope_streamRef_cursorStart", (q) =>
+        q.eq("userScope", args.userScope).eq("streamRef", stream._id),
       )
       .take(remaining);
     const removed = await deleteDocs(args.ctx, batch);
     deleted += removed;
     remaining -= removed;
+    const leftover = await args.ctx.db
+      .query("codex_stream_deltas_ttl")
+      .withIndex("userScope_streamRef_cursorStart", (q) =>
+        q.eq("userScope", args.userScope).eq("streamRef", stream._id),
+      )
+      .take(1);
+    if (leftover.length === 0) {
+      const statRows = await args.ctx.db
+        .query("codex_stream_stats")
+        .withIndex("userScope_streamRef", (q) =>
+          q.eq("userScope", args.userScope).eq("streamRef", stream._id),
+        )
+        .take(DELETION_QUERY_LIMITS.turnStreamScan);
+      await deleteDocs(args.ctx, statRows);
+      await args.ctx.db.delete(stream._id);
+    }
   }
   return deleted;
 }

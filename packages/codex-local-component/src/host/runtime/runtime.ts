@@ -454,7 +454,7 @@ function isConvexIntegrated(args: CreateCodexHostRuntimeArgs): args is ConvexInt
 
 export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexHostRuntime {
   let persistence: HostRuntimePersistence;
-  let defaultActor: { userId: string } | null = null;
+  let defaultActor: { userId?: string; anonymousId?: string } | null = null;
   let defaultSessionId: string | null = null;
 
   if (isConvexIntegrated(args)) {
@@ -494,7 +494,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   const connect = async (connectArgs: HostRuntimeConnectArgs): Promise<void> => {
     if (core.bridge) { core.emitState(); return; }
     core.setLifecycle("starting", "runtime");
-    core.actor = connectArgs.actor ?? defaultActor ?? { userId: "anonymous" };
+    core.actor = connectArgs.actor ?? defaultActor ?? { anonymousId: randomSessionId() };
     const rawSessionId = connectArgs.sessionId ?? defaultSessionId;
     core.sessionId = rawSessionId ? `${rawSessionId}-${randomSessionId()}` : randomSessionId();
     core.conversationId = null;

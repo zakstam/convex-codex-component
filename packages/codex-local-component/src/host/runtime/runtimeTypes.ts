@@ -30,7 +30,7 @@ import type { RuntimeConversationLocator, ThreadHandle } from "../../shared/thre
 
 // ── Public types ──────────────────────────────────────────────────────
 
-export type ActorContext = { userId?: string };
+export type ActorContext = { userId?: string; anonymousId?: string };
 
 export type HostRuntimeLifecyclePhase = "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
 export type HostRuntimeLifecycleSource = "runtime" | "bridge_event" | "protocol_error" | "process_exit";

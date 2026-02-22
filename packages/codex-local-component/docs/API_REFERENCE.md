@@ -48,7 +48,7 @@ Use this path in order:
 | `API` | `Type` | `Notes` |
 | --- | --- | --- |
 | `defineCodexHostDefinitions` | `function` | Returns runtime-owned mutation/query definitions. |
-| `resolveActorFromAuth` | `function` | Canonical actor helper that binds `actor.userId` to `ctx.auth.getUserIdentity().subject`. |
+| `resolveActorFromAuth` | `function` | Canonical actor helper that binds authenticated identity to `actor.userId` and preserves `actor.anonymousId` when auth identity is absent. |
 | `HOST_SURFACE_MANIFEST` | `const` | Canonical host mutation/query surface metadata. |
 | `renderCodexHostShim` | `function` | Generates explicit Convex `convex/chat.ts` module content. |
 | `vHostActorContext` | `validator` | Actor validator for host endpoints. |
@@ -72,7 +72,9 @@ Use this path in order:
 - `defineCodexHostDefinitions` is the canonical host-definition entrypoint.
 - `createCodexHost` and wrapper-based host facade APIs are removed.
 - Authentication is consumer-managed at app boundaries.
-- Host definitions preserve consumer actor identity: request `actor.userId` is passed through when present; anonymous calls use the configured host fallback actor (runtime-owned default `{}`).
+- Host definitions preserve consumer actor identity: request actor identity is passed through when present; anonymous calls use the configured host fallback actor.
+- Canonical actor shape at host/runtime boundaries: `actor: { userId?: string; anonymousId?: string }`.
+- Runtime-owned default anonymous actor uses generated per-session `anonymousId`.
 - Canonical bridge lifecycle contract is push + snapshot:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`

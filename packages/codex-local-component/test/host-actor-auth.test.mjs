@@ -42,6 +42,19 @@ test("resolveActorFromAuth allows anonymous actor when identity is missing", asy
   assert.deepEqual(actor, {});
 });
 
+test("resolveActorFromAuth preserves requested anonymousId when identity is missing", async () => {
+  const actor = await resolveActorFromAuth(
+    {
+      auth: {
+        getUserIdentity: async () => null,
+      },
+    },
+    { anonymousId: "anon-session-1" },
+  );
+
+  assert.deepEqual(actor, { anonymousId: "anon-session-1" });
+});
+
 test("resolveActorFromAuth rejects explicit userId when identity is missing", async () => {
   await assert.rejects(
     resolveActorFromAuth(
@@ -51,6 +64,20 @@ test("resolveActorFromAuth rejects explicit userId when identity is missing", as
         },
       },
       { userId: "user-1" },
+    ),
+    /\[E_AUTH_SESSION_FORBIDDEN\]/,
+  );
+});
+
+test("resolveActorFromAuth rejects anonymousId for authenticated identity", async () => {
+  await assert.rejects(
+    resolveActorFromAuth(
+      {
+        auth: {
+          getUserIdentity: async () => ({ subject: "user-1" }),
+        },
+      },
+      { anonymousId: "anon-session-1" },
     ),
     /\[E_AUTH_SESSION_FORBIDDEN\]/,
   );

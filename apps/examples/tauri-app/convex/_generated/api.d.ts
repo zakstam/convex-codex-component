@@ -55,7 +55,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -83,7 +83,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           decision: "accepted" | "declined";
           itemId: string;
           threadId: string;
@@ -96,7 +96,11 @@ export declare const components: {
       getByTurn: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string; turnId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          threadId: string;
+          turnId: string;
+        },
         Array<{
           completedAt?: number;
           createdAt: number;
@@ -116,7 +120,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -152,7 +156,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           includeRaw?: boolean;
           paginationOpts: {
             cursor: string | null;
@@ -188,7 +192,11 @@ export declare const components: {
       listPending: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; limit?: number; threadId?: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          limit?: number;
+          threadId?: string;
+        },
         Array<{
           createdAt: number;
           itemId: string;
@@ -220,7 +228,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           requestId: string | number;
           resolvedAt: number;
           responseJson?: string;
@@ -233,7 +241,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           itemId: string;
           method:
             | "item/commandExecution/requestApproval"
@@ -256,7 +264,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           lastEventCursor: number;
           sessionId: string;
           threadId: string;
@@ -267,7 +275,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           lastEventCursor: number;
           sessionId: string;
           threadId: string;
@@ -278,7 +286,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           lifecycleEvents: Array<{
             createdAt: number;
             eventId: string;
@@ -318,7 +326,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           ensureLastEventCursor?: number;
           lifecycleEvents: Array<{
             createdAt: number;
@@ -376,14 +384,14 @@ export declare const components: {
       listCheckpoints: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         Array<{ cursor: number; streamId: string }>
       >;
       replay: FunctionReference<
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           runtime?: {
             exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
@@ -423,7 +431,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           fromCursor: number;
           runtime?: {
             exposeRawReasoningDeltas?: boolean;
@@ -456,7 +464,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           cursor: number;
           streamId: string;
           threadId: string;
@@ -469,7 +477,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           byteSize: number;
           chunkIndex: number;
           messageCount: number;
@@ -482,7 +490,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           threadId: string;
         },
@@ -492,7 +500,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           errorCode?: string;
           errorMessage?: string;
           jobId: string;
@@ -506,14 +514,17 @@ export declare const components: {
       cancelScheduledDeletion: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; deletionJobId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          deletionJobId: string;
+        },
         { cancelled: boolean; deletionJobId: string }
       >;
       create: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           cwd?: string;
           localThreadId?: string;
           model?: string;
@@ -526,7 +537,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           reason?: string;
           threadId: string;
@@ -537,7 +548,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           reasonCode?: string;
           runtimeConversationId: string;
@@ -553,13 +564,20 @@ export declare const components: {
       forceRunScheduledDeletion: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; deletionJobId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          deletionJobId: string;
+        },
         { deletionJobId: string; forced: boolean }
       >;
       getConversationSyncJob: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; conversationId: string; jobId?: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          jobId?: string;
+        },
         null | {
           completedAt?: number;
           conversationId: string;
@@ -584,7 +602,10 @@ export declare const components: {
       getDeletionJobStatus: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; deletionJobId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          deletionJobId: string;
+        },
         null | {
           batchSize?: number;
           cancelledAt?: number;
@@ -614,7 +635,7 @@ export declare const components: {
       getState: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         {
           activeStreams: Array<{
             startedAt: number;
@@ -670,7 +691,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           includeArchived?: boolean;
           paginationOpts: {
             cursor: string | null;
@@ -696,7 +717,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           includeArchived?: boolean;
         },
@@ -714,7 +735,11 @@ export declare const components: {
       listConversationSyncJobs: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; conversationId: string; limit?: number },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          limit?: number;
+        },
         Array<{
           completedAt?: number;
           expectedMessageCount?: number;
@@ -733,7 +758,10 @@ export declare const components: {
       listRuntimeConversationBindings: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; runtimeConversationIds: Array<string> },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          runtimeConversationIds: Array<string>;
+        },
         Array<{
           conversationId: string;
           runtimeConversationId: string;
@@ -744,7 +772,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           cursor: number;
           errorCode?: string;
@@ -778,14 +806,18 @@ export declare const components: {
       purgeActorData: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; batchSize?: number; reason?: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          batchSize?: number;
+          reason?: string;
+        },
         { deletionJobId: string }
       >;
       resolve: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId?: string;
           cwd?: string;
           localThreadId?: string;
@@ -797,20 +829,23 @@ export declare const components: {
       resolveByConversationId: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; conversationId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+        },
         null | { conversationId: string; threadId: string }
       >;
       resume: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         { status: "active"; threadId: string }
       >;
       scheduleDeleteCascade: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           delayMs?: number;
           reason?: string;
@@ -822,7 +857,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           delayMs?: number;
           reason?: string;
@@ -833,7 +868,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           expectedChecksum: string;
           expectedManifestJson: string;
           expectedMessageCount?: number;
@@ -851,7 +886,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           runtimeConversationId?: string;
           threadId?: string;
@@ -870,7 +905,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           cwd?: string;
           model?: string;
@@ -890,7 +925,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           conversationId: string;
           threadId: string;
         },
@@ -901,7 +936,7 @@ export declare const components: {
       listByThread: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         Array<{
           last: {
             cachedInputTokens: number;
@@ -926,7 +961,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           cachedInputTokens: number;
           inputTokens: number;
           lastCachedInputTokens: number;
@@ -949,7 +984,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           reason?: string;
           threadId: string;
@@ -961,7 +996,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           reason?: string;
           threadId: string;
           turnId: string;
@@ -972,7 +1007,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           delayMs?: number;
           reason?: string;
@@ -985,7 +1020,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           idempotencyKey: string;
           input: Array<{
             path?: string;

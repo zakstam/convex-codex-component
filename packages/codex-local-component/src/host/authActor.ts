@@ -26,11 +26,18 @@ export async function resolveActorFromAuth(
     if (requestedActor.userId !== undefined) {
       authError("requested actor userId requires an authenticated identity");
     }
+    if (requestedActor.anonymousId !== undefined) {
+      return { anonymousId: requestedActor.anonymousId };
+    }
     return {};
   }
 
   if (requestedActor.userId !== undefined && requestedActor.userId !== subject) {
     authError(`requested actor userId mismatch for identity subject: ${subject}`);
+  }
+
+  if (requestedActor.anonymousId !== undefined) {
+    authError("requested actor anonymousId is not allowed for authenticated identity");
   }
 
   return { userId: subject };

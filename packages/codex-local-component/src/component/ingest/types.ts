@@ -13,6 +13,7 @@ import type { RuntimeOptions, SyncRuntimeInput } from "../syncRuntime.js";
 
 export type ActorContext = {
   userId?: string;
+  anonymousId?: string;
 };
 
 export type StreamInboundEvent = {

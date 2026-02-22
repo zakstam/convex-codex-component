@@ -17,12 +17,14 @@ No alternate consumer setup path is supported.
 
 ## Actor Contract
 
-Use `actor: { userId?: string }` at host/runtime/hook boundaries.
+Use `actor: { userId?: string; anonymousId?: string }` at host/runtime/hook boundaries.
 
 - `userId` present: user-scoped isolation.
-- `userId` missing: anonymous-only isolation.
+- `userId` missing + `anonymousId` present: anonymous-session isolation.
+- Missing both falls back to legacy shared anonymous scope and should be avoided in production integrations.
 - Authentication and actor binding are app-owned concerns.
-- Actor precedence is consumer-first: host definitions pass through `actor.userId` when provided; anonymous calls fall back to the configured host fallback actor (runtime-owned default `{}`).
+- Actor precedence is consumer-first: host definitions pass through caller actor identity when provided; anonymous calls fall back to the configured host fallback actor.
+- Runtime-owned host default now uses a generated per-session `anonymousId` (instead of a shared anonymous user id).
 - Prefer `resolveActorFromAuth(ctx, requestedActor?)` from `@zakstam/codex-local-component/host/convex` to derive canonical host actors from `ctx.auth.getUserIdentity()`.
 
 ## Conversation Contract

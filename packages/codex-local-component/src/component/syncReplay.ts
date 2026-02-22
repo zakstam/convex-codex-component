@@ -6,6 +6,7 @@ import { resolveRuntimeOptions, type SyncRuntimeInput } from "./syncRuntime.js";
 
 type ActorContext = {
   userId?: string;
+  anonymousId?: string;
 };
 
 type PullStateArgs = {

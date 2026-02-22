@@ -8,7 +8,7 @@ import { canonicalizeSnapshotItemId } from "./snapshotIdentity.js";
 
 export type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 
-export type ActorContext = { userId?: string };
+export type ActorContext = { userId?: string; anonymousId?: string };
 
 export type BridgeState = {
   running: boolean;

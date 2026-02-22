@@ -5,6 +5,7 @@
 import type { FunctionReference } from "convex/server";
 import { hasRecoverableIngestErrors } from "../../ingestRecovery.js";
 import type { HostRuntimePersistence, ActorContext, IngestDelta } from "../../runtime/runtimeTypes.js";
+import { classifyThreadReadError } from "../../../errors.js";
 
 type ConvexHttpClientLike = {
   mutation: (fn: FunctionReference<"mutation", "public">, args: Record<string, unknown>) => Promise<unknown>;
@@ -396,11 +397,18 @@ export function createConvexPersistence(
       if (!conversationId) {
         return [];
       }
-      return client.query(chatApi.listPendingServerRequests, {
-        actor: args.actor,
-        conversationId,
-        limit: 100,
-      }) as Promise<HostRuntimePersistence["listPendingServerRequests"] extends (...a: never[]) => infer R ? Awaited<R> : never>;
+      try {
+        return await client.query(chatApi.listPendingServerRequests, {
+          actor: args.actor,
+          conversationId,
+          limit: 100,
+        }) as Promise<HostRuntimePersistence["listPendingServerRequests"] extends (...a: never[]) => infer R ? Awaited<R> : never>;
+      } catch (error) {
+        if (classifyThreadReadError(error)?.threadStatus === "missing_thread") {
+          return [];
+        }
+        throw error;
+      }
     },
 
     acceptTurnSend: async (args) => {

@@ -1,19 +1,25 @@
 # Canonical Integration
 
 Canonical default: runtime-owned host integration.
+Codex is the source of truth; persistence is optional.
 
 This is the only documented way to integrate this library.
-No alternate consumer setup path is supported.
+Runtime mode is explicit:
+- `mode: "codex-only"`: no Convex persistence dependency.
+- `mode: "codex+replica"`: optional Convex persistence replication.
 
 ## Steps
 
-1. Mount the component in `convex/convex.config.ts` using `@zakstam/codex-local-component/convex.config`.
-2. Define host definitions in `convex/chat.ts` with `defineCodexHostDefinitions(...)` from `@zakstam/codex-local-component/host/convex`.
-3. Export explicit Convex `mutation/query` wrappers from `convex/chat.ts`.
-4. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
-5. Build UI with hooks from `@zakstam/codex-local-component/react`.
-6. Run `chat.validateHostWiring` during startup (`{ actor, conversationId? }`).
-7. Run package doctor checks during integration and CI.
+1. Choose runtime mode:
+   - `codex-only`: skip Convex host wiring and start runtime directly with `mode: "codex-only"`.
+   - `codex+replica`: continue with steps 2-4 for Convex host wiring.
+2. (`codex+replica` only) Mount the component in `convex/convex.config.ts` using `@zakstam/codex-local-component/convex.config`.
+3. (`codex+replica` only) Define host definitions in `convex/chat.ts` with `defineCodexHostDefinitions(...)` from `@zakstam/codex-local-component/host/convex`.
+4. (`codex+replica` only) Export explicit Convex `mutation/query` wrappers from `convex/chat.ts`.
+5. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
+6. Build UI with hooks from `@zakstam/codex-local-component/react`.
+7. (`codex+replica` only) Run `chat.validateHostWiring` during startup (`{ actor, conversationId? }`).
+8. Run package doctor checks during integration and CI.
 
 ## Actor Contract
 
@@ -57,8 +63,12 @@ Runtime startup is transport-first:
 - `connect`/`lifecycle.start` starts bridge transport and runtime session only.
 - Thread intent must be explicit via `openThread`/`lifecycle.openThread`.
 - `sendTurn`/`turns.send` fail closed until a thread is opened.
+- Runtime mode is explicit:
+  - `mode: "codex-only"`: Codex-only authoritative mode (no Convex host wiring required).
+  - `mode: "codex+replica"`: Codex-authoritative + optional Convex replica adapter.
 - Optional `lifecycleSafeSend` only recovers transport startup; it never infers thread intent.
 - For local runtime threads that must be persisted for UI reads, call `importLocalThreadToPersistence(...)` and switch the UI to the returned persisted `conversationId`.
+- `importLocalThreadToPersistence(...)` is unavailable in `mode: "codex-only"` and fail-closes with `E_PERSISTENCE_DISABLED`.
 - Import reliability defaults are conservative: runtime import sends bounded ingest chunks (64 deltas) and relies on adaptive splitting for read-limit rejections.
 - React sync hydration consumers should use conversation-level `messages.syncProgress` (`syncedCount`, `totalCount`, `syncState`, `label`) instead of per-message sync metadata.
 - Sync hydration state events are state-only; retain the latest snapshot messages for the same conversation until a newer snapshot payload arrives.

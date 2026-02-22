@@ -138,6 +138,7 @@ export function createConvexPersistence(
   }
 
   const persistence: HostRuntimePersistence = {
+    mode: "replica",
     ensureThread: async (args) => {
       const opened = await client.mutation(chatApi.syncOpenConversationBinding, {
         actor: args.actor,

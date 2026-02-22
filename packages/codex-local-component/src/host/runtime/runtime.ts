@@ -46,6 +46,7 @@ import {
   type ConvexPersistenceChatApi,
   type ConvexPersistenceOptions,
 } from "../persistence/convex/convexPersistence.js";
+import { createCodexOnlyPersistence } from "../persistence/codexOnlyPersistence.js";
 import type {
   HostRuntimeConnectArgs,
   HostRuntimeImportLocalThreadArgs,
@@ -83,24 +84,30 @@ export {
 } from "./runtimeTypes.js";
 export type { ConvexPersistenceChatApi, ConvexPersistenceOptions } from "../persistence/convex/convexPersistence.js";
 
-type ManualPersistenceArgs = {
+type RuntimeBaseArgs = {
   bridge?: BridgeConfig;
   bridgeFactory?: (config: BridgeConfig, handlers: RuntimeBridgeHandlers) => RuntimeBridge;
-  persistence: HostRuntimePersistence;
   handlers?: HostRuntimeHandlers;
 };
 
-type ConvexIntegratedArgs = {
-  bridge?: BridgeConfig;
-  bridgeFactory?: (config: BridgeConfig, handlers: RuntimeBridgeHandlers) => RuntimeBridge;
+type CodexOnlyArgs = RuntimeBaseArgs & {
+  mode: "codex-only";
+};
+
+type ManualPersistenceArgs = RuntimeBaseArgs & {
+  mode: "codex+replica";
+  persistence: HostRuntimePersistence;
+};
+
+type ConvexIntegratedArgs = RuntimeBaseArgs & {
+  mode: "codex+replica";
   convexUrl: string;
   chatApi: ConvexPersistenceChatApi;
   userId: string;
   persistenceOptions?: ConvexPersistenceOptions;
-  handlers?: HostRuntimeHandlers;
 };
 
-export type CreateCodexHostRuntimeArgs = ManualPersistenceArgs | ConvexIntegratedArgs;
+export type CreateCodexHostRuntimeArgs = CodexOnlyArgs | ManualPersistenceArgs | ConvexIntegratedArgs;
 
 type SnapshotThreadItem = {
   type?: string;
@@ -449,23 +456,38 @@ function extractThreadReadTurns(response: unknown): SnapshotTurn[] {
 }
 
 function isConvexIntegrated(args: CreateCodexHostRuntimeArgs): args is ConvexIntegratedArgs {
-  return "convexUrl" in args && "chatApi" in args && "userId" in args;
+  return args.mode === "codex+replica" && "convexUrl" in args && "chatApi" in args && "userId" in args;
+}
+
+function isManualReplica(args: CreateCodexHostRuntimeArgs): args is ManualPersistenceArgs {
+  return args.mode === "codex+replica" && "persistence" in args;
 }
 
 export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexHostRuntime {
+  if (args.mode !== "codex-only" && args.mode !== "codex+replica") {
+    throw new Error(`[E_RUNTIME_MODE_INVALID] Unknown runtime mode: ${String((args as { mode?: unknown }).mode)}`);
+  }
+
   let persistence: HostRuntimePersistence;
   let defaultActor: { userId?: string; anonymousId?: string } | null = null;
   let defaultSessionId: string | null = null;
 
-  if (isConvexIntegrated(args)) {
+  if (args.mode === "codex-only") {
+    persistence = createCodexOnlyPersistence();
+  } else if (isConvexIntegrated(args)) {
     const { ConvexHttpClient } = require("convex/browser") as { ConvexHttpClient: new (url: string) => { mutation: (...a: unknown[]) => Promise<unknown>; query: (...a: unknown[]) => Promise<unknown> } };
     const client = new ConvexHttpClient(args.convexUrl);
     const adapter = createConvexPersistence(client, args.chatApi, args.persistenceOptions);
     persistence = adapter;
     defaultActor = { userId: args.userId };
     defaultSessionId = randomSessionId();
-  } else {
+  } else if (isManualReplica(args)) {
+    if (args.persistence.mode !== "replica") {
+      throw new Error("[E_RUNTIME_MODE_CONFIG_INVALID] mode='codex+replica' requires a replica persistence adapter (persistence.mode='replica').");
+    }
     persistence = args.persistence;
+  } else {
+    throw new Error("[E_RUNTIME_MODE_CONFIG_INVALID] mode='codex+replica' requires either { persistence } or { convexUrl, chatApi, userId }.");
   }
 
   const lifecycleSubscribers = new Set<(state: HostRuntimeState) => void>();
@@ -704,6 +726,9 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
   const importLocalThreadToPersistence: CodexHostRuntime["importLocalThreadToPersistence"] = async (
     importArgs: HostRuntimeImportLocalThreadArgs,
   ): Promise<HostRuntimeImportLocalThreadResult> => {
+    if (persistence.mode === "codex-only") {
+      throw new Error("[E_PERSISTENCE_DISABLED] importLocalThreadToPersistence is unavailable when runtime mode is codex-only.");
+    }
     if (!core.bridge) {
       throw new Error("[E_IMPORT_THREAD_BRIDGE_NOT_READY] Bridge not started. Connect runtime first.");
     }

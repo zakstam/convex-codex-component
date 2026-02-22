@@ -30,6 +30,7 @@ function createHarness(options = {}) {
   const syncJobs = new Map();
 
   const runtime = createCodexHostRuntime({
+    mode: "codex+replica",
     bridgeFactory: (_config, nextHandlers) => {
       handlers = nextHandlers;
       return {
@@ -41,6 +42,7 @@ function createHarness(options = {}) {
       };
     },
     persistence: {
+      mode: "replica",
       ensureThread: async (args) => {
         ensureThreadCalls.push(args);
         return { threadId: "local-thread", created: true };

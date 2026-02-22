@@ -628,6 +628,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
   };
 
   runtime = createCodexHostRuntime({
+    mode: "codex+replica",
     bridge: {
       cwd: payload.cwd ?? process.cwd(),
     },

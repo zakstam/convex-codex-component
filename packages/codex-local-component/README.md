@@ -171,6 +171,10 @@ React consumers can apply optimistic updates for these lifecycle operations with
 
 `createCodexHostRuntime(...)` exposes conversation control helpers:
 
+- Runtime mode is explicit:
+  - `mode: "codex-only"`: Codex-authoritative runtime without Convex persistence wiring.
+  - `mode: "codex+replica"`: Codex-authoritative runtime with optional Convex replication.
+
 - `openThread` (`start|resume|fork`, conversation-scoped intent)
 - `importLocalThreadToPersistence`
 - `resumeThread`
@@ -197,6 +201,7 @@ React consumers can apply optimistic updates for these lifecycle operations with
 When resuming/forking a runtime thread while retaining a different persisted conversation identity, pass `persistedConversationId` to pin persistence binding. Without it, persistence binding follows runtime conversation switches.
 
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
+`importLocalThreadToPersistence` is unavailable in `mode: "codex-only"` and fail-closes with `E_PERSISTENCE_DISABLED`.
 Import now runs as a durable server-owned resumable flow (`collecting -> sealed`, then `queued -> running|retry_wait -> verifying -> succeeded|failed|cancelled`) with public terminal state (`synced|failed|cancelled`), so helper/runtime restarts do not drop in-progress sync.
 Sync completion is fail-closed: jobs verify canonical expected message IDs before terminal `synced`; mismatches terminal as `failed`.
 

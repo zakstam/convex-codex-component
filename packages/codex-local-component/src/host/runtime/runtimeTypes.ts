@@ -130,6 +130,7 @@ export type HostRuntimeThreadListResult = {
 };
 
 export type HostRuntimePersistence = {
+  mode: "codex-only" | "replica";
   ensureThread: (args: {
     actor: ActorContext;
     conversationId: string;

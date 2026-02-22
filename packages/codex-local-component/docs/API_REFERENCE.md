@@ -9,7 +9,9 @@ Use this path in order:
 1. Mount `@zakstam/codex-local-component/convex.config`.
 2. Define host definitions via `defineCodexHostDefinitions(...)` from `@zakstam/codex-local-component/host/convex`.
 3. Export explicit Convex `query/mutation` handlers from `convex/chat.ts`.
-4. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host`.
+4. Start runtime with `createCodexHostRuntime(...)` from `@zakstam/codex-local-component/host` using explicit mode:
+   - `mode: "codex-only"` (no Convex dependency)
+   - `mode: "codex+replica"` (optional Convex persistence replication)
 5. Build UI with hooks from `@zakstam/codex-local-component/react`.
 
 ## `@zakstam/codex-local-component`
@@ -76,6 +78,10 @@ Use this path in order:
 - Host definitions preserve consumer actor identity: request actor identity is passed through when present; anonymous calls use the configured host fallback actor.
 - Canonical actor shape at host/runtime boundaries: `actor: { userId?: string; anonymousId?: string }`.
 - Runtime-owned default anonymous actor uses generated per-session `anonymousId`.
+- Runtime factory requires explicit mode:
+  - `createCodexHostRuntime({ mode: "codex-only", ... })`
+  - `createCodexHostRuntime({ mode: "codex+replica", persistence: ... })`
+  - `createCodexHostRuntime({ mode: "codex+replica", convexUrl, chatApi, userId, ... })`
 - Canonical bridge lifecycle contract is push + snapshot:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
@@ -83,7 +89,7 @@ Use this path in order:
 - Runtime start contract is split:
   - `connect(...)`: transport/session only
   - `openThread({ strategy, conversationId?, persistedConversationId? })`: explicit conversation start/resume/fork
-  - `importLocalThreadToPersistence({ runtimeThreadHandle, conversationId? })`: canonical single-call local-thread import into persistence
+  - `importLocalThreadToPersistence({ runtimeThreadHandle, conversationId? })`: canonical single-call local-thread import into persistence (`mode: "codex+replica"` only)
   - large imports adaptively split ingest batches on Convex document-read-limit rejections while preserving event order
   - `sendTurn(...)` fails closed until `openThread(...)` succeeds.
 - Tauri send behavior:
@@ -97,6 +103,7 @@ Use this path in order:
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
 - `openThread(..., persistedConversationId)` pins persistence binding to explicit conversation identity during resume/fork flows. Without `persistedConversationId`, persistence binding follows runtime conversation switches.
+- `importLocalThreadToPersistence(...)` fail-closes with `E_PERSISTENCE_DISABLED` when runtime mode is `codex-only`.
 - Conversation-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread reads to keep runtime request polling consumers on a stable array contract.
 - External identifier read aliases are also available:
   - `threadSnapshotByConversation`

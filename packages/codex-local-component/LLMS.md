@@ -10,7 +10,9 @@ Use this sequence only:
 1. Mount the component with `@zakstam/codex-local-component/convex.config`.
 2. Generate/sync `convex/chat.ts` host shim (explicit Convex exports).
 3. Define host endpoints with `defineCodexHostDefinitions(...)` in `convex/chat.ts`.
-4. Start runtime with `createCodexHostRuntime(...)`.
+4. Start runtime with `createCodexHostRuntime(...)` and explicit mode:
+   - `mode: "codex-only"` for Codex-authoritative runtime with no Convex dependency.
+   - `mode: "codex+replica"` when enabling optional Convex persistence replication.
 5. Build UI with `@zakstam/codex-local-component/react` hooks.
 6. Run `pnpm --filter @zakstam/codex-local-component run doctor:integration` before claiming integration complete.
 

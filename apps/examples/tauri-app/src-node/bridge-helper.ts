@@ -823,6 +823,9 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
   await runtime.openThread({
     strategy: payload.strategy,
     ...(runtimeConversationIdForOpen ? { conversationId: runtimeConversationIdForOpen } : {}),
+    ...((payload.strategy === "resume" || payload.strategy === "fork") && payload.conversationId
+      ? { persistedConversationId: payload.conversationId }
+      : {}),
     ...(payload.model ? { model: payload.model } : {}),
     ...(payload.cwd ? { cwd: payload.cwd } : {}),
     ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),

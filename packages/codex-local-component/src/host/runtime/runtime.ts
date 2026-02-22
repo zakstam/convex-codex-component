@@ -549,6 +549,12 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.throwIfTurnMutationLocked();
     const strategy = openArgs.strategy;
     const normalizedConversationId = openArgs.conversationId?.trim();
+    const normalizedPersistedConversationId = openArgs.persistedConversationId?.trim();
+    core.preferPersistedConversationBinding = false;
+    if (normalizedPersistedConversationId && normalizedPersistedConversationId.length > 0) {
+      core.conversationId = normalizedPersistedConversationId;
+      core.preferPersistedConversationBinding = true;
+    }
     if ((strategy === "resume" || strategy === "fork") && (!normalizedConversationId || normalizedConversationId.length === 0)) {
       throw new Error(`conversationId is required when strategy="${strategy}".`);
     }
@@ -665,10 +671,12 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
   const resumeThread: CodexHostRuntime["resumeThread"] = async (tid, params) => {
     core.throwIfTurnMutationLocked();
+    core.preferPersistedConversationBinding = false;
     return core.sendRequest(buildThreadResumeRequest(core.requestIdFn(), { threadId: tid, ...(params ?? {}) }));
   };
   const forkThread: CodexHostRuntime["forkThread"] = async (tid, params) => {
     core.throwIfTurnMutationLocked();
+    core.preferPersistedConversationBinding = false;
     return core.sendRequest(buildThreadForkRequest(core.requestIdFn(), { threadId: tid, ...(params ?? {}) }));
   };
   const archiveThread: CodexHostRuntime["archiveThread"] = async (tid) => {

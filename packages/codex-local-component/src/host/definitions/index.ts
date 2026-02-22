@@ -16,6 +16,12 @@ export {
   type HostSurfaceMutationKey,
   type HostSurfaceQueryKey,
 } from "./surfaceManifest.js";
+export {
+  HOST_CONTRACT_ARTIFACT,
+  type HostContractProfile,
+  type HostContractMutationKey,
+  type HostContractQueryKey,
+} from "../contractArtifact.js";
 
 export {
   renderCodexHostShim,

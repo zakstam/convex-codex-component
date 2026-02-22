@@ -91,6 +91,7 @@ export type HostRuntimeConnectArgs = {
 export type HostRuntimeOpenThreadArgs = {
   strategy: "start" | "resume" | "fork";
   conversationId?: ThreadHandle;
+  persistedConversationId?: string;
   model?: string;
   cwd?: string;
   dynamicTools?: DynamicToolSpec[];
@@ -172,7 +173,7 @@ export type HostRuntimePersistence = {
   }) => Promise<void>;
   listPendingServerRequests: (args: {
     actor: ActorContext;
-    threadId?: string;
+    conversationId: string;
   }) => Promise<HostRuntimePersistedServerRequest[]>;
   acceptTurnSend: (args: {
     actor: ActorContext;

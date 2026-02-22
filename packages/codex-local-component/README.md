@@ -194,6 +194,7 @@ React consumers can apply optimistic updates for these lifecycle operations with
 - `getConversationSummary`
 
 `openThread` fail-closes invalid resume/fork identity input: `conversationId` is trimmed and must be non-empty.
+When resuming/forking a runtime thread while retaining a different persisted conversation identity, pass `persistedConversationId` to pin persistence binding. Without it, persistence binding follows runtime conversation switches.
 
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
 Import now runs as a durable server-owned resumable flow (`collecting -> sealed`, then `queued -> running|retry_wait -> verifying -> succeeded|failed|cancelled`) with public terminal state (`synced|failed|cancelled`), so helper/runtime restarts do not drop in-progress sync.

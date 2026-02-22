@@ -111,7 +111,7 @@ test("createConvexPersistence.waitForConversationSyncJobTerminal polls with quer
   assert.ok(calls.every((call) => call.fn === chatApi.getConversationSyncJob));
 });
 
-test("createConvexPersistence.listPendingServerRequests fail-closes without conversation context", async () => {
+test("createConvexPersistence.listPendingServerRequests queries by conversation scope", async () => {
   const calls = [];
   const chatApi = createChatApi();
   const client = {
@@ -126,47 +126,51 @@ test("createConvexPersistence.listPendingServerRequests fail-closes without conv
   };
   const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
 
-  const pending = await persistence.listPendingServerRequests({ actor: { userId: "u-1" } });
-
-  assert.deepEqual(pending, []);
-  assert.equal(calls.length, 0);
-});
-
-test("createConvexPersistence.listPendingServerRequests maps persisted thread id to conversation id", async () => {
-  const calls = [];
-  const chatApi = createChatApi();
-  const client = {
-    mutation: async (fn, args) => {
-      calls.push({ kind: "mutation", fn, args });
-      if (fn === chatApi.syncOpenConversationBinding) {
-        return { threadId: "persisted-thread-1", created: true, rebindApplied: false };
-      }
-      return null;
-    },
-    query: async (fn, args) => {
-      calls.push({ kind: "query", fn, args });
-      return [{ requestId: "req-1" }];
-    },
-  };
-  const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
-
-  await persistence.ensureThread({
-    actor: { userId: "u-1" },
-    conversationId: "conv-1",
-  });
   const pending = await persistence.listPendingServerRequests({
     actor: { userId: "u-1" },
-    threadId: "persisted-thread-1",
+    conversationId: "conv-1",
   });
 
   assert.deepEqual(pending, [{ requestId: "req-1" }]);
-  const queryCall = calls.find((call) => call.kind === "query");
-  assert.equal(queryCall.fn, chatApi.listPendingServerRequests);
-  assert.deepEqual(queryCall.args, {
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], {
+    kind: "query",
+    fn: chatApi.listPendingServerRequests,
+    args: {
+      actor: { userId: "u-1" },
+      conversationId: "conv-1",
+      limit: 100,
+    },
+  });
+});
+
+test("createConvexPersistence.listPendingServerRequests returns [] for missing thread read errors with mapped threadId input", async () => {
+  const calls = [];
+  const chatApi = createChatApi();
+  const client = {
+    mutation: async (fn, args) => {
+      calls.push({ kind: "mutation", fn, args });
+      return null;
+    },
+    query: async (fn, args) => {
+      calls.push({ kind: "query", fn, args });
+      assert.equal(fn, chatApi.listPendingServerRequests);
+      assert.deepEqual(args, {
+        actor: { userId: "u-1" },
+        conversationId: "conv-1",
+        limit: 100,
+      });
+      throw new Error("[E_THREAD_NOT_FOUND] Thread not found: conv-1");
+    },
+  };
+  const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
+
+  const pending = await persistence.listPendingServerRequests({
     actor: { userId: "u-1" },
     conversationId: "conv-1",
-    limit: 100,
   });
+
+  assert.deepEqual(pending, []);
 });
 
 test("createConvexPersistence.listPendingServerRequests returns [] for missing thread read errors", async () => {

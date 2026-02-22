@@ -49,6 +49,7 @@ Use this path in order:
 | --- | --- | --- |
 | `defineCodexHostDefinitions` | `function` | Returns runtime-owned mutation/query definitions. |
 | `resolveActorFromAuth` | `function` | Canonical actor helper that binds authenticated identity to `actor.userId` and preserves `actor.anonymousId` when auth identity is absent. |
+| `HOST_CONTRACT_ARTIFACT` | `const` | Canonical source-of-truth host mutation/query contract artifact. |
 | `HOST_SURFACE_MANIFEST` | `const` | Canonical host mutation/query surface metadata. |
 | `renderCodexHostShim` | `function` | Generates explicit Convex `convex/chat.ts` module content. |
 | `vHostActorContext` | `validator` | Actor validator for host endpoints. |
@@ -81,7 +82,7 @@ Use this path in order:
   - lifecycle fields include `running`, `phase`, `source`, `updatedAtMs`, `conversationId`, `runtimeConversationId`, and `turnId`.
 - Runtime start contract is split:
   - `connect(...)`: transport/session only
-  - `openThread({ strategy, conversationId? })`: explicit conversation start/resume/fork
+  - `openThread({ strategy, conversationId?, persistedConversationId? })`: explicit conversation start/resume/fork
   - `importLocalThreadToPersistence({ runtimeThreadHandle, conversationId? })`: canonical single-call local-thread import into persistence
   - large imports adaptively split ingest batches on Convex document-read-limit rejections while preserving event order
   - `sendTurn(...)` fails closed until `openThread(...)` succeeds.
@@ -95,6 +96,7 @@ Use this path in order:
     - `E_TAURI_SEND_RETRY_EXHAUSTED`
 - Export Convex host functions as named constants in `convex/chat.ts` to keep generated `api.chat.*` contracts stable.
 - Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
+- `openThread(..., persistedConversationId)` pins persistence binding to explicit conversation identity during resume/fork flows. Without `persistedConversationId`, persistence binding follows runtime conversation switches.
 - Conversation-scoped query exports are safe-by-default and return thread-read status payloads (`threadStatus`, `code`, `message`) for handled read failures. `listPendingServerRequests` returns an empty list on missing-thread reads to keep runtime request polling consumers on a stable array contract.
 - External identifier read aliases are also available:
   - `threadSnapshotByConversation`

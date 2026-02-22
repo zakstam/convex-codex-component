@@ -19,6 +19,7 @@ function createHarness(options = {}) {
   let handlers = null;
   const upserted = [];
   const resolved = [];
+  const listPendingServerRequestCalls = [];
   const ingestCalls = [];
   const ensureThreadCalls = [];
   const dispatchQueue = [];
@@ -63,7 +64,13 @@ function createHarness(options = {}) {
       resolvePendingServerRequest: async (args) => {
         resolved.push(args);
       },
-      listPendingServerRequests: async () => [],
+      listPendingServerRequests: async (args) => {
+        listPendingServerRequestCalls.push(args);
+        if (options.listPendingServerRequests) {
+          return options.listPendingServerRequests(args);
+        }
+        return [];
+      },
       acceptTurnSend: async (args) => {
         const accepted = {
           dispatchId: `${args.turnId}-dispatch`,
@@ -276,6 +283,7 @@ function createHarness(options = {}) {
     emitProcessExit,
     upserted,
     resolved,
+    listPendingServerRequestCalls,
     ingestCalls,
     ensureThreadCalls,
     protocolErrors,
@@ -601,6 +609,32 @@ test("runtime start supports threadStrategy=resume", async () => {
   await runtime.sendTurn("hello");
   const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
   assert.equal(turnStartRequest.params.threadId, threadId);
+
+  await runtime.stop();
+});
+
+test("runtime resume can bind persisted conversation identity separately from runtime thread id", async () => {
+  const { runtime, sent, emitResponse, ensureThreadCalls } = createHarness();
+  const runtimeThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  const persistedConversationId = "conv-persisted-1";
+
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  const openPromise = runtime.openThread({
+    strategy: "resume",
+    conversationId: runtimeThreadId,
+    persistedConversationId,
+  });
+  const resumeRequest = sent.find((message) => message.method === "thread/resume");
+  await emitResponse({ id: resumeRequest.id, result: { thread: { id: runtimeThreadId } } });
+  await openPromise;
+
+  await runtime.sendTurn("hello");
+  assert.equal(ensureThreadCalls.length, 1);
+  assert.equal(ensureThreadCalls[0].conversationId, persistedConversationId);
 
   await runtime.stop();
 });
@@ -1613,4 +1647,28 @@ test("runtime exposes canonical lifecycle subscription and snapshot", async () =
   assert.equal(runtime.getLifecycleState().phase, "stopped");
 
   unsubscribe();
+});
+
+test("runtime listPendingServerRequests uses conversation-scoped lookup", async () => {
+  const { runtime, sent, emitResponse, listPendingServerRequestCalls } = createHarness({
+    listPendingServerRequests: async () => [{ requestId: "req-1", method: "item/tool/call" }],
+  });
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  const pending = await runtime.listPendingServerRequests();
+  assert.equal(pending.length, 1);
+  assert.equal(listPendingServerRequestCalls.length, 1);
+  assert.deepEqual(listPendingServerRequestCalls[0], {
+    actor: { userId: "u" },
+    conversationId: threadId,
+  });
+
+  await runtime.stop();
 });

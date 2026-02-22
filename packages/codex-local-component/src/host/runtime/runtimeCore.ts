@@ -54,6 +54,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let threadId: string | null = null;
   let runtimeConversationId: string | null = null;
   let conversationId: string | null = null;
+  let preferPersistedConversationBinding = false;
   let turnId: string | null = null;
   let runtimeTurnId: string | null = null;
   let turnInFlight = false;
@@ -188,7 +189,12 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
       const switchedRuntimeConversation = runtimeConversationId !== null
         && runtimeConversationId !== nextRuntimeConversationId;
       runtimeConversationId = nextRuntimeConversationId;
-      conversationId = nextRuntimeConversationId;
+      if (conversationId === null) {
+        conversationId = nextRuntimeConversationId;
+      }
+      if (switchedRuntimeConversation && !preferPersistedConversationBinding) {
+        conversationId = nextRuntimeConversationId;
+      }
       if (switchedRuntimeConversation) {
         // Force a fresh persistence binding when runtime switches conversations.
         threadId = null;
@@ -337,6 +343,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     set sessionId(v) { sessionId = v; },
     get conversationId() { return conversationId; },
     set conversationId(v) { conversationId = v; },
+    get preferPersistedConversationBinding() { return preferPersistedConversationBinding; },
+    set preferPersistedConversationBinding(v) { preferPersistedConversationBinding = v; },
     get threadId() { return threadId; },
     get runtimeConversationId() { return runtimeConversationId; },
     get turnId() { return turnId; },
@@ -370,7 +378,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
 
     resetAll() {
       bridge = null; actor = null; sessionId = null; threadId = null; runtimeConversationId = null;
-      conversationId = null; turnId = null; runtimeTurnId = null; turnInFlight = false; turnSettled = false;
+      conversationId = null; preferPersistedConversationBinding = false;
+      turnId = null; runtimeTurnId = null; turnInFlight = false; turnSettled = false;
       interruptRequested = false;
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
       startupModel = undefined; startupCwd = undefined; pendingRequests.clear();
@@ -383,7 +392,9 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     },
     rejectAllPending() { for (const [, p] of pendingRequests) p.reject?.(new Error("Bridge stopped before request completed.")); },
     listPendingServerRequests: async (): Promise<HostRuntimePersistedServerRequest[]> => {
-      if (actor) return args.persistence.listPendingServerRequests({ actor });
+      if (actor && conversationId) {
+        return args.persistence.listPendingServerRequests({ actor, conversationId });
+      }
       return [];
     },
     getState: (): HostRuntimeState => ({

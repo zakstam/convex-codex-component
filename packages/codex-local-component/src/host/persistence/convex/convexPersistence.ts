@@ -391,16 +391,10 @@ export function createConvexPersistence(
     },
 
     listPendingServerRequests: async (args) => {
-      const conversationId = args.threadId
-        ? (threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId)
-        : null;
-      if (!conversationId) {
-        return [];
-      }
       try {
         return await client.query(chatApi.listPendingServerRequests, {
           actor: args.actor,
-          conversationId,
+          conversationId: args.conversationId,
           limit: 100,
         }) as Promise<HostRuntimePersistence["listPendingServerRequests"] extends (...a: never[]) => infer R ? Awaited<R> : never>;
       } catch (error) {

@@ -83,6 +83,17 @@ test("defineCodexHostDefinitions output keys match HOST_SURFACE_MANIFEST keys", 
   );
 });
 
+test("host surface manifest is derived from the canonical host contract artifact", () => {
+  assert.deepEqual(
+    host.HOST_SURFACE_MANIFEST.runtimeOwned.mutations,
+    host.HOST_CONTRACT_ARTIFACT.runtimeOwned.mutations,
+  );
+  assert.deepEqual(
+    host.HOST_SURFACE_MANIFEST.runtimeOwned.queries,
+    host.HOST_CONTRACT_ARTIFACT.runtimeOwned.queries,
+  );
+});
+
 test("validateHostWiring reports missing component children as check failures", async () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),

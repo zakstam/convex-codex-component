@@ -530,15 +530,11 @@ const LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS = 8_000;
 const LIFECYCLE_SAFE_SEND_POLL_MS = 200;
 
 function isBridgeReadyForTurnSend(state: BridgeState): boolean {
-  const legacyPersistedThreadId = Reflect.get(state, "persistedThreadId");
-  const legacyLocalThreadId = Reflect.get(state, "localThreadId");
   return (
     state.running === true
     && (
       (typeof state.conversationId === "string" && state.conversationId.length > 0)
       || (typeof state.runtimeConversationId === "string" && state.runtimeConversationId.length > 0)
-      || (typeof legacyPersistedThreadId === "string" && legacyPersistedThreadId.length > 0)
-      || (typeof legacyLocalThreadId === "string" && legacyLocalThreadId.length > 0)
     )
   );
 }
@@ -548,11 +544,7 @@ function toBridgeStartInvokeConfig(config: StartBridgeConfig): Record<string, un
 }
 
 function toOpenThreadInvokeConfig(config: OpenThreadConfig): Record<string, unknown> {
-  const invokeConfig: Record<string, unknown> = { ...config };
-  if (typeof config.conversationId === "string" && config.conversationId.length > 0) {
-    invokeConfig.threadId = config.conversationId;
-  }
-  return invokeConfig;
+  return { ...config };
 }
 
 function errorMessage(error: unknown): string {

@@ -546,8 +546,10 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
 
   const openThread: CodexHostRuntime["openThread"] = async (openArgs: HostRuntimeOpenThreadArgs) => {
     if (!core.bridge) throw new Error("Bridge not started. Connect runtime first.");
+    core.throwIfTurnMutationLocked();
     const strategy = openArgs.strategy;
-    if ((strategy === "resume" || strategy === "fork") && !openArgs.conversationId) {
+    const normalizedConversationId = openArgs.conversationId?.trim();
+    if ((strategy === "resume" || strategy === "fork") && (!normalizedConversationId || normalizedConversationId.length === 0)) {
       throw new Error(`conversationId is required when strategy="${strategy}".`);
     }
     if (strategy === "start") {
@@ -560,7 +562,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     }
     if (strategy === "resume") {
       const response = await core.sendRequest(buildThreadResumeRequest(core.requestIdFn(), {
-        threadId: openArgs.conversationId!,
+        threadId: normalizedConversationId!,
         ...(openArgs.model ? { model: openArgs.model } : {}),
         ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
         ...(openArgs.dynamicTools ? { dynamicTools: openArgs.dynamicTools } : {}),
@@ -568,7 +570,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       return response;
     }
     return core.sendRequest(buildThreadForkRequest(core.requestIdFn(), {
-      threadId: openArgs.conversationId!,
+      threadId: normalizedConversationId!,
       ...(openArgs.model ? { model: openArgs.model } : {}),
       ...(openArgs.cwd ? { cwd: openArgs.cwd } : {}),
     }));

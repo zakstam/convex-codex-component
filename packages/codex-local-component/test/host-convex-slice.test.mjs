@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  forceRebindConversationSyncForActor,
+  markConversationSyncProgressForActor,
+  syncOpenConversationBindingForActor,
   computeDataHygiene,
   computeDurableHistoryStats,
   computePersistenceStats,
@@ -75,6 +78,70 @@ test("ensureConversationBindingByResolve derives external and local identity fro
   assert.equal(calls[0].args.localThreadId, "thread-1");
   assert.equal(calls[0].args.model, "m");
   assert.equal(calls[0].args.cwd, "/tmp");
+});
+
+test("syncOpenConversationBindingForActor fails closed when syncOpenBinding is missing", async () => {
+  const ctx = {
+    runMutation: async () => {
+      throw new Error("should not run");
+    },
+  };
+  const component = {
+    threads: {},
+  };
+
+  await assert.rejects(
+    () =>
+      syncOpenConversationBindingForActor(ctx, component, {
+        actor: { userId: "actor-user" },
+        conversationId: "conversation-1",
+        runtimeConversationId: "runtime-conversation-1",
+      }),
+    /Host component is missing threads\.syncOpenBinding\./,
+  );
+});
+
+test("markConversationSyncProgressForActor fails closed when markSyncProgress is missing", async () => {
+  const ctx = {
+    runMutation: async () => {
+      throw new Error("should not run");
+    },
+  };
+  const component = {
+    threads: {},
+  };
+
+  await assert.rejects(
+    () =>
+      markConversationSyncProgressForActor(ctx, component, {
+        actor: { userId: "actor-user" },
+        conversationId: "conversation-1",
+        runtimeConversationId: "runtime-conversation-1",
+        cursor: 10,
+      }),
+    /Host component is missing threads\.markSyncProgress\./,
+  );
+});
+
+test("forceRebindConversationSyncForActor fails closed when forceRebindSync is missing", async () => {
+  const ctx = {
+    runMutation: async () => {
+      throw new Error("should not run");
+    },
+  };
+  const component = {
+    threads: {},
+  };
+
+  await assert.rejects(
+    () =>
+      forceRebindConversationSyncForActor(ctx, component, {
+        actor: { userId: "actor-user" },
+        conversationId: "conversation-1",
+        runtimeConversationId: "runtime-conversation-1",
+      }),
+    /Host component is missing threads\.forceRebindSync\./,
+  );
 });
 
 test("resolveThreadByConversationIdForActor returns mapping for known external id", async () => {

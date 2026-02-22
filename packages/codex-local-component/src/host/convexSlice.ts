@@ -619,7 +619,7 @@ export async function ensureConversationBindingByResolve<
 }
 
 export async function syncOpenConversationBindingForActor<
-  Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
+  Component extends CodexThreadsSyncBindingComponent,
 >(
   ctx: HostMutationRunner,
   component: Component,
@@ -633,30 +633,7 @@ export async function syncOpenConversationBindingForActor<
   syncState: "unsynced" | "syncing" | "synced" | "drifted";
 }> {
   if (!component.threads.syncOpenBinding) {
-    const resolved = await ctx.runMutation(component.threads.resolve, {
-      actor: args.actor,
-      conversationId: args.conversationId,
-      localThreadId: args.runtimeConversationId,
-      ...(args.model !== undefined ? { model: args.model } : {}),
-      ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
-    });
-    const threadIdValue = typeof resolved === "object" && resolved !== null
-      ? Reflect.get(resolved, "threadId")
-      : null;
-    const createdValue = typeof resolved === "object" && resolved !== null
-      ? Reflect.get(resolved, "created")
-      : null;
-    if (typeof threadIdValue !== "string") {
-      throw new Error("threads.resolve fallback returned invalid threadId.");
-    }
-    return {
-      threadId: threadIdValue,
-      conversationId: args.conversationId,
-      runtimeConversationId: args.runtimeConversationId,
-      created: createdValue === true,
-      rebindApplied: false,
-      syncState: "syncing",
-    };
+    throw new Error("Host component is missing threads.syncOpenBinding.");
   }
   return ctx.runMutation(component.threads.syncOpenBinding, {
     actor: args.actor,
@@ -669,7 +646,7 @@ export async function syncOpenConversationBindingForActor<
 }
 
 export async function markConversationSyncProgressForActor<
-  Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
+  Component extends CodexThreadsSyncBindingComponent,
 >(
   ctx: HostMutationRunner,
   component: Component,
@@ -690,32 +667,7 @@ export async function markConversationSyncProgressForActor<
   staleIgnored: boolean;
 }> {
   if (!component.threads.markSyncProgress) {
-    const resolved = await ctx.runMutation(component.threads.resolve, {
-      actor: args.actor,
-      conversationId: args.conversationId,
-      ...(args.runtimeConversationId !== undefined ? { localThreadId: args.runtimeConversationId } : {}),
-    });
-    const threadIdValue = typeof resolved === "object" && resolved !== null
-      ? Reflect.get(resolved, "threadId")
-      : null;
-    if (typeof threadIdValue !== "string") {
-      throw new Error("threads.resolve fallback returned invalid threadId.");
-    }
-    return {
-      threadId: threadIdValue,
-      conversationId: args.conversationId,
-      ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
-      syncState: args.syncState === undefined ? "synced" : args.syncState,
-      lastSyncedCursor: args.cursor,
-      ...(args.syncJobId !== undefined ? { syncJobId: args.syncJobId } : {}),
-      ...(args.syncJobState !== undefined ? { syncJobState: args.syncJobState } : {}),
-      ...(args.syncJobPolicyVersion !== undefined ? { syncJobPolicyVersion: args.syncJobPolicyVersion } : {}),
-      ...(args.syncJobStartedAt !== undefined ? { syncJobStartedAt: args.syncJobStartedAt } : {}),
-      ...(args.syncJobUpdatedAt !== undefined ? { syncJobUpdatedAt: args.syncJobUpdatedAt } : {}),
-      syncJobLastCursor: args.cursor,
-      ...(args.syncJobErrorCode !== undefined ? { syncJobErrorCode: args.syncJobErrorCode } : {}),
-      staleIgnored: false,
-    };
+    throw new Error("Host component is missing threads.markSyncProgress.");
   }
   return ctx.runMutation(component.threads.markSyncProgress, {
     actor: args.actor,
@@ -736,7 +688,7 @@ export async function markConversationSyncProgressForActor<
 }
 
 export async function forceRebindConversationSyncForActor<
-  Component extends CodexThreadsSyncBindingComponent & CodexThreadsResolveComponent,
+  Component extends CodexThreadsSyncBindingComponent,
 >(
   ctx: HostMutationRunner,
   component: Component,
@@ -749,24 +701,7 @@ export async function forceRebindConversationSyncForActor<
   rebindCount: number;
 }> {
   if (!component.threads.forceRebindSync) {
-    const resolved = await ctx.runMutation(component.threads.resolve, {
-      actor: args.actor,
-      conversationId: args.conversationId,
-      localThreadId: args.runtimeConversationId,
-    });
-    const threadIdValue = typeof resolved === "object" && resolved !== null
-      ? Reflect.get(resolved, "threadId")
-      : null;
-    if (typeof threadIdValue !== "string") {
-      throw new Error("threads.resolve fallback returned invalid threadId.");
-    }
-    return {
-      threadId: threadIdValue,
-      conversationId: args.conversationId,
-      runtimeConversationId: args.runtimeConversationId,
-      syncState: "syncing",
-      rebindCount: 0,
-    };
+    throw new Error("Host component is missing threads.forceRebindSync.");
   }
   return ctx.runMutation(component.threads.forceRebindSync, {
     actor: args.actor,

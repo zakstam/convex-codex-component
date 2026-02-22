@@ -48,7 +48,7 @@ test("createTauriBridgeClient wraps invoke with expected payload envelopes", asy
   const client = createTauriBridgeClient(async (command, args) => {
     calls.push({ command, args });
     if (command === "get_bridge_state") {
-      return { running: false, localThreadId: null, turnId: null, lastError: null };
+      return { running: false, conversationId: null, runtimeConversationId: null, turnId: null, lastError: null };
     }
     return { ok: true };
   });
@@ -78,6 +78,29 @@ test("createTauriBridgeClient wraps invoke with expected payload envelopes", asy
   assert.deepEqual(calls[2], { command: "open_thread", args: { config: { strategy: "start" } } });
   assert.deepEqual(calls[3], { command: "read_account", args: { config: {} } });
   assert.deepEqual(calls[4], { command: "get_bridge_state", args: undefined });
+});
+
+test("createTauriBridgeClient openThread does not emit legacy threadId alias", async () => {
+  const calls = [];
+  const client = createTauriBridgeClient(async (command, args) => {
+    calls.push({ command, args });
+    return { ok: true };
+  });
+
+  await client.lifecycle.openThread({
+    strategy: "resume",
+    conversationId: "conversation-1",
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, "open_thread");
+  assert.deepEqual(calls[0].args, {
+    config: {
+      strategy: "resume",
+      conversationId: "conversation-1",
+    },
+  });
+  assert.equal(Object.hasOwn(calls[0].args.config, "threadId"), false);
 });
 
 test("createTauriBridgeClient send keeps fail-fast behavior by default", async () => {
@@ -110,7 +133,13 @@ test("createTauriBridgeClient lifecycleSafeSend auto-starts and retries send", a
         }
       }
       if (command === "get_bridge_state") {
-        return { running: true, localThreadId: "local-thread-1", turnId: null, lastError: null };
+        return {
+          running: true,
+          conversationId: "conversation-1",
+          runtimeConversationId: "runtime-conversation-1",
+          turnId: null,
+          lastError: null,
+        };
       }
       return { ok: true };
     },
@@ -164,7 +193,13 @@ test("createTauriBridgeClient lifecycleSafeSend fails with retry-exhausted when 
         return { ok: true };
       }
       if (command === "get_bridge_state") {
-        return { running: true, localThreadId: "local-thread-1", turnId: null, lastError: null };
+        return {
+          running: true,
+          conversationId: "conversation-1",
+          runtimeConversationId: "runtime-conversation-1",
+          turnId: null,
+          lastError: null,
+        };
       }
       if (command === "send_user_turn") {
         throw new Error("failed to write command: broken pipe");
@@ -196,7 +231,7 @@ test("createTauriBridgeClient exposes lifecycle subscription when configured", a
   const client = createTauriBridgeClient(
     async (command) => {
       if (command === "get_bridge_state") {
-        return { running: false, localThreadId: null, conversationId: null, turnId: null, lastError: null };
+        return { running: false, conversationId: null, runtimeConversationId: null, turnId: null, lastError: null };
       }
       return { ok: true };
     },
@@ -217,8 +252,8 @@ test("createTauriBridgeClient exposes lifecycle subscription when configured", a
 
   listeners[0]({
     running: true,
-    localThreadId: "thread-1",
     conversationId: "thread-1",
+    runtimeConversationId: "runtime-thread-1",
     turnId: "turn-1",
     lastError: null,
   });
@@ -236,7 +271,7 @@ test("createTauriBridgeClient sync hydration subscription receives snapshots and
   const client = createTauriBridgeClient(
     async (command) => {
       if (command === "get_bridge_state") {
-        return { running: false, localThreadId: null, conversationId: null, turnId: null, lastError: null };
+        return { running: false, conversationId: null, runtimeConversationId: null, turnId: null, lastError: null };
       }
       return { ok: true };
     },

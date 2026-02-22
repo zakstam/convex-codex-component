@@ -193,6 +193,8 @@ React consumers can apply optimistic updates for these lifecycle operations with
 - `interruptConversation`
 - `getConversationSummary`
 
+`openThread` fail-closes invalid resume/fork identity input: `conversationId` is trimmed and must be non-empty.
+
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
 Import now runs as a durable server-owned resumable sync job (`collecting -> sealed -> processing`) with terminal state (`synced|failed|cancelled`), so helper/runtime restarts do not drop in-progress sync.
 Sync completion is fail-closed: jobs verify canonical expected message IDs before terminal `synced`; mismatches terminal as `failed`.
@@ -250,6 +252,7 @@ Tauri bridge client send behavior:
 - Default: `createTauriBridgeClient(...)` keeps `turns.send(...)` fail-fast.
 - Canonical sequence: `lifecycle.start(...)` (transport connect) -> `lifecycle.openThread(...)` (explicit thread intent) -> `turns.send(...)`.
 - Opt-in: `createTauriBridgeClient(..., { lifecycleSafeSend: true })` only auto-recovers transport startup from cached `lifecycle.start(...)` config. It does not implicitly open/create threads.
+- Tauri lifecycle readiness and open payloads are conversation-scoped only; legacy `threadId`/`localThreadId`/`persistedThreadId` aliases are not part of canonical package behavior.
 - Fail-closed error codes for opt-in send:
   - `E_TAURI_SEND_START_CONFIG_MISSING`
   - `E_TAURI_SEND_AUTO_START_FAILED`
@@ -273,6 +276,7 @@ Runtime-owned durable sync job read queries:
 - `listConversationSyncJobs`
 
 These endpoints are used to persist local-runtime-to-Convex thread mapping state (`syncState`, `lastSyncedCursor`, session watermark, and rebind metadata) during `openThread` and ingest progression.
+Sync mapping endpoints are required canonical host surface methods; missing sync methods fail closed (no `threads.resolve` compatibility fallback).
 
 Runtime-owned host definitions also expose conversation-scoped archive mutations:
 

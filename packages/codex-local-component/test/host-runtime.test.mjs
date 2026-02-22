@@ -20,6 +20,7 @@ function createHarness(options = {}) {
   const upserted = [];
   const resolved = [];
   const ingestCalls = [];
+  const ensureThreadCalls = [];
   const dispatchQueue = [];
   const protocolErrors = [];
   const failedDispatches = [];
@@ -38,7 +39,10 @@ function createHarness(options = {}) {
       };
     },
     persistence: {
-      ensureThread: async () => ({ threadId: "local-thread", created: true }),
+      ensureThread: async (args) => {
+        ensureThreadCalls.push(args);
+        return { threadId: "local-thread", created: true };
+      },
       ensureSession: async () => ({ sessionId: "session", threadId: "local-thread", status: "created" }),
       ingestSafe: options.ingestSafe ?? (async (args) => {
         ingestCalls.push(args);
@@ -265,6 +269,7 @@ function createHarness(options = {}) {
     upserted,
     resolved,
     ingestCalls,
+    ensureThreadCalls,
     protocolErrors,
     failedDispatches,
     upsertErrors,
@@ -676,6 +681,71 @@ test("resumeThread updates active runtime thread id after response", async () =>
   await waitForMessage(sent, (message) => message.method === "turn/start");
   const turnStartRequests = sent.filter((message) => message.method === "turn/start");
   assert.equal(turnStartRequests[0].params.threadId, resumedThreadId);
+
+  await runtime.stop();
+});
+
+test("runtime rebinds persistence when runtime conversation switches on resume", async () => {
+  const { runtime, sent, emitResponse, emitEvent, ensureThreadCalls } = createHarness();
+  const initialThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  const resumedThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6b";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: initialThreadId } } });
+
+  await runtime.sendTurn("first");
+  assert.equal(ensureThreadCalls.length, 1);
+  assert.equal(ensureThreadCalls[0].conversationId, initialThreadId);
+  await emitEvent({
+    eventId: "evt-turn-completed-initial",
+    threadId: initialThreadId,
+    turnId: "turn-initial",
+    streamId: `${initialThreadId}:turn-initial:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/completed",
+    payloadJson: JSON.stringify({
+      method: "turn/completed",
+      params: {
+        threadId: initialThreadId,
+        turn: { id: "turn-initial", items: [], status: "completed", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  const resumePromise = runtime.resumeThread(resumedThreadId);
+  const resumeRequest = sent.find((message) => message.method === "thread/resume");
+  await emitResponse({ id: resumeRequest.id, result: { thread: { id: resumedThreadId } } });
+  await resumePromise;
+
+  await runtime.sendTurn("second");
+  assert.equal(ensureThreadCalls.length, 2);
+  assert.equal(ensureThreadCalls[1].conversationId, resumedThreadId);
+
+  await runtime.stop();
+});
+
+test("openThread rejects blank conversationId for resume and fork", async () => {
+  const { runtime } = createHarness();
+
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  await assert.rejects(
+    runtime.openThread({ strategy: "resume", conversationId: "   " }),
+    /conversationId is required when strategy="resume"\./,
+  );
+  await assert.rejects(
+    runtime.openThread({ strategy: "fork", conversationId: "" }),
+    /conversationId is required when strategy="fork"\./,
+  );
 
   await runtime.stop();
 });

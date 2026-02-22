@@ -183,7 +183,16 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (!("thread" in message.result) || typeof message.result.thread !== "object" || message.result.thread === null) return;
     if (!("id" in message.result.thread) || typeof message.result.thread.id !== "string") return;
     if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
-      runtimeConversationId = message.result.thread.id; if (!conversationId) conversationId = message.result.thread.id; emitState();
+      const nextRuntimeConversationId = message.result.thread.id;
+      const switchedRuntimeConversation = runtimeConversationId !== null
+        && runtimeConversationId !== nextRuntimeConversationId;
+      runtimeConversationId = nextRuntimeConversationId;
+      conversationId = nextRuntimeConversationId;
+      if (switchedRuntimeConversation) {
+        // Force a fresh persistence binding when runtime switches conversations.
+        threadId = null;
+      }
+      emitState();
     }
   };
 

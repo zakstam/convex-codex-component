@@ -60,7 +60,7 @@ Runtime startup is transport-first:
 - Import reliability defaults are conservative: runtime import sends bounded ingest chunks (64 deltas) and relies on adaptive splitting for read-limit rejections.
 - React sync hydration consumers should use conversation-level `messages.syncProgress` (`syncedCount`, `totalCount`, `syncState`, `label`) instead of per-message sync metadata.
 - Sync hydration state events are state-only; retain the latest snapshot messages for the same conversation until a newer snapshot payload arrives.
-- Canonical sync-job lifecycle is durable and conversation-scoped: `idle -> syncing -> synced|failed|cancelled`.
+- Canonical sync-job lifecycle is durable and conversation-scoped: source `collecting -> sealed`, then job execution `queued -> running|retry_wait -> verifying -> succeeded|failed|cancelled` (public query state remains `syncing|synced|failed|cancelled`).
 - During `syncing`, send policy should block user sends for correctness.
 - Hydration consumers should gate updates by `syncJobId` to avoid stale-event overwrite.
 
@@ -76,12 +76,12 @@ const codex = defineCodexHostDefinitions({ components });
 export const syncOpenConversationBinding = mutation(codex.mutations.syncOpenConversationBinding);
 export const markConversationSyncProgress = mutation(codex.mutations.markConversationSyncProgress);
 export const forceRebindConversationSync = mutation(codex.mutations.forceRebindConversationSync);
-export const startConversationSyncJob = mutation(codex.mutations.startConversationSyncJob);
-export const appendConversationSyncChunk = mutation(codex.mutations.appendConversationSyncChunk);
-export const sealConversationSyncJobSource = mutation(codex.mutations.sealConversationSyncJobSource);
+export const startConversationSyncSource = mutation(codex.mutations.startConversationSyncSource);
+export const appendConversationSyncSourceChunk = mutation(codex.mutations.appendConversationSyncSourceChunk);
+export const sealConversationSyncSource = mutation(codex.mutations.sealConversationSyncSource);
 export const cancelConversationSyncJob = mutation(codex.mutations.cancelConversationSyncJob);
-export const getConversationSyncJob = mutation(codex.mutations.getConversationSyncJob);
-export const listConversationSyncJobs = mutation(codex.mutations.listConversationSyncJobs);
+export const getConversationSyncJob = query(codex.queries.getConversationSyncJob);
+export const listConversationSyncJobs = query(codex.queries.listConversationSyncJobs);
 export const ensureConversationBinding = mutation(codex.mutations.ensureConversationBinding);
 export const ensureSession = mutation(codex.mutations.ensureSession);
 export const ingestBatch = mutation(codex.mutations.ingestBatch);
@@ -94,7 +94,7 @@ export const listThreadMessages = query(codex.queries.listThreadMessages);
 
 For Convex `api.chat.*` generated typing, export each endpoint as a named constant.
 
-`syncOpenConversationBinding`, `markConversationSyncProgress`, and `forceRebindConversationSync` remain mapping/projection hooks. Durable sync lifecycle is server-owned through `startConversationSyncJob`, `appendConversationSyncChunk`, `sealConversationSyncJobSource`, `cancelConversationSyncJob`, `getConversationSyncJob`, and `listConversationSyncJobs`.
+`syncOpenConversationBinding`, `markConversationSyncProgress`, and `forceRebindConversationSync` remain mapping/projection hooks. Durable sync lifecycle is server-owned through `startConversationSyncSource`, `appendConversationSyncSourceChunk`, `sealConversationSyncSource`, `cancelConversationSyncJob`, `getConversationSyncJob`, and `listConversationSyncJobs`.
 
 Conversation-scoped reads are safe-by-default (`threadSnapshot`, `threadSnapshotByConversation`, `listThreadMessages`, `listThreadMessagesByConversation`, `listTurnMessages`, `listTurnMessagesByConversation`, `listThreadReasoning`, `persistenceStats`, `durableHistoryStats`, `dataHygiene`) and return thread-status payloads for handled read failures. `listPendingServerRequests` and `listPendingServerRequestsByConversation` are also safe-by-default and return an empty array (`[]`) when the thread is missing.
 

@@ -115,15 +115,16 @@ Use this path in order:
   - `useCodexOptimisticMutation(api.chat.forceRunDeletion, codexOptimisticPresets.deletionStatus.forceRun(api.chat.getDeletionStatus))`
 - Conversation-scoped archive endpoints: `archiveConversation`, `unarchiveConversation`, `listThreadsForConversation`.
 - Runtime-owned sync mapping endpoints: `syncOpenConversationBinding`, `markConversationSyncProgress`, `forceRebindConversationSync`.
-- Runtime-owned durable sync job mutation endpoints: `startConversationSyncJob`, `appendConversationSyncChunk`, `sealConversationSyncJobSource`, `cancelConversationSyncJob`.
+- Runtime-owned durable sync job mutation endpoints: `startConversationSyncSource`, `appendConversationSyncSourceChunk`, `sealConversationSyncSource`, `cancelConversationSyncJob`.
 - Runtime-owned durable sync job query endpoints: `getConversationSyncJob`, `listConversationSyncJobs`.
 - Startup wiring preflight query: `validateHostWiring({ actor, conversationId? })`.
 
 Sync job source manifests:
 - `expectedMessageCount` is the count of renderable messages in the imported snapshot.
-- `expectedMessageIdsJson` is a JSON string containing an array of `{ turnId, messageId }` entries (message identity is turn-scoped and stable even when upstream snapshot items omit `id`).
+- `expectedManifestJson` is a strict JSON string containing an array of `{ turnId, messageId }` entries (invalid shapes fail-closed).
+- `expectedChecksum` is the immutable sealed-source checksum in the form `<chunkCount>:<totalMessageCount>:<totalByteSize>`.
 
-- Sync terminal semantics are fail-closed: `synced` is emitted only after canonical message manifest verification; mismatches terminal-fail with stable sync error codes.
+- Sync terminal semantics are fail-closed: terminal success requires checksum match plus exact expected manifest set match; mismatches terminal-fail with stable sync error codes.
 - Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.
 - Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`conversationId`, `preview`, `status`, `updatedAt`).
 - Runtime thread/conversation control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `setThreadName`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`, `archiveConversation`, `unarchiveConversation`.

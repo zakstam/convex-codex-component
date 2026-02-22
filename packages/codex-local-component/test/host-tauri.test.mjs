@@ -103,6 +103,25 @@ test("createTauriBridgeClient openThread does not emit legacy threadId alias", a
   assert.equal(Object.hasOwn(calls[0].args.config, "threadId"), false);
 });
 
+test("createTauriBridgeClient openThread fail-closes resume/fork without conversationId", async () => {
+  const calls = [];
+  const client = createTauriBridgeClient(async (command, args) => {
+    calls.push({ command, args });
+    return { ok: true };
+  });
+
+  assert.throws(
+    () => client.lifecycle.openThread({ strategy: "resume" }),
+    /conversationId is required when strategy="resume"\./,
+  );
+  assert.throws(
+    () => client.lifecycle.openThread({ strategy: "fork", conversationId: "   " }),
+    /conversationId is required when strategy="fork"\./,
+  );
+
+  assert.equal(calls.length, 0);
+});
+
 test("createTauriBridgeClient send keeps fail-fast behavior by default", async () => {
   const calls = [];
   const client = createTauriBridgeClient(async (command, args) => {

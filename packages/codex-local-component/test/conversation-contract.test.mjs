@@ -30,9 +30,9 @@ test("runtime-owned host surface is conversation-only", () => {
   assert.ok(mutationKeys.includes("syncOpenConversationBinding"));
   assert.ok(mutationKeys.includes("markConversationSyncProgress"));
   assert.ok(mutationKeys.includes("forceRebindConversationSync"));
-  assert.ok(mutationKeys.includes("startConversationSyncJob"));
-  assert.ok(mutationKeys.includes("appendConversationSyncChunk"));
-  assert.ok(mutationKeys.includes("sealConversationSyncJobSource"));
+  assert.ok(mutationKeys.includes("startConversationSyncSource"));
+  assert.ok(mutationKeys.includes("appendConversationSyncSourceChunk"));
+  assert.ok(mutationKeys.includes("sealConversationSyncSource"));
   assert.ok(mutationKeys.includes("cancelConversationSyncJob"));
   assert.equal(mutationKeys.includes("getConversationSyncJob"), false);
   assert.equal(mutationKeys.includes("listConversationSyncJobs"), false);

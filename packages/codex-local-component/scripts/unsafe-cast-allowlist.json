@@ -62,7 +62,7 @@
       "riskLevel": "default",
       "id": "UC_51a0a9a99d38",
       "file": "src/component/threads.ts",
-      "line": 93,
+      "line": 90,
       "col": 41,
       "snippet": "const parsed = JSON.parse(payloadJson) as unknown;",
       "context": "prev:function parseChunkPayload(payloadJson: string): InboundEvent[] { | next:if (!Array.isArray(parsed)) {"
@@ -73,7 +73,7 @@
       "riskLevel": "default",
       "id": "UC_4d8c8062209f",
       "file": "src/component/threads.ts",
-      "line": 97,
+      "line": 94,
       "col": 16,
       "snippet": "return parsed as InboundEvent[];",
       "context": "prev:} | next:}"
@@ -84,7 +84,7 @@
       "riskLevel": "default",
       "id": "UC_09bb2861d310",
       "file": "src/component/threads.ts",
-      "line": 144,
+      "line": 141,
       "col": 27,
       "snippet": "const params = (parsed as { params?: unknown }).params;",
       "context": "prev:} | next:if (typeof params !== \"object\" || params === null) {"
@@ -95,7 +95,7 @@
       "riskLevel": "default",
       "id": "UC_84b6743126db",
       "file": "src/component/threads.ts",
-      "line": 148,
+      "line": 145,
       "col": 25,
       "snippet": "const item = (params as { item?: unknown }).item;",
       "context": "prev:} | next:if (typeof item !== \"object\" || item === null) {"
@@ -106,7 +106,7 @@
       "riskLevel": "default",
       "id": "UC_bb8607beade3",
       "file": "src/component/threads.ts",
-      "line": 152,
+      "line": 149,
       "col": 28,
       "snippet": "const messageId = (item as { id?: unknown }).id;",
       "context": "prev:} | next:const turnId = (params as { turnId?: unknown }).turnId;"
@@ -117,7 +117,7 @@
       "riskLevel": "default",
       "id": "UC_4075ad9fb481",
       "file": "src/component/threads.ts",
-      "line": 153,
+      "line": 150,
       "col": 27,
       "snippet": "const turnId = (params as { turnId?: unknown }).turnId;",
       "context": "prev:const messageId = (item as { id?: unknown }).id; | next:const itemType = normalizeSyncMessageItemType((item as { type?: unknown }).type);"
@@ -128,7 +128,7 @@
       "riskLevel": "default",
       "id": "UC_293eaa2c19a3",
       "file": "src/component/threads.ts",
-      "line": 154,
+      "line": 151,
       "col": 56,
       "snippet": "const itemType = normalizeSyncMessageItemType((item as { type?: unknown }).type);",
       "context": "prev:const turnId = (params as { turnId?: unknown }).turnId; | next:if ("
@@ -139,7 +139,7 @@
       "riskLevel": "default",
       "id": "UC_22236192fc77",
       "file": "src/component/threads.ts",
-      "line": 192,
+      "line": 189,
       "col": 26,
       "snippet": "const turnId = (value as { turnId?: unknown }).turnId;",
       "context": "prev:} | next:const messageId = (value as { messageId?: unknown }).messageId;"
@@ -150,7 +150,7 @@
       "riskLevel": "default",
       "id": "UC_ced81302b01e",
       "file": "src/component/threads.ts",
-      "line": 193,
+      "line": 190,
       "col": 29,
       "snippet": "const messageId = (value as { messageId?: unknown }).messageId;",
       "context": "prev:const turnId = (value as { turnId?: unknown }).turnId; | next:if (typeof turnId !== \"string\" || typeof messageId !== \"string\") {"
@@ -161,7 +161,7 @@
       "riskLevel": "default",
       "id": "UC_b54fedcf4004",
       "file": "src/component/threads.ts",
-      "line": 756,
+      "line": 807,
       "col": 53,
       "snippet": "syncState: (binding.syncState ?? \"unsynced\") as SyncState,",
       "context": "prev:: {}), | next:lastSyncedCursor: Number(binding.lastSyncedCursor ?? 0),"
@@ -170,133 +170,23 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_1bd27663ea12",
+      "id": "UC_798fc9d801db",
       "file": "src/component/threads.ts",
-      "line": 759,
+      "line": 810,
       "col": 86,
-      "snippet": "...(binding.syncJobState !== undefined ? { syncJobState: binding.syncJobState as SyncJobState } : {}),",
+      "snippet": "...(binding.syncJobState !== undefined ? { syncJobState: binding.syncJobState as BindingSyncJobState } : {}),",
       "context": "prev:...(currentSyncJobId !== undefined ? { syncJobId: currentSyncJobId } : {}), | next:...(binding.syncJobPolicyVersion !== undefined ? { syncJobPolicyVersion: Number(binding.syncJobPolicyVersion) } : {}),"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_d5c4fe48d7f6",
+      "id": "UC_3b5b34394959",
       "file": "src/component/threads.ts",
-      "line": 803,
+      "line": 854,
       "col": 49,
-      "snippet": "? { syncJobState: binding.syncJobState as SyncJobState }",
+      "snippet": "? { syncJobState: binding.syncJobState as BindingSyncJobState }",
       "context": "prev:: binding.syncJobState !== undefined | next:: {}),"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_8514951dae94",
-      "file": "src/component/threads.ts",
-      "line": 919,
-      "col": 36,
-      "snippet": "sourceState: \"collecting\" as SyncJobSourceState,",
-      "context": "prev:state: \"cancelled\", | next:completedAt: ts,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_166c556ef601",
-      "file": "src/component/threads.ts",
-      "line": 988,
-      "col": 27,
-      "snippet": "state: created.state as SyncJobState,",
-      "context": "prev:threadId: String(created.threadId), | next:sourceState: created.sourceState as SyncJobSourceState,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_e618be1aceb5",
-      "file": "src/component/threads.ts",
-      "line": 989,
-      "col": 39,
-      "snippet": "sourceState: created.sourceState as SyncJobSourceState,",
-      "context": "prev:state: created.state as SyncJobState, | next:policyVersion: Number(created.policyVersion),"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_93c396edf226",
-      "file": "src/component/threads.ts",
-      "line": 1076,
-      "col": 37,
-      "snippet": "sourceState: job.sourceState as SyncJobSourceState,",
-      "context": "prev:jobId: args.jobId, | next:totalChunks: Number(job.totalChunks ?? 0),"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_674a73860e65",
-      "file": "src/component/threads.ts",
-      "line": 1131,
-      "col": 51,
-      "snippet": "return { jobId: args.jobId, state: job.state as SyncJobState, cancelled: false };",
-      "context": "prev:if (!(job.state === \"syncing\" || job.sourceState === \"collecting\")) { | next:}"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_eafcf2c7d3e5",
-      "file": "src/component/threads.ts",
-      "line": 1211,
-      "col": 23,
-      "snippet": "state: job.state as SyncJobState,",
-      "context": "prev:...(job.runtimeConversationId !== undefined ? { runtimeConversationId: String(job.runtimeConversationId) } : {}), | next:sourceState: job.sourceState as SyncJobSourceState,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_78535c7f5291",
-      "file": "src/component/threads.ts",
-      "line": 1212,
-      "col": 35,
-      "snippet": "sourceState: job.sourceState as SyncJobSourceState,",
-      "context": "prev:state: job.state as SyncJobState, | next:policyVersion: Number(job.policyVersion),"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_dbc797c923f3",
-      "file": "src/component/threads.ts",
-      "line": 1262,
-      "col": 23,
-      "snippet": "state: job.state as SyncJobState,",
-      "context": "prev:jobId: String(job.jobId), | next:sourceState: job.sourceState as SyncJobSourceState,"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_2f947af840cf",
-      "file": "src/component/threads.ts",
-      "line": 1263,
-      "col": 35,
-      "snippet": "sourceState: job.sourceState as SyncJobSourceState,",
-      "context": "prev:state: job.state as SyncJobState, | next:startedAt: Number(job.startedAt),"
-    },
-    {
-      "description": "Legacy allowlisted cast; review as needed.",
-      "userApproved": false,
-      "riskLevel": "default",
-      "id": "UC_263630eaa93e",
-      "file": "src/component/threads.ts",
-      "line": 1521,
-      "col": 44,
-      "snippet": "...(isExhausted ? { state: \"failed\" as SyncJobState } : {}),",
-      "context": "prev:lastErrorMessage: processed.errorMessage, | next:});"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
@@ -304,7 +194,7 @@
       "riskLevel": "default",
       "id": "UC_fa6f7396a01b",
       "file": "src/component/threads.ts",
-      "line": 2023,
+      "line": 2114,
       "col": 55,
       "snippet": "const parsed = JSON.parse(event.payloadJson) as { streamId?: unknown };",
       "context": "prev:try { | next:if (typeof parsed.streamId === \"string\") {"
@@ -412,44 +302,44 @@
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_94312661f250",
+      "id": "UC_3a3968d6b9d4",
       "file": "src/host/persistence/convex/convexPersistence.ts",
-      "line": 271,
+      "line": 268,
       "col": 9,
       "snippet": "}) as {",
-      "context": "prev:...(args.expectedMessageIdsJson !== undefined ? { expectedMessageIdsJson: args.expectedMessageIdsJson } : {}), | next:jobId: string;"
+      "context": "prev:...(args.threadId !== undefined ? { threadId: args.threadId } : {}), | next:sourceId: string;"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_763e54de62ba",
+      "id": "UC_6c2f8dc409c5",
       "file": "src/host/persistence/convex/convexPersistence.ts",
-      "line": 293,
+      "line": 289,
       "col": 9,
-      "snippet": "}) as Promise<{ jobId: string; chunkIndex: number; appended: boolean }>,",
-      "context": "prev:byteSize: args.byteSize, | next:sealConversationSyncJobSource: async (args) =>"
+      "snippet": "}) as Promise<{ sourceId: string; chunkIndex: number; appended: boolean }>,",
+      "context": "prev:byteSize: args.byteSize, | next:sealConversationSyncSource: async (args) =>"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_ee336b8b91b6",
+      "id": "UC_ae8178c0da56",
       "file": "src/host/persistence/convex/convexPersistence.ts",
-      "line": 299,
+      "line": 298,
       "col": 9,
       "snippet": "}) as Promise<{",
-      "context": "prev:jobId: args.jobId, | next:jobId: string;"
+      "context": "prev:...(args.expectedMessageCount !== undefined ? { expectedMessageCount: args.expectedMessageCount } : {}), | next:sourceId: string;"
     },
     {
       "description": "Legacy allowlisted cast; review as needed.",
       "userApproved": false,
       "riskLevel": "default",
-      "id": "UC_a74c5c5e2839",
+      "id": "UC_4362b2268392",
       "file": "src/host/persistence/convex/convexPersistence.ts",
       "line": 312,
       "col": 9,
-      "snippet": "}) as Promise<{ jobId: string; state: \"idle\" | \"syncing\" | \"synced\" | \"failed\" | \"cancelled\"; cancelled: boolean }>,",
+      "snippet": "}) as Promise<{ jobId: string; state: \"syncing\" | \"synced\" | \"failed\" | \"cancelled\"; cancelled: boolean }>,",
       "context": "prev:...(args.errorMessage !== undefined ? { errorMessage: args.errorMessage } : {}), | next:getConversationSyncJob: async (args) =>"
     },
     {
@@ -491,7 +381,7 @@
       "riskLevel": "default",
       "id": "UC_8519bc789bf3",
       "file": "src/host/persistence/convex/convexPersistence.ts",
-      "line": 397,
+      "line": 403,
       "col": 9,
       "snippet": "}) as Promise<HostRuntimePersistence[\"listPendingServerRequests\"] extends (...a: never[]) => infer R ? Awaited<R> : never>;",
       "context": "prev:limit: 100, | next:},"
@@ -502,7 +392,7 @@
       "riskLevel": "default",
       "id": "UC_93f69d7f6b8a",
       "file": "src/host/persistence/convex/convexPersistence.ts",
-      "line": 408,
+      "line": 414,
       "col": 9,
       "snippet": "}) as { dispatchId: string; turnId: string; accepted: true };",
       "context": "prev:...(args.dispatchId ? { dispatchId: args.dispatchId } : {}), | next:const claimToken = randomSessionId();"
@@ -524,7 +414,7 @@
       "riskLevel": "default",
       "id": "UC_cc70d091b257",
       "file": "src/host/runtime/runtime.ts",
-      "line": 764,
+      "line": 805,
       "col": 31,
       "snippet": "const params = (parsed as { params?: unknown }).params;",
       "context": "prev:} | next:if (typeof params !== \"object\" || params === null) {"
@@ -535,7 +425,7 @@
       "riskLevel": "default",
       "id": "UC_892a9a052012",
       "file": "src/host/runtime/runtime.ts",
-      "line": 768,
+      "line": 809,
       "col": 29,
       "snippet": "const item = (params as { item?: unknown }).item;",
       "context": "prev:} | next:if (typeof item !== \"object\" || item === null) {"
@@ -546,7 +436,7 @@
       "riskLevel": "default",
       "id": "UC_cf5c68a30bb4",
       "file": "src/host/runtime/runtime.ts",
-      "line": 772,
+      "line": 813,
       "col": 55,
       "snippet": "const itemType = normalizeImportItemType((item as { type?: unknown }).type);",
       "context": "prev:} | next:if (!itemType || !isRenderableImportMessageType(itemType)) {"
@@ -601,7 +491,7 @@
       "riskLevel": "default",
       "id": "UC_1c575836e344",
       "file": "src/host/runtime/runtimeCoreHandlers.ts",
-      "line": 196,
+      "line": 199,
       "col": 21,
       "snippet": "const obj = parsed as Record<string, unknown>;",
       "context": "prev:if (typeof parsed !== \"object\" || parsed === null || !(\"method\" in parsed)) return null; | next:if (obj.method !== \"item/agentMessage/delta\") return null;"
@@ -634,7 +524,7 @@
       "riskLevel": "default",
       "id": "UC_42e66eb43cb2",
       "file": "src/host/tauri.ts",
-      "line": 394,
+      "line": 428,
       "col": 34,
       "snippet": "const parsed = JSON.parse(line) as { type?: unknown; payload?: unknown };",
       "context": "prev:export function parseHelperCommand(line: string): HelperCommand { | next:if (typeof parsed !== \"object\" || parsed === null) {"
@@ -645,7 +535,7 @@
       "riskLevel": "default",
       "id": "UC_55861db3a58c",
       "file": "src/host/tauri.ts",
-      "line": 398,
+      "line": 432,
       "col": 82,
       "snippet": "if (typeof parsed.type !== \"string\" || !HELPER_COMMAND_TYPE_SET.has(parsed.type as HelperCommandType)) {",
       "context": "prev:} | next:throw new Error(`Unsupported helper command: ${String(parsed.type)}`);"
@@ -656,7 +546,7 @@
       "riskLevel": "default",
       "id": "UC_2a9aaee19f0f",
       "file": "src/host/tauri.ts",
-      "line": 402,
+      "line": 436,
       "col": 33,
       "snippet": "return { type: parsed.type } as HelperCommand;",
       "context": "prev:if (parsed.type === \"interrupt\" || parsed.type === \"stop\" || parsed.type === \"status\") { | next:}"
@@ -667,7 +557,7 @@
       "riskLevel": "default",
       "id": "UC_5cf7482544d0",
       "file": "src/host/tauri.ts",
-      "line": 407,
+      "line": 441,
       "col": 16,
       "snippet": "return parsed as HelperCommand;",
       "context": "prev:} | next:}"
@@ -678,7 +568,7 @@
       "riskLevel": "default",
       "id": "UC_6e20814ef7a2",
       "file": "src/host/tauri.ts",
-      "line": 483,
+      "line": 517,
       "col": 43,
       "snippet": "const debugFlag = Reflect.get(globalThis as Record<string, unknown>, \"__CODEX_SYNC_DEBUG__\");",
       "context": "prev:function syncDebugEnabled(): boolean { | next:return debugFlag === true;"
@@ -689,7 +579,7 @@
       "riskLevel": "default",
       "id": "UC_2ea8af3a9fe5",
       "file": "src/host/tauri.ts",
-      "line": 751,
+      "line": 787,
       "col": 61,
       "snippet": "? { syncJobId: Reflect.get(payload, \"syncJobId\") as string }",
       "context": "prev:...(typeof Reflect.get(payload, \"syncJobId\") === \"string\" | next:: existing?.syncJobId !== undefined"
@@ -700,7 +590,7 @@
       "riskLevel": "default",
       "id": "UC_b639dc220185",
       "file": "src/host/tauri.ts",
-      "line": 756,
+      "line": 792,
       "col": 86,
       "snippet": "? { syncJobState: parseSyncJobState(Reflect.get(payload, \"syncJobState\")) as TauriSyncJobState }",
       "context": "prev:...(parseSyncJobState(Reflect.get(payload, \"syncJobState\")) | next:: existing?.syncJobState !== undefined"
@@ -711,7 +601,7 @@
       "riskLevel": "default",
       "id": "UC_21fef0adedeb",
       "file": "src/host/tauri.ts",
-      "line": 761,
+      "line": 797,
       "col": 83,
       "snippet": "? { syncJobPolicyVersion: Reflect.get(payload, \"syncJobPolicyVersion\") as number }",
       "context": "prev:...(typeof Reflect.get(payload, \"syncJobPolicyVersion\") === \"number\" | next:: existing?.syncJobPolicyVersion !== undefined"
@@ -722,7 +612,7 @@
       "riskLevel": "default",
       "id": "UC_836fdf712901",
       "file": "src/host/tauri.ts",
-      "line": 766,
+      "line": 802,
       "col": 63,
       "snippet": "? { lastCursor: Reflect.get(payload, \"lastCursor\") as number }",
       "context": "prev:...(typeof Reflect.get(payload, \"lastCursor\") === \"number\" | next:: existing?.lastCursor !== undefined"

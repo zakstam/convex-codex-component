@@ -32,4 +32,4 @@ It keeps runtime behavior conversation-first and delegates persistence and host 
   - Runtime control RPCs (`turn/interrupt`, `turn/steer`) use runtime turn ids.
 - Pending server-request lifecycle is terminal-aware and expires using canonical persisted turn identity.
 - `stop()` is teardown-deterministic:
-  - Flush failures are surfaced as errors, but bridge/reset/lifecycle cleanup still completes.
+  - Flush failures are surfaced through error results, but bridge/reset/lifecycle cleanup still completes.

@@ -1,21 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runConversationSyncJobChunk } from "../dist/component/threads.js";
+import { runConversationSyncJob } from "../dist/component/threads.js";
 
 function createSyncJobCtx(options = {}) {
   const patches = [];
   const job = {
     _id: "job-ref",
     jobId: "job-1",
+    sourceRef: "source-ref",
     userId: "u",
     conversationId: "conv-1",
     threadId: "thread-1",
-    state: "syncing",
-    sourceState: "sealed",
+    state: "running",
     processedChunkIndex: 0,
     totalChunks: 1,
     retryCount: 0,
     lastCursor: 12,
+  };
+  const source = {
+    _id: "source-ref",
+    state: "sealed",
+    expectedManifestJson: "[]",
+    expectedMessageCount: 0,
+    expectedChecksum: "1:0:1",
   };
   const binding = {
     _id: "binding-ref",
@@ -31,9 +38,15 @@ function createSyncJobCtx(options = {}) {
           withIndex: () => ({
             first: async () => {
               if (tableName === "codex_sync_jobs") {
+                return null;
+              }
+              if (tableName === "codex_sync_import_jobs") {
                 return job;
               }
               if (tableName === "codex_sync_job_chunks") {
+                return null;
+              }
+              if (tableName === "codex_sync_import_source_chunks") {
                 return chunk;
               }
               if (tableName === "codex_thread_bindings") {
@@ -44,6 +57,12 @@ function createSyncJobCtx(options = {}) {
             collect: async () => [],
           }),
         }),
+        get: async (id) => {
+          if (id === "source-ref") {
+            return source;
+          }
+          return null;
+        },
         patch: async (id, value) => {
           patches.push({ id, value });
         },
@@ -56,10 +75,10 @@ function createSyncJobCtx(options = {}) {
   };
 }
 
-test("runConversationSyncJobChunk marks binding drifted when chunk is missing", async () => {
+test("runConversationSyncJob marks binding drifted when chunk is missing", async () => {
   const { ctx, patches } = createSyncJobCtx();
 
-  await runConversationSyncJobChunk._handler(ctx, {
+  await runConversationSyncJob._handler(ctx, {
     actor: { userId: "u" },
     jobId: "job-1",
   });
@@ -68,11 +87,11 @@ test("runConversationSyncJobChunk marks binding drifted when chunk is missing", 
   assert.ok(bindingPatch);
   assert.equal(bindingPatch.value.syncState, "drifted");
   assert.equal(bindingPatch.value.syncJobState, "failed");
-  assert.equal(bindingPatch.value.syncJobErrorCode, "E_SYNC_JOB_CHUNK_MISSING");
-  assert.equal(bindingPatch.value.lastErrorCode, "E_SYNC_JOB_CHUNK_MISSING");
+  assert.equal(bindingPatch.value.syncJobErrorCode, "E_SYNC_SOURCE_CHUNK_INDEX_GAP");
+  assert.equal(bindingPatch.value.lastErrorCode, "E_SYNC_SOURCE_CHUNK_INDEX_GAP");
 });
 
-test("runConversationSyncJobChunk marks binding drifted when chunk payload is malformed", async () => {
+test("runConversationSyncJob marks binding drifted when chunk payload is malformed", async () => {
   const { ctx, patches } = createSyncJobCtx({
     chunk: {
       payloadJson: "{",
@@ -80,7 +99,7 @@ test("runConversationSyncJobChunk marks binding drifted when chunk payload is ma
     },
   });
 
-  await runConversationSyncJobChunk._handler(ctx, {
+  await runConversationSyncJob._handler(ctx, {
     actor: { userId: "u" },
     jobId: "job-1",
   });
@@ -89,6 +108,6 @@ test("runConversationSyncJobChunk marks binding drifted when chunk payload is ma
   assert.ok(bindingPatch);
   assert.equal(bindingPatch.value.syncState, "drifted");
   assert.equal(bindingPatch.value.syncJobState, "failed");
-  assert.equal(bindingPatch.value.syncJobErrorCode, "E_SYNC_JOB_CHUNK_PARSE_FAILED");
-  assert.equal(bindingPatch.value.lastErrorCode, "E_SYNC_JOB_CHUNK_PARSE_FAILED");
+  assert.equal(bindingPatch.value.syncJobErrorCode, "E_SYNC_SOURCE_INVALID");
+  assert.equal(bindingPatch.value.lastErrorCode, "E_SYNC_SOURCE_INVALID");
 });

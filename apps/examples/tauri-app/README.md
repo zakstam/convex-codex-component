@@ -133,7 +133,7 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 - Send policy is explicit: message sends are blocked while the selected conversation sync job is `syncing`.
 - Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
 - Sync engine host hooks are explicit: `chat.syncOpenConversationBinding`, `chat.markConversationSyncProgress`, `chat.forceRebindConversationSync`.
-- Durable sync-job hooks are explicit: `chat.startConversationSyncJob`, `chat.appendConversationSyncChunk`, `chat.sealConversationSyncJobSource`, `chat.cancelConversationSyncJob`, `chat.getConversationSyncJob`, `chat.listConversationSyncJobs`.
+- Durable sync-job hooks are explicit: `chat.startConversationSyncSource`, `chat.appendConversationSyncSourceChunk`, `chat.sealConversationSyncSource`, `chat.cancelConversationSyncJob`, `chat.getConversationSyncJob`, `chat.listConversationSyncJobs`.
 - Bridge lifecycle state distinguishes `conversationId` (Convex) and `runtimeConversationId` (Codex runtime).
 
 Additional cleanup endpoints:

@@ -75,9 +75,9 @@ function requireDefined<T>(value: T | undefined, name: string): T {
 
 const chatApi = requireDefined(api.chat, "api.chat");
 const persistenceChatApi: ConvexPersistenceChatApi = {
-  startConversationSyncJob: requireDefined(chatApi.startConversationSyncJob, "api.chat.startConversationSyncJob"),
-  appendConversationSyncChunk: requireDefined(chatApi.appendConversationSyncChunk, "api.chat.appendConversationSyncChunk"),
-  sealConversationSyncJobSource: requireDefined(chatApi.sealConversationSyncJobSource, "api.chat.sealConversationSyncJobSource"),
+  startConversationSyncSource: requireDefined(chatApi.startConversationSyncSource, "api.chat.startConversationSyncSource"),
+  appendConversationSyncSourceChunk: requireDefined(chatApi.appendConversationSyncSourceChunk, "api.chat.appendConversationSyncSourceChunk"),
+  sealConversationSyncSource: requireDefined(chatApi.sealConversationSyncSource, "api.chat.sealConversationSyncSource"),
   cancelConversationSyncJob: requireDefined(chatApi.cancelConversationSyncJob, "api.chat.cancelConversationSyncJob"),
   getConversationSyncJob: requireDefined(chatApi.getConversationSyncJob, "api.chat.getConversationSyncJob"),
   listConversationSyncJobs: requireDefined(chatApi.listConversationSyncJobs, "api.chat.listConversationSyncJobs"),

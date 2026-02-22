@@ -196,7 +196,7 @@ React consumers can apply optimistic updates for these lifecycle operations with
 `openThread` fail-closes invalid resume/fork identity input: `conversationId` is trimmed and must be non-empty.
 
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
-Import now runs as a durable server-owned resumable sync job (`collecting -> sealed -> processing`) with terminal state (`synced|failed|cancelled`), so helper/runtime restarts do not drop in-progress sync.
+Import now runs as a durable server-owned resumable flow (`collecting -> sealed`, then `queued -> running|retry_wait -> verifying -> succeeded|failed|cancelled`) with public terminal state (`synced|failed|cancelled`), so helper/runtime restarts do not drop in-progress sync.
 Sync completion is fail-closed: jobs verify canonical expected message IDs before terminal `synced`; mismatches terminal as `failed`.
 
 ## Composer Optimistic UI
@@ -265,9 +265,9 @@ Runtime-owned host definitions now expose explicit sync mapping mutations:
 - `syncOpenConversationBinding`
 - `markConversationSyncProgress`
 - `forceRebindConversationSync`
-- `startConversationSyncJob`
-- `appendConversationSyncChunk`
-- `sealConversationSyncJobSource`
+- `startConversationSyncSource`
+- `appendConversationSyncSourceChunk`
+- `sealConversationSyncSource`
 - `cancelConversationSyncJob`
 
 Runtime-owned durable sync job read queries:

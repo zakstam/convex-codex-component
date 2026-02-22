@@ -465,18 +465,18 @@ export declare const components: {
       >;
     };
     threads: {
-      appendConversationSyncChunk: FunctionReference<
+      appendConversationSyncSourceChunk: FunctionReference<
         "mutation",
         "internal",
         {
           actor: { userId?: string };
           byteSize: number;
           chunkIndex: number;
-          jobId: string;
           messageCount: number;
           payloadJson: string;
+          sourceId: string;
         },
-        { appended: boolean; chunkIndex: number; jobId: string }
+        { appended: boolean; chunkIndex: number; sourceId: string }
       >;
       archiveByConversation: FunctionReference<
         "mutation",
@@ -500,7 +500,7 @@ export declare const components: {
         {
           cancelled: boolean;
           jobId: string;
-          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          state: "syncing" | "synced" | "failed" | "cancelled";
         }
       >;
       cancelScheduledDeletion: FunctionReference<
@@ -573,9 +573,9 @@ export declare const components: {
           processedMessageCount: number;
           retryCount: number;
           runtimeConversationId?: string;
-          sourceState: "collecting" | "sealed" | "processing";
+          sourceState: "collecting" | "sealed" | "failed";
           startedAt: number;
-          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          state: "syncing" | "synced" | "failed" | "cancelled";
           threadId: string;
           totalChunks: number;
           updatedAt: number;
@@ -723,9 +723,9 @@ export declare const components: {
           processedChunkIndex: number;
           processedMessageCount: number;
           retryCount: number;
-          sourceState: "collecting" | "sealed" | "processing";
+          sourceState: "collecting" | "sealed" | "failed";
           startedAt: number;
-          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          state: "syncing" | "synced" | "failed" | "cancelled";
           totalChunks: number;
           updatedAt: number;
         }>
@@ -829,36 +829,39 @@ export declare const components: {
         },
         { deletionJobId: string; scheduledFor: number }
       >;
-      sealConversationSyncJobSource: FunctionReference<
+      sealConversationSyncSource: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; jobId: string },
+        {
+          actor: { userId?: string };
+          expectedChecksum: string;
+          expectedManifestJson: string;
+          expectedMessageCount?: number;
+          sourceId: string;
+        },
         {
           jobId: string;
           scheduled: boolean;
-          sourceState: "collecting" | "sealed" | "processing";
+          sourceId: string;
+          sourceState: "collecting" | "sealed" | "failed";
           totalChunks: number;
         }
       >;
-      startConversationSyncJob: FunctionReference<
+      startConversationSyncSource: FunctionReference<
         "mutation",
         "internal",
         {
           actor: { userId?: string };
           conversationId: string;
-          expectedMessageCount?: number;
-          expectedMessageIdsJson?: string;
           runtimeConversationId?: string;
-          sourceChecksum?: string;
           threadId?: string;
         },
         {
           conversationId: string;
-          jobId: string;
+          createdAt: number;
           policyVersion: number;
-          sourceState: "collecting" | "sealed" | "processing";
-          startedAt: number;
-          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          sourceId: string;
+          sourceState: "collecting" | "sealed" | "failed";
           threadId: string;
           updatedAt: number;
         }

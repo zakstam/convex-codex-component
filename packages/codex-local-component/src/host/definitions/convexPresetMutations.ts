@@ -4,7 +4,7 @@
  */
 import { v } from "convex/values";
 import {
-  appendConversationSyncChunkForActor,
+  appendConversationSyncSourceChunkForActor,
   cancelConversationSyncJobForActor,
   ensureSession as ensureSessionHandler,
   ensureConversationBindingByResolve,
@@ -19,8 +19,8 @@ import {
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
   syncOpenConversationBindingForActor,
-  startConversationSyncJobForActor,
-  sealConversationSyncJobSourceForActor,
+  startConversationSyncSourceForActor,
+  sealConversationSyncSourceForActor,
   upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
   vHostActorContext,
@@ -367,24 +367,20 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         };
       },
     },
-    startConversationSyncJob: {
+    startConversationSyncSource: {
       args: {
         actor: vHostActorContext,
         conversationId: v.string(),
         runtimeConversationId: v.optional(v.string()),
         threadId: v.optional(v.string()),
-        sourceChecksum: v.optional(v.string()),
-        expectedMessageCount: v.optional(v.number()),
-        expectedMessageIdsJson: v.optional(v.string()),
       },
       returns: v.object({
-        jobId: v.string(),
+        sourceId: v.string(),
         conversationId: v.string(),
         threadId: v.string(),
-        state: v.union(v.literal("idle"), v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled")),
-        sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+        sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
         policyVersion: v.number(),
-        startedAt: v.number(),
+        createdAt: v.number(),
         updatedAt: v.number(),
       }),
       handler: async (
@@ -394,28 +390,25 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           conversationId: string;
           runtimeConversationId?: string;
           threadId?: string;
-          sourceChecksum?: string;
-          expectedMessageCount?: number;
-          expectedMessageIdsJson?: string;
         },
       ) =>
-        startConversationSyncJobForActor(
+        startConversationSyncSourceForActor(
           ctx,
           component,
           withResolvedHostActor(args, serverActor),
         ),
     },
-    appendConversationSyncChunk: {
+    appendConversationSyncSourceChunk: {
       args: {
         actor: vHostActorContext,
-        jobId: v.string(),
+        sourceId: v.string(),
         chunkIndex: v.number(),
         payloadJson: v.string(),
         messageCount: v.number(),
         byteSize: v.number(),
       },
       returns: v.object({
-        jobId: v.string(),
+        sourceId: v.string(),
         chunkIndex: v.number(),
         appended: v.boolean(),
       }),
@@ -423,35 +416,39 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: {
           actor: HostActorContext;
-          jobId: string;
+          sourceId: string;
           chunkIndex: number;
           payloadJson: string;
           messageCount: number;
           byteSize: number;
         },
       ) =>
-        appendConversationSyncChunkForActor(
+        appendConversationSyncSourceChunkForActor(
           ctx,
           component,
           withResolvedHostActor(args, serverActor),
         ),
     },
-    sealConversationSyncJobSource: {
+    sealConversationSyncSource: {
       args: {
         actor: vHostActorContext,
-        jobId: v.string(),
+        sourceId: v.string(),
+        expectedManifestJson: v.string(),
+        expectedChecksum: v.string(),
+        expectedMessageCount: v.optional(v.number()),
       },
       returns: v.object({
+        sourceId: v.string(),
         jobId: v.string(),
-        sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+        sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
         totalChunks: v.number(),
         scheduled: v.boolean(),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; jobId: string },
+        args: { actor: HostActorContext; sourceId: string; expectedManifestJson: string; expectedChecksum: string; expectedMessageCount?: number },
       ) =>
-        sealConversationSyncJobSourceForActor(
+        sealConversationSyncSourceForActor(
           ctx,
           component,
           withResolvedHostActor(args, serverActor),
@@ -466,7 +463,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       },
       returns: v.object({
         jobId: v.string(),
-        state: v.union(v.literal("idle"), v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled")),
+        state: v.union(v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled")),
         cancelled: v.boolean(),
       }),
       handler: async (

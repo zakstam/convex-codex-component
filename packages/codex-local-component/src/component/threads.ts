@@ -31,17 +31,14 @@ const vSyncState = v.union(
 );
 type SyncState = "unsynced" | "syncing" | "synced" | "drifted";
 
-const vSyncJobState = v.union(
-  v.literal("idle"),
-  v.literal("syncing"),
-  v.literal("synced"),
-  v.literal("failed"),
-  v.literal("cancelled"),
-);
-type SyncJobState = "idle" | "syncing" | "synced" | "failed" | "cancelled";
-type SyncJobSourceState = "collecting" | "sealed" | "processing";
+const vSyncJobState = v.union(v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled"));
+type SyncJobState = "syncing" | "synced" | "failed" | "cancelled";
+const vBindingSyncJobState = v.union(v.literal("idle"), vSyncJobState);
+type BindingSyncJobState = "idle" | SyncJobState;
+type SyncSourceState = "collecting" | "sealed" | "failed";
+type SyncImportJobState = "queued" | "running" | "retry_wait" | "verifying" | "succeeded" | "failed" | "cancelled";
 
-const SYNC_JOB_POLICY_VERSION = 3;
+const SYNC_JOB_POLICY_VERSION = 4;
 const SYNC_JOB_RETRY_BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 16000, 16000, 16000];
 const SYNC_JOB_MAX_RETRY_ATTEMPTS = 8;
 const SYNC_JOB_SUB_BATCH_MAX_DELTAS = 48;
@@ -170,7 +167,7 @@ function extractCanonicalMessageManifestFromEvents(events: InboundEvent[]): Sync
   return entries;
 }
 
-function parseExpectedMessageIdsJson(payload: unknown): SyncManifestEntry[] {
+function parseExpectedManifestJson(payload: unknown): SyncManifestEntry[] {
   if (typeof payload !== "string") {
     return [];
   }
@@ -202,6 +199,61 @@ function parseExpectedMessageIdsJson(payload: unknown): SyncManifestEntry[] {
     entries.push({ turnId, messageId });
   }
   return entries;
+}
+
+function parseExpectedManifestJsonStrict(payload: unknown): SyncManifestEntry[] {
+  if (typeof payload !== "string") {
+    throw new Error("[E_SYNC_MANIFEST_INVALID] expectedManifestJson must be a JSON string.");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch (_error) {
+    throw new Error("[E_SYNC_MANIFEST_INVALID] expectedManifestJson must be valid JSON.");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("[E_SYNC_MANIFEST_INVALID] expectedManifestJson must be an array.");
+  }
+  const entries = parseExpectedManifestJson(payload);
+  if (entries.length !== parsed.length) {
+    throw new Error("[E_SYNC_MANIFEST_INVALID] expectedManifestJson contains invalid manifest entries.");
+  }
+  return entries;
+}
+
+function toPublicSyncJobState(state: SyncImportJobState): SyncJobState {
+  if (state === "succeeded") {
+    return "synced";
+  }
+  if (state === "failed") {
+    return "failed";
+  }
+  if (state === "cancelled") {
+    return "cancelled";
+  }
+  return "syncing";
+}
+
+function toSyncSourceState(value: unknown): SyncSourceState {
+  if (value === "collecting" || value === "sealed" || value === "failed") {
+    return value;
+  }
+  throw new Error(`[E_SYNC_SOURCE_INVALID] Unknown source state: ${String(value)}`);
+}
+
+function toSyncImportJobState(value: unknown): SyncImportJobState {
+  if (
+    value === "queued" ||
+    value === "running" ||
+    value === "retry_wait" ||
+    value === "verifying" ||
+    value === "succeeded" ||
+    value === "failed" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+  throw new Error(`[E_SYNC_JOB_INVALID] Unknown import job state: ${String(value)}`);
 }
 
 function splitInboundEvents(events: InboundEvent[]): {
@@ -702,7 +754,7 @@ export const markSyncProgress = mutation({
     errorCode: v.optional(v.string()),
     syncJobId: v.optional(v.string()),
     expectedSyncJobId: v.optional(v.string()),
-    syncJobState: v.optional(vSyncJobState),
+    syncJobState: v.optional(vBindingSyncJobState),
     syncJobPolicyVersion: v.optional(v.number()),
     syncJobStartedAt: v.optional(v.number()),
     syncJobUpdatedAt: v.optional(v.number()),
@@ -715,7 +767,7 @@ export const markSyncProgress = mutation({
     syncState: vSyncState,
     lastSyncedCursor: v.number(),
     syncJobId: v.optional(v.string()),
-    syncJobState: v.optional(vSyncJobState),
+    syncJobState: v.optional(vBindingSyncJobState),
     syncJobPolicyVersion: v.optional(v.number()),
     syncJobStartedAt: v.optional(v.number()),
     syncJobUpdatedAt: v.optional(v.number()),
@@ -755,7 +807,7 @@ export const markSyncProgress = mutation({
         syncState: (binding.syncState ?? "unsynced") as SyncState,
         lastSyncedCursor: Number(binding.lastSyncedCursor ?? 0),
         ...(currentSyncJobId !== undefined ? { syncJobId: currentSyncJobId } : {}),
-        ...(binding.syncJobState !== undefined ? { syncJobState: binding.syncJobState as SyncJobState } : {}),
+        ...(binding.syncJobState !== undefined ? { syncJobState: binding.syncJobState as BindingSyncJobState } : {}),
         ...(binding.syncJobPolicyVersion !== undefined ? { syncJobPolicyVersion: Number(binding.syncJobPolicyVersion) } : {}),
         ...(binding.syncJobStartedAt !== undefined ? { syncJobStartedAt: Number(binding.syncJobStartedAt) } : {}),
         ...(binding.syncJobUpdatedAt !== undefined ? { syncJobUpdatedAt: Number(binding.syncJobUpdatedAt) } : {}),
@@ -799,7 +851,7 @@ export const markSyncProgress = mutation({
       ...(args.syncJobState !== undefined
         ? { syncJobState: args.syncJobState }
         : binding.syncJobState !== undefined
-          ? { syncJobState: binding.syncJobState as SyncJobState }
+          ? { syncJobState: binding.syncJobState as BindingSyncJobState }
           : {}),
       ...(args.syncJobPolicyVersion !== undefined
         ? { syncJobPolicyVersion: args.syncJobPolicyVersion }
@@ -870,24 +922,20 @@ export const forceRebindSync = mutation({
   },
 });
 
-export const startConversationSyncJob = mutation({
+export const startConversationSyncSource = mutation({
   args: {
     actor: vActorContext,
     conversationId: v.string(),
     runtimeConversationId: v.optional(v.string()),
     threadId: v.optional(v.string()),
-    sourceChecksum: v.optional(v.string()),
-    expectedMessageCount: v.optional(v.number()),
-    expectedMessageIdsJson: v.optional(v.string()),
   },
   returns: v.object({
-    jobId: v.string(),
+    sourceId: v.string(),
     conversationId: v.string(),
     threadId: v.string(),
-    state: vSyncJobState,
-    sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+    sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
     policyVersion: v.number(),
-    startedAt: v.number(),
+    createdAt: v.number(),
     updatedAt: v.number(),
   }),
   handler: async (ctx, args) => {
@@ -903,56 +951,29 @@ export const startConversationSyncJob = mutation({
       throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
     }
     const threadId = args.threadId ?? String(binding!.threadId);
-
-    const activeJobs = await ctx.db
-      .query("codex_sync_jobs")
-      .withIndex("userScope_userId_conversationId_startedAt", (q) =>
-        q.eq("userScope", userScope).eq("userId", args.actor.userId).eq("conversationId", args.conversationId),
-      )
-      .order("desc")
-      .take(8);
-    for (const job of activeJobs) {
-      if (job.state === "syncing" || job.sourceState === "collecting") {
-        await ctx.db.patch(job._id, {
-          state: "cancelled",
-          sourceState: "collecting" as SyncJobSourceState,
-          completedAt: ts,
-          updatedAt: ts,
-          lastErrorCode: "E_SYNC_JOB_CANCELLED_REPLACED",
-          lastErrorMessage: "Cancelled because a newer sync job was started.",
-        });
-      }
-    }
-
-    const jobId = generateUuidV4();
-    const jobRef = await ctx.db.insert("codex_sync_jobs", {
+    const sourceId = generateUuidV4();
+    await ctx.db.insert("codex_sync_import_sources", {
       userScope,
       ...(args.actor.userId !== undefined ? { userId: args.actor.userId } : {}),
+      sourceId,
       conversationId: args.conversationId,
       threadId,
       ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
-      jobId,
       policyVersion: SYNC_JOB_POLICY_VERSION,
-      state: "syncing",
-      startedAt: ts,
+      state: "collecting",
+      createdAt: ts,
       updatedAt: ts,
-      lastCursor: 0,
-      processedChunkIndex: 0,
       totalChunks: 0,
-      processedMessageCount: 0,
-      ...(args.expectedMessageCount !== undefined ? { expectedMessageCount: args.expectedMessageCount } : {}),
-      ...(args.expectedMessageIdsJson !== undefined ? { expectedMessageIdsJson: args.expectedMessageIdsJson } : {}),
-      retryCount: 0,
-      sourceState: "collecting",
-      ...(args.sourceChecksum !== undefined ? { sourceChecksum: args.sourceChecksum } : {}),
+      totalMessageCount: 0,
+      totalByteSize: 0,
     });
     if (binding) {
       await ctx.db.patch(binding._id, {
         syncState: "syncing",
-        syncJobId: jobId,
+        syncJobId: undefined,
         syncJobState: "syncing",
-        syncJobPolicyVersion: SYNC_JOB_POLICY_VERSION,
-        syncJobStartedAt: ts,
+        syncJobPolicyVersion: undefined,
+        syncJobStartedAt: undefined,
         syncJobUpdatedAt: ts,
         syncJobErrorCode: undefined,
         ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
@@ -967,139 +988,245 @@ export const startConversationSyncJob = mutation({
         threadId,
         conversationRef: (await requireThreadRefForActor(ctx, args.actor, threadId)).threadRef,
         syncState: "syncing",
-        syncJobId: jobId,
         syncJobState: "syncing",
-        syncJobPolicyVersion: SYNC_JOB_POLICY_VERSION,
-        syncJobStartedAt: ts,
         syncJobUpdatedAt: ts,
         createdAt: ts,
         updatedAt: ts,
       });
     }
-    const created = await ctx.db.get(jobRef);
-    if (!created) {
-      throw new Error("[E_SYNC_JOB_CREATE_FAILED] Failed to create sync job.");
-    }
+    const sourceState: SyncSourceState = "collecting";
     return {
-      jobId: String(created.jobId),
-      conversationId: String(created.conversationId),
-      threadId: String(created.threadId),
-      state: created.state as SyncJobState,
-      sourceState: created.sourceState as SyncJobSourceState,
-      policyVersion: Number(created.policyVersion),
-      startedAt: Number(created.startedAt),
-      updatedAt: Number(created.updatedAt),
+      sourceId,
+      conversationId: args.conversationId,
+      threadId,
+      sourceState,
+      policyVersion: SYNC_JOB_POLICY_VERSION,
+      createdAt: ts,
+      updatedAt: ts,
     };
   },
 });
 
-export const appendConversationSyncChunk = mutation({
+export const appendConversationSyncSourceChunk = mutation({
   args: {
     actor: vActorContext,
-    jobId: v.string(),
+    sourceId: v.string(),
     chunkIndex: v.number(),
     payloadJson: v.string(),
     messageCount: v.number(),
     byteSize: v.number(),
   },
   returns: v.object({
-    jobId: v.string(),
+    sourceId: v.string(),
     chunkIndex: v.number(),
     appended: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const userScope = userScopeFromActor(args.actor);
-    const job = await ctx.db
-      .query("codex_sync_jobs")
-      .withIndex("userScope_jobId", (q) => q.eq("userScope", userScope).eq("jobId", args.jobId))
-      .first();
-    if (!job) {
-      throw new Error(`[E_SYNC_JOB_NOT_FOUND] Sync job not found: ${args.jobId}`);
+    if (!Number.isInteger(args.chunkIndex) || args.chunkIndex < 0) {
+      throw new Error("[E_SYNC_SOURCE_INVALID] chunkIndex must be a non-negative integer.");
     }
-    if (job.sourceState !== "collecting") {
-      throw new Error(`[E_SYNC_JOB_SOURCE_NOT_COLLECTING] Sync job ${args.jobId} source is not collecting.`);
+    if (!Number.isInteger(args.messageCount) || args.messageCount < 0 || !Number.isInteger(args.byteSize) || args.byteSize < 0) {
+      throw new Error("[E_SYNC_SOURCE_INVALID] messageCount and byteSize must be non-negative integers.");
+    }
+    const userScope = userScopeFromActor(args.actor);
+    const source = await ctx.db
+      .query("codex_sync_import_sources")
+      .withIndex("userScope_sourceId", (q) => q.eq("userScope", userScope).eq("sourceId", args.sourceId))
+      .first();
+    if (!source) {
+      throw new Error(`[E_SYNC_SOURCE_NOT_FOUND] Sync source not found: ${args.sourceId}`);
+    }
+    if (source.state !== "collecting") {
+      throw new Error(`[E_SYNC_SOURCE_NOT_COLLECTING] Sync source ${args.sourceId} is not collecting.`);
     }
     const existing = await ctx.db
-      .query("codex_sync_job_chunks")
-      .withIndex("userScope_jobRef_chunkIndex", (q) =>
-        q.eq("userScope", userScope).eq("jobRef", job._id).eq("chunkIndex", args.chunkIndex),
+      .query("codex_sync_import_source_chunks")
+      .withIndex("userScope_sourceRef_chunkIndex", (q) =>
+        q.eq("userScope", userScope).eq("sourceRef", source._id).eq("chunkIndex", args.chunkIndex),
       )
       .first();
     const ts = now();
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        payloadJson: args.payloadJson,
-        messageCount: args.messageCount,
-        byteSize: args.byteSize,
-      });
-      await ctx.db.patch(job._id, { updatedAt: ts });
-      return { jobId: args.jobId, chunkIndex: args.chunkIndex, appended: true };
+      if (
+        String(existing.payloadJson) !== args.payloadJson ||
+        Number(existing.messageCount) !== args.messageCount ||
+        Number(existing.byteSize) !== args.byteSize
+      ) {
+        throw new Error(`[E_SYNC_SOURCE_CHUNK_CONFLICT] Conflicting payload for source ${args.sourceId} chunk ${args.chunkIndex}.`);
+      }
+      await ctx.db.patch(source._id, { updatedAt: ts });
+      return { sourceId: args.sourceId, chunkIndex: args.chunkIndex, appended: false };
     }
-    await ctx.db.insert("codex_sync_job_chunks", {
+    await ctx.db.insert("codex_sync_import_source_chunks", {
       userScope,
-      jobRef: job._id,
+      sourceRef: source._id,
       chunkIndex: args.chunkIndex,
       payloadJson: args.payloadJson,
       messageCount: args.messageCount,
       byteSize: args.byteSize,
       createdAt: ts,
     });
-    await ctx.db.patch(job._id, { updatedAt: ts });
-    return { jobId: args.jobId, chunkIndex: args.chunkIndex, appended: true };
+    await ctx.db.patch(source._id, { updatedAt: ts });
+    return { sourceId: args.sourceId, chunkIndex: args.chunkIndex, appended: true };
   },
 });
 
-export const sealConversationSyncJobSource = mutation({
+export const sealConversationSyncSource = mutation({
   args: {
     actor: vActorContext,
-    jobId: v.string(),
+    sourceId: v.string(),
+    expectedManifestJson: v.string(),
+    expectedChecksum: v.string(),
+    expectedMessageCount: v.optional(v.number()),
   },
   returns: v.object({
-    jobId: v.string(),
-    sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+    sourceId: v.string(),
+    sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
     totalChunks: v.number(),
+    jobId: v.string(),
     scheduled: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const userScope = userScopeFromActor(args.actor);
-    const job = await ctx.db
-      .query("codex_sync_jobs")
-      .withIndex("userScope_jobId", (q) => q.eq("userScope", userScope).eq("jobId", args.jobId))
+    const source = await ctx.db
+      .query("codex_sync_import_sources")
+      .withIndex("userScope_sourceId", (q) => q.eq("userScope", userScope).eq("sourceId", args.sourceId))
       .first();
-    if (!job) {
-      throw new Error(`[E_SYNC_JOB_NOT_FOUND] Sync job not found: ${args.jobId}`);
+    if (!source) {
+      throw new Error(`[E_SYNC_SOURCE_NOT_FOUND] Sync source not found: ${args.sourceId}`);
     }
-    if (job.sourceState !== "collecting") {
+    if (source.state !== "collecting") {
+      const existingJob = await ctx.db
+        .query("codex_sync_import_jobs")
+        .withIndex("userScope_userId_conversationId_startedAt", (q) =>
+          q.eq("userScope", userScope).eq("userId", source.userId).eq("conversationId", String(source.conversationId)),
+        )
+        .order("desc")
+        .first();
+      const sourceState = toSyncSourceState(source.state);
       return {
-        jobId: args.jobId,
-        sourceState: job.sourceState as SyncJobSourceState,
-        totalChunks: Number(job.totalChunks ?? 0),
+        sourceId: args.sourceId,
+        sourceState,
+        totalChunks: Number(source.totalChunks ?? 0),
+        jobId: existingJob ? String(existingJob.jobId) : "",
         scheduled: false,
       };
     }
+    const manifest = parseExpectedManifestJsonStrict(args.expectedManifestJson);
+    const expectedMessageCount = args.expectedMessageCount ?? manifest.length;
+    if (expectedMessageCount !== manifest.length) {
+      throw new Error("[E_SYNC_MANIFEST_INVALID] expectedMessageCount must match manifest entry count.");
+    }
     const chunkRows = await ctx.db
-      .query("codex_sync_job_chunks")
-      .withIndex("userScope_jobRef_chunkIndex", (q) =>
-        q.eq("userScope", userScope).eq("jobRef", job._id),
+      .query("codex_sync_import_source_chunks")
+      .withIndex("userScope_sourceRef_chunkIndex", (q) =>
+        q.eq("userScope", userScope).eq("sourceRef", source._id),
       )
       .collect();
-    const totalChunks = chunkRows.length;
     const ts = now();
-    await ctx.db.patch(job._id, {
-      sourceState: "sealed",
+    const sortedIndices = [...chunkRows].map((row) => Number(row.chunkIndex)).sort((a, b) => a - b);
+    for (let i = 0; i < sortedIndices.length; i += 1) {
+      if (sortedIndices[i] !== i) {
+        await ctx.db.patch(source._id, {
+          state: "failed",
+          updatedAt: ts,
+          lastErrorCode: "E_SYNC_SOURCE_CHUNK_INDEX_GAP",
+          lastErrorMessage: `Expected chunk index ${i} but found ${sortedIndices[i] ?? "none"}.`,
+        });
+        throw new Error("[E_SYNC_SOURCE_CHUNK_INDEX_GAP] Sync source chunks must be contiguous starting from 0.");
+      }
+    }
+    const totalChunks = chunkRows.length;
+    const totalMessageCount = chunkRows.reduce((sum, row) => sum + Number(row.messageCount ?? 0), 0);
+    const totalByteSize = chunkRows.reduce((sum, row) => sum + Number(row.byteSize ?? 0), 0);
+    const derivedChecksum = `${totalChunks}:${totalMessageCount}:${totalByteSize}`;
+    if (derivedChecksum !== args.expectedChecksum) {
+      await ctx.db.patch(source._id, {
+        state: "failed",
+        updatedAt: ts,
+        lastErrorCode: "E_SYNC_SOURCE_CHECKSUM_MISMATCH",
+        lastErrorMessage: "Seal checksum does not match collected source chunks.",
+      });
+      throw new Error("[E_SYNC_SOURCE_CHECKSUM_MISMATCH] Seal checksum mismatch.");
+    }
+    await ctx.db.patch(source._id, {
+      state: "sealed",
       totalChunks,
+      totalMessageCount,
+      totalByteSize,
+      sealedAt: ts,
+      expectedManifestJson: args.expectedManifestJson,
+      expectedMessageCount,
+      expectedChecksum: args.expectedChecksum,
       updatedAt: ts,
-      nextRunAt: ts,
     });
-    await ctx.scheduler.runAfter(0, internal.threads.runConversationSyncJobChunk, {
+    const activeJobs = await ctx.db
+      .query("codex_sync_import_jobs")
+      .withIndex("userScope_userId_conversationId_startedAt", (q) =>
+        q.eq("userScope", userScope).eq("userId", source.userId).eq("conversationId", String(source.conversationId)),
+      )
+      .collect();
+    for (const candidate of activeJobs) {
+      const state = toSyncImportJobState(candidate.state);
+      if (state === "succeeded" || state === "failed" || state === "cancelled") {
+        continue;
+      }
+      await ctx.db.patch(candidate._id, {
+        state: "cancelled",
+        completedAt: ts,
+        updatedAt: ts,
+        lastErrorCode: "E_SYNC_JOB_CANCELLED_REPLACED",
+        lastErrorMessage: "Cancelled because a newer sync source was sealed.",
+      });
+    }
+    const jobId = generateUuidV4();
+    await ctx.db.insert("codex_sync_import_jobs", {
+      userScope,
+      ...(source.userId !== undefined ? { userId: String(source.userId) } : {}),
+      jobId,
+      sourceRef: source._id,
+      conversationId: String(source.conversationId),
+      threadId: String(source.threadId),
+      ...(source.runtimeConversationId !== undefined ? { runtimeConversationId: String(source.runtimeConversationId) } : {}),
+      policyVersion: SYNC_JOB_POLICY_VERSION,
+      state: "queued",
+      startedAt: ts,
+      updatedAt: ts,
+      processedChunkIndex: 0,
+      processedMessageCount: 0,
+      totalChunks,
+      retryCount: 0,
+      lastCursor: 0,
+      leaseVersion: 0,
+    });
+    const binding = await ctx.db
+      .query("codex_thread_bindings")
+      .withIndex("userScope_userId_conversationId", (q) =>
+        q.eq("userScope", userScope).eq("userId", source.userId).eq("conversationId", String(source.conversationId)),
+      )
+      .first();
+    if (binding) {
+      await ctx.db.patch(binding._id, {
+        syncState: "syncing",
+        syncJobId: jobId,
+        syncJobState: "syncing",
+        syncJobPolicyVersion: SYNC_JOB_POLICY_VERSION,
+        syncJobStartedAt: ts,
+        syncJobUpdatedAt: ts,
+        syncJobErrorCode: undefined,
+        updatedAt: ts,
+      });
+    }
+    await ctx.scheduler.runAfter(0, internal.threads.runConversationSyncJob, {
       actor: args.actor,
-      jobId: args.jobId,
+      jobId,
     });
-    const sourceState: SyncJobSourceState = "sealed";
+    const sourceState: SyncSourceState = "sealed";
     return {
-      jobId: args.jobId,
+      sourceId: args.sourceId,
       sourceState,
       totalChunks,
+      jobId,
       scheduled: true,
     };
   },
@@ -1120,14 +1247,16 @@ export const cancelConversationSyncJob = mutation({
   handler: async (ctx, args) => {
     const userScope = userScopeFromActor(args.actor);
     const job = await ctx.db
-      .query("codex_sync_jobs")
+      .query("codex_sync_import_jobs")
       .withIndex("userScope_jobId", (q) => q.eq("userScope", userScope).eq("jobId", args.jobId))
       .first();
     if (!job) {
       throw new Error(`[E_SYNC_JOB_NOT_FOUND] Sync job not found: ${args.jobId}`);
     }
-    if (!(job.state === "syncing" || job.sourceState === "collecting")) {
-      return { jobId: args.jobId, state: job.state as SyncJobState, cancelled: false };
+    const state = toSyncImportJobState(job.state);
+    if (state === "succeeded" || state === "failed" || state === "cancelled") {
+      const terminalState: SyncJobState = toPublicSyncJobState(state);
+      return { jobId: args.jobId, state: terminalState, cancelled: false };
     }
     const ts = now();
     await ctx.db.patch(job._id, {
@@ -1153,8 +1282,8 @@ export const cancelConversationSyncJob = mutation({
         updatedAt: ts,
       });
     }
-    const state: SyncJobState = "cancelled";
-    return { jobId: args.jobId, state, cancelled: true };
+    const cancelledState: SyncJobState = "cancelled";
+    return { jobId: args.jobId, state: cancelledState, cancelled: true };
   },
 });
 
@@ -1172,7 +1301,7 @@ export const getConversationSyncJob = query({
       threadId: v.string(),
       runtimeConversationId: v.optional(v.string()),
       state: vSyncJobState,
-      sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+      sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
       policyVersion: v.number(),
       startedAt: v.number(),
       updatedAt: v.number(),
@@ -1190,7 +1319,7 @@ export const getConversationSyncJob = query({
   handler: async (ctx, args) => {
     const userScope = userScopeFromActor(args.actor);
     const jobs = await ctx.db
-      .query("codex_sync_jobs")
+      .query("codex_sync_import_jobs")
       .withIndex("userScope_userId_conversationId_startedAt", (q) =>
         q.eq("userScope", userScope).eq("userId", args.actor.userId).eq("conversationId", args.conversationId),
       )
@@ -1202,13 +1331,19 @@ export const getConversationSyncJob = query({
     if (!job) {
       return null;
     }
+    const source = await ctx.db.get(job.sourceRef);
+    if (!source) {
+      return null;
+    }
+    const sourceState = toSyncSourceState(source.state);
+    const state = toPublicSyncJobState(toSyncImportJobState(job.state));
     return {
       jobId: String(job.jobId),
       conversationId: String(job.conversationId),
       threadId: String(job.threadId),
       ...(job.runtimeConversationId !== undefined ? { runtimeConversationId: String(job.runtimeConversationId) } : {}),
-      state: job.state as SyncJobState,
-      sourceState: job.sourceState as SyncJobSourceState,
+      state,
+      sourceState,
       policyVersion: Number(job.policyVersion),
       startedAt: Number(job.startedAt),
       updatedAt: Number(job.updatedAt),
@@ -1217,7 +1352,7 @@ export const getConversationSyncJob = query({
       processedChunkIndex: Number(job.processedChunkIndex),
       totalChunks: Number(job.totalChunks),
       processedMessageCount: Number(job.processedMessageCount),
-      ...(job.expectedMessageCount !== undefined ? { expectedMessageCount: Number(job.expectedMessageCount) } : {}),
+      ...(source.expectedMessageCount !== undefined ? { expectedMessageCount: Number(source.expectedMessageCount) } : {}),
       retryCount: Number(job.retryCount),
       ...(job.lastErrorCode !== undefined ? { lastErrorCode: String(job.lastErrorCode) } : {}),
       ...(job.lastErrorMessage !== undefined ? { lastErrorMessage: String(job.lastErrorMessage) } : {}),
@@ -1235,7 +1370,7 @@ export const listConversationSyncJobs = query({
     v.object({
       jobId: v.string(),
       state: vSyncJobState,
-      sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+      sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
       startedAt: v.number(),
       updatedAt: v.number(),
       completedAt: v.optional(v.number()),
@@ -1250,30 +1385,38 @@ export const listConversationSyncJobs = query({
   handler: async (ctx, args) => {
     const userScope = userScopeFromActor(args.actor);
     const rows = await ctx.db
-      .query("codex_sync_jobs")
+      .query("codex_sync_import_jobs")
       .withIndex("userScope_userId_conversationId_startedAt", (q) =>
         q.eq("userScope", userScope).eq("userId", args.actor.userId).eq("conversationId", args.conversationId),
       )
       .order("desc")
       .take(Math.max(1, Math.min(50, args.limit ?? 20)));
-    return rows.map((job) => ({
+    const payload = [];
+    for (const job of rows) {
+      const source = await ctx.db.get(job.sourceRef);
+      if (!source) {
+        continue;
+      }
+      payload.push({
       jobId: String(job.jobId),
-      state: job.state as SyncJobState,
-      sourceState: job.sourceState as SyncJobSourceState,
+      state: toPublicSyncJobState(toSyncImportJobState(job.state)),
+      sourceState: toSyncSourceState(source.state),
       startedAt: Number(job.startedAt),
       updatedAt: Number(job.updatedAt),
       ...(job.completedAt !== undefined ? { completedAt: Number(job.completedAt) } : {}),
       retryCount: Number(job.retryCount),
       processedMessageCount: Number(job.processedMessageCount),
-      ...(job.expectedMessageCount !== undefined ? { expectedMessageCount: Number(job.expectedMessageCount) } : {}),
+      ...(source.expectedMessageCount !== undefined ? { expectedMessageCount: Number(source.expectedMessageCount) } : {}),
       totalChunks: Number(job.totalChunks),
       processedChunkIndex: Number(job.processedChunkIndex),
       ...(job.lastErrorCode !== undefined ? { lastErrorCode: String(job.lastErrorCode) } : {}),
-    }));
+      });
+    }
+    return payload;
   },
 });
 
-export const runConversationSyncJobChunk = internalMutation({
+export const runConversationSyncJob = internalMutation({
   args: {
     actor: vActorContext,
     jobId: v.string(),
@@ -1282,29 +1425,34 @@ export const runConversationSyncJobChunk = internalMutation({
   handler: async (ctx, args) => {
     const userScope = userScopeFromActor(args.actor);
     const job = await ctx.db
-      .query("codex_sync_jobs")
+      .query("codex_sync_import_jobs")
       .withIndex("userScope_jobId", (q) => q.eq("userScope", userScope).eq("jobId", args.jobId))
       .first();
     if (!job) {
+      return null;
+    }
+    const source = await ctx.db.get(job.sourceRef);
+    if (!source) {
       return null;
     }
     console.log(JSON.stringify({
       event: "sync_job_worker_start",
       jobId: args.jobId,
       state: job.state,
-      sourceState: job.sourceState,
+      sourceState: source.state,
       processedChunkIndex: Number(job.processedChunkIndex ?? 0),
       totalChunks: Number(job.totalChunks ?? 0),
       retryCount: Number(job.retryCount ?? 0),
     }));
-    if (job.state !== "syncing") {
+    const currentState = toSyncImportJobState(job.state);
+    if (currentState === "succeeded" || currentState === "failed" || currentState === "cancelled") {
       return null;
     }
-    if (job.sourceState === "collecting") {
+    if (source.state !== "sealed") {
       return null;
     }
     const ts = now();
-    const markBindingSyncFailed = async (errorCode: string) => {
+    const markBindingSyncFailed = async (errorCode: string, errorMessage?: string) => {
       const binding = await ctx.db
         .query("codex_thread_bindings")
         .withIndex("userScope_userId_conversationId", (q) =>
@@ -1317,124 +1465,81 @@ export const runConversationSyncJobChunk = internalMutation({
           syncJobState: "failed",
           syncJobUpdatedAt: ts,
           syncJobErrorCode: errorCode,
+          ...(errorMessage !== undefined ? { lastErrorCode: errorCode, lastErrorAt: ts } : {}),
           lastErrorCode: errorCode,
           lastErrorAt: ts,
           updatedAt: ts,
         });
       }
     };
+    const failJob = async (errorCode: string, errorMessage: string) => {
+      await ctx.db.patch(job._id, {
+        state: "failed",
+        completedAt: ts,
+        updatedAt: ts,
+        lastErrorCode: errorCode,
+        lastErrorMessage: errorMessage,
+      });
+      await markBindingSyncFailed(errorCode, errorMessage);
+    };
+
+    if (currentState === "queued" || currentState === "retry_wait") {
+      await ctx.db.patch(job._id, {
+        state: "running",
+        leaseVersion: Number(job.leaseVersion ?? 0) + 1,
+        updatedAt: ts,
+      });
+    }
     const currentIndex = Number(job.processedChunkIndex ?? 0);
     const totalChunks = Number(job.totalChunks ?? 0);
     if (currentIndex >= totalChunks) {
-      let expectedMessageIds = parseExpectedMessageIdsJson(job.expectedMessageIdsJson);
-      if (expectedMessageIds.length === 0) {
-        const chunkRows = await ctx.db
-          .query("codex_sync_job_chunks")
-          .withIndex("userScope_jobRef_chunkIndex", (q) =>
-            q.eq("userScope", userScope).eq("jobRef", job._id),
-          )
-          .collect();
-        const derivedEntries: SyncManifestEntry[] = [];
-        const seenDerivedIds = new Set<string>();
-        for (const chunkRow of chunkRows) {
-          let parsedChunkEvents: InboundEvent[];
-          try {
-            parsedChunkEvents = parseChunkPayload(String(chunkRow.payloadJson));
-          } catch (_error) {
-            continue;
-          }
-          for (const entry of extractCanonicalMessageManifestFromEvents(parsedChunkEvents)) {
-            const key = JSON.stringify([entry.turnId, entry.messageId]);
-            if (seenDerivedIds.has(key)) {
-              continue;
-            }
-            seenDerivedIds.add(key);
-            derivedEntries.push(entry);
-          }
-        }
-        expectedMessageIds = derivedEntries;
+      await ctx.db.patch(job._id, {
+        state: "verifying",
+        updatedAt: ts,
+      });
+      let expectedManifest: SyncManifestEntry[];
+      try {
+        expectedManifest = parseExpectedManifestJsonStrict(source.expectedManifestJson);
+      } catch (error) {
+        await failJob("E_SYNC_MANIFEST_INVALID", error instanceof Error ? error.message : String(error));
+        return null;
       }
-      const expectedMessageCount = Number(job.expectedMessageCount ?? expectedMessageIds.length);
-      let manifestMismatchCode: string | null = null;
-      if (expectedMessageCount !== expectedMessageIds.length) {
-        manifestMismatchCode = "E_SYNC_MANIFEST_EXPECTED_COUNT_MISMATCH";
-      } else if (expectedMessageCount > 0) {
-        const messageRows = await ctx.db
-          .query("codex_messages")
-          .withIndex("userScope_threadId_createdAt", (q) =>
-            q.eq("userScope", userScope).eq("threadId", String(job.threadId)),
-          )
-          .collect();
-        const persistedKeys = new Set(
-          messageRows.map((row) => JSON.stringify([String(row.turnId), String(row.messageId)])),
-        );
-        let missingKey: string | null = null;
-        for (const expectedEntry of expectedMessageIds) {
-          const expectedKey = JSON.stringify([expectedEntry.turnId, expectedEntry.messageId]);
-          if (!persistedKeys.has(expectedKey)) {
-            manifestMismatchCode = "E_SYNC_MANIFEST_MISMATCH";
-            missingKey = expectedKey;
-            break;
-          }
-        }
-        if (manifestMismatchCode) {
-          console.log(JSON.stringify({
-            event: "sync_job_manifest_missing",
-            jobId: args.jobId,
-            missingKey,
-            expectedMessageCount,
-            persistedCount: messageRows.length,
-          }));
-        }
+      if (Number(source.expectedMessageCount ?? expectedManifest.length) !== expectedManifest.length) {
+        await failJob("E_SYNC_MANIFEST_INVALID", "expectedMessageCount does not match expected manifest.");
+        return null;
       }
-      if (manifestMismatchCode) {
-        console.log(JSON.stringify({
-          event: "sync_job_manifest_failed",
-          jobId: args.jobId,
-          code: manifestMismatchCode,
-          expectedMessageCount,
-          expectedIds: expectedMessageIds.length,
-        }));
-        await ctx.db.patch(job._id, {
-          state: "failed",
-          sourceState: "processing",
-          completedAt: ts,
-          updatedAt: ts,
-          lastErrorCode: manifestMismatchCode,
-          lastErrorMessage: `Sync manifest verification failed for job ${String(job.jobId)}.`,
-        });
-        const binding = await ctx.db
-          .query("codex_thread_bindings")
-          .withIndex("userScope_userId_conversationId", (q) =>
-            q.eq("userScope", userScope).eq("userId", job.userId).eq("conversationId", String(job.conversationId)),
-          )
-          .first();
-        if (binding) {
-          await ctx.db.patch(binding._id, {
-            syncState: "drifted",
-            syncJobState: "failed",
-            syncJobUpdatedAt: ts,
-            syncJobLastCursor: Number(job.lastCursor ?? 0),
-            syncJobErrorCode: manifestMismatchCode,
-            lastErrorCode: manifestMismatchCode,
-            lastErrorAt: ts,
-            updatedAt: ts,
-          });
-        }
+      const sourceChunks = await ctx.db
+        .query("codex_sync_import_source_chunks")
+        .withIndex("userScope_sourceRef_chunkIndex", (q) =>
+          q.eq("userScope", userScope).eq("sourceRef", source._id),
+        )
+        .collect();
+      const derivedChecksum = `${sourceChunks.length}:${sourceChunks.reduce((sum, row) => sum + Number(row.messageCount ?? 0), 0)}:${sourceChunks.reduce((sum, row) => sum + Number(row.byteSize ?? 0), 0)}`;
+      if (String(source.expectedChecksum ?? "") !== derivedChecksum) {
+        await failJob("E_SYNC_SOURCE_CHECKSUM_MISMATCH", "Stored source checksum no longer matches source chunks.");
+        return null;
+      }
+      const expectedKeys = new Set(expectedManifest.map((entry) => JSON.stringify([entry.turnId, entry.messageId])));
+      const messages = await ctx.db
+        .query("codex_messages")
+        .withIndex("userScope_threadId_createdAt", (q) =>
+          q.eq("userScope", userScope).eq("threadId", String(job.threadId)),
+        )
+        .collect();
+      const persistedKeys = new Set(
+        messages
+          .map((row) => JSON.stringify([String(row.turnId), String(row.messageId)]))
+          .filter((key) => expectedKeys.has(key)),
+      );
+      if (persistedKeys.size !== expectedKeys.size) {
+        await failJob("E_SYNC_MANIFEST_SET_MISMATCH", "Expected manifest does not match persisted messages.");
         return null;
       }
       await ctx.db.patch(job._id, {
-        state: "synced",
-        sourceState: "processing",
+        state: "succeeded",
         completedAt: ts,
         updatedAt: ts,
       });
-      console.log(JSON.stringify({
-        event: "sync_job_synced",
-        jobId: args.jobId,
-        processedMessageCount: Number(job.processedMessageCount ?? 0),
-        totalChunks,
-      }));
       const binding = await ctx.db
         .query("codex_thread_bindings")
         .withIndex("userScope_userId_conversationId", (q) =>
@@ -1455,14 +1560,10 @@ export const runConversationSyncJobChunk = internalMutation({
       return null;
     }
 
-    await ctx.db.patch(job._id, {
-      sourceState: "processing",
-      updatedAt: ts,
-    });
     const chunk = await ctx.db
-      .query("codex_sync_job_chunks")
-      .withIndex("userScope_jobRef_chunkIndex", (q) =>
-        q.eq("userScope", userScope).eq("jobRef", job._id).eq("chunkIndex", currentIndex),
+      .query("codex_sync_import_source_chunks")
+      .withIndex("userScope_sourceRef_chunkIndex", (q) =>
+        q.eq("userScope", userScope).eq("sourceRef", source._id).eq("chunkIndex", currentIndex),
       )
       .first();
     if (!chunk) {
@@ -1471,14 +1572,7 @@ export const runConversationSyncJobChunk = internalMutation({
         jobId: args.jobId,
         chunkIndex: currentIndex,
       }));
-      await ctx.db.patch(job._id, {
-        state: "failed",
-        completedAt: ts,
-        updatedAt: ts,
-        lastErrorCode: "E_SYNC_JOB_CHUNK_MISSING",
-        lastErrorMessage: `Missing chunk ${currentIndex}.`,
-      });
-      await markBindingSyncFailed("E_SYNC_JOB_CHUNK_MISSING");
+      await failJob("E_SYNC_SOURCE_CHUNK_INDEX_GAP", `Missing chunk ${currentIndex}.`);
       return null;
     }
 
@@ -1493,14 +1587,7 @@ export const runConversationSyncJobChunk = internalMutation({
         chunkIndex: currentIndex,
         error: errorMessage,
       }));
-      await ctx.db.patch(job._id, {
-        state: "failed",
-        completedAt: ts,
-        updatedAt: ts,
-        lastErrorCode: "E_SYNC_JOB_CHUNK_PARSE_FAILED",
-        lastErrorMessage: errorMessage,
-      });
-      await markBindingSyncFailed("E_SYNC_JOB_CHUNK_PARSE_FAILED");
+      await failJob("E_SYNC_SOURCE_INVALID", errorMessage);
       return null;
     }
 
@@ -1532,16 +1619,16 @@ export const runConversationSyncJobChunk = internalMutation({
         code: processed.errorCode,
       }));
       await ctx.db.patch(job._id, {
+        state: isExhausted ? "failed" : "retry_wait",
         retryCount: nextRetryCount,
         ...(isExhausted ? { completedAt: ts } : {}),
         updatedAt: ts,
         nextRunAt,
         lastErrorCode: processed.errorCode,
         lastErrorMessage: processed.errorMessage,
-        ...(isExhausted ? { state: "failed" as SyncJobState } : {}),
       });
       if (!isExhausted) {
-        await ctx.scheduler.runAfter(backoffMs, internal.threads.runConversationSyncJobChunk, args);
+        await ctx.scheduler.runAfter(backoffMs, internal.threads.runConversationSyncJob, args);
       } else {
         await markBindingSyncFailed(processed.errorCode);
       }
@@ -1559,7 +1646,7 @@ export const runConversationSyncJobChunk = internalMutation({
       nextRunAt: undefined,
       lastErrorCode: undefined,
       lastErrorMessage: undefined,
-      sourceState: "sealed",
+      state: "running",
       updatedAt: ts,
     });
 
@@ -1587,7 +1674,7 @@ export const runConversationSyncJobChunk = internalMutation({
       processedMessageCount: nextProcessedMessageCount,
       totalChunks,
     }));
-    await ctx.scheduler.runAfter(0, internal.threads.runConversationSyncJobChunk, args);
+    await ctx.scheduler.runAfter(0, internal.threads.runConversationSyncJob, args);
     return null;
   },
 });

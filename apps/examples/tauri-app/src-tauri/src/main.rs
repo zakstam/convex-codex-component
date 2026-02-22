@@ -36,10 +36,10 @@ struct StartBridgeConfig {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct OpenThreadConfig {
     strategy: String,
-    thread_id: Option<String>,
+    conversation_id: Option<String>,
     model: Option<String>,
     cwd: Option<String>,
     dynamic_tools: Option<serde_json::Value>,
@@ -137,13 +137,41 @@ async fn open_thread(
             "open_thread",
             json!({
                 "strategy": config.strategy,
-                "conversationId": config.thread_id,
+                "conversationId": config.conversation_id,
                 "model": config.model,
                 "cwd": config.cwd,
                 "dynamicTools": config.dynamic_tools,
             }),
         )
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenThreadConfig;
+    use serde_json::json;
+
+    #[test]
+    fn open_thread_config_parses_conversation_id() {
+        let parsed: OpenThreadConfig = serde_json::from_value(json!({
+            "strategy": "resume",
+            "conversationId": "conv-123",
+        }))
+        .expect("conversationId payload should parse");
+
+        assert_eq!(parsed.strategy, "resume");
+        assert_eq!(parsed.conversation_id.as_deref(), Some("conv-123"));
+    }
+
+    #[test]
+    fn open_thread_config_rejects_legacy_thread_id_alias() {
+        let parsed = serde_json::from_value::<OpenThreadConfig>(json!({
+            "strategy": "resume",
+            "threadId": "legacy-thread-id",
+        }));
+
+        assert!(parsed.is_err());
+    }
 }
 
 #[tauri::command]

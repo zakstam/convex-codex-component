@@ -846,9 +846,9 @@ type RuntimeOwnedInternalDefinitions = {
     syncOpenConversationBinding: CodexHostSliceDefinitions["mutations"]["syncOpenConversationBinding"];
     markConversationSyncProgress: CodexHostSliceDefinitions["mutations"]["markConversationSyncProgress"];
     forceRebindConversationSync: CodexHostSliceDefinitions["mutations"]["forceRebindConversationSync"];
-    startConversationSyncJob: CodexHostSliceDefinitions["mutations"]["startConversationSyncJob"];
-    appendConversationSyncChunk: CodexHostSliceDefinitions["mutations"]["appendConversationSyncChunk"];
-    sealConversationSyncJobSource: CodexHostSliceDefinitions["mutations"]["sealConversationSyncJobSource"];
+    startConversationSyncSource: CodexHostSliceDefinitions["mutations"]["startConversationSyncSource"];
+    appendConversationSyncSourceChunk: CodexHostSliceDefinitions["mutations"]["appendConversationSyncSourceChunk"];
+    sealConversationSyncSource: CodexHostSliceDefinitions["mutations"]["sealConversationSyncSource"];
     cancelConversationSyncJob: CodexHostSliceDefinitions["mutations"]["cancelConversationSyncJob"];
     ensureConversationBinding: CodexHostSliceDefinitions["mutations"]["ensureConversationBinding"];
     archiveConversation: CodexHostSliceDefinitions["mutations"]["archiveConversation"];
@@ -902,9 +902,9 @@ export type RuntimeOwnedHostDefinitions = {
     syncOpenConversationBinding: RuntimeOwnedInternalDefinitions["mutations"]["syncOpenConversationBinding"];
     markConversationSyncProgress: RuntimeOwnedInternalDefinitions["mutations"]["markConversationSyncProgress"];
     forceRebindConversationSync: RuntimeOwnedInternalDefinitions["mutations"]["forceRebindConversationSync"];
-    startConversationSyncJob: RuntimeOwnedInternalDefinitions["mutations"]["startConversationSyncJob"];
-    appendConversationSyncChunk: RuntimeOwnedInternalDefinitions["mutations"]["appendConversationSyncChunk"];
-    sealConversationSyncJobSource: RuntimeOwnedInternalDefinitions["mutations"]["sealConversationSyncJobSource"];
+    startConversationSyncSource: RuntimeOwnedInternalDefinitions["mutations"]["startConversationSyncSource"];
+    appendConversationSyncSourceChunk: RuntimeOwnedInternalDefinitions["mutations"]["appendConversationSyncSourceChunk"];
+    sealConversationSyncSource: RuntimeOwnedInternalDefinitions["mutations"]["sealConversationSyncSource"];
     cancelConversationSyncJob: RuntimeOwnedInternalDefinitions["mutations"]["cancelConversationSyncJob"];
     ensureConversationBinding: RuntimeOwnedInternalDefinitions["mutations"]["ensureConversationBinding"];
     archiveConversation: RuntimeOwnedInternalDefinitions["mutations"]["archiveConversation"];
@@ -976,9 +976,9 @@ function toPublicRuntimeOwnedDefinitions(
       syncOpenConversationBinding: defs.mutations.syncOpenConversationBinding,
       markConversationSyncProgress: defs.mutations.markConversationSyncProgress,
       forceRebindConversationSync: defs.mutations.forceRebindConversationSync,
-      startConversationSyncJob: defs.mutations.startConversationSyncJob,
-      appendConversationSyncChunk: defs.mutations.appendConversationSyncChunk,
-      sealConversationSyncJobSource: defs.mutations.sealConversationSyncJobSource,
+      startConversationSyncSource: defs.mutations.startConversationSyncSource,
+      appendConversationSyncSourceChunk: defs.mutations.appendConversationSyncSourceChunk,
+      sealConversationSyncSource: defs.mutations.sealConversationSyncSource,
       cancelConversationSyncJob: defs.mutations.cancelConversationSyncJob,
       ensureConversationBinding: defs.mutations.ensureConversationBinding,
       archiveConversation: defs.mutations.archiveConversation,
@@ -1041,9 +1041,9 @@ function toRuntimeOwnedInternalDefinitions(
       syncOpenConversationBinding: rawSlice.mutations.syncOpenConversationBinding,
       markConversationSyncProgress: rawSlice.mutations.markConversationSyncProgress,
       forceRebindConversationSync: rawSlice.mutations.forceRebindConversationSync,
-      startConversationSyncJob: rawSlice.mutations.startConversationSyncJob,
-      appendConversationSyncChunk: rawSlice.mutations.appendConversationSyncChunk,
-      sealConversationSyncJobSource: rawSlice.mutations.sealConversationSyncJobSource,
+      startConversationSyncSource: rawSlice.mutations.startConversationSyncSource,
+      appendConversationSyncSourceChunk: rawSlice.mutations.appendConversationSyncSourceChunk,
+      sealConversationSyncSource: rawSlice.mutations.sealConversationSyncSource,
       cancelConversationSyncJob: rawSlice.mutations.cancelConversationSyncJob,
       ensureConversationBinding: rawSlice.mutations.ensureConversationBinding,
       archiveConversation: rawSlice.mutations.archiveConversation,

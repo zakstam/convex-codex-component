@@ -102,35 +102,37 @@ function createHarness(options = {}) {
         failedDispatches.push(args);
       },
       cancelTurnDispatch: async () => undefined,
-      startConversationSyncJob: async (args) => {
-        const jobId = `job-${syncJobs.size + 1}`;
-        syncJobs.set(jobId, {
+      startConversationSyncSource: async (args) => {
+        const sourceId = `source-${syncJobs.size + 1}`;
+        syncJobs.set(sourceId, {
           actor: args.actor,
           conversationId: args.conversationId,
           threadId: args.threadId ?? "local-thread",
           chunks: [],
         });
         return {
-          jobId,
+          sourceId,
           conversationId: args.conversationId,
           threadId: args.threadId ?? "local-thread",
-          state: "syncing",
           sourceState: "collecting",
           policyVersion: 1,
-          startedAt: Date.now(),
+          createdAt: Date.now(),
           updatedAt: Date.now(),
         };
       },
-      appendConversationSyncChunk: async (args) => {
-        const job = syncJobs.get(args.jobId);
+      appendConversationSyncSourceChunk: async (args) => {
+        const job = syncJobs.get(args.sourceId);
         job.chunks[args.chunkIndex] = JSON.parse(args.payloadJson);
-        return { jobId: args.jobId, chunkIndex: args.chunkIndex, appended: true };
+        return { sourceId: args.sourceId, chunkIndex: args.chunkIndex, appended: true };
       },
-      sealConversationSyncJobSource: async (args) => {
-        const job = syncJobs.get(args.jobId);
+      sealConversationSyncSource: async (args) => {
+        const job = syncJobs.get(args.sourceId);
         job.sealed = true;
+        job.jobId = `job-${args.sourceId}`;
+        syncJobs.set(job.jobId, job);
         return {
-          jobId: args.jobId,
+          sourceId: args.sourceId,
+          jobId: job.jobId,
           sourceState: "sealed",
           totalChunks: job.chunks.filter(Boolean).length,
           scheduled: true,

@@ -12,9 +12,9 @@ type ConvexHttpClientLike = {
 };
 
 export type ConvexPersistenceChatApi = {
-  startConversationSyncJob: FunctionReference<"mutation", "public">;
-  appendConversationSyncChunk: FunctionReference<"mutation", "public">;
-  sealConversationSyncJobSource: FunctionReference<"mutation", "public">;
+  startConversationSyncSource: FunctionReference<"mutation", "public">;
+  appendConversationSyncSourceChunk: FunctionReference<"mutation", "public">;
+  sealConversationSyncSource: FunctionReference<"mutation", "public">;
   cancelConversationSyncJob: FunctionReference<"mutation", "public">;
   getConversationSyncJob: FunctionReference<"query", "public">;
   listConversationSyncJobs?: FunctionReference<"query", "public">;
@@ -259,46 +259,46 @@ export function createConvexPersistence(
       return { status: initial.status, errors: mapIngestErrors(initial.errors) };
     },
 
-    startConversationSyncJob: async (args) => {
-      const started = await client.mutation(chatApi.startConversationSyncJob, {
+    startConversationSyncSource: async (args) => {
+      const started = await client.mutation(chatApi.startConversationSyncSource, {
         actor: args.actor,
         conversationId: args.conversationId,
         ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
         ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
-        ...(args.sourceChecksum !== undefined ? { sourceChecksum: args.sourceChecksum } : {}),
-        ...(args.expectedMessageCount !== undefined ? { expectedMessageCount: args.expectedMessageCount } : {}),
-        ...(args.expectedMessageIdsJson !== undefined ? { expectedMessageIdsJson: args.expectedMessageIdsJson } : {}),
       }) as {
-        jobId: string;
+        sourceId: string;
         conversationId: string;
         threadId: string;
-        state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
-        sourceState: "collecting" | "sealed" | "processing";
+        sourceState: "collecting" | "sealed" | "failed";
         policyVersion: number;
-        startedAt: number;
+        createdAt: number;
         updatedAt: number;
       };
       threadHandleByPersistedThreadId.set(started.threadId, args.conversationId);
       return started;
     },
 
-    appendConversationSyncChunk: async (args) =>
-      client.mutation(chatApi.appendConversationSyncChunk, {
+    appendConversationSyncSourceChunk: async (args) =>
+      client.mutation(chatApi.appendConversationSyncSourceChunk, {
         actor: args.actor,
-        jobId: args.jobId,
+        sourceId: args.sourceId,
         chunkIndex: args.chunkIndex,
         payloadJson: args.payloadJson,
         messageCount: args.messageCount,
         byteSize: args.byteSize,
-      }) as Promise<{ jobId: string; chunkIndex: number; appended: boolean }>,
+      }) as Promise<{ sourceId: string; chunkIndex: number; appended: boolean }>,
 
-    sealConversationSyncJobSource: async (args) =>
-      client.mutation(chatApi.sealConversationSyncJobSource, {
+    sealConversationSyncSource: async (args) =>
+      client.mutation(chatApi.sealConversationSyncSource, {
         actor: args.actor,
-        jobId: args.jobId,
+        sourceId: args.sourceId,
+        expectedManifestJson: args.expectedManifestJson,
+        expectedChecksum: args.expectedChecksum,
+        ...(args.expectedMessageCount !== undefined ? { expectedMessageCount: args.expectedMessageCount } : {}),
       }) as Promise<{
+        sourceId: string;
         jobId: string;
-        sourceState: "collecting" | "sealed" | "processing";
+        sourceState: "collecting" | "sealed" | "failed";
         totalChunks: number;
         scheduled: boolean;
       }>,
@@ -309,7 +309,7 @@ export function createConvexPersistence(
         jobId: args.jobId,
         ...(args.errorCode !== undefined ? { errorCode: args.errorCode } : {}),
         ...(args.errorMessage !== undefined ? { errorMessage: args.errorMessage } : {}),
-      }) as Promise<{ jobId: string; state: "idle" | "syncing" | "synced" | "failed" | "cancelled"; cancelled: boolean }>,
+      }) as Promise<{ jobId: string; state: "syncing" | "synced" | "failed" | "cancelled"; cancelled: boolean }>,
 
     getConversationSyncJob: async (args) =>
       client.query(chatApi.getConversationSyncJob, {
@@ -321,8 +321,8 @@ export function createConvexPersistence(
         conversationId: string;
         threadId: string;
         runtimeConversationId?: string;
-        state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
-        sourceState: "collecting" | "sealed" | "processing";
+        state: "syncing" | "synced" | "failed" | "cancelled";
+        sourceState: "collecting" | "sealed" | "failed";
         policyVersion: number;
         startedAt: number;
         updatedAt: number;
@@ -345,7 +345,7 @@ export function createConvexPersistence(
           jobId: args.jobId,
         }) as {
           jobId: string;
-          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          state: "syncing" | "synced" | "failed" | "cancelled";
           lastCursor: number;
           processedMessageCount: number;
           lastErrorCode?: string;

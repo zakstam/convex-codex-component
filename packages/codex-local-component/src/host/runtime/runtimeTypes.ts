@@ -253,42 +253,42 @@ export type HostRuntimePersistence = {
     lastReasoningOutputTokens: number;
     modelContextWindow?: number;
   }) => Promise<void>;
-  startConversationSyncJob: (args: {
+  startConversationSyncSource: (args: {
     actor: ActorContext;
     conversationId: string;
     runtimeConversationId?: string;
     threadId?: string;
-    sourceChecksum?: string;
-    expectedMessageCount?: number;
-    expectedMessageIdsJson?: string;
   }) => Promise<{
-    jobId: string;
+    sourceId: string;
     conversationId: string;
     threadId: string;
-    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
-    sourceState: "collecting" | "sealed" | "processing";
+    sourceState: "collecting" | "sealed" | "failed";
     policyVersion: number;
-    startedAt: number;
+    createdAt: number;
     updatedAt: number;
   }>;
-  appendConversationSyncChunk: (args: {
+  appendConversationSyncSourceChunk: (args: {
     actor: ActorContext;
-    jobId: string;
+    sourceId: string;
     chunkIndex: number;
     payloadJson: string;
     messageCount: number;
     byteSize: number;
   }) => Promise<{
-    jobId: string;
+    sourceId: string;
     chunkIndex: number;
     appended: boolean;
   }>;
-  sealConversationSyncJobSource: (args: {
+  sealConversationSyncSource: (args: {
     actor: ActorContext;
-    jobId: string;
+    sourceId: string;
+    expectedManifestJson: string;
+    expectedChecksum: string;
+    expectedMessageCount?: number;
   }) => Promise<{
+    sourceId: string;
     jobId: string;
-    sourceState: "collecting" | "sealed" | "processing";
+    sourceState: "collecting" | "sealed" | "failed";
     totalChunks: number;
     scheduled: boolean;
   }>;
@@ -299,7 +299,7 @@ export type HostRuntimePersistence = {
     errorMessage?: string;
   }) => Promise<{
     jobId: string;
-    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+    state: "syncing" | "synced" | "failed" | "cancelled";
     cancelled: boolean;
   }>;
   getConversationSyncJob: (args: {
@@ -311,8 +311,8 @@ export type HostRuntimePersistence = {
     conversationId: string;
     threadId: string;
     runtimeConversationId?: string;
-    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
-    sourceState: "collecting" | "sealed" | "processing";
+    state: "syncing" | "synced" | "failed" | "cancelled";
+    sourceState: "collecting" | "sealed" | "failed";
     policyVersion: number;
     startedAt: number;
     updatedAt: number;
@@ -331,7 +331,7 @@ export type HostRuntimePersistence = {
     jobId: string;
   }) => Promise<{
     jobId: string;
-    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+    state: "syncing" | "synced" | "failed" | "cancelled";
     lastCursor: number;
     processedMessageCount: number;
     lastErrorCode?: string;

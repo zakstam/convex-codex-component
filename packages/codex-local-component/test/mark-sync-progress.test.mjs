@@ -69,3 +69,26 @@ test("markSyncProgress clears stale syncJobErrorCode when no new syncJobErrorCod
   assert.equal(Object.prototype.hasOwnProperty.call(patch.value, "syncJobErrorCode"), true);
   assert.equal(patch.value.syncJobErrorCode, undefined);
 });
+
+test("markSyncProgress return validator allows idle syncJobState", () => {
+  const returnsJson = JSON.parse(markSyncProgress.exportReturns());
+  const syncJobStateField = returnsJson.value.syncJobState;
+  assert.ok(syncJobStateField);
+  assert.equal(syncJobStateField.optional, true);
+  const flattenLiterals = (entries) => entries.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return [];
+    }
+    if (entry.type === "literal") {
+      return [entry.value];
+    }
+    if (entry.type === "union" && Array.isArray(entry.value)) {
+      return flattenLiterals(entry.value);
+    }
+    return [];
+  });
+  assert.deepEqual(
+    flattenLiterals(syncJobStateField.fieldType.value),
+    ["idle", "syncing", "synced", "failed", "cancelled"],
+  );
+});

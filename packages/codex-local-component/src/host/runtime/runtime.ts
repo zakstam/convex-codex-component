@@ -713,7 +713,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     const importedTurnCount = turns.filter((turn) => typeof turn.id === "string").length;
     const canonicalManifest = extractCanonicalMessageManifestFromSnapshotTurns(turns);
     const importedMessageCount = canonicalManifest.length;
-    const expectedMessageIdsJson = JSON.stringify(canonicalManifest);
+    const expectedManifestJson = JSON.stringify(canonicalManifest);
 
     const ensuredThread = await persistence.ensureThread({
       actor,
@@ -745,16 +745,19 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       importWarnings.push(`W_IMPORT_THREAD_SKIPPED_ITEMS_MISSING_TYPE:${diagnostics.skippedMissingType}`);
     }
     if (deltas.length === 0) {
-      const emptyJob = await persistence.startConversationSyncJob({
+      const emptySource = await persistence.startConversationSyncSource({
         actor,
         conversationId: targetConversationId,
         runtimeConversationId: runtimeThreadHandle,
         threadId: ensuredThread.threadId,
-        sourceChecksum: "0:0:0",
-        expectedMessageCount: importedMessageCount,
-        expectedMessageIdsJson,
       });
-      await persistence.sealConversationSyncJobSource({ actor, jobId: emptyJob.jobId });
+      const emptyJob = await persistence.sealConversationSyncSource({
+        actor,
+        sourceId: emptySource.sourceId,
+        expectedChecksum: "0:0:0",
+        expectedMessageCount: importedMessageCount,
+        expectedManifestJson,
+      });
       const emptyTerminal = await persistence.waitForConversationSyncJobTerminal({
         actor,
         conversationId: targetConversationId,
@@ -764,7 +767,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
         conversationId: targetConversationId,
         threadId: ensuredThread.threadId,
         syncJobId: emptyJob.jobId,
-        syncJobPolicyVersion: emptyJob.policyVersion,
+        syncJobPolicyVersion: emptySource.policyVersion,
         syncJobState: emptyTerminal.state,
         lastCursor: emptyTerminal.lastCursor,
         ...(emptyTerminal.lastErrorCode ? { errorCode: emptyTerminal.lastErrorCode } : {}),
@@ -775,16 +778,15 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       };
     }
 
-    const sourceChecksum = `${deltas.length}:${importedTurnCount}:${importedMessageCount}`;
-    const job = await persistence.startConversationSyncJob({
+    const source = await persistence.startConversationSyncSource({
       actor,
       conversationId: targetConversationId,
       runtimeConversationId: runtimeThreadHandle,
       threadId: ensuredThread.threadId,
-      sourceChecksum,
-      expectedMessageCount: importedMessageCount,
-      expectedMessageIdsJson,
     });
+    let totalChunkCount = 0;
+    let totalChunkMessageCount = 0;
+    let totalChunkByteSize = 0;
     for (let offset = 0; offset < deltas.length; offset += IMPORT_THREAD_SOURCE_CHUNK_SIZE) {
       const chunk = deltas.slice(offset, offset + IMPORT_THREAD_SOURCE_CHUNK_SIZE);
       const messageCount = chunk.reduce((count, delta) => {
@@ -815,9 +817,12 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
         return count + 1;
       }, 0);
       const payloadJson = JSON.stringify(chunk);
-      await persistence.appendConversationSyncChunk({
+      totalChunkCount += 1;
+      totalChunkMessageCount += messageCount;
+      totalChunkByteSize += payloadJson.length;
+      await persistence.appendConversationSyncSourceChunk({
         actor,
-        jobId: job.jobId,
+        sourceId: source.sourceId,
         chunkIndex: Math.floor(offset / IMPORT_THREAD_SOURCE_CHUNK_SIZE),
         payloadJson,
         messageCount,
@@ -825,9 +830,13 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       });
     }
 
-    await persistence.sealConversationSyncJobSource({
+    const expectedChecksum = `${totalChunkCount}:${totalChunkMessageCount}:${totalChunkByteSize}`;
+    const job = await persistence.sealConversationSyncSource({
       actor,
-      jobId: job.jobId,
+      sourceId: source.sourceId,
+      expectedChecksum,
+      expectedMessageCount: importedMessageCount,
+      expectedManifestJson,
     });
 
     const terminal = await persistence.waitForConversationSyncJobTerminal({
@@ -844,7 +853,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       conversationId: targetConversationId,
       threadId: ensuredThread.threadId,
       syncJobId: job.jobId,
-      syncJobPolicyVersion: job.policyVersion,
+      syncJobPolicyVersion: source.policyVersion,
       syncJobState: terminal.state,
       lastCursor: terminal.lastCursor,
       ...(terminal.lastErrorCode ? { errorCode: terminal.lastErrorCode } : {}),

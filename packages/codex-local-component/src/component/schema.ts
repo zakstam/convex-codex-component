@@ -19,50 +19,74 @@ export const vStreamState = v.union(
 );
 
 export default defineSchema({
-  codex_sync_jobs: defineTable({
+  codex_sync_import_sources: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
+    sourceId: v.string(),
     conversationId: v.string(),
     threadId: v.string(),
     runtimeConversationId: v.optional(v.string()),
-    jobId: v.string(),
+    state: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("failed")),
     policyVersion: v.number(),
-    state: v.union(
-      v.literal("idle"),
-      v.literal("syncing"),
-      v.literal("synced"),
-      v.literal("failed"),
-      v.literal("cancelled"),
-    ),
-    startedAt: v.number(),
+    createdAt: v.number(),
     updatedAt: v.number(),
-    completedAt: v.optional(v.number()),
-    lastCursor: v.number(),
-    processedChunkIndex: v.number(),
-    totalChunks: v.number(),
-    processedMessageCount: v.number(),
+    sealedAt: v.optional(v.number()),
+    expectedManifestJson: v.optional(v.string()),
     expectedMessageCount: v.optional(v.number()),
-    expectedMessageIdsJson: v.optional(v.string()),
-    retryCount: v.number(),
-    nextRunAt: v.optional(v.number()),
+    expectedChecksum: v.optional(v.string()),
+    totalChunks: v.number(),
+    totalMessageCount: v.number(),
+    totalByteSize: v.number(),
     lastErrorCode: v.optional(v.string()),
     lastErrorMessage: v.optional(v.string()),
-    sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
-    sourceChecksum: v.optional(v.string()),
   })
-    .index("userScope_userId_conversationId_startedAt", ["userScope", "userId", "conversationId", "startedAt"])
-    .index("userScope_jobId", ["userScope", "jobId"]),
+    .index("userScope_sourceId", ["userScope", "sourceId"])
+    .index("userScope_userId_conversationId_createdAt", ["userScope", "userId", "conversationId", "createdAt"]),
 
-  codex_sync_job_chunks: defineTable({
+  codex_sync_import_source_chunks: defineTable({
     userScope: v.string(),
-    jobRef: v.id("codex_sync_jobs"),
+    sourceRef: v.id("codex_sync_import_sources"),
     chunkIndex: v.number(),
     payloadJson: v.string(),
     messageCount: v.number(),
     byteSize: v.number(),
     createdAt: v.number(),
   })
-    .index("userScope_jobRef_chunkIndex", ["userScope", "jobRef", "chunkIndex"]),
+    .index("userScope_sourceRef_chunkIndex", ["userScope", "sourceRef", "chunkIndex"]),
+
+  codex_sync_import_jobs: defineTable({
+    userScope: v.string(),
+    userId: v.optional(v.string()),
+    jobId: v.string(),
+    sourceRef: v.id("codex_sync_import_sources"),
+    conversationId: v.string(),
+    threadId: v.string(),
+    runtimeConversationId: v.optional(v.string()),
+    policyVersion: v.number(),
+    state: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("retry_wait"),
+      v.literal("verifying"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    processedChunkIndex: v.number(),
+    processedMessageCount: v.number(),
+    totalChunks: v.number(),
+    retryCount: v.number(),
+    lastCursor: v.number(),
+    nextRunAt: v.optional(v.number()),
+    leaseVersion: v.number(),
+    lastErrorCode: v.optional(v.string()),
+    lastErrorMessage: v.optional(v.string()),
+  })
+    .index("userScope_jobId", ["userScope", "jobId"])
+    .index("userScope_userId_conversationId_startedAt", ["userScope", "userId", "conversationId", "startedAt"]),
 
   codex_thread_bindings: defineTable({
     userScope: v.string(),

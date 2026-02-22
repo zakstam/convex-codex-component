@@ -21,7 +21,7 @@ Canonical consumer implementation guidance is in:
 - `chat.listRuntimeConversationBindingsForPicker` maps runtime thread IDs to persisted bindings for local-thread labeling (`local unsynced` vs persisted).
 - `chat.resolveOpenTarget` resolves a selected conversation handle to an open target (`bound` or `unbound`) for resume/rebind decisions.
 - Runtime-owned `ensureConversationBinding` uses one resolve path and requires `conversationId`.
-- Durable sync jobs are exposed through `chat.startConversationSyncJob`, `chat.appendConversationSyncChunk`, `chat.sealConversationSyncJobSource`, `chat.cancelConversationSyncJob`, `chat.getConversationSyncJob`, and `chat.listConversationSyncJobs`.
+- Durable sync jobs are exposed through `chat.startConversationSyncSource`, `chat.appendConversationSyncSourceChunk`, `chat.sealConversationSyncSource`, `chat.cancelConversationSyncJob`, `chat.getConversationSyncJob`, and `chat.listConversationSyncJobs`.
 
 ## Actor Lock
 

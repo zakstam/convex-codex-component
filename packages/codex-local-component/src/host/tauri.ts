@@ -544,6 +544,17 @@ function toBridgeStartInvokeConfig(config: StartBridgeConfig): Record<string, un
 }
 
 function toOpenThreadInvokeConfig(config: OpenThreadConfig): Record<string, unknown> {
+  const strategy = config.strategy;
+  if (strategy === "resume" || strategy === "fork") {
+    const conversationId = typeof config.conversationId === "string" ? config.conversationId.trim() : "";
+    if (conversationId.length === 0) {
+      throw new Error(`conversationId is required when strategy="${strategy}".`);
+    }
+    return {
+      ...config,
+      conversationId,
+    };
+  }
   return { ...config };
 }
 

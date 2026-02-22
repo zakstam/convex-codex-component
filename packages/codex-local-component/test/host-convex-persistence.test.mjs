@@ -4,9 +4,9 @@ import { createConvexPersistence } from "../dist/host/index.js";
 
 function createChatApi() {
   return {
-    startConversationSyncJob: Symbol("startConversationSyncJob"),
-    appendConversationSyncChunk: Symbol("appendConversationSyncChunk"),
-    sealConversationSyncJobSource: Symbol("sealConversationSyncJobSource"),
+    startConversationSyncSource: Symbol("startConversationSyncSource"),
+    appendConversationSyncSourceChunk: Symbol("appendConversationSyncSourceChunk"),
+    sealConversationSyncSource: Symbol("sealConversationSyncSource"),
     cancelConversationSyncJob: Symbol("cancelConversationSyncJob"),
     getConversationSyncJob: Symbol("getConversationSyncJob"),
     listConversationSyncJobs: Symbol("listConversationSyncJobs"),

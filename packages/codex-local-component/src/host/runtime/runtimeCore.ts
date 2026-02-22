@@ -55,6 +55,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   let runtimeConversationId: string | null = null;
   let conversationId: string | null = null;
   let turnId: string | null = null;
+  let runtimeTurnId: string | null = null;
   let turnInFlight = false;
   let turnSettled = false;
   let interruptRequested = false;
@@ -214,7 +215,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
   const sendClaimedDispatch = async (claimed: { dispatchId: string; turnId: string; inputText: string; claimToken: string }) => {
     if (!runtimeConversationId) throw new Error("Cannot dispatch turn before runtime thread is ready.");
     activeDispatch = { dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId, text: claimed.inputText };
-    turnId = claimed.turnId; turnInFlight = true; turnSettled = false; emitState();
+    turnId = claimed.turnId; runtimeTurnId = null; turnInFlight = true; turnSettled = false; emitState();
     const reqId = requestIdFn();
     pendingRequests.set(reqId, { method: "turn/start", dispatchId: claimed.dispatchId, claimToken: claimed.claimToken, turnId: claimed.turnId });
     assertRuntimeReady().send(buildTurnStartTextRequest(reqId, { threadId: runtimeConversationId, text: claimed.inputText }));
@@ -242,7 +243,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     } finally { claimLoopRunning = false; }
   };
 
-  const acceptTurnSend = async (inputText: string): Promise<{ turnId: string; accepted: true }> => {
+  const acceptTurnSend = async (inputText: string): Promise<{ turnId: string; dispatchId: string; accepted: true }> => {
     if (!actor || !threadId) {
       throw new Error("Cannot accept turn send before thread binding is ready.");
     }
@@ -257,7 +258,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     if (!accepted.accepted) {
       throw new Error("Turn send was not accepted by persistence.");
     }
-    return { turnId: accepted.turnId, accepted: true };
+    return { turnId: accepted.turnId, dispatchId: accepted.dispatchId, accepted: true };
   };
 
   const resolvePersistedTurnId = (rtid?: string): string | null => { if (rtid) return dispatchByTurnId.get(rtid)?.persistedTurnId ?? rtid; return turnId; };
@@ -281,6 +282,8 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     get runtimeConversationId() { return runtimeConversationId; },
     set runtimeConversationId(v) { runtimeConversationId = v; },
     get turnId() { return turnId; },
+    get runtimeTurnId() { return runtimeTurnId; },
+    set runtimeTurnId(v) { runtimeTurnId = v; },
     get turnInFlight() { return turnInFlight; },
     set turnInFlight(v) { turnInFlight = v; },
     get turnSettled() { return turnSettled; },
@@ -337,6 +340,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     get threadId() { return threadId; },
     get runtimeConversationId() { return runtimeConversationId; },
     get turnId() { return turnId; },
+    get runtimeTurnId() { return runtimeTurnId; },
     get turnInFlight() { return turnInFlight; },
     get turnSettled() { return turnSettled; },
     get activeDispatch() { return activeDispatch; },
@@ -356,6 +360,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
     resetIngestMetrics,
     ensureThreadBinding, sendClaimedDispatch, processDispatchQueue,
     acceptTurnSend,
+    failAcceptedTurnSend,
     throwIfTurnMutationLocked,
     getPendingServerRequest, sendServerRequestResponse,
     getPendingAuthTokensRefreshRequest, resolvePendingAuthTokensRefreshRequest,
@@ -365,7 +370,7 @@ export function createRuntimeCore(args: RuntimeCoreArgs) {
 
     resetAll() {
       bridge = null; actor = null; sessionId = null; threadId = null; runtimeConversationId = null;
-      conversationId = null; turnId = null; turnInFlight = false; turnSettled = false;
+      conversationId = null; turnId = null; runtimeTurnId = null; turnInFlight = false; turnSettled = false;
       interruptRequested = false;
       claimLoopRunning = false; dispatchByTurnId.clear(); activeDispatch = null;
       startupModel = undefined; startupCwd = undefined; pendingRequests.clear();

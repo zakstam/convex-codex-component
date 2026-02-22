@@ -47,6 +47,7 @@ export type HandlerCtx = {
   readonly threadId: string | null;
   runtimeConversationId: string | null;
   readonly turnId: string | null;
+  runtimeTurnId: string | null;
   turnInFlight: boolean;
   turnSettled: boolean;
   interruptRequested: boolean;
@@ -168,16 +169,18 @@ export async function flushQueue(ctx: HandlerCtx): Promise<void> {
   await next;
 }
 
-function transitionTurnStarted(ctx: HandlerCtx, persistedTurnId: string): void {
+function transitionTurnStarted(ctx: HandlerCtx, persistedTurnId: string, runtimeTurnId: string): void {
   ctx.setTurnId(persistedTurnId);
+  ctx.runtimeTurnId = runtimeTurnId;
   ctx.turnInFlight = true;
   ctx.turnSettled = false;
 }
 
-function transitionTurnSettled(ctx: HandlerCtx, turnId: string | null): void {
+function transitionTurnSettled(ctx: HandlerCtx, turnId: string | null, runtimeTurnId: string | null): void {
   ctx.turnInFlight = false;
   ctx.turnSettled = true;
   ctx.setTurnId(turnId);
+  ctx.runtimeTurnId = runtimeTurnId;
 }
 
 function toIngestDelta(ctx: HandlerCtx, event: NormalizedEvent, ptid: string): IngestDelta | null {
@@ -241,7 +244,7 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
 
   if (event.kind === "turn/started" && event.turnId) {
     const ptid = ctx.resolvePersistedTurnId(event.turnId) ?? event.turnId;
-    transitionTurnStarted(ctx, ptid);
+    transitionTurnStarted(ctx, ptid, event.turnId);
     if (ctx.activeDispatch && ctx.actor && ctx.threadId) {
       ctx.dispatchByTurnId.set(event.turnId, { dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, persistedTurnId: ctx.activeDispatch.turnId });
       await ctx.persistence.markTurnDispatchStarted({ actor: ctx.actor, threadId: ctx.threadId, dispatchId: ctx.activeDispatch.dispatchId, claimToken: ctx.activeDispatch.claimToken, ...(ctx.runtimeConversationId ? { runtimeConversationId: ctx.runtimeConversationId } : {}), runtimeTurnId: event.turnId });
@@ -271,9 +274,13 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
         }
       }
     }
-    transitionTurnSettled(ctx, null);
+    transitionTurnSettled(ctx, null, null);
     ctx.emitState();
-    await ctx.expireTurnServerRequests({ threadId: ctx.threadId ?? event.threadId, ...(event.turnId ? { turnId: event.turnId } : {}) });
+    const terminalTurnId = event.turnId ? (ctx.resolvePersistedTurnId(event.turnId) ?? event.turnId) : undefined;
+    await ctx.expireTurnServerRequests({
+      threadId: ctx.threadId ?? event.threadId,
+      ...(terminalTurnId ? { turnId: terminalTurnId } : {}),
+    });
     await ctx.processDispatchQueue();
   }
 
@@ -292,9 +299,14 @@ export async function handleBridgeEvent(ctx: HandlerCtx, event: NormalizedEvent)
         });
       }
     }
-    transitionTurnSettled(ctx, !event.turnId || event.turnId === ctx.turnId ? null : ctx.turnId);
+    const isCurrentRuntimeTurn = !!event.turnId && event.turnId === ctx.runtimeTurnId;
+    transitionTurnSettled(ctx, !event.turnId || isCurrentRuntimeTurn ? null : ctx.turnId, !event.turnId || isCurrentRuntimeTurn ? null : ctx.runtimeTurnId);
     ctx.emitState();
-    await ctx.expireTurnServerRequests({ threadId: ctx.threadId ?? event.threadId, ...(event.turnId ? { turnId: event.turnId } : {}) });
+    const terminalTurnId = event.turnId ? (ctx.resolvePersistedTurnId(event.turnId) ?? event.turnId) : undefined;
+    await ctx.expireTurnServerRequests({
+      threadId: ctx.threadId ?? event.threadId,
+      ...(terminalTurnId ? { turnId: terminalTurnId } : {}),
+    });
     await ctx.processDispatchQueue();
   }
 
@@ -360,7 +372,8 @@ export async function handleBridgeGlobalMessage(ctx: HandlerCtx, message: Server
         }
       }
       ctx.setActiveDispatch(null);
-      transitionTurnSettled(ctx, null);
+      transitionTurnSettled(ctx, null, null);
+      ctx.interruptRequested = false;
       ctx.emitState();
       await ctx.processDispatchQueue();
     } else if (!message.error && pending?.method === "turn/start" && ctx.actor && ctx.threadId && pending.dispatchId && pending.claimToken) {

@@ -1012,7 +1012,10 @@ async function sendTurn(text: string): Promise<void> {
 }
 
 function interruptCurrentTurn(): void {
-  runtime?.interrupt();
+  if (!runtime) {
+    throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  runtime.interrupt();
 }
 
 async function respondCommandApproval(requestId: string | number, decision: CommandExecutionApprovalDecision): Promise<void> {

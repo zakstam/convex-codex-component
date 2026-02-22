@@ -24,6 +24,7 @@ function createHarness(options = {}) {
   const dispatchQueue = [];
   const protocolErrors = [];
   const failedDispatches = [];
+  const failedAcceptedTurnSends = [];
   const upsertErrors = [];
   const syncJobs = new Map();
 
@@ -74,8 +75,13 @@ function createHarness(options = {}) {
         dispatchQueue.push(accepted);
         return accepted;
       },
-      failAcceptedTurnSend: async () => undefined,
-      claimNextTurnDispatch: async () => {
+      failAcceptedTurnSend: async (args) => {
+        failedAcceptedTurnSends.push(args);
+      },
+      claimNextTurnDispatch: async (args) => {
+        if (options.claimNextTurnDispatch) {
+          return options.claimNextTurnDispatch({ args, dispatchQueue });
+        }
         const next = dispatchQueue.shift();
         if (!next) {
           return null;
@@ -272,6 +278,7 @@ function createHarness(options = {}) {
     ensureThreadCalls,
     protocolErrors,
     failedDispatches,
+    failedAcceptedTurnSends,
     upsertErrors,
   };
 }
@@ -310,6 +317,45 @@ test("runtime process exit fail-closes pending requests and transitions lifecycl
   assert.equal(state.phase, "error");
   assert.equal(state.source, "process_exit");
   assert.match(state.lastError ?? "", /codex exited with code 137/);
+});
+
+test("runtime stop still tears down when ingest flush fails", async () => {
+  const { runtime, sent, emitResponse, emitEvent } = createHarness({
+    ingestSafe: async () => {
+      throw new Error("ingest exploded");
+    },
+  });
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b72";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await emitEvent({
+    eventId: "evt-stop-flush-fail",
+    threadId,
+    turnId: "turn-1",
+    streamId: `${threadId}:turn-1:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/started",
+    payloadJson: JSON.stringify({
+      method: "turn/started",
+      params: {
+        threadId,
+        turn: { id: "turn-1", items: [], status: "inProgress", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  await assert.rejects(runtime.stop(), /ingest exploded/);
+  const state = runtime.getState();
+  assert.equal(state.running, false);
+  assert.equal(state.phase, "stopped");
 });
 
 test("runtime listThreads preserves list messageCount and reports enrichment failure", async () => {
@@ -1065,6 +1111,59 @@ test("runtime remaps runtime turnId 0 to claimed persisted turn id for ingest", 
   await runtime.stop();
 });
 
+test("runtime uses runtime turn id for interrupt and steer after remap", async () => {
+  const { runtime, sent, emitResponse, emitEvent } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6c";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await runtime.sendTurn("hello");
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
+  const persistedTurnId = runtime.getState().turnId;
+  assert.ok(persistedTurnId);
+  await emitResponse({
+    id: turnStartRequest.id,
+    result: {
+      thread: { id: threadId },
+      turn: { id: "0", status: "in_progress", items: [] },
+    },
+  });
+
+  await emitEvent({
+    eventId: "evt-turn-started-remapped-control",
+    threadId,
+    turnId: "0",
+    streamId: `${threadId}:0:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/started",
+    payloadJson: JSON.stringify({
+      method: "turn/started",
+      params: {
+        threadId,
+        turn: { id: "0", items: [], status: "inProgress", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  await runtime.steerTurn("go on");
+  runtime.interrupt();
+
+  const steerRequest = sent.find((message) => message.method === "turn/steer");
+  const interruptRequest = sent.find((message) => message.method === "turn/interrupt");
+  assert.equal(steerRequest.params.expectedTurnId, "0");
+  assert.equal(interruptRequest.params.turnId, "0");
+  assert.notEqual(interruptRequest.params.turnId, persistedTurnId);
+
+  await runtime.stop();
+});
+
 test("runtime retries pending server request persistence and rewrites runtime turn id to persisted turn id", async () => {
   const { runtime, sent, emitResponse, emitEvent, upserted, protocolErrors, upsertErrors } = createHarness({
     upsertPendingServerRequest: async ({ upsertedCount }) => {
@@ -1123,6 +1222,150 @@ test("runtime retries pending server request persistence and rewrites runtime tu
   assert.equal(payload.params.turnId, claimedTurnId);
   assert.equal(upsertErrors.length, 1);
   assert.equal(protocolErrors.length, 0);
+
+  await runtime.stop();
+});
+
+test("runtime expires remapped pending server requests on terminal event", async () => {
+  const { runtime, sent, emitResponse, emitEvent, resolved } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6f";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await runtime.sendTurn("hello");
+  const turnStartRequest = await waitForMessage(sent, (message) => message.method === "turn/start");
+  await emitResponse({
+    id: turnStartRequest.id,
+    result: {
+      thread: { id: threadId },
+      turn: { id: "0", status: "in_progress", items: [] },
+    },
+  });
+
+  await emitEvent({
+    eventId: "evt-managed-server-request-remapped-expire",
+    threadId,
+    turnId: "0",
+    streamId: `${threadId}:0:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "item/commandExecution/requestApproval",
+    payloadJson: JSON.stringify({
+      id: 401,
+      method: "item/commandExecution/requestApproval",
+      params: {
+        threadId,
+        turnId: "0",
+        itemId: "cmd-1",
+        reason: "network required",
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  await emitEvent({
+    eventId: "evt-turn-completed-remapped-expire",
+    threadId,
+    turnId: "0",
+    streamId: `${threadId}:0:0`,
+    cursorStart: 1,
+    cursorEnd: 2,
+    kind: "turn/completed",
+    payloadJson: JSON.stringify({
+      method: "turn/completed",
+      params: {
+        threadId,
+        turn: { id: "0", items: [], status: "completed", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  assert.ok(resolved.some((entry) => entry.requestId === 401 && entry.status === "expired"));
+
+  await runtime.stop();
+});
+
+test("runtime clears queued interrupt when turn/start fails", async () => {
+  const { runtime, sent, emitResponse, emitEvent } = createHarness();
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b70";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  runtime.interrupt();
+  await runtime.sendTurn("first turn");
+  const firstTurnStart = await waitForMessage(sent, (message) => message.method === "turn/start");
+  await emitResponse({
+    id: firstTurnStart.id,
+    error: {
+      code: 500,
+      message: "turn start failed",
+    },
+  });
+
+  await runtime.sendTurn("second turn");
+  const turnStartRequests = sent.filter((message) => message.method === "turn/start");
+  const secondTurnStart = turnStartRequests[1];
+  await emitResponse({
+    id: secondTurnStart.id,
+    result: {
+      thread: { id: threadId },
+      turn: { id: "runtime-turn-2", status: "in_progress", items: [] },
+    },
+  });
+
+  await emitEvent({
+    eventId: "evt-turn-started-no-stale-interrupt",
+    threadId,
+    turnId: "runtime-turn-2",
+    streamId: `${threadId}:runtime-turn-2:0`,
+    cursorStart: 0,
+    cursorEnd: 1,
+    kind: "turn/started",
+    payloadJson: JSON.stringify({
+      method: "turn/started",
+      params: {
+        threadId,
+        turn: { id: "runtime-turn-2", items: [], status: "inProgress", error: null },
+      },
+    }),
+    createdAt: Date.now(),
+  });
+
+  const interruptRequests = sent.filter((message) => message.method === "turn/interrupt");
+  assert.equal(interruptRequests.length, 0);
+
+  await runtime.stop();
+});
+
+test("runtime fail-closes accepted turn send when dispatch claim fails", async () => {
+  const { runtime, sent, emitResponse, failedAcceptedTurnSends } = createHarness({
+    claimNextTurnDispatch: async () => {
+      throw new Error("claim failed");
+    },
+  });
+  const threadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b71";
+
+  await runtime.start({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+  const startRequest = sent.find((message) => message.method === "thread/start");
+  await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
+
+  await assert.rejects(runtime.sendTurn("hello"), /claim failed/);
+  assert.equal(failedAcceptedTurnSends.length, 1);
+  assert.equal(failedAcceptedTurnSends[0].code, "TURN_DISPATCH_CLAIM_FAILED");
 
   await runtime.stop();
 });

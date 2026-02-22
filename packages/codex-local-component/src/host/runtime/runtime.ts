@@ -581,13 +581,26 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.emitState();
     core.clearFlushTimer();
     core.clearPendingServerRequestRetryTimer();
-    await core.flushQueue();
-    core.rejectAllPending();
-    core.bridge?.stop();
-    core.resetAll();
-    core.setLifecycle("stopped", "runtime");
-    core.resetIngestMetrics();
-    core.emitState(null);
+    let flushError: unknown = null;
+    try {
+      await core.flushQueue();
+    } catch (error) {
+      flushError = error;
+      args.handlers?.onProtocolError?.({
+        message: `Runtime stop flush failed: ${error instanceof Error ? error.message : String(error)}`,
+        line: "[runtime:stop]",
+      });
+    } finally {
+      core.rejectAllPending();
+      core.bridge?.stop();
+      core.resetAll();
+      core.setLifecycle("stopped", "runtime");
+      core.resetIngestMetrics();
+      core.emitState(null);
+    }
+    if (flushError) {
+      throw flushError;
+    }
   };
 
   const sendTurn: CodexHostRuntime["sendTurn"] = async (text) => {
@@ -596,8 +609,23 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     if (core.turnInFlight && !core.turnSettled) throw core.runtimeError("E_RUNTIME_DISPATCH_TURN_IN_FLIGHT", "A turn is already in flight.");
     await core.ensureThreadBinding(core.runtimeConversationId);
     const accepted = await core.acceptTurnSend(text);
-    await core.processDispatchQueue();
-    return accepted;
+    try {
+      await core.processDispatchQueue();
+    } catch (error) {
+      if (core.actor && core.threadId) {
+        const reason = error instanceof Error ? error.message : String(error);
+        await core.failAcceptedTurnSend({
+          actor: core.actor,
+          threadId: core.threadId,
+          dispatchId: accepted.dispatchId,
+          turnId: accepted.turnId,
+          code: "TURN_DISPATCH_CLAIM_FAILED",
+          reason,
+        });
+      }
+      throw error;
+    }
+    return { turnId: accepted.turnId, accepted: true };
   };
 
   const steerTurn: CodexHostRuntime["steerTurn"] = async (text, options) => {
@@ -605,14 +633,16 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     if (!core.turnInFlight || core.turnSettled) {
       throw new Error("Cannot steer turn because no turn is currently in flight.");
     }
-    const activeTurnId = core.turnId;
-    if (!activeTurnId) throw new Error("Cannot steer turn before active turn id is known.");
-    let expectedTurnId = activeTurnId;
+    const activePersistedTurnId = core.turnId;
+    if (!activePersistedTurnId) throw new Error("Cannot steer turn before active turn id is known.");
+    const activeRuntimeTurnId = core.runtimeTurnId;
+    if (!activeRuntimeTurnId) throw new Error("Cannot steer turn before runtime turn id is known.");
+    let expectedTurnId = activePersistedTurnId;
     if (options && options.expectedTurnId !== undefined && options.expectedTurnId !== null) {
       expectedTurnId = options.expectedTurnId;
     }
-    if (expectedTurnId !== activeTurnId) {
-      throw new Error(`Cannot steer turn ${expectedTurnId}; active turn is ${activeTurnId}.`);
+    if (expectedTurnId !== activePersistedTurnId) {
+      throw new Error(`Cannot steer turn ${expectedTurnId}; active turn is ${activePersistedTurnId}.`);
     }
     let threadId = core.runtimeConversationId;
     if (threadId === undefined || threadId === null) {
@@ -622,15 +652,15 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     await core.ensureThreadBinding(threadId);
     core.sendMessage(buildTurnSteerTextRequest(core.requestIdFn(), {
       threadId,
-      expectedTurnId: activeTurnId,
+      expectedTurnId: activeRuntimeTurnId,
       text,
     }), "turn/steer");
   };
 
   const interrupt = () => {
     if (!core.bridge || !core.runtimeConversationId) return;
-    if (!core.turnId) { core.interruptRequested = true; return; }
-    core.sendMessage(buildTurnInterruptRequest(core.requestIdFn(), { threadId: core.runtimeConversationId, turnId: core.turnId }), "turn/interrupt");
+    if (!core.runtimeTurnId) { core.interruptRequested = true; return; }
+    core.sendMessage(buildTurnInterruptRequest(core.requestIdFn(), { threadId: core.runtimeConversationId, turnId: core.runtimeTurnId }), "turn/interrupt");
   };
 
   const resumeThread: CodexHostRuntime["resumeThread"] = async (tid, params) => {

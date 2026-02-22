@@ -15,6 +15,12 @@ import {
   type CodexDynamicToolsQuery,
   type CodexDynamicToolsRespond,
 } from "./useCodexDynamicTools.js";
+import {
+  computeCodexConversationSyncProgress,
+  type CodexConversationSyncProgress,
+  type CodexSyncHydrationSnapshot,
+  type CodexSyncHydrationSource,
+} from "./syncHydration.js";
 
 export type CodexConversationApprovalDecision = "accepted" | "declined";
 
@@ -25,6 +31,10 @@ export type CodexConversationApprovalItem = {
   kind: string;
   reason?: string;
   createdAt: number;
+};
+
+type CodexConversationMessagesResult = ReturnType<typeof useCodexMessages> & {
+  syncProgress: CodexConversationSyncProgress;
 };
 
 type CodexConversationComposerOptimisticConfig = {
@@ -78,7 +88,24 @@ export type CodexConversationControllerConfig<
   interrupt?: {
     onInterrupt: (activity: CodexThreadActivity) => Promise<InterruptResult>;
   };
+  syncHydration?: {
+    source: CodexSyncHydrationSource;
+    conversationId: string | null;
+    enabled?: boolean;
+  };
 };
+
+function syncDebugEnabled(): boolean {
+  const debugFlag = Reflect.get(globalThis as Record<string, unknown>, "__CODEX_SYNC_DEBUG__");
+  return debugFlag === true;
+}
+
+function syncDebugLog(message: string, payload?: Record<string, unknown>): void {
+  if (!syncDebugEnabled()) {
+    return;
+  }
+  console.debug("[codex-sync-debug]", { message, ...(payload ?? {}) });
+}
 
 function isApprovalLike(value: unknown): value is CodexConversationApprovalItem {
   if (typeof value !== "object" || value === null) {
@@ -153,6 +180,10 @@ function sortCodexMessagesChronologically(left: CodexUIMessage, right: CodexUIMe
   return left.messageId < right.messageId ? -1 : 1;
 }
 
+function scopedMessageIdentity(message: CodexUIMessage): string {
+  return `${message.turnId}:${message.messageId}`;
+}
+
 function mergeCodexMessagesWithOptimisticComposer(
   durableMessages: CodexUIMessage[],
   optimisticMessages: CodexUIMessage[],
@@ -162,14 +193,129 @@ function mergeCodexMessagesWithOptimisticComposer(
   }
   const byMessageId = new Map<string, CodexUIMessage>();
   for (const message of durableMessages) {
-    byMessageId.set(message.messageId, message);
+    byMessageId.set(scopedMessageIdentity(message), message);
   }
   for (const message of optimisticMessages) {
-    if (!byMessageId.has(message.messageId)) {
-      byMessageId.set(message.messageId, message);
+    const identity = scopedMessageIdentity(message);
+    if (!byMessageId.has(identity)) {
+      byMessageId.set(identity, message);
     }
   }
   return Array.from(byMessageId.values()).sort(sortCodexMessagesChronologically);
+}
+
+function dedupeCodexMessagesByMessageId(messages: CodexUIMessage[]): {
+  results: CodexUIMessage[];
+  droppedDuplicateCount: number;
+} {
+  if (messages.length <= 1) {
+    return { results: messages, droppedDuplicateCount: 0 };
+  }
+  const byMessageId = new Map<string, CodexUIMessage>();
+  let droppedDuplicateCount = 0;
+  for (const message of messages) {
+    const identity = scopedMessageIdentity(message);
+    const existing = byMessageId.get(identity);
+    if (!existing) {
+      byMessageId.set(identity, message);
+      continue;
+    }
+    droppedDuplicateCount += 1;
+    if (message.updatedAt > existing.updatedAt) {
+      byMessageId.set(identity, message);
+      continue;
+    }
+    if (message.updatedAt === existing.updatedAt && message.createdAt > existing.createdAt) {
+      byMessageId.set(identity, message);
+    }
+  }
+  return {
+    results: Array.from(byMessageId.values()).sort(sortCodexMessagesChronologically),
+    droppedDuplicateCount,
+  };
+}
+
+function findDurableSyncMatch(
+  localMessage: CodexUIMessage,
+  durableByMessageId: Map<string, CodexUIMessage>,
+  usedDurableMessageIds: Set<string>,
+): CodexUIMessage | null {
+  const identity = scopedMessageIdentity(localMessage);
+  const byId = durableByMessageId.get(identity);
+  if (byId && !usedDurableMessageIds.has(identity)) {
+    return byId;
+  }
+  return null;
+}
+
+function mergeCodexSyncHydrationMessages(
+  durableMessages: CodexUIMessage[],
+  snapshot: CodexSyncHydrationSnapshot | null,
+): {
+  results: CodexUIMessage[];
+  unsyncedMessageIds: ReadonlySet<string>;
+  syncHydrationState: CodexSyncHydrationSnapshot["syncState"] | null;
+} {
+  if (!snapshot || snapshot.messages.length === 0) {
+    if (snapshot) {
+      syncDebugLog("merge_skip_no_snapshot_messages", {
+        conversationId: snapshot.conversationId,
+        syncState: snapshot.syncState,
+        syncJobId: snapshot.syncJobId ?? null,
+      });
+    }
+    return {
+      results: durableMessages,
+      unsyncedMessageIds: new Set<string>(),
+      syncHydrationState: snapshot?.syncState ?? null,
+    };
+  }
+
+  const merged = [...durableMessages];
+  const durableByMessageId = new Map<string, CodexUIMessage>(
+    durableMessages.map((message) => [scopedMessageIdentity(message), message]),
+  );
+  const usedDurableMessageIds = new Set<string>();
+  const unsyncedMessageIds = new Set<string>();
+  let unmatchedByMessageIdCount = 0;
+
+  for (const localMessage of [...snapshot.messages].sort(sortCodexMessagesChronologically)) {
+    const durableMatch = findDurableSyncMatch(
+      localMessage,
+      durableByMessageId,
+      usedDurableMessageIds,
+    );
+    if (durableMatch) {
+      usedDurableMessageIds.add(scopedMessageIdentity(durableMatch));
+      continue;
+    }
+    unmatchedByMessageIdCount += 1;
+    const localIdentity = scopedMessageIdentity(localMessage);
+    if (!durableByMessageId.has(localIdentity)) {
+      merged.push(localMessage);
+    }
+    unsyncedMessageIds.add(localIdentity);
+  }
+
+  syncDebugLog("merge_snapshot_with_durable", {
+    conversationId: snapshot.conversationId,
+    syncState: snapshot.syncState,
+    syncJobId: snapshot.syncJobId ?? null,
+    syncJobState: snapshot.syncJobState ?? null,
+    snapshotMessageCount: snapshot.messages.length,
+    durableMessageCount: durableMessages.length,
+    unsyncedOverlayCount: unsyncedMessageIds.size,
+    unmatchedByMessageIdCount,
+    mergedMessageCount: merged.length,
+    lastCursor: snapshot.lastCursor ?? null,
+    errorCode: snapshot.errorCode ?? null,
+  });
+
+  return {
+    results: merged.sort(sortCodexMessagesChronologically),
+    unsyncedMessageIds,
+    syncHydrationState: snapshot.syncState,
+  };
 }
 
 function nextCodexOrderInTurn(
@@ -250,6 +396,7 @@ export function useCodexConversationController<
   const [approvalError, setApprovalError] = useState<string | null>(null);
   const [approvingItemId, setApprovingItemId] = useState<string | null>(null);
   const [interrupting, setInterrupting] = useState(false);
+  const [syncHydrationSnapshot, setSyncHydrationSnapshot] = useState<CodexSyncHydrationSnapshot | null>(null);
 
   const pendingApprovals = useMemo(() => {
     const raw = threadStateData?.pendingApprovals ?? [];
@@ -260,6 +407,65 @@ export function useCodexConversationController<
     () => flattenCodexOptimisticGroups(pendingOptimisticComposerBySendId),
     [pendingOptimisticComposerBySendId],
   );
+
+  useEffect(() => {
+    const source = config.syncHydration?.source;
+    const enabled = config.syncHydration?.enabled ?? true;
+    const conversationId = config.syncHydration?.conversationId;
+    if (!source || !enabled || !conversationId) {
+      setSyncHydrationSnapshot(null);
+      return;
+    }
+
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    const applySnapshot = (snapshot: CodexSyncHydrationSnapshot | null): void => {
+      if (cancelled) {
+        return;
+      }
+      if (!snapshot || snapshot.conversationId !== conversationId) {
+        return;
+      }
+      setSyncHydrationSnapshot(snapshot);
+    };
+
+    const start = async () => {
+      try {
+        const initial = await source.getConversationSnapshot(conversationId);
+        applySnapshot(initial);
+        if (!source.subscribe) {
+          return;
+        }
+        const maybeUnsubscribe = await source.subscribe((next) => {
+          if (next.conversationId !== conversationId) {
+            return;
+          }
+          applySnapshot(next);
+        });
+        if (typeof maybeUnsubscribe === "function") {
+          if (cancelled) {
+            maybeUnsubscribe();
+            return;
+          }
+          unsubscribe = maybeUnsubscribe;
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSyncHydrationSnapshot(null);
+          const message = error instanceof Error ? error.message : String(error);
+          setComposerError((current) => current ?? `Sync hydration unavailable: ${message}`);
+        }
+      }
+    };
+    void start();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [config.syncHydration?.conversationId, config.syncHydration?.enabled, config.syncHydration?.source]);
 
   useEffect(() => {
     if (Object.keys(pendingOptimisticComposerBySendId).length === 0) {
@@ -280,15 +486,32 @@ export function useCodexConversationController<
     });
   }, [messages.results, pendingOptimisticComposerBySendId]);
 
-  const mergedMessages = useMemo(() => {
-    if (optimisticComposerMessages.length === 0) {
-      return messages;
+  const mergedMessages = useMemo<CodexConversationMessagesResult>(() => {
+    const syncMerged = mergeCodexSyncHydrationMessages(messages.results, syncHydrationSnapshot);
+    const merged = optimisticComposerMessages.length === 0
+      ? syncMerged.results
+      : mergeCodexMessagesWithOptimisticComposer(syncMerged.results, optimisticComposerMessages);
+    const deduped = dedupeCodexMessagesByMessageId(merged);
+    if (deduped.droppedDuplicateCount > 0) {
+      syncDebugLog("dedupe_message_id_collisions", {
+        droppedDuplicateCount: deduped.droppedDuplicateCount,
+        mergedCount: merged.length,
+        dedupedCount: deduped.results.length,
+        syncJobId: syncHydrationSnapshot?.syncJobId ?? null,
+      });
     }
+    const results = deduped.results;
+    const syncProgress = computeCodexConversationSyncProgress({
+      messages: results,
+      unsyncedMessageIds: syncMerged.unsyncedMessageIds,
+      syncState: syncMerged.syncHydrationState,
+    });
     return {
       ...messages,
-      results: mergeCodexMessagesWithOptimisticComposer(messages.results, optimisticComposerMessages),
+      results,
+      syncProgress,
     };
-  }, [messages, optimisticComposerMessages]);
+  }, [messages, optimisticComposerMessages, syncHydrationSnapshot]);
 
   const send = useCallback(
     async (overrideText?: string) => {

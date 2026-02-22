@@ -1,0 +1,100 @@
+/* ── 21. Empty State ───────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  flex: 1;
+}
+
+.empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--accent);
+}
+
+.empty-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.empty-state-desc {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  max-width: 280px;
+}
+
+/* ── 22. Loading Spinner ───────────────────────────────────── */
+
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  flex: 1;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--edge);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── 23. Event Log ─────────────────────────────────────────── */
+
+.event-log {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+}
+
+.event-log-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-log-entries {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.event-entry {
+  margin: 2px 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+  animation: msgSlideIn 0.2s var(--transition) both;
+  font-size: 0.72rem;
+}
+
+.event-entry:hover {
+  background: var(--bg-surface);
+}

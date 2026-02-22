@@ -1,30 +1,24 @@
 import { internal } from "../_generated/api.js";
 import { pickHigherPriorityTerminalStatus } from "../syncHelpers.js";
-import { authzError, now, requireTurnForActor } from "../utils.js";
+import { authzError, now } from "../utils.js";
 import type { NormalizedInboundEvent, TurnIngestContext } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
+import type { IngestStateCache } from "./stateCache.js";
 
 export async function ensureTurnForEvent(
   ingest: TurnIngestContext,
   event: NormalizedInboundEvent,
+  cache: IngestStateCache,
 ): Promise<void> {
   const turnId = event.turnId;
   if (!turnId || ingest.collected.knownTurnIds.has(turnId)) {
     return;
   }
 
-  const existingTurn = await ingest.ctx.db
-    .query("codex_turns")
-    .withIndex("userScope_threadId_turnId", (q) =>
-      q
-        .eq("userScope", userScopeFromActor(ingest.args.actor))
-        .eq("threadId", ingest.args.threadId)
-        .eq("turnId", turnId),
-    )
-    .first();
+  const existingTurn = await cache.getTurnRecord(turnId);
 
   if (!existingTurn) {
-    await ingest.ctx.db.insert("codex_turns", {
+    const createdTurnId = await ingest.ctx.db.insert("codex_turns", {
       userScope: userScopeFromActor(ingest.args.actor),
       ...(ingest.args.actor.userId !== undefined ? { userId: ingest.args.actor.userId } : {}),
       threadId: ingest.args.threadId,
@@ -39,6 +33,10 @@ export async function ensureTurnForEvent(
         ? { completedAt: now() }
         : {}),
     });
+    const createdTurn = await ingest.ctx.db.get(createdTurnId);
+    if (createdTurn) {
+      cache.setTurnRecord(turnId, createdTurn);
+    }
   } else if (existingTurn.userId !== ingest.args.actor.userId) {
     authzError(
       "E_AUTH_TURN_FORBIDDEN",
@@ -67,9 +65,15 @@ export function collectTurnSignals(ingest: TurnIngestContext, event: NormalizedI
   }
 }
 
-export async function finalizeTurns(ingest: TurnIngestContext): Promise<void> {
+export async function finalizeTurns(
+  ingest: TurnIngestContext,
+  cache: IngestStateCache,
+): Promise<void> {
   for (const turnId of ingest.collected.startedTurns) {
-    const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, turnId);
+    const turn = await cache.getTurnRecord(turnId);
+    if (!turn) {
+      continue;
+    }
     if (turn.status === "queued") {
       await ingest.ctx.db.patch(turn._id, { status: "inProgress" });
     }

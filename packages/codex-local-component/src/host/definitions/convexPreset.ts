@@ -3,6 +3,8 @@ import { v } from "convex/values";
 import {
   dataHygiene,
   durableHistoryStats,
+  getConversationSyncJobForActor,
+  listConversationSyncJobsForActor,
   listPendingApprovalsForHooksForActor,
   listPendingServerRequestsForHooksForActor,
   listTokenUsageForHooksForActor,
@@ -20,6 +22,7 @@ import {
   type HostQueryRunner,
 } from "../convexSlice.js";
 import { classifyThreadReadError, type ThreadReadSafeError } from "../../errors.js";
+import { resolveHostActor, withResolvedHostActor } from "./actorResolution.js";
 import { buildPresetMutations } from "./convexPresetMutations.js";
 import { resolveHostComponentRefs } from "./generatedTypingBoundary.js";
 import { HOST_SURFACE_MANIFEST } from "./surfaceManifest.js";
@@ -45,21 +48,6 @@ export type DefineCodexHostSliceOptions<
   ingestMode: CodexHostSliceIngestMode;
   features?: CodexHostSliceFeatures;
 };
-
-function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
-  // When the server actor has no userId (runtime-owned profiles), preserve the
-  // request actor so data is scoped to the authenticated user rather than the
-  // anonymous scope.
-  const actor = serverActor.userId ? serverActor : { ...serverActor, ...args.actor };
-  return { ...args, actor };
-}
-
-function resolveServerActor(
-  args: { actor: HostActorContext },
-  fallback: HostActorContext,
-): HostActorContext {
-  return args.actor.userId === undefined ? fallback : args.actor;
-}
 
 function withThreadStatusOk<T extends object>(result: T): T & { threadStatus: "ok" } {
   return { ...result, threadStatus: "ok" };
@@ -94,13 +82,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
   const validateHostWiring = {
     args: {
       actor: vHostActorContext,
-      threadId: v.optional(v.string()),
+      conversationId: v.optional(v.string()),
     },
     handler: async (
       ctx: HostQueryRunner,
-      args: { actor: HostActorContext; threadId?: string },
+      args: { actor: HostActorContext; conversationId?: string },
     ) => {
-      const checkThreadId = args.threadId ?? "__codex_host_wiring_preflight__";
+      const checkThreadId = args.conversationId ?? "__codex_host_wiring_preflight__";
       const checkTurnId = "__codex_host_wiring_preflight_turn__";
       const checks: Array<{ name: string; ok: boolean; error?: string }> = [];
       const isExpectedPreflightError = (message: string) =>
@@ -123,20 +111,20 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
 
       await runCheck("threads.getState", () =>
         ctx.runQuery(component.threads.getState, {
-          actor: resolveServerActor(args, options.serverActor),
+          actor: resolveHostActor(args.actor, options.serverActor),
           threadId: checkThreadId,
         }),
       );
       await runCheck("messages.listByThread", () =>
         ctx.runQuery(component.messages.listByThread, {
-          actor: resolveServerActor(args, options.serverActor),
+          actor: resolveHostActor(args.actor, options.serverActor),
           threadId: checkThreadId,
           paginationOpts: { cursor: null, numItems: 1 },
         }),
       );
       await runCheck("messages.getByTurn", () =>
         ctx.runQuery(component.messages.getByTurn, {
-          actor: resolveServerActor(args, options.serverActor),
+          actor: resolveHostActor(args.actor, options.serverActor),
           threadId: checkThreadId,
           turnId: checkTurnId,
         }),
@@ -144,7 +132,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       if (features.approvals) {
         await runCheck("approvals.listPending", () =>
           ctx.runQuery(component.approvals.listPending, {
-            actor: resolveServerActor(args, options.serverActor),
+            actor: resolveHostActor(args.actor, options.serverActor),
             paginationOpts: { cursor: null, numItems: 1 },
           }),
         );
@@ -152,7 +140,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       if (features.reasoning) {
         await runCheck("reasoning.listByThread", () =>
           ctx.runQuery(component.reasoning.listByThread, {
-            actor: resolveServerActor(args, options.serverActor),
+            actor: resolveHostActor(args.actor, options.serverActor),
             threadId: checkThreadId,
             paginationOpts: { cursor: null, numItems: 1 },
             includeRaw: false,
@@ -162,7 +150,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       if (features.serverRequests) {
         await runCheck("serverRequests.listPending", () =>
           ctx.runQuery(component.serverRequests.listPending, {
-            actor: resolveServerActor(args, options.serverActor),
+            actor: resolveHostActor(args.actor, options.serverActor),
             limit: 1,
           }),
         );
@@ -186,7 +174,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
     const mapping = await resolveThreadByConversationIdForActor(
       ctx,
       component,
-      withServerActor(args, resolveServerActor(args, options.serverActor)),
+      withResolvedHostActor(args, options.serverActor),
     );
     if (mapping === null) {
       return null;
@@ -196,6 +184,38 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
 
   const queries = {
     validateHostWiring,
+    getConversationSyncJob: {
+      args: {
+        actor: vHostActorContext,
+        conversationId: v.string(),
+        jobId: v.optional(v.string()),
+      },
+      handler: async (
+        ctx: HostQueryRunner,
+        args: { actor: HostActorContext; conversationId: string; jobId?: string },
+      ) =>
+        getConversationSyncJobForActor(
+          ctx,
+          component,
+          withResolvedHostActor(args, options.serverActor),
+        ),
+    },
+    listConversationSyncJobs: {
+      args: {
+        actor: vHostActorContext,
+        conversationId: v.string(),
+        limit: v.optional(v.number()),
+      },
+      handler: async (
+        ctx: HostQueryRunner,
+        args: { actor: HostActorContext; conversationId: string; limit?: number },
+      ) =>
+        listConversationSyncJobsForActor(
+          ctx,
+          component,
+          withResolvedHostActor(args, options.serverActor),
+        ),
+    },
     threadSnapshot: {
       args: { actor: vHostActorContext, conversationId: v.string() },
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; conversationId: string }) => {
@@ -207,7 +227,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           const snapshot = await threadSnapshot(
             ctx,
             component,
-            withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+            withResolvedHostActor({ actor: args.actor, threadId }, options.serverActor),
           );
           return {
             threadStatus: "ok" as const,
@@ -233,7 +253,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
           const snapshot = await threadSnapshot(
             ctx,
             component,
-            withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+            withResolvedHostActor({ actor: args.actor, threadId }, options.serverActor),
           );
           return {
             threadStatus: "ok" as const,
@@ -253,7 +273,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
       handler: async (ctx: HostQueryRunner, args: { actor: HostActorContext; deletionJobId: string }) =>
         ctx.runQuery(
           component.threads.getDeletionJobStatus,
-          withServerActor(args, resolveServerActor(args, options.serverActor)),
+          withResolvedHostActor(args, options.serverActor),
         ),
     },
     listThreadsForConversation: {
@@ -272,13 +292,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
         }
         return ctx.runQuery(
           listByConversation,
-          withServerActor(
+          withResolvedHostActor(
             {
               actor: args.actor,
               conversationId: args.conversationId,
               ...(args.includeArchived !== undefined ? { includeArchived: args.includeArchived } : {}),
             },
-            resolveServerActor(args, options.serverActor),
+            options.serverActor,
           ),
         );
       },
@@ -300,7 +320,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             await persistenceStats(
               ctx,
               component,
-              withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+              withResolvedHostActor({ actor: args.actor, threadId }, options.serverActor),
             ),
           );
         } catch (error) {
@@ -333,7 +353,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             await durableHistoryStats(
               ctx,
               component,
-              withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+              withResolvedHostActor({ actor: args.actor, threadId }, options.serverActor),
             ),
           );
         } catch (error) {
@@ -368,7 +388,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                   await dataHygiene(
                     ctx,
                     component,
-                    withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+                    withResolvedHostActor({ actor: args.actor, threadId }, options.serverActor),
                   ),
                 );
               } catch (error) {
@@ -437,7 +457,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                   await listThreadMessagesForHooksForActor(
                     ctx,
                     component,
-                    withServerActor(
+                    withResolvedHostActor(
                       {
                         actor: args.actor,
                         threadId,
@@ -445,7 +465,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                         ...(args.streamArgs === undefined ? {} : { streamArgs: args.streamArgs }),
                         ...(args.runtime === undefined ? {} : { runtime: args.runtime }),
                       },
-                      resolveServerActor(args, options.serverActor),
+                      options.serverActor,
                     ),
                   ),
                 );
@@ -527,7 +547,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                   await listThreadMessagesForHooksForActor(
                     ctx,
                     component,
-                    withServerActor(
+                    withResolvedHostActor(
                       {
                         actor: args.actor,
                         threadId,
@@ -535,7 +555,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                         ...(args.streamArgs === undefined ? {} : { streamArgs: args.streamArgs }),
                         ...(args.runtime === undefined ? {} : { runtime: args.runtime }),
                       },
-                      resolveServerActor(args, options.serverActor),
+                      options.serverActor,
                     ),
                   ),
                 );
@@ -586,7 +606,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                   data: await listTurnMessagesForHooksForActor(
                     ctx,
                     component,
-                    withServerActor({ actor: args.actor, threadId, turnId: args.turnId }, resolveServerActor(args, options.serverActor)),
+                    withResolvedHostActor({ actor: args.actor, threadId, turnId: args.turnId }, options.serverActor),
                   ),
                 };
               } catch (error) {
@@ -617,13 +637,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                   data: await listTurnMessagesForHooksForActor(
                     ctx,
                     component,
-                    withServerActor(
+                    withResolvedHostActor(
                       {
                         actor: args.actor,
                         threadId,
                         turnId: args.turnId,
                       },
-                      resolveServerActor(args, options.serverActor),
+                      options.serverActor,
                     ),
                   ),
                 };
@@ -663,9 +683,9 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                   await listThreadReasoningForHooksForActor(
                     ctx,
                     component,
-                    withServerActor(
+                    withResolvedHostActor(
                       { actor: args.actor, threadId, paginationOpts: args.paginationOpts, ...(args.includeRaw === undefined ? {} : { includeRaw: args.includeRaw }) },
-                      resolveServerActor(args, options.serverActor),
+                      options.serverActor,
                     ),
                   ),
                 );
@@ -692,7 +712,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
             handler: async (
               ctx: HostQueryRunner,
               args: { actor: HostActorContext; threadId?: string; paginationOpts: { cursor: string | null; numItems: number } },
-            ) => listPendingApprovalsForHooksForActor(ctx, component, withServerActor(args, resolveServerActor(args, options.serverActor))),
+            ) => listPendingApprovalsForHooksForActor(ctx, component, withResolvedHostActor(args, options.serverActor)),
           },
         }
       : {}),
@@ -714,13 +734,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 return await listPendingServerRequestsForHooksForActor(
                   ctx,
                   component,
-                  withServerActor(
+                  withResolvedHostActor(
                     {
                       actor: args.actor,
                       ...(threadId ? { threadId } : {}),
                       ...(args.limit === undefined ? {} : { limit: args.limit }),
                     },
-                    resolveServerActor(args, options.serverActor),
+                    options.serverActor,
                   ),
                 );
               } catch (error) {
@@ -745,13 +765,13 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 return await listPendingServerRequestsForHooksForActor(
                   ctx,
                   component,
-                  withServerActor(
+                  withResolvedHostActor(
                     {
                       actor: args.actor,
                       threadId,
                       ...(args.limit === undefined ? {} : { limit: args.limit }),
                     },
-                    resolveServerActor(args, options.serverActor),
+                    options.serverActor,
                   ),
                 );
               } catch (error) {
@@ -776,7 +796,7 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
               return listTokenUsageForHooksForActor(
                 ctx,
                 component,
-                withServerActor({ actor: args.actor, threadId }, resolveServerActor(args, options.serverActor)),
+                withResolvedHostActor({ actor: args.actor, threadId }, options.serverActor),
               );
             },
           },
@@ -794,9 +814,9 @@ export function defineCodexHostSlice<Components extends CodexHostComponentsInput
                 return await listTokenUsageForHooksForActor(
                   ctx,
                   component,
-                  withServerActor(
+                  withResolvedHostActor(
                     { actor: args.actor, threadId },
-                    resolveServerActor(args, options.serverActor),
+                    options.serverActor,
                   ),
                 );
               } catch (error) {
@@ -826,6 +846,10 @@ type RuntimeOwnedInternalDefinitions = {
     syncOpenConversationBinding: CodexHostSliceDefinitions["mutations"]["syncOpenConversationBinding"];
     markConversationSyncProgress: CodexHostSliceDefinitions["mutations"]["markConversationSyncProgress"];
     forceRebindConversationSync: CodexHostSliceDefinitions["mutations"]["forceRebindConversationSync"];
+    startConversationSyncJob: CodexHostSliceDefinitions["mutations"]["startConversationSyncJob"];
+    appendConversationSyncChunk: CodexHostSliceDefinitions["mutations"]["appendConversationSyncChunk"];
+    sealConversationSyncJobSource: CodexHostSliceDefinitions["mutations"]["sealConversationSyncJobSource"];
+    cancelConversationSyncJob: CodexHostSliceDefinitions["mutations"]["cancelConversationSyncJob"];
     ensureConversationBinding: CodexHostSliceDefinitions["mutations"]["ensureConversationBinding"];
     archiveConversation: CodexHostSliceDefinitions["mutations"]["archiveConversation"];
     unarchiveConversation: CodexHostSliceDefinitions["mutations"]["unarchiveConversation"];
@@ -850,6 +874,8 @@ type RuntimeOwnedInternalDefinitions = {
   };
   queries: {
     validateHostWiring: CodexHostSliceDefinitions["queries"]["validateHostWiring"];
+    getConversationSyncJob: CodexHostSliceDefinitions["queries"]["getConversationSyncJob"];
+    listConversationSyncJobs: CodexHostSliceDefinitions["queries"]["listConversationSyncJobs"];
     threadSnapshot: CodexHostSliceDefinitions["queries"]["threadSnapshot"];
     threadSnapshotByConversation: CodexHostSliceDefinitions["queries"]["threadSnapshotByConversation"];
     listThreadsForConversation: CodexHostSliceDefinitions["queries"]["listThreadsForConversation"];
@@ -876,6 +902,10 @@ export type RuntimeOwnedHostDefinitions = {
     syncOpenConversationBinding: RuntimeOwnedInternalDefinitions["mutations"]["syncOpenConversationBinding"];
     markConversationSyncProgress: RuntimeOwnedInternalDefinitions["mutations"]["markConversationSyncProgress"];
     forceRebindConversationSync: RuntimeOwnedInternalDefinitions["mutations"]["forceRebindConversationSync"];
+    startConversationSyncJob: RuntimeOwnedInternalDefinitions["mutations"]["startConversationSyncJob"];
+    appendConversationSyncChunk: RuntimeOwnedInternalDefinitions["mutations"]["appendConversationSyncChunk"];
+    sealConversationSyncJobSource: RuntimeOwnedInternalDefinitions["mutations"]["sealConversationSyncJobSource"];
+    cancelConversationSyncJob: RuntimeOwnedInternalDefinitions["mutations"]["cancelConversationSyncJob"];
     ensureConversationBinding: RuntimeOwnedInternalDefinitions["mutations"]["ensureConversationBinding"];
     archiveConversation: RuntimeOwnedInternalDefinitions["mutations"]["archiveConversation"];
     unarchiveConversation: RuntimeOwnedInternalDefinitions["mutations"]["unarchiveConversation"];
@@ -900,6 +930,8 @@ export type RuntimeOwnedHostDefinitions = {
   };
   queries: {
     validateHostWiring: RuntimeOwnedInternalDefinitions["queries"]["validateHostWiring"];
+    getConversationSyncJob: RuntimeOwnedInternalDefinitions["queries"]["getConversationSyncJob"];
+    listConversationSyncJobs: RuntimeOwnedInternalDefinitions["queries"]["listConversationSyncJobs"];
     threadSnapshotByConversation: RuntimeOwnedInternalDefinitions["queries"]["threadSnapshotByConversation"];
     listThreadsForConversation: RuntimeOwnedInternalDefinitions["queries"]["listThreadsForConversation"];
     getDeletionStatus: RuntimeOwnedInternalDefinitions["queries"]["getDeletionStatus"];
@@ -944,6 +976,10 @@ function toPublicRuntimeOwnedDefinitions(
       syncOpenConversationBinding: defs.mutations.syncOpenConversationBinding,
       markConversationSyncProgress: defs.mutations.markConversationSyncProgress,
       forceRebindConversationSync: defs.mutations.forceRebindConversationSync,
+      startConversationSyncJob: defs.mutations.startConversationSyncJob,
+      appendConversationSyncChunk: defs.mutations.appendConversationSyncChunk,
+      sealConversationSyncJobSource: defs.mutations.sealConversationSyncJobSource,
+      cancelConversationSyncJob: defs.mutations.cancelConversationSyncJob,
       ensureConversationBinding: defs.mutations.ensureConversationBinding,
       archiveConversation: defs.mutations.archiveConversation,
       unarchiveConversation: defs.mutations.unarchiveConversation,
@@ -968,6 +1004,8 @@ function toPublicRuntimeOwnedDefinitions(
     },
     queries: {
       validateHostWiring: defs.queries.validateHostWiring,
+      getConversationSyncJob: defs.queries.getConversationSyncJob,
+      listConversationSyncJobs: defs.queries.listConversationSyncJobs,
       threadSnapshotByConversation: defs.queries.threadSnapshotByConversation,
       listThreadsForConversation: defs.queries.listThreadsForConversation,
       getDeletionStatus: defs.queries.getDeletionStatus,
@@ -1003,6 +1041,10 @@ function toRuntimeOwnedInternalDefinitions(
       syncOpenConversationBinding: rawSlice.mutations.syncOpenConversationBinding,
       markConversationSyncProgress: rawSlice.mutations.markConversationSyncProgress,
       forceRebindConversationSync: rawSlice.mutations.forceRebindConversationSync,
+      startConversationSyncJob: rawSlice.mutations.startConversationSyncJob,
+      appendConversationSyncChunk: rawSlice.mutations.appendConversationSyncChunk,
+      sealConversationSyncJobSource: rawSlice.mutations.sealConversationSyncJobSource,
+      cancelConversationSyncJob: rawSlice.mutations.cancelConversationSyncJob,
       ensureConversationBinding: rawSlice.mutations.ensureConversationBinding,
       archiveConversation: rawSlice.mutations.archiveConversation,
       unarchiveConversation: rawSlice.mutations.unarchiveConversation,
@@ -1027,6 +1069,8 @@ function toRuntimeOwnedInternalDefinitions(
     },
     queries: {
       validateHostWiring: rawSlice.queries.validateHostWiring,
+      getConversationSyncJob: requireHostDefinition(rawSlice.queries.getConversationSyncJob, "getConversationSyncJob"),
+      listConversationSyncJobs: requireHostDefinition(rawSlice.queries.listConversationSyncJobs, "listConversationSyncJobs"),
       threadSnapshot: rawSlice.queries.threadSnapshot,
       threadSnapshotByConversation: requireHostDefinition(rawSlice.queries.threadSnapshotByConversation, "threadSnapshotByConversation"),
       listThreadsForConversation: requireHostDefinition(rawSlice.queries.listThreadsForConversation, "listThreadsForConversation"),

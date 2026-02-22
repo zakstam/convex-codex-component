@@ -3,8 +3,11 @@ import { api } from "../convex/_generated/api";
 import type { ActorContext } from "./lib/tauriBridge";
 
 type Assert<T extends true> = T;
-type Extends<A, B> = A extends B ? true : false;
-
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends
+    (<T>() => T extends B ? 1 : 2)
+    ? true
+    : false;
 type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessagesByConversation>;
 type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshotByConversation>;
 type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequestsByConversation>;
@@ -16,18 +19,27 @@ type GetDeletionStatusArgs = FunctionArgs<typeof api.chat.getDeletionStatus>;
 type ResolveOpenTargetArgs = FunctionArgs<typeof api.chat.resolveOpenTarget>;
 
 type _ListThreadMessagesArgsAreTyped = Assert<
-  Extends<
-    ListThreadMessagesArgs,
+  Equal<
+    Pick<ListThreadMessagesArgs, "actor" | "conversationId">,
     {
       actor: ActorContext;
       conversationId: string;
-      paginationOpts: { cursor: string | null; numItems: number };
+    }
+  >
+>;
+
+type _ListThreadMessagesPaginationArgsAreTyped = Assert<
+  Equal<
+    Pick<ListThreadMessagesArgs["paginationOpts"], "cursor" | "numItems">,
+    {
+      cursor: string | null;
+      numItems: number;
     }
   >
 >;
 
 type _ThreadSnapshotArgsAreTyped = Assert<
-  Extends<
+  Equal<
     ThreadSnapshotArgs,
     {
       actor: ActorContext;
@@ -37,7 +49,7 @@ type _ThreadSnapshotArgsAreTyped = Assert<
 >;
 
 type _ListPendingServerRequestsArgsAreTyped = Assert<
-  Extends<
+  Equal<
     ListPendingServerRequestsArgs,
     {
       actor: ActorContext;
@@ -48,7 +60,7 @@ type _ListPendingServerRequestsArgsAreTyped = Assert<
 >;
 
 type _ValidateHostWiringArgsAreTyped = Assert<
-  Extends<
+  Equal<
     ValidateHostWiringArgs,
     {
       actor: ActorContext;
@@ -58,7 +70,7 @@ type _ValidateHostWiringArgsAreTyped = Assert<
 >;
 
 type _ScheduleDeleteThreadArgsAreTyped = Assert<
-  Extends<
+  Equal<
     ScheduleDeleteThreadArgs,
     {
       actor: ActorContext;
@@ -71,7 +83,7 @@ type _ScheduleDeleteThreadArgsAreTyped = Assert<
 >;
 
 type _ScheduleDeleteTurnArgsAreTyped = Assert<
-  Extends<
+  Equal<
     ScheduleDeleteTurnArgs,
     {
       actor: ActorContext;
@@ -85,7 +97,7 @@ type _ScheduleDeleteTurnArgsAreTyped = Assert<
 >;
 
 type _CancelDeletionArgsAreTyped = Assert<
-  Extends<
+  Equal<
     CancelDeletionArgs,
     {
       actor: ActorContext;
@@ -95,7 +107,7 @@ type _CancelDeletionArgsAreTyped = Assert<
 >;
 
 type _GetDeletionStatusArgsAreTyped = Assert<
-  Extends<
+  Equal<
     GetDeletionStatusArgs,
     {
       actor: ActorContext;
@@ -105,7 +117,7 @@ type _GetDeletionStatusArgsAreTyped = Assert<
 >;
 
 type _ResolveOpenTargetArgsAreTyped = Assert<
-  Extends<
+  Equal<
     ResolveOpenTargetArgs,
     {
       actor: ActorContext;

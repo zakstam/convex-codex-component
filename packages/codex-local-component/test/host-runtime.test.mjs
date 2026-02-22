@@ -24,6 +24,7 @@ function createHarness(options = {}) {
   const protocolErrors = [];
   const failedDispatches = [];
   const upsertErrors = [];
+  const syncJobs = new Map();
 
   const runtime = createCodexHostRuntime({
     bridgeFactory: (_config, nextHandlers) => {
@@ -91,6 +92,120 @@ function createHarness(options = {}) {
         failedDispatches.push(args);
       },
       cancelTurnDispatch: async () => undefined,
+      startConversationSyncJob: async (args) => {
+        const jobId = `job-${syncJobs.size + 1}`;
+        syncJobs.set(jobId, {
+          actor: args.actor,
+          conversationId: args.conversationId,
+          threadId: args.threadId ?? "local-thread",
+          chunks: [],
+        });
+        return {
+          jobId,
+          conversationId: args.conversationId,
+          threadId: args.threadId ?? "local-thread",
+          state: "syncing",
+          sourceState: "collecting",
+          policyVersion: 1,
+          startedAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+      },
+      appendConversationSyncChunk: async (args) => {
+        const job = syncJobs.get(args.jobId);
+        job.chunks[args.chunkIndex] = JSON.parse(args.payloadJson);
+        return { jobId: args.jobId, chunkIndex: args.chunkIndex, appended: true };
+      },
+      sealConversationSyncJobSource: async (args) => {
+        const job = syncJobs.get(args.jobId);
+        job.sealed = true;
+        return {
+          jobId: args.jobId,
+          sourceState: "sealed",
+          totalChunks: job.chunks.filter(Boolean).length,
+          scheduled: true,
+        };
+      },
+      cancelConversationSyncJob: async (args) => ({ jobId: args.jobId, state: "cancelled", cancelled: true }),
+      getConversationSyncJob: async (args) => {
+        const job = syncJobs.get(args.jobId ?? "");
+        if (!job) {
+          return null;
+        }
+        return {
+          jobId: args.jobId ?? "",
+          conversationId: job.conversationId,
+          threadId: job.threadId,
+          state: "syncing",
+          sourceState: job.sealed ? "sealed" : "collecting",
+          policyVersion: 1,
+          startedAt: Date.now(),
+          updatedAt: Date.now(),
+          lastCursor: 0,
+          processedChunkIndex: 0,
+          totalChunks: job.chunks.filter(Boolean).length,
+          processedMessageCount: 0,
+          retryCount: 0,
+        };
+      },
+      waitForConversationSyncJobTerminal: async (args) => {
+        const job = syncJobs.get(args.jobId);
+        const chunks = (job?.chunks ?? []).filter(Boolean);
+        const ingestFn = options.ingestSafe ?? (async (ingestArgs) => {
+          ingestCalls.push(ingestArgs);
+          return { status: "ok", errors: [] };
+        });
+        const runChunk = async (chunk) => {
+          const ingest = await ingestFn({
+            actor: args.actor,
+            sessionId: "sync-job",
+            threadId: job.threadId,
+            deltas: chunk,
+          });
+          if (ingest.status !== "rejected") {
+            return { ok: true };
+          }
+          const firstError = ingest.errors?.[0];
+          const message = `${firstError?.code ?? ""} ${firstError?.message ?? ""}`.toLowerCase();
+          if (chunk.length > 1 && message.includes("too many documents read")) {
+            const splitAt = Math.max(1, Math.floor(chunk.length / 2));
+            const left = await runChunk(chunk.slice(0, splitAt));
+            if (!left.ok) {
+              return left;
+            }
+            return runChunk(chunk.slice(splitAt));
+          }
+          return {
+            ok: false,
+            error: {
+              code: firstError?.code ?? "UNKNOWN",
+              message: firstError?.message ?? "rejected",
+            },
+          };
+        };
+        for (const chunk of chunks) {
+          const result = await runChunk(chunk);
+          if (!result.ok) {
+            return {
+              jobId: args.jobId,
+              state: "failed",
+              lastCursor: 0,
+              processedMessageCount: 0,
+              lastErrorCode: result.error.code,
+              lastErrorMessage: result.error.message,
+            };
+          }
+        }
+        return {
+          jobId: args.jobId,
+          state: "synced",
+          lastCursor: chunks.length,
+          processedMessageCount: chunks.reduce(
+            (count, chunk) => count + chunk.filter((delta) => delta.kind === "item/completed").length,
+            0,
+          ),
+        };
+      },
     },
     handlers: {
       onProtocolError: (error) => {
@@ -112,6 +227,10 @@ function createHarness(options = {}) {
   const emitEvent = async (event) => {
     assert.ok(handlers, "bridge handlers not initialized");
     await handlers.onEvent(event);
+  };
+  const emitProcessExit = (code) => {
+    assert.ok(handlers, "bridge handlers not initialized");
+    handlers.onProcessExit(code);
   };
 
   const runtimeCompat = {
@@ -142,6 +261,7 @@ function createHarness(options = {}) {
     emitResponse,
     emitGlobalMessage,
     emitEvent,
+    emitProcessExit,
     upserted,
     resolved,
     ingestCalls,
@@ -164,6 +284,71 @@ test("runtime connect does not open a thread until openThread is called", async 
   const startRequest = sent.find((message) => message.method === "thread/start");
   await emitResponse({ id: startRequest.id, result: { thread: { id: threadId } } });
   await openPromise;
+
+  await runtime.stop();
+});
+
+test("runtime process exit fail-closes pending requests and transitions lifecycle", async () => {
+  const { runtime, sent, emitProcessExit } = createHarness();
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  const readPromise = runtime.readAccount({ refreshToken: true });
+  await waitForMessage(sent, (message) => message.method === "account/read");
+  emitProcessExit(137);
+
+  await assert.rejects(readPromise, /Bridge stopped before request completed/);
+  const state = runtime.getState();
+  assert.equal(state.running, false);
+  assert.equal(state.phase, "error");
+  assert.equal(state.source, "process_exit");
+  assert.match(state.lastError ?? "", /codex exited with code 137/);
+});
+
+test("runtime listThreads preserves list messageCount and reports enrichment failure", async () => {
+  const { runtime, sent, emitResponse, protocolErrors } = createHarness();
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  const listPromise = runtime.listThreads({ limit: 10 });
+  const listRequest = await waitForMessage(sent, (message) => message.method === "thread/list");
+  await emitResponse({
+    id: listRequest.id,
+    result: {
+      data: [
+        {
+          id: "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a",
+          preview: "a",
+          updatedAt: 2,
+          messageCount: 7,
+        },
+      ],
+      nextCursor: null,
+    },
+  });
+  const readRequest = await waitForMessage(
+    sent,
+    (message) =>
+      message.method === "thread/read" &&
+      message.params?.threadId === "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a",
+  );
+  await emitResponse({
+    id: readRequest.id,
+    error: {
+      code: 500,
+      message: "read failed",
+    },
+  });
+
+  const listed = await listPromise;
+  assert.equal(listed.data.length, 1);
+  assert.equal(listed.data[0].threadId, "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a");
+  assert.equal(listed.data[0].messageCount, 7);
+  assert.ok(protocolErrors.some((entry) => entry.message.includes("Failed to enrich thread messageCount")));
 
   await runtime.stop();
 });
@@ -210,6 +395,122 @@ test("runtime can import local thread history into persistence using a single ca
   assert.equal(imported.syncState, "synced");
   assert.equal(ingestCalls.length, 1);
   assert.ok(ingestCalls[0].deltas.some((delta) => delta.kind === "item/completed"));
+  const cursorsByStream = new Map();
+  for (const delta of ingestCalls[0].deltas) {
+    const history = cursorsByStream.get(delta.streamId) ?? [];
+    history.push([delta.cursorStart, delta.cursorEnd]);
+    cursorsByStream.set(delta.streamId, history);
+  }
+  assert.equal(cursorsByStream.size, 1);
+  const streamCursors = Array.from(cursorsByStream.values())[0];
+  assert.deepEqual(streamCursors, [[0, 1], [1, 2], [2, 3], [3, 4]]);
+
+  await runtime.stop();
+});
+
+test("runtime imports large local thread history using chunked ingest", async () => {
+  const { runtime, sent, emitResponse, ingestCalls } = createHarness();
+  const runtimeThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  const persistedThreadHandle = "conv-thread-large";
+  const turns = Array.from({ length: 80 }, (_, index) => ({
+    id: `turn-${index + 1}`,
+    status: "completed",
+    error: null,
+    items: [
+      { type: "userMessage", id: `item-user-${index + 1}`, text: `user-${index + 1}` },
+      { type: "agentMessage", id: `item-assistant-${index + 1}`, text: `assistant-${index + 1}` },
+    ],
+  }));
+
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  const importPromise = runtime.importLocalThreadToPersistence({
+    runtimeThreadHandle: runtimeThreadId,
+    conversationId: persistedThreadHandle,
+  });
+  const threadReadRequest = await waitForMessage(sent, (message) => message.method === "thread/read");
+  await emitResponse({
+    id: threadReadRequest.id,
+    result: {
+      thread: {
+        id: runtimeThreadId,
+        turns,
+      },
+    },
+  });
+
+  const imported = await importPromise;
+  assert.equal(imported.conversationId, persistedThreadHandle);
+  assert.equal(imported.importedTurnCount, turns.length);
+  assert.equal(imported.importedMessageCount, turns.length * 2);
+  assert.ok(ingestCalls.length > 1);
+  for (const call of ingestCalls) {
+    assert.ok(call.deltas.length <= 128);
+  }
+
+  await runtime.stop();
+});
+
+test("runtime import adaptively splits ingest chunks when Convex hits document read limits", async () => {
+  const ingestCalls = [];
+  const { runtime, sent, emitResponse } = createHarness({
+    ingestSafe: async (args) => {
+      ingestCalls.push(args);
+      if (args.deltas.length > 40) {
+        return {
+          status: "rejected",
+          errors: [
+            {
+              code: "UNKNOWN",
+              message:
+                "Too many documents read in a single function execution (limit: 32000). Consider using smaller limits in your queries.",
+              recoverable: false,
+            },
+          ],
+        };
+      }
+      return { status: "ok", errors: [] };
+    },
+  });
+  const runtimeThreadId = "018f5f3b-5b7a-7c9d-a12b-3d0f3e4c5b6a";
+  const persistedThreadHandle = "conv-thread-adaptive";
+  const turns = Array.from({ length: 80 }, (_, index) => ({
+    id: `turn-${index + 1}`,
+    status: "completed",
+    error: null,
+    items: [
+      { type: "userMessage", id: `item-user-${index + 1}`, text: `user-${index + 1}` },
+      { type: "agentMessage", id: `item-assistant-${index + 1}`, text: `assistant-${index + 1}` },
+    ],
+  }));
+
+  await runtime.connect({
+    actor: { userId: "u" },
+    sessionId: "s",
+  });
+
+  const importPromise = runtime.importLocalThreadToPersistence({
+    runtimeThreadHandle: runtimeThreadId,
+    conversationId: persistedThreadHandle,
+  });
+  const threadReadRequest = await waitForMessage(sent, (message) => message.method === "thread/read");
+  await emitResponse({
+    id: threadReadRequest.id,
+    result: {
+      thread: {
+        id: runtimeThreadId,
+        turns,
+      },
+    },
+  });
+
+  const imported = await importPromise;
+  assert.equal(imported.syncState, "synced");
+  assert.ok(ingestCalls.some((call) => call.deltas.length > 40));
+  assert.ok(ingestCalls.some((call) => call.deltas.length <= 40));
 
   await runtime.stop();
 });

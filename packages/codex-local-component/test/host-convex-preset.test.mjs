@@ -18,6 +18,32 @@ function createComponentRefs() {
   };
 }
 
+function createActorParityRefs() {
+  const resolveByConversationIdRef = Symbol("threads.resolveByConversationId");
+  const getStateRef = Symbol("threads.getState");
+  const resolveRef = Symbol("threads.resolve");
+  return {
+    refs: {
+      codexLocal: {
+        approvals: {},
+        messages: {},
+        reasoning: {},
+        serverRequests: {},
+        sync: {},
+        threads: {
+          resolveByConversationId: resolveByConversationIdRef,
+          getState: getStateRef,
+          resolve: resolveRef,
+        },
+        turns: {},
+      },
+    },
+    resolveByConversationIdRef,
+    getStateRef,
+    resolveRef,
+  };
+}
+
 test("defineCodexHostDefinitions returns deterministic runtime-owned surface with clean names", () => {
   const defs = host.defineCodexHostDefinitions({
     components: createComponentRefs(),
@@ -68,7 +94,7 @@ test("validateHostWiring reports missing component children as check failures", 
         throw new Error('Child component ComponentName(Identifier("threads")) not found');
       },
     },
-    { actor: {}, threadId: undefined },
+    { actor: {}, conversationId: undefined },
   );
 
   assert.equal(result.ok, false);
@@ -151,6 +177,86 @@ test("ensureConversationBinding rejects threadId-only input", async () => {
     ),
     /ensureConversationBinding requires conversationId/,
   );
+});
+
+test("query and mutation preserve authenticated actor identity consistently", async () => {
+  const { refs, resolveByConversationIdRef, getStateRef, resolveRef } = createActorParityRefs();
+  const defs = host.defineCodexHostDefinitions({ components: refs });
+  const queryCalls = [];
+  const mutationCalls = [];
+  const actor = { userId: "actor-user" };
+
+  await defs.queries.threadSnapshotByConversation.handler(
+    {
+      runQuery: async (ref, args) => {
+        queryCalls.push({ ref, args });
+        if (ref === resolveByConversationIdRef) {
+          return { threadId: "runtime-thread-1", conversationId: "legacy-thread-1" };
+        }
+        if (ref === getStateRef) {
+          return { threadId: "runtime-thread-1", threadName: "name-1" };
+        }
+        throw new Error("Unexpected query call");
+      },
+    },
+    { actor, conversationId: "legacy-thread-1" },
+  );
+
+  await defs.mutations.ensureConversationBinding.handler(
+    {
+      runMutation: async (ref, args) => {
+        mutationCalls.push({ ref, args });
+        if (ref === resolveRef) {
+          return { threadId: "runtime-thread-1", created: false };
+        }
+        throw new Error("Unexpected mutation call");
+      },
+    },
+    { actor, conversationId: "legacy-thread-1" },
+  );
+
+  assert.deepEqual(queryCalls[0].args.actor, actor);
+  assert.deepEqual(mutationCalls[0].args.actor, actor);
+});
+
+test("query and mutation preserve anonymous actor identity consistently", async () => {
+  const { refs, resolveByConversationIdRef, getStateRef, resolveRef } = createActorParityRefs();
+  const defs = host.defineCodexHostDefinitions({ components: refs });
+  const queryCalls = [];
+  const mutationCalls = [];
+  const actor = {};
+
+  await defs.queries.threadSnapshotByConversation.handler(
+    {
+      runQuery: async (ref, args) => {
+        queryCalls.push({ ref, args });
+        if (ref === resolveByConversationIdRef) {
+          return { threadId: "runtime-thread-2", conversationId: "legacy-thread-2" };
+        }
+        if (ref === getStateRef) {
+          return { threadId: "runtime-thread-2", threadName: "name-2" };
+        }
+        throw new Error("Unexpected query call");
+      },
+    },
+    { actor, conversationId: "legacy-thread-2" },
+  );
+
+  await defs.mutations.ensureConversationBinding.handler(
+    {
+      runMutation: async (ref, args) => {
+        mutationCalls.push({ ref, args });
+        if (ref === resolveRef) {
+          return { threadId: "runtime-thread-2", created: false };
+        }
+        throw new Error("Unexpected mutation call");
+      },
+    },
+    { actor, conversationId: "legacy-thread-2" },
+  );
+
+  assert.deepEqual(queryCalls[0].args.actor, actor);
+  assert.deepEqual(mutationCalls[0].args.actor, actor);
 });
 
 test("threadSnapshotByConversation safe query returns missing_thread status for missing thread errors", async () => {
@@ -561,6 +667,8 @@ test("renderCodexHostShim emits deterministic explicit endpoint exports", () => 
 
   assert.ok(source.includes("defineCodexHostDefinitions"));
   assert.ok(source.includes("export const ensureConversationBinding = mutation(codex.mutations.ensureConversationBinding);"));
+  assert.ok(source.includes("export const getConversationSyncJob = query(codex.queries.getConversationSyncJob);"));
+  assert.ok(source.includes("export const listConversationSyncJobs = query(codex.queries.listConversationSyncJobs);"));
   assert.ok(source.includes("export const listThreadReasoningByConversation = query(codex.queries.listThreadReasoningByConversation);"));
   assert.ok(source.includes("export { getActorBindingForBootstrap, listThreadsForPicker } from \"./chat.extensions\";"));
 });

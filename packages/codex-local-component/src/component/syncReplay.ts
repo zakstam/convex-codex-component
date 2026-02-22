@@ -245,11 +245,35 @@ export async function resumeReplayHandler(
   await requireTurnForActor(ctx, args.actor, args.threadId, args.turnId);
   const runtime = resolveRuntimeOptions(args.runtime);
 
-  const streamId = `${args.threadId}:${args.turnId}:0`;
+  const streams = await ctx.db
+    .query("codex_streams")
+    .withIndex("userScope_threadId_turnId", (q) =>
+      q
+        .eq("userScope", userScopeFromActor(args.actor))
+        .eq("threadId", args.threadId)
+        .eq("turnId", args.turnId),
+    )
+    .take(10);
+
+  if (streams.length === 0) {
+    const emptyStatus: WindowStatus = "ok";
+    return {
+      streamWindow: {
+        streamId: "",
+        status: emptyStatus,
+        serverCursorStart: args.fromCursor,
+        serverCursorEnd: args.fromCursor,
+      },
+      deltas: [],
+      nextCursor: args.fromCursor,
+    };
+  }
+
+  const stream = streams[0]!;
   const replay = await computeStreamReplayWindow(ctx, {
     actor: args.actor,
     threadId: args.threadId,
-    streamId,
+    streamId: String(stream.streamId),
     requestedCursor: args.fromCursor,
     maxDeltas: runtime.maxDeltasPerRequestRead,
   });

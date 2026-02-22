@@ -13,6 +13,8 @@ export {
   type HostRuntimePersistedServerRequest,
   type HostRuntimeConnectArgs,
   type HostRuntimeOpenThreadArgs,
+  type HostRuntimeThreadListItem,
+  type HostRuntimeThreadListResult,
   type HostRuntimeState,
 } from "./runtime/index.js";
 

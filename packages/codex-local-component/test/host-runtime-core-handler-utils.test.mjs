@@ -100,6 +100,17 @@ test("runtime helper request keys and type guards are consistent", () => {
     }),
     false,
   );
+  assert.equal(
+    isToolRequestUserInputQuestion({
+      id: "q2",
+      header: "Bad options",
+      question: "Q",
+      isOther: false,
+      isSecret: false,
+      options: [{ label: 1, description: "ok" }],
+    }),
+    false,
+  );
   assert.equal(isResponse({ id: "x", result: {} }), true);
   assert.equal(isResponse({ id: "x", method: "x" }), false);
 });

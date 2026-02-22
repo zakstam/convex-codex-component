@@ -12,6 +12,8 @@ export type {
   HostRuntimePersistedServerRequest,
   HostRuntimeState,
   HostRuntimeOpenThreadArgs,
+  HostRuntimeThreadListItem,
+  HostRuntimeThreadListResult,
   CodexHostRuntime,
   RuntimeBridge,
   RuntimeBridgeHandlers,

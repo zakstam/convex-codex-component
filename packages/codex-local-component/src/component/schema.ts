@@ -19,6 +19,51 @@ export const vStreamState = v.union(
 );
 
 export default defineSchema({
+  codex_sync_jobs: defineTable({
+    userScope: v.string(),
+    userId: v.optional(v.string()),
+    conversationId: v.string(),
+    threadId: v.string(),
+    runtimeConversationId: v.optional(v.string()),
+    jobId: v.string(),
+    policyVersion: v.number(),
+    state: v.union(
+      v.literal("idle"),
+      v.literal("syncing"),
+      v.literal("synced"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    lastCursor: v.number(),
+    processedChunkIndex: v.number(),
+    totalChunks: v.number(),
+    processedMessageCount: v.number(),
+    expectedMessageCount: v.optional(v.number()),
+    expectedMessageIdsJson: v.optional(v.string()),
+    retryCount: v.number(),
+    nextRunAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    lastErrorMessage: v.optional(v.string()),
+    sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+    sourceChecksum: v.optional(v.string()),
+  })
+    .index("userScope_userId_conversationId_startedAt", ["userScope", "userId", "conversationId", "startedAt"])
+    .index("userScope_jobId", ["userScope", "jobId"]),
+
+  codex_sync_job_chunks: defineTable({
+    userScope: v.string(),
+    jobRef: v.id("codex_sync_jobs"),
+    chunkIndex: v.number(),
+    payloadJson: v.string(),
+    messageCount: v.number(),
+    byteSize: v.number(),
+    createdAt: v.number(),
+  })
+    .index("userScope_jobRef_chunkIndex", ["userScope", "jobRef", "chunkIndex"]),
+
   codex_thread_bindings: defineTable({
     userScope: v.string(),
     userId: v.optional(v.string()),
@@ -39,6 +84,21 @@ export default defineSchema({
     rebindCount: v.optional(v.number()),
     lastErrorCode: v.optional(v.string()),
     lastErrorAt: v.optional(v.number()),
+    syncJobId: v.optional(v.string()),
+    syncJobState: v.optional(
+      v.union(
+        v.literal("idle"),
+        v.literal("syncing"),
+        v.literal("synced"),
+        v.literal("failed"),
+        v.literal("cancelled"),
+      ),
+    ),
+    syncJobPolicyVersion: v.optional(v.number()),
+    syncJobStartedAt: v.optional(v.number()),
+    syncJobUpdatedAt: v.optional(v.number()),
+    syncJobLastCursor: v.optional(v.number()),
+    syncJobErrorCode: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

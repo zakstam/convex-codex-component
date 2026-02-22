@@ -1,0 +1,52 @@
+/* ── 2. Global Reset ───────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Outfit", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 100vh;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 12% 3%, rgba(245, 158, 11, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 88% 97%, rgba(129, 140, 248, 0.025) 0%, transparent 50%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(ellipse at 12% 3%, rgba(217, 119, 6, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 88% 97%, rgba(99, 102, 241, 0.03) 0%, transparent 50%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ── 3. Scrollbar ──────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ink-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-soft);
+}

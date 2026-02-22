@@ -38,6 +38,7 @@ import {
 } from "../../app-server/client.js";
 import clientPackage from "../../../package.json" with { type: "json" };
 import { CodexLocalBridge, type BridgeConfig } from "../../local-adapter/bridge.js";
+import { canonicalizeSnapshotItemId } from "../snapshotIdentity.js";
 import { randomSessionId } from "./runtimeHelpers.js";
 import { createRuntimeCore } from "./runtimeCore.js";
 import {
@@ -50,6 +51,8 @@ import type {
   HostRuntimeImportLocalThreadArgs,
   HostRuntimeImportLocalThreadResult,
   HostRuntimeOpenThreadArgs,
+  HostRuntimeThreadListItem,
+  HostRuntimeThreadListResult,
   IngestDelta,
   HostRuntimePersistence,
   HostRuntimeHandlers,
@@ -75,6 +78,8 @@ export {
   type HostRuntimeConnectArgs,
   type HostRuntimeOpenThreadArgs,
   type HostRuntimeState,
+  type HostRuntimeThreadListItem,
+  type HostRuntimeThreadListResult,
 } from "./runtimeTypes.js";
 export type { ConvexPersistenceChatApi, ConvexPersistenceOptions } from "../persistence/convex/convexPersistence.js";
 
@@ -111,9 +116,90 @@ type SnapshotTurn = {
 };
 
 type UnknownRecord = { [key: string]: unknown };
+const IMPORT_THREAD_SOURCE_CHUNK_SIZE = 128;
 
 function isUnknownRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null;
+}
+
+function asNonNegativeInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+  return null;
+}
+
+function normalizeThreadListItem(value: unknown): HostRuntimeThreadListItem | null {
+  if (!isUnknownRecord(value)) {
+    return null;
+  }
+  const threadId = typeof value.id === "string" ? value.id : null;
+  if (!threadId || threadId.length === 0) {
+    return null;
+  }
+  const previewRaw = typeof value.preview === "string" ? value.preview.trim() : "";
+  const preview = previewRaw.length > 0 ? previewRaw : "Untitled thread";
+  const updatedAt = asNonNegativeInteger(value.updatedAt) ?? 0;
+  const messageCount = asNonNegativeInteger(value.messageCount) ?? 0;
+  return {
+    threadId,
+    preview,
+    updatedAt,
+    messageCount,
+  };
+}
+
+function normalizeThreadListResponse(response: unknown): HostRuntimeThreadListResult {
+  const root = isUnknownRecord(response) ? response : null;
+  const result = isUnknownRecord(root?.result) ? root.result : null;
+  const dataRaw = Array.isArray(result?.data) ? result.data : [];
+  const data = dataRaw
+    .map((row) => normalizeThreadListItem(row))
+    .filter((row): row is HostRuntimeThreadListItem => row !== null);
+  const nextCursor = typeof result?.nextCursor === "string" ? result.nextCursor : null;
+  return {
+    data,
+    nextCursor,
+  };
+}
+
+function extractThreadMessageCountFromReadResponse(response: unknown): number {
+  const root = isUnknownRecord(response) ? response : null;
+  const result = isUnknownRecord(root?.result) ? root.result : null;
+  const thread = isUnknownRecord(result?.thread) ? result.thread : null;
+  const turns = Array.isArray(thread?.turns) ? thread.turns : [];
+  let messageCount = 0;
+
+  for (const turnValue of turns) {
+    const turn = isUnknownRecord(turnValue) ? turnValue : null;
+    const items = Array.isArray(turn?.items) ? turn.items : [];
+    for (const itemValue of items) {
+      const item = isUnknownRecord(itemValue) ? itemValue : null;
+      if (!item) {
+        continue;
+      }
+      const rawType = typeof item.type === "string" ? item.type.trim().toLowerCase() : "";
+      if (!rawType) {
+        continue;
+      }
+      if (
+        rawType === "usermessage" ||
+        rawType === "user_message" ||
+        rawType === "assistantmessage" ||
+        rawType === "assistant_message" ||
+        rawType === "agentmessage" ||
+        rawType === "agent_message" ||
+        rawType === "toolmessage" ||
+        rawType === "tool_message" ||
+        rawType === "systemmessage" ||
+        rawType === "system_message"
+      ) {
+        messageCount += 1;
+      }
+    }
+  }
+
+  return messageCount;
 }
 
 function asSnapshotTurn(value: unknown): SnapshotTurn | null {
@@ -164,29 +250,108 @@ function normalizeTurnError(
   return { message };
 }
 
+function normalizeImportItemType(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return normalized;
+}
+
+function isRenderableImportMessageType(itemType: string): boolean {
+  return (
+    itemType === "usermessage" ||
+    itemType === "user_message" ||
+    itemType === "assistantmessage" ||
+    itemType === "assistant_message" ||
+    itemType === "agentmessage" ||
+    itemType === "agent_message" ||
+    itemType === "systemmessage" ||
+    itemType === "system_message" ||
+    itemType === "toolmessage" ||
+    itemType === "tool_message"
+  );
+}
+
+type SyncManifestEntry = { turnId: string; messageId: string };
+
+function extractCanonicalMessageManifestFromSnapshotTurns(turns: SnapshotTurn[]): SyncManifestEntry[] {
+  const entries: SyncManifestEntry[] = [];
+  const seen = new Set<string>();
+  for (const turn of turns) {
+    const turnId = typeof turn.id === "string" ? turn.id : null;
+    if (!turnId) {
+      continue;
+    }
+    const items = Array.isArray(turn.items) ? turn.items : [];
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      const item = items[itemIndex];
+      if (!item) {
+        continue;
+      }
+      const itemType = normalizeImportItemType(item.type);
+      if (!itemType || !isRenderableImportMessageType(itemType)) {
+        continue;
+      }
+      const messageId = canonicalizeSnapshotItemId({ turnId, item, itemIndex }).messageId;
+      const key = JSON.stringify([turnId, messageId]);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      entries.push({ turnId, messageId });
+    }
+  }
+  entries.sort((a, b) => {
+    if (a.turnId === b.turnId) {
+      return a.messageId < b.messageId ? -1 : a.messageId > b.messageId ? 1 : 0;
+    }
+    return a.turnId < b.turnId ? -1 : 1;
+  });
+  return entries;
+}
+
+type ThreadImportDiagnostics = {
+  totalItems: number;
+  renderableItems: number;
+  generatedMessageIds: number;
+  skippedMissingType: number;
+};
+
 function buildThreadImportDeltas(args: {
   snapshotId: string;
   conversationId: string;
   turns: SnapshotTurn[];
-}): IngestDelta[] {
+}): { deltas: IngestDelta[]; diagnostics: ThreadImportDiagnostics } {
   const deltas: IngestDelta[] = [];
-  let cursor = 0;
+  const diagnostics: ThreadImportDiagnostics = {
+    totalItems: 0,
+    renderableItems: 0,
+    generatedMessageIds: 0,
+    skippedMissingType: 0,
+  };
+  const nextCursorByStreamId = new Map<string, number>();
+  let eventSequence = 0;
   let createdAtMs = Date.now();
 
   const push = (deltaArgs: {
     turnId: string;
-    streamSuffix: string;
     kind: string;
     payload: Record<string, unknown>;
   }) => {
-    const cursorStart = cursor;
-    const cursorEnd = cursor + 1;
-    cursor = cursorEnd;
+    const streamId = `thread-import:${args.snapshotId}:${args.conversationId}:${deltaArgs.turnId}:import`;
+    const cursorStart = nextCursorByStreamId.get(streamId) ?? 0;
+    const cursorEnd = cursorStart + 1;
+    nextCursorByStreamId.set(streamId, cursorEnd);
+    eventSequence += 1;
     deltas.push({
       type: "stream_delta",
-      eventId: `thread-import:${args.snapshotId}:${args.conversationId}:${deltaArgs.turnId}:${cursorEnd}`,
+      eventId: `thread-import:${args.snapshotId}:${args.conversationId}:${deltaArgs.turnId}:${eventSequence}`,
       turnId: deltaArgs.turnId,
-      streamId: `thread-import:${args.snapshotId}:${args.conversationId}:${deltaArgs.turnId}:${deltaArgs.streamSuffix}`,
+      streamId,
       kind: deltaArgs.kind,
       payloadJson: JSON.stringify({
         method: deltaArgs.kind,
@@ -214,7 +379,6 @@ function buildThreadImportDeltas(args: {
     };
     push({
       turnId,
-      streamSuffix: "turn",
       kind: "turn/started",
       payload: {
         threadId: args.conversationId,
@@ -222,27 +386,40 @@ function buildThreadImportDeltas(args: {
       },
     });
     const items = Array.isArray(turn.items) ? turn.items : [];
-    for (const item of items) {
-      const itemId = typeof item.id === "string" ? item.id : null;
-      const itemType = typeof item.type === "string" ? item.type : null;
-      if (!itemId || !itemType) {
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      const item = items[itemIndex];
+      if (!item) {
         continue;
       }
+      diagnostics.totalItems += 1;
+      const itemType = typeof item.type === "string" ? item.type : null;
+      if (!itemType) {
+        diagnostics.skippedMissingType += 1;
+        continue;
+      }
+      const normalizedItemType = normalizeImportItemType(itemType);
+      const isRenderable = normalizedItemType ? isRenderableImportMessageType(normalizedItemType) : false;
+      const canonicalId = canonicalizeSnapshotItemId({ turnId, item, itemIndex });
+      if (isRenderable) {
+        diagnostics.renderableItems += 1;
+        if (canonicalId.generated) {
+          diagnostics.generatedMessageIds += 1;
+        }
+      }
+      const normalizedItem = { ...item, id: canonicalId.messageId };
       push({
         turnId,
-        streamSuffix: `item:${itemId}`,
         kind: "item/completed",
         payload: {
           threadId: args.conversationId,
           turnId,
-          item,
+          item: normalizedItem,
         },
       });
     }
     if (status !== "inProgress") {
       push({
         turnId,
-        streamSuffix: "terminal",
         kind: "turn/completed",
         payload: {
           threadId: args.conversationId,
@@ -252,7 +429,7 @@ function buildThreadImportDeltas(args: {
     }
   }
 
-  return deltas;
+  return { deltas, diagnostics };
 }
 
 function extractThreadReadTurns(response: unknown): SnapshotTurn[] {
@@ -347,7 +524,14 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
         core.setProtocolError(message); core.emitState();
         args.handlers?.onProtocolError?.({ message, line });
       },
-      onProcessExit: (code) => { core.setProcessExitError(code ?? "unknown"); core.emitState(); },
+      onProcessExit: (code) => {
+        core.clearFlushTimer();
+        core.clearPendingServerRequestRetryTimer();
+        core.rejectAllPending();
+        core.resetAll();
+        core.setProcessExitError(code ?? "unknown");
+        core.emitState();
+      },
     };
     core.bridge = args.bridgeFactory
       ? args.bridgeFactory(bridgeConfig, bridgeHandlers)
@@ -486,6 +670,7 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     if (!core.actor) {
       throw new Error("[E_IMPORT_THREAD_ACTOR_MISSING] Actor is required before importing local threads.");
     }
+    const actor = core.actor;
     const runtimeThreadHandle = importArgs.runtimeThreadHandle.trim();
     if (runtimeThreadHandle.length === 0) {
       throw new Error("[E_IMPORT_THREAD_HANDLE_REQUIRED] runtimeThreadHandle is required.");
@@ -494,16 +679,12 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     const snapshotResponse = await readThread(runtimeThreadHandle, true);
     const turns = extractThreadReadTurns(snapshotResponse);
     const importedTurnCount = turns.filter((turn) => typeof turn.id === "string").length;
-    const importedMessageCount = turns.reduce((count, turn) => {
-      const items = Array.isArray(turn.items) ? turn.items : [];
-      const next = items.filter(
-        (item) => typeof item.id === "string" && typeof item.type === "string",
-      ).length;
-      return count + next;
-    }, 0);
+    const canonicalManifest = extractCanonicalMessageManifestFromSnapshotTurns(turns);
+    const importedMessageCount = canonicalManifest.length;
+    const expectedMessageIdsJson = JSON.stringify(canonicalManifest);
 
     const ensuredThread = await persistence.ensureThread({
-      actor: core.actor,
+      actor,
       conversationId: targetConversationId,
       ...(core.startupModel ? { model: core.startupModel } : {}),
       ...(core.startupCwd ? { cwd: core.startupCwd } : {}),
@@ -513,45 +694,132 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
       ? trimmedSessionId
       : `thread-import-${randomSessionId()}`;
     await persistence.ensureSession({
-      actor: core.actor,
+      actor,
       sessionId: importSessionId,
       threadId: ensuredThread.threadId,
       lastEventCursor: 0,
     });
 
-    const deltas = buildThreadImportDeltas({
+    const { deltas, diagnostics } = buildThreadImportDeltas({
       snapshotId: randomSessionId(),
       conversationId: targetConversationId,
       turns,
     });
+    const importWarnings: string[] = [];
+    if (diagnostics.generatedMessageIds > 0) {
+      importWarnings.push(`W_IMPORT_THREAD_GENERATED_MESSAGE_IDS:${diagnostics.generatedMessageIds}`);
+    }
+    if (diagnostics.skippedMissingType > 0) {
+      importWarnings.push(`W_IMPORT_THREAD_SKIPPED_ITEMS_MISSING_TYPE:${diagnostics.skippedMissingType}`);
+    }
     if (deltas.length === 0) {
+      const emptyJob = await persistence.startConversationSyncJob({
+        actor,
+        conversationId: targetConversationId,
+        runtimeConversationId: runtimeThreadHandle,
+        threadId: ensuredThread.threadId,
+        sourceChecksum: "0:0:0",
+        expectedMessageCount: importedMessageCount,
+        expectedMessageIdsJson,
+      });
+      await persistence.sealConversationSyncJobSource({ actor, jobId: emptyJob.jobId });
+      const emptyTerminal = await persistence.waitForConversationSyncJobTerminal({
+        actor,
+        conversationId: targetConversationId,
+        jobId: emptyJob.jobId,
+      });
       return {
         conversationId: targetConversationId,
         threadId: ensuredThread.threadId,
+        syncJobId: emptyJob.jobId,
+        syncJobPolicyVersion: emptyJob.policyVersion,
+        syncJobState: emptyTerminal.state,
+        lastCursor: emptyTerminal.lastCursor,
+        ...(emptyTerminal.lastErrorCode ? { errorCode: emptyTerminal.lastErrorCode } : {}),
         importedTurnCount,
         importedMessageCount,
         syncState: "synced",
-        warnings: [],
+        warnings: importWarnings,
       };
     }
 
-    const ingest = await persistence.ingestSafe({
-      actor: core.actor,
-      sessionId: importSessionId,
+    const sourceChecksum = `${deltas.length}:${importedTurnCount}:${importedMessageCount}`;
+    const job = await persistence.startConversationSyncJob({
+      actor,
+      conversationId: targetConversationId,
+      runtimeConversationId: runtimeThreadHandle,
       threadId: ensuredThread.threadId,
-      deltas,
+      sourceChecksum,
+      expectedMessageCount: importedMessageCount,
+      expectedMessageIdsJson,
     });
-    if (ingest.status === "rejected") {
-      const reason = ingest.errors.map((error: { code: string; message: string }) => `${error.code}:${error.message}`).join("; ");
-      throw new Error(`[E_IMPORT_THREAD_INGEST_FAILED] ${reason.length > 0 ? reason : "Ingest rejected."}`);
+    for (let offset = 0; offset < deltas.length; offset += IMPORT_THREAD_SOURCE_CHUNK_SIZE) {
+      const chunk = deltas.slice(offset, offset + IMPORT_THREAD_SOURCE_CHUNK_SIZE);
+      const messageCount = chunk.reduce((count, delta) => {
+        if (delta.type !== "stream_delta" || delta.kind !== "item/completed") {
+          return count;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(delta.payloadJson);
+        } catch (_error) {
+          return count;
+        }
+        if (typeof parsed !== "object" || parsed === null) {
+          return count;
+        }
+        const params = (parsed as { params?: unknown }).params;
+        if (typeof params !== "object" || params === null) {
+          return count;
+        }
+        const item = (params as { item?: unknown }).item;
+        if (typeof item !== "object" || item === null) {
+          return count;
+        }
+        const itemType = normalizeImportItemType((item as { type?: unknown }).type);
+        if (!itemType || !isRenderableImportMessageType(itemType)) {
+          return count;
+        }
+        return count + 1;
+      }, 0);
+      const payloadJson = JSON.stringify(chunk);
+      await persistence.appendConversationSyncChunk({
+        actor,
+        jobId: job.jobId,
+        chunkIndex: Math.floor(offset / IMPORT_THREAD_SOURCE_CHUNK_SIZE),
+        payloadJson,
+        messageCount,
+        byteSize: payloadJson.length,
+      });
     }
+
+    await persistence.sealConversationSyncJobSource({
+      actor,
+      jobId: job.jobId,
+    });
+
+    const terminal = await persistence.waitForConversationSyncJobTerminal({
+      actor,
+      conversationId: targetConversationId,
+      jobId: job.jobId,
+    });
+    const warnings: string[] = [...importWarnings];
+    if (terminal.lastErrorCode) {
+      warnings.push(`${terminal.lastErrorCode}:${terminal.lastErrorMessage ?? ""}`);
+    }
+    const hasPartial = terminal.state !== "synced";
     return {
       conversationId: targetConversationId,
       threadId: ensuredThread.threadId,
+      syncJobId: job.jobId,
+      syncJobPolicyVersion: job.policyVersion,
+      syncJobState: terminal.state,
+      lastCursor: terminal.lastCursor,
+      ...(terminal.lastErrorCode ? { errorCode: terminal.lastErrorCode } : {}),
       importedTurnCount,
       importedMessageCount,
-      syncState: ingest.status === "partial" ? "partial" : "synced",
-      warnings: ingest.errors.map((error: { code: string; message: string }) => `${error.code}:${error.message}`),
+      syncState: hasPartial ? "partial" : "synced",
+      warnings,
     };
   };
   const readAccount: CodexHostRuntime["readAccount"] = async (params) =>
@@ -564,8 +832,62 @@ export function createCodexHostRuntime(args: CreateCodexHostRuntimeArgs): CodexH
     core.sendRequest(buildAccountLogoutRequest(core.requestIdFn()));
   const readAccountRateLimits: CodexHostRuntime["readAccountRateLimits"] = async () =>
     core.sendRequest(buildAccountRateLimitsReadRequest(core.requestIdFn()));
-  const listThreads: CodexHostRuntime["listThreads"] = async (params) =>
-    core.sendRequest(buildThreadListRequest(core.requestIdFn(), params));
+  const listThreads: CodexHostRuntime["listThreads"] = async (params) => {
+    const response = await core.sendRequest(buildThreadListRequest(core.requestIdFn(), params));
+    const normalized = normalizeThreadListResponse(response);
+    if (normalized.data.length === 0) {
+      return normalized;
+    }
+
+    const enriched = [...normalized.data];
+    const maxConcurrentReads = 4;
+    let nextIndex = 0;
+    const workerCount = Math.min(maxConcurrentReads, enriched.length);
+
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        if (currentIndex >= enriched.length) {
+          return;
+        }
+        const thread = enriched[currentIndex];
+        if (!thread) {
+          continue;
+        }
+        try {
+          const threadId = thread.threadId;
+          const readResponse = await core.sendRequest(
+            buildThreadReadRequest(core.requestIdFn(), {
+              threadId,
+              includeTurns: true,
+            }),
+          );
+          enriched[currentIndex] = {
+            ...thread,
+            messageCount: extractThreadMessageCountFromReadResponse(readResponse),
+          };
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          args.handlers?.onProtocolError?.({
+            message: `Failed to enrich thread messageCount for ${thread.threadId}: ${reason}`,
+            line: "[runtime:listThreads]",
+          });
+          enriched[currentIndex] = {
+            ...thread,
+            messageCount: thread.messageCount,
+          };
+        }
+      }
+    });
+
+    await Promise.all(workers);
+
+    return {
+      ...normalized,
+      data: enriched,
+    };
+  };
   const listLoadedThreads: CodexHostRuntime["listLoadedThreads"] = async (params) =>
     core.sendRequest(buildThreadLoadedListRequest(core.requestIdFn(), params));
   const newConversation: CodexHostRuntime["newConversation"] = async (params) =>

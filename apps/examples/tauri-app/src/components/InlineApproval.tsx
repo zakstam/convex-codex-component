@@ -22,16 +22,15 @@ type PendingServerRequest = {
 };
 
 type Props = {
-  request: PendingServerRequest;
-  requestKey: string;
-  isSubmitting: boolean;
+  requests: PendingServerRequest[];
+  submittingKey: string | null;
+  toolDrafts: Record<string, Record<string, string>>;
+  toolOtherDrafts: Record<string, Record<string, string>>;
   onRespondCommandOrFile: (
     request: PendingServerRequest,
     decision: "accept" | "acceptForSession" | "decline" | "cancel",
   ) => void;
   onRespondToolUserInput: (request: PendingServerRequest) => void;
-  toolDrafts: Record<string, Record<string, string>>;
-  toolOtherDrafts: Record<string, Record<string, string>>;
   setToolSelected: (
     request: PendingServerRequest,
     questionId: string,
@@ -44,26 +43,50 @@ type Props = {
   ) => void;
 };
 
-function getUrgency(method: string): { level: string; label: string } {
-  if (method === "item/commandExecution/requestApproval")
-    return { level: "high", label: "COMMAND" };
-  if (method === "item/fileChange/requestApproval")
-    return { level: "medium", label: "FILE CHANGE" };
-  if (method === "item/tool/call") return { level: "medium", label: "TOOL CALL" };
-  return { level: "low", label: "INPUT" };
+type UrgencyInfo = {
+  level: "high" | "medium" | "low";
+  label: string;
+  icon: string;
+};
+
+function getUrgency(method: PendingServerRequest["method"]): UrgencyInfo {
+  switch (method) {
+    case "item/commandExecution/requestApproval":
+      return { level: "high", label: "Run Command", icon: "\u26a0" };
+    case "item/fileChange/requestApproval":
+      return { level: "medium", label: "File Change", icon: "\ud83d\udcc4" };
+    case "item/tool/requestUserInput":
+      return { level: "low", label: "Input Required", icon: "\u2753" };
+    case "item/tool/call":
+      return { level: "low", label: "Tool Call", icon: "\u2699" };
+  }
 }
 
-export function ApprovalCard({
+function requestKey(requestId: string | number): string {
+  return `${typeof requestId}:${String(requestId)}`;
+}
+
+function InlineApprovalItem({
   request,
-  requestKey: key,
+  rKey,
   isSubmitting,
-  onRespondCommandOrFile,
-  onRespondToolUserInput,
   toolDrafts,
   toolOtherDrafts,
+  onRespondCommandOrFile,
+  onRespondToolUserInput,
   setToolSelected,
   setToolOther,
-}: Props) {
+}: {
+  request: PendingServerRequest;
+  rKey: string;
+  isSubmitting: boolean;
+  toolDrafts: Record<string, Record<string, string>>;
+  toolOtherDrafts: Record<string, Record<string, string>>;
+  onRespondCommandOrFile: Props["onRespondCommandOrFile"];
+  onRespondToolUserInput: Props["onRespondToolUserInput"];
+  setToolSelected: Props["setToolSelected"];
+  setToolOther: Props["setToolOther"];
+}) {
   const urgency = getUrgency(request.method);
   const isCommandOrFile =
     request.method === "item/commandExecution/requestApproval" ||
@@ -77,16 +100,16 @@ export function ApprovalCard({
     >
       <div className="approval-header">
         <span className={`urgency-badge ${urgency.level}`}>
+          <span className="urgency-icon" aria-hidden="true">
+            {urgency.icon}
+          </span>
           {urgency.label}
         </span>
-        <span className="code approval-meta">
-          turn: {request.turnId.slice(0, 12)}...
-        </span>
       </div>
+
       {request.reason && (
         <p className="approval-reason">{request.reason}</p>
       )}
-      <p className="code approval-meta">item: {request.itemId}</p>
 
       {isCommandOrFile && (
         <div className="controls">
@@ -94,28 +117,30 @@ export function ApprovalCard({
             className="secondary"
             disabled={isSubmitting}
             onClick={() => onRespondCommandOrFile(request, "accept")}
-            aria-label="Accept"
+            aria-label="Allow"
           >
-            Accept
+            Allow
           </button>
           <button
             className="secondary"
             disabled={isSubmitting}
-            onClick={() => onRespondCommandOrFile(request, "acceptForSession")}
-            aria-label="Accept for session"
+            onClick={() =>
+              onRespondCommandOrFile(request, "acceptForSession")
+            }
+            aria-label="Allow for session"
           >
-            Accept Session
+            Allow for Session
           </button>
           <button
             className="danger"
             disabled={isSubmitting}
             onClick={() => onRespondCommandOrFile(request, "decline")}
-            aria-label="Decline"
+            aria-label="Deny"
           >
-            Decline
+            Deny
           </button>
           <button
-            className="danger"
+            className="ghost inline-cancel-link"
             disabled={isSubmitting}
             onClick={() => onRespondCommandOrFile(request, "cancel")}
             aria-label="Cancel"
@@ -128,7 +153,7 @@ export function ApprovalCard({
       {request.method === "item/tool/requestUserInput" && (
         <div className="tool-questions">
           {(request.questions ?? []).map((question) => {
-            const selected = toolDrafts[key]?.[question.id] ?? "";
+            const selected = toolDrafts[rKey]?.[question.id] ?? "";
             const needsOther =
               selected === "__other__" ||
               !question.options ||
@@ -136,7 +161,7 @@ export function ApprovalCard({
             const showOtherInput = needsOther || question.isOther;
 
             return (
-              <div className="tool-question" key={`${key}:${question.id}`}>
+              <div className="tool-question" key={`${rKey}:${question.id}`}>
                 <p className="tool-question-header">
                   <strong>{question.header}</strong>
                 </p>
@@ -163,7 +188,7 @@ export function ApprovalCard({
                 )}
                 {showOtherInput && (
                   <input
-                    value={toolOtherDrafts[key]?.[question.id] ?? ""}
+                    value={toolOtherDrafts[rKey]?.[question.id] ?? ""}
                     onChange={(e) =>
                       setToolOther(request, question.id, e.target.value)
                     }
@@ -190,9 +215,49 @@ export function ApprovalCard({
           </div>
         </div>
       )}
+
       {request.method === "item/tool/call" && (
-        <p className="code approval-meta">Handled automatically by helper runtime.</p>
+        <p className="code approval-meta">Processing automatically...</p>
       )}
+    </div>
+  );
+}
+
+export function InlineApproval({
+  requests,
+  submittingKey,
+  toolDrafts,
+  toolOtherDrafts,
+  onRespondCommandOrFile,
+  onRespondToolUserInput,
+  setToolSelected,
+  setToolOther,
+}: Props) {
+  if (requests.length === 0) return null;
+
+  return (
+    <div
+      className="inline-approval-list"
+      role="region"
+      aria-label="Pending approval requests"
+    >
+      {requests.map((request) => {
+        const rKey = requestKey(request.requestId);
+        return (
+          <InlineApprovalItem
+            key={rKey}
+            request={request}
+            rKey={rKey}
+            isSubmitting={submittingKey === rKey}
+            toolDrafts={toolDrafts}
+            toolOtherDrafts={toolOtherDrafts}
+            onRespondCommandOrFile={onRespondCommandOrFile}
+            onRespondToolUserInput={onRespondToolUserInput}
+            setToolSelected={setToolSelected}
+            setToolOther={setToolOther}
+          />
+        );
+      })}
     </div>
   );
 }

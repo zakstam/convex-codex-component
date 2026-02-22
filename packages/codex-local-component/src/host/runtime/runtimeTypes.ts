@@ -105,10 +105,27 @@ export type HostRuntimeImportLocalThreadArgs = {
 export type HostRuntimeImportLocalThreadResult = {
   conversationId: string;
   threadId: string;
+  syncJobId: string;
+  syncJobPolicyVersion: number;
+  syncJobState: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  lastCursor: number;
+  errorCode?: string;
   importedTurnCount: number;
   importedMessageCount: number;
   syncState: "synced" | "partial";
   warnings: string[];
+};
+
+export type HostRuntimeThreadListItem = {
+  threadId: string;
+  preview: string;
+  updatedAt: number;
+  messageCount: number;
+};
+
+export type HostRuntimeThreadListResult = {
+  data: HostRuntimeThreadListItem[];
+  nextCursor: string | null;
 };
 
 export type HostRuntimePersistence = {
@@ -236,6 +253,90 @@ export type HostRuntimePersistence = {
     lastReasoningOutputTokens: number;
     modelContextWindow?: number;
   }) => Promise<void>;
+  startConversationSyncJob: (args: {
+    actor: ActorContext;
+    conversationId: string;
+    runtimeConversationId?: string;
+    threadId?: string;
+    sourceChecksum?: string;
+    expectedMessageCount?: number;
+    expectedMessageIdsJson?: string;
+  }) => Promise<{
+    jobId: string;
+    conversationId: string;
+    threadId: string;
+    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+    sourceState: "collecting" | "sealed" | "processing";
+    policyVersion: number;
+    startedAt: number;
+    updatedAt: number;
+  }>;
+  appendConversationSyncChunk: (args: {
+    actor: ActorContext;
+    jobId: string;
+    chunkIndex: number;
+    payloadJson: string;
+    messageCount: number;
+    byteSize: number;
+  }) => Promise<{
+    jobId: string;
+    chunkIndex: number;
+    appended: boolean;
+  }>;
+  sealConversationSyncJobSource: (args: {
+    actor: ActorContext;
+    jobId: string;
+  }) => Promise<{
+    jobId: string;
+    sourceState: "collecting" | "sealed" | "processing";
+    totalChunks: number;
+    scheduled: boolean;
+  }>;
+  cancelConversationSyncJob: (args: {
+    actor: ActorContext;
+    jobId: string;
+    errorCode?: string;
+    errorMessage?: string;
+  }) => Promise<{
+    jobId: string;
+    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+    cancelled: boolean;
+  }>;
+  getConversationSyncJob: (args: {
+    actor: ActorContext;
+    conversationId: string;
+    jobId?: string;
+  }) => Promise<{
+    jobId: string;
+    conversationId: string;
+    threadId: string;
+    runtimeConversationId?: string;
+    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+    sourceState: "collecting" | "sealed" | "processing";
+    policyVersion: number;
+    startedAt: number;
+    updatedAt: number;
+    completedAt?: number;
+    lastCursor: number;
+    processedChunkIndex: number;
+    totalChunks: number;
+    processedMessageCount: number;
+    retryCount: number;
+    lastErrorCode?: string;
+    lastErrorMessage?: string;
+  } | null>;
+  waitForConversationSyncJobTerminal: (args: {
+    actor: ActorContext;
+    conversationId: string;
+    jobId: string;
+  }) => Promise<{
+    jobId: string;
+    state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+    lastCursor: number;
+    processedMessageCount: number;
+    lastErrorCode?: string;
+    lastErrorMessage?: string;
+  }>;
 };
 
 export type HostRuntimeHandlers = {
@@ -279,7 +380,7 @@ export type CodexHostRuntime = {
   cancelAccountLogin: (params: CancelLoginAccountParams) => Promise<CodexResponse>;
   logoutAccount: () => Promise<CodexResponse>;
   readAccountRateLimits: () => Promise<CodexResponse>;
-  listThreads: (params?: ThreadListParams) => Promise<CodexResponse>;
+  listThreads: (params?: ThreadListParams) => Promise<HostRuntimeThreadListResult>;
   listLoadedThreads: (params?: ThreadLoadedListParams) => Promise<CodexResponse>;
   newConversation: (params: NewConversationParams) => Promise<CodexResponse>;
   resumeConversation: (params: ResumeConversationParams) => Promise<CodexResponse>;

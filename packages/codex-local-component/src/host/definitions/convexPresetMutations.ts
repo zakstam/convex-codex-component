@@ -4,6 +4,8 @@
  */
 import { v } from "convex/values";
 import {
+  appendConversationSyncChunkForActor,
+  cancelConversationSyncJobForActor,
   ensureSession as ensureSessionHandler,
   ensureConversationBindingByResolve,
   forceRebindConversationSyncForActor,
@@ -17,6 +19,8 @@ import {
   resolvePendingServerRequestForHooksForActor,
   respondApprovalForHooksForActor,
   syncOpenConversationBindingForActor,
+  startConversationSyncJobForActor,
+  sealConversationSyncJobSourceForActor,
   upsertPendingServerRequestForHooksForActor,
   upsertTokenUsageForActor,
   vHostActorContext,
@@ -30,6 +34,7 @@ import {
   type HostMutationRunner,
   type HostQueryRunner,
 } from "../convexSlice.js";
+import { resolveHostActor, withResolvedHostActor } from "./actorResolution.js";
 import type { CodexHostSliceFeatures, CodexHostSliceIngestMode } from "./convexPreset.js";
 
 type MutationBuilderArgs = {
@@ -38,17 +43,6 @@ type MutationBuilderArgs = {
   ingestMode: CodexHostSliceIngestMode;
   features: Required<CodexHostSliceFeatures>;
 };
-
-function withServerActor<T extends { actor: HostActorContext }>(args: T, serverActor: HostActorContext): T {
-  return { ...args, actor: serverActor };
-}
-
-function resolveServerActor(
-  args: { actor: HostActorContext },
-  fallback: HostActorContext,
-): HostActorContext {
-  return args.actor.userId === undefined ? fallback : args.actor;
-}
 
 export function buildPresetMutations(opts: MutationBuilderArgs) {
   const { component, serverActor, ingestMode, features } = opts;
@@ -59,7 +53,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
     const mapping = await resolveThreadByConversationIdForActor(
       ctx,
       component,
-      withServerActor(args, resolveServerActor(args, serverActor)),
+      withResolvedHostActor(args, serverActor),
     );
     if (!mapping) {
       throw new Error(`[E_CONVERSATION_NOT_FOUND] Conversation not found: ${args.conversationId}`);
@@ -90,14 +84,14 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       const resolved = await ensureConversationBindingByResolve(
         ctx,
         component,
-        withServerActor(
+        withResolvedHostActor(
           {
             actor: args.actor,
             conversationId: args.conversationId,
             ...(args.model !== undefined ? { model: args.model } : {}),
             ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
           },
-          resolveServerActor(args, serverActor),
+          serverActor,
         ),
       );
       return {
@@ -146,7 +140,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       },
     ) => {
       if (ingestMode === "mixed") {
-        return ingestEventMixed(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
+        return ingestEventMixed(ctx, component, withResolvedHostActor(args, serverActor));
       }
       if (args.event.type === "lifecycle_event") {
         throw new Error("ingestEvent(streamOnly) does not accept lifecycle events");
@@ -154,7 +148,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       return ingestEventStreamOnly(
         ctx,
         component,
-        withServerActor({ ...args, event: args.event }, resolveServerActor(args, serverActor)),
+        withResolvedHostActor({ ...args, event: args.event }, serverActor),
       );
     },
   };
@@ -206,7 +200,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       },
     ) => {
       if (ingestMode === "mixed") {
-        return ingestBatchMixed(ctx, component, withServerActor(args, resolveServerActor(args, serverActor)));
+        return ingestBatchMixed(ctx, component, withResolvedHostActor(args, serverActor));
       }
       const hasLifecycle = args.deltas.some((delta) => delta.type === "lifecycle_event");
       if (hasLifecycle) {
@@ -228,7 +222,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       return ingestBatchStreamOnly(
         ctx,
         component,
-        withServerActor({ ...args, deltas: streamDeltas }, resolveServerActor(args, serverActor)),
+        withResolvedHostActor({ ...args, deltas: streamDeltas }, serverActor),
       );
     },
   };
@@ -258,7 +252,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         const result = await syncOpenConversationBindingForActor(
           ctx,
           component,
-          withServerActor(
+          withResolvedHostActor(
             {
               actor: args.actor,
               conversationId: args.conversationId,
@@ -267,7 +261,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
               ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
               ...(args.sessionId !== undefined ? { sessionId: args.sessionId } : {}),
             },
-            resolveServerActor(args, serverActor),
+            serverActor,
           ),
         );
         return {
@@ -285,6 +279,13 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         cursor: v.number(),
         syncState: v.optional(v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted"))),
         errorCode: v.optional(v.string()),
+        syncJobId: v.optional(v.string()),
+        expectedSyncJobId: v.optional(v.string()),
+        syncJobState: v.optional(v.union(v.literal("idle"), v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled"))),
+        syncJobPolicyVersion: v.optional(v.number()),
+        syncJobStartedAt: v.optional(v.number()),
+        syncJobUpdatedAt: v.optional(v.number()),
+        syncJobErrorCode: v.optional(v.string()),
       },
       returns: v.object({
         threadId: v.string(),
@@ -292,17 +293,40 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         runtimeConversationId: v.optional(v.string()),
         syncState: v.union(v.literal("unsynced"), v.literal("syncing"), v.literal("synced"), v.literal("drifted")),
         lastSyncedCursor: v.number(),
+        syncJobId: v.optional(v.string()),
+        syncJobState: v.optional(v.union(v.literal("idle"), v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled"))),
+        syncJobPolicyVersion: v.optional(v.number()),
+        syncJobStartedAt: v.optional(v.number()),
+        syncJobUpdatedAt: v.optional(v.number()),
+        syncJobLastCursor: v.optional(v.number()),
+        syncJobErrorCode: v.optional(v.string()),
+        staleIgnored: v.boolean(),
       }),
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
-        args: { actor: HostActorContext; conversationId: string; runtimeConversationId?: string; sessionId?: string; cursor: number; syncState?: "unsynced" | "syncing" | "synced" | "drifted"; errorCode?: string },
+        args: {
+          actor: HostActorContext;
+          conversationId: string;
+          runtimeConversationId?: string;
+          sessionId?: string;
+          cursor: number;
+          syncState?: "unsynced" | "syncing" | "synced" | "drifted";
+          errorCode?: string;
+          syncJobId?: string;
+          expectedSyncJobId?: string;
+          syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          syncJobPolicyVersion?: number;
+          syncJobStartedAt?: number;
+          syncJobUpdatedAt?: number;
+          syncJobErrorCode?: string;
+        },
       ) => {
         const result = await markConversationSyncProgressForActor(
           ctx,
           component,
-          withServerActor(
+          withResolvedHostActor(
             { ...args, conversationId: args.conversationId },
-            resolveServerActor(args, serverActor),
+            serverActor,
           ),
         );
         return {
@@ -332,9 +356,9 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         const result = await forceRebindConversationSyncForActor(
           ctx,
           component,
-          withServerActor(
+          withResolvedHostActor(
             { ...args, conversationId: args.conversationId },
-            resolveServerActor(args, serverActor),
+            serverActor,
           ),
         );
         return {
@@ -342,6 +366,118 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           conversationId: args.conversationId,
         };
       },
+    },
+    startConversationSyncJob: {
+      args: {
+        actor: vHostActorContext,
+        conversationId: v.string(),
+        runtimeConversationId: v.optional(v.string()),
+        threadId: v.optional(v.string()),
+        sourceChecksum: v.optional(v.string()),
+        expectedMessageCount: v.optional(v.number()),
+        expectedMessageIdsJson: v.optional(v.string()),
+      },
+      returns: v.object({
+        jobId: v.string(),
+        conversationId: v.string(),
+        threadId: v.string(),
+        state: v.union(v.literal("idle"), v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled")),
+        sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+        policyVersion: v.number(),
+        startedAt: v.number(),
+        updatedAt: v.number(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          conversationId: string;
+          runtimeConversationId?: string;
+          threadId?: string;
+          sourceChecksum?: string;
+          expectedMessageCount?: number;
+          expectedMessageIdsJson?: string;
+        },
+      ) =>
+        startConversationSyncJobForActor(
+          ctx,
+          component,
+          withResolvedHostActor(args, serverActor),
+        ),
+    },
+    appendConversationSyncChunk: {
+      args: {
+        actor: vHostActorContext,
+        jobId: v.string(),
+        chunkIndex: v.number(),
+        payloadJson: v.string(),
+        messageCount: v.number(),
+        byteSize: v.number(),
+      },
+      returns: v.object({
+        jobId: v.string(),
+        chunkIndex: v.number(),
+        appended: v.boolean(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: {
+          actor: HostActorContext;
+          jobId: string;
+          chunkIndex: number;
+          payloadJson: string;
+          messageCount: number;
+          byteSize: number;
+        },
+      ) =>
+        appendConversationSyncChunkForActor(
+          ctx,
+          component,
+          withResolvedHostActor(args, serverActor),
+        ),
+    },
+    sealConversationSyncJobSource: {
+      args: {
+        actor: vHostActorContext,
+        jobId: v.string(),
+      },
+      returns: v.object({
+        jobId: v.string(),
+        sourceState: v.union(v.literal("collecting"), v.literal("sealed"), v.literal("processing")),
+        totalChunks: v.number(),
+        scheduled: v.boolean(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; jobId: string },
+      ) =>
+        sealConversationSyncJobSourceForActor(
+          ctx,
+          component,
+          withResolvedHostActor(args, serverActor),
+        ),
+    },
+    cancelConversationSyncJob: {
+      args: {
+        actor: vHostActorContext,
+        jobId: v.string(),
+        errorCode: v.optional(v.string()),
+        errorMessage: v.optional(v.string()),
+      },
+      returns: v.object({
+        jobId: v.string(),
+        state: v.union(v.literal("idle"), v.literal("syncing"), v.literal("synced"), v.literal("failed"), v.literal("cancelled")),
+        cancelled: v.boolean(),
+      }),
+      handler: async (
+        ctx: HostMutationRunner & HostQueryRunner,
+        args: { actor: HostActorContext; jobId: string; errorCode?: string; errorMessage?: string },
+      ) =>
+        cancelConversationSyncJobForActor(
+          ctx,
+          component,
+          withResolvedHostActor(args, serverActor),
+        ),
     },
     ensureConversationBinding,
     archiveConversation: {
@@ -357,7 +493,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; conversationId: string },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         if (!component.threads.resolveByConversationId) {
           throw new Error("Host component is missing threads.resolveByConversationId.");
         }
@@ -391,7 +527,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; conversationId: string },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         if (!component.threads.resolveByConversationId) {
           throw new Error("Host component is missing threads.resolveByConversationId.");
         }
@@ -423,7 +559,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
       handler: async (
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; sessionId: string; threadId: string; lastEventCursor: number },
-      ) => ensureSessionHandler(ctx, component, withServerActor(args, resolveServerActor(args, serverActor))),
+      ) => ensureSessionHandler(ctx, component, withResolvedHostActor(args, serverActor)),
     },
     ingestEvent,
     ingestBatch,
@@ -439,7 +575,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; conversationId: string; reason?: string; batchSize?: number },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.threads.deleteCascade, {
           actor,
@@ -465,7 +601,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; conversationId: string; reason?: string; batchSize?: number; delayMs?: number },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.threads.scheduleDeleteCascade, {
           actor,
@@ -495,7 +631,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           batchSize?: number;
         },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.turns.deleteCascade, {
           actor,
@@ -530,7 +666,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           delayMs?: number;
         },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         const threadId = await resolveThreadIdOrThrow(ctx, args);
         return ctx.runMutation(component.turns.scheduleDeleteCascade, {
           actor,
@@ -553,7 +689,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; reason?: string; batchSize?: number },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         return ctx.runMutation(component.threads.purgeActorData, {
           actor,
           ...(args.reason !== undefined ? { reason: args.reason } : {}),
@@ -576,7 +712,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; reason?: string; batchSize?: number; delayMs?: number },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         return ctx.runMutation(component.threads.schedulePurgeActorData, {
           actor,
           ...(args.reason !== undefined ? { reason: args.reason } : {}),
@@ -598,7 +734,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; deletionJobId: string },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         return ctx.runMutation(component.threads.cancelScheduledDeletion, {
           actor,
           deletionJobId: args.deletionJobId,
@@ -618,7 +754,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
         ctx: HostMutationRunner & HostQueryRunner,
         args: { actor: HostActorContext; deletionJobId: string },
       ) => {
-        const actor = resolveServerActor(args, serverActor);
+        const actor = resolveHostActor(args.actor, serverActor);
         return ctx.runMutation(component.threads.forceRunScheduledDeletion, {
           actor,
           deletionJobId: args.deletionJobId,
@@ -644,7 +780,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
               return respondApprovalForHooksForActor(
                 ctx,
                 component,
-                withServerActor({ ...args, threadId }, resolveServerActor(args, serverActor)),
+                withResolvedHostActor({ ...args, threadId }, serverActor),
               );
             },
           },
@@ -689,7 +825,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
               upsertPendingServerRequestForHooksForActor(
                 ctx,
                 component,
-                withServerActor(args, resolveServerActor(args, serverActor)),
+                withResolvedHostActor(args, serverActor),
               ),
           },
           resolvePendingServerRequestForHooks: {
@@ -716,7 +852,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
               resolvePendingServerRequestForHooksForActor(
                 ctx,
                 component,
-                withServerActor(args, resolveServerActor(args, serverActor)),
+                withResolvedHostActor(args, serverActor),
               ),
           },
         }
@@ -739,7 +875,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
               return interruptTurnForHooksForActor(
                 ctx,
                 component,
-                withServerActor({ ...args, threadId }, resolveServerActor(args, serverActor)),
+                withResolvedHostActor({ ...args, threadId }, serverActor),
               );
             },
           },
@@ -787,7 +923,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
               upsertTokenUsageForActor(
                 ctx,
                 component,
-                withServerActor(args, resolveServerActor(args, serverActor)),
+                withResolvedHostActor(args, serverActor),
               ),
           },
         }
@@ -817,7 +953,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           dispatchId?: string;
         },
       ) => {
-        const resolvedActor = resolveServerActor(args, serverActor);
+        const resolvedActor = resolveHostActor(args.actor, serverActor);
         await ctx.runMutation(component.turns.start, {
           actor: resolvedActor,
           threadId: args.threadId,
@@ -853,7 +989,7 @@ export function buildPresetMutations(opts: MutationBuilderArgs) {
           reason: string;
         },
       ) => {
-        const resolvedActor = resolveServerActor(args, serverActor);
+        const resolvedActor = resolveHostActor(args.actor, serverActor);
         await ctx.runMutation(component.turns.interrupt, {
           actor: resolvedActor,
           threadId: args.threadId,

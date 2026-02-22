@@ -12,6 +12,12 @@ type ConvexHttpClientLike = {
 };
 
 export type ConvexPersistenceChatApi = {
+  startConversationSyncJob: FunctionReference<"mutation", "public">;
+  appendConversationSyncChunk: FunctionReference<"mutation", "public">;
+  sealConversationSyncJobSource: FunctionReference<"mutation", "public">;
+  cancelConversationSyncJob: FunctionReference<"mutation", "public">;
+  getConversationSyncJob: FunctionReference<"query", "public">;
+  listConversationSyncJobs?: FunctionReference<"query", "public">;
   syncOpenConversationBinding: FunctionReference<"mutation", "public">;
   markConversationSyncProgress: FunctionReference<"mutation", "public">;
   forceRebindConversationSync: FunctionReference<"mutation", "public">;
@@ -35,6 +41,8 @@ export type ConvexPersistenceOptions = {
     finishedStreamDeleteDelayMs?: number;
   };
   onSessionRollover?: (args: { threadId: string; newSessionId: string; errors: Array<{ code: string; message: string }> }) => void;
+  syncJobPollMs?: number;
+  syncJobPollTimeoutMs?: number;
 };
 
 type DispatchQueueEntry = {
@@ -85,6 +93,8 @@ export function createConvexPersistence(
   const dispatchQueues = new Map<string, DispatchQueueEntry[]>();
   const threadHandleByPersistedThreadId = new Map<string, string>();
   const runtimeOpts = options?.runtimeOptions ?? {};
+  const syncJobPollMs = options?.syncJobPollMs ?? 300;
+  const syncJobPollTimeoutMs = options?.syncJobPollTimeoutMs ?? 180_000;
 
   function getDispatchQueue(threadId: string): DispatchQueueEntry[] {
     let queue = dispatchQueues.get(threadId);
@@ -249,6 +259,109 @@ export function createConvexPersistence(
       return { status: initial.status, errors: mapIngestErrors(initial.errors) };
     },
 
+    startConversationSyncJob: async (args) => {
+      const started = await client.mutation(chatApi.startConversationSyncJob, {
+        actor: args.actor,
+        conversationId: args.conversationId,
+        ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
+        ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+        ...(args.sourceChecksum !== undefined ? { sourceChecksum: args.sourceChecksum } : {}),
+        ...(args.expectedMessageCount !== undefined ? { expectedMessageCount: args.expectedMessageCount } : {}),
+        ...(args.expectedMessageIdsJson !== undefined ? { expectedMessageIdsJson: args.expectedMessageIdsJson } : {}),
+      }) as {
+        jobId: string;
+        conversationId: string;
+        threadId: string;
+        state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+        sourceState: "collecting" | "sealed" | "processing";
+        policyVersion: number;
+        startedAt: number;
+        updatedAt: number;
+      };
+      threadHandleByPersistedThreadId.set(started.threadId, args.conversationId);
+      return started;
+    },
+
+    appendConversationSyncChunk: async (args) =>
+      client.mutation(chatApi.appendConversationSyncChunk, {
+        actor: args.actor,
+        jobId: args.jobId,
+        chunkIndex: args.chunkIndex,
+        payloadJson: args.payloadJson,
+        messageCount: args.messageCount,
+        byteSize: args.byteSize,
+      }) as Promise<{ jobId: string; chunkIndex: number; appended: boolean }>,
+
+    sealConversationSyncJobSource: async (args) =>
+      client.mutation(chatApi.sealConversationSyncJobSource, {
+        actor: args.actor,
+        jobId: args.jobId,
+      }) as Promise<{
+        jobId: string;
+        sourceState: "collecting" | "sealed" | "processing";
+        totalChunks: number;
+        scheduled: boolean;
+      }>,
+
+    cancelConversationSyncJob: async (args) =>
+      client.mutation(chatApi.cancelConversationSyncJob, {
+        actor: args.actor,
+        jobId: args.jobId,
+        ...(args.errorCode !== undefined ? { errorCode: args.errorCode } : {}),
+        ...(args.errorMessage !== undefined ? { errorMessage: args.errorMessage } : {}),
+      }) as Promise<{ jobId: string; state: "idle" | "syncing" | "synced" | "failed" | "cancelled"; cancelled: boolean }>,
+
+    getConversationSyncJob: async (args) =>
+      client.query(chatApi.getConversationSyncJob, {
+        actor: args.actor,
+        conversationId: args.conversationId,
+        ...(args.jobId !== undefined ? { jobId: args.jobId } : {}),
+      }) as Promise<{
+        jobId: string;
+        conversationId: string;
+        threadId: string;
+        runtimeConversationId?: string;
+        state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+        sourceState: "collecting" | "sealed" | "processing";
+        policyVersion: number;
+        startedAt: number;
+        updatedAt: number;
+        completedAt?: number;
+        lastCursor: number;
+        processedChunkIndex: number;
+        totalChunks: number;
+        processedMessageCount: number;
+        retryCount: number;
+        lastErrorCode?: string;
+        lastErrorMessage?: string;
+      } | null>,
+
+    waitForConversationSyncJobTerminal: async (args) => {
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < syncJobPollTimeoutMs) {
+        const snapshot = await client.query(chatApi.getConversationSyncJob, {
+          actor: args.actor,
+          conversationId: args.conversationId,
+          jobId: args.jobId,
+        }) as {
+          jobId: string;
+          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          lastCursor: number;
+          processedMessageCount: number;
+          lastErrorCode?: string;
+          lastErrorMessage?: string;
+        } | null;
+        if (!snapshot) {
+          throw new Error(`[E_SYNC_JOB_NOT_FOUND] Sync job not found: ${args.jobId}`);
+        }
+        if (snapshot.state === "synced" || snapshot.state === "failed" || snapshot.state === "cancelled") {
+          return snapshot;
+        }
+        await new Promise((resolve) => setTimeout(resolve, syncJobPollMs));
+      }
+      throw new Error(`[E_SYNC_JOB_TIMEOUT] Sync job ${args.jobId} did not reach terminal state within ${syncJobPollTimeoutMs}ms.`);
+    },
+
     upsertPendingServerRequest: async ({ actor, request }) => {
       const requestedAt = (request as { createdAt?: number }).createdAt;
       await client.mutation(chatApi.upsertPendingServerRequest, {
@@ -277,9 +390,15 @@ export function createConvexPersistence(
     },
 
     listPendingServerRequests: async (args) => {
+      const conversationId = args.threadId
+        ? (threadHandleByPersistedThreadId.get(args.threadId) ?? args.threadId)
+        : null;
+      if (!conversationId) {
+        return [];
+      }
       return client.query(chatApi.listPendingServerRequests, {
         actor: args.actor,
-        ...(args.threadId ? { threadId: args.threadId } : {}),
+        conversationId,
         limit: 100,
       }) as Promise<HostRuntimePersistence["listPendingServerRequests"] extends (...a: never[]) => infer R ? Awaited<R> : never>;
     },

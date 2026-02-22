@@ -33,7 +33,14 @@ function syntheticTurnStatusForEvent(
 export function normalizeInboundEvents(args: {
   streamDeltas: InboundEvent[];
 }): NormalizedInboundEvent[] {
-  const sorted = [...args.streamDeltas].sort((a, b) => a.createdAt - b.createdAt);
+  const sorted = [...args.streamDeltas].sort((a, b) => {
+    const aCursor = a.type === "stream_delta" ? a.cursorStart : undefined;
+    const bCursor = b.type === "stream_delta" ? b.cursorStart : undefined;
+    if (aCursor !== undefined && bCursor !== undefined) {
+      return aCursor - bCursor;
+    }
+    return a.createdAt - b.createdAt;
+  });
 
   return sorted.map((event) => {
     assertKnownPayloadShape(event.kind, event.payloadJson);

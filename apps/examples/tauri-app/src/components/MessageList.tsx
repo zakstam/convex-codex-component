@@ -5,6 +5,7 @@ import { EmptyState } from "./EmptyState";
 type Message = {
   messageId: string;
   turnId: string;
+  orderInTurn: number;
   role: string;
   status: string;
   sourceItemType?: string;
@@ -30,7 +31,15 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-export function MessageList({ messages, status, tokenByTurnId }: Props) {
+function stableDisplayKey(message: Message): string {
+  return `${message.turnId}:${message.messageId}`;
+}
+
+export function MessageList({
+  messages,
+  status,
+  tokenByTurnId,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isLoading = status === "LoadingFirstPage";
 
@@ -75,7 +84,7 @@ export function MessageList({ messages, status, tokenByTurnId }: Props) {
         const isLastAssistant = lastAssistantByTurn.get(message.turnId) === message.messageId;
         const tokens = isLastAssistant ? tokenByTurnId.get(message.turnId) : undefined;
         return (
-          <div key={message.messageId}>
+          <div key={stableDisplayKey(message)}>
             <MessageBubble message={message} />
             {tokens && (
               <div className="msg-tokens">

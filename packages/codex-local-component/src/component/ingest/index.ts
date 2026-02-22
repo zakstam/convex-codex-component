@@ -13,6 +13,7 @@ import {
   flushStreamStats,
   persistLifecycleEventIfMissing,
 } from "./applyStreams.js";
+import { loadStreamStatsByStreamIds } from "../streamStats.js";
 import { applyStreamCheckpoints } from "./checkpoints.js";
 import { patchSessionAfterIngest, schedulePostIngestMaintenance } from "./postIngest.js";
 import { requireThreadForActor } from "../utils.js";
@@ -33,12 +34,17 @@ export async function ingestEvents(
   const thread = await requireThreadForActor(ctx, args.actor, args.threadId);
   const session = await requireBoundSession(ctx, args);
 
-  const streamStats = await ctx.db
-    .query("codex_stream_stats")
-    .withIndex("userScope_threadId", (q) =>
-      q.eq("userScope", userScopeFromActor(args.actor)).eq("threadId", args.threadId),
-    )
-    .take(500);
+  const streamIdsInBatch = Array.from(
+    new Set(
+      deltas
+        .filter((event): event is (typeof deltas)[number] & { type: "stream_delta" } => event.type === "stream_delta")
+        .map((event) => event.streamId),
+    ),
+  );
+  const streamStats = await loadStreamStatsByStreamIds(ctx, {
+    userScope: userScopeFromActor(args.actor),
+    streamIds: streamIdsInBatch,
+  });
 
   const shared = {
     ctx,
@@ -104,15 +110,22 @@ export async function ingestEvents(
     userScope: userScopeFromActor(args.actor),
     threadId: args.threadId,
   });
+  for (const turnId of new Set(deltas.map((event) => event.turnId).filter((turnId): turnId is string => Boolean(turnId)))) {
+    const turn = await cache.getTurnRecord(turnId);
+    if (turn) {
+      cache.setTurnRecord(turnId, turn);
+      collected.knownTurnIds.add(turnId);
+    }
+  }
 
   for (const event of deltas) {
-    await ensureTurnForEvent(turnIngest, event);
+    await ensureTurnForEvent(turnIngest, event, cache);
     collectTurnSignals(turnIngest, event);
     collectApprovalEffects(approvalIngest, event);
     await applyMessageEffectsForEvent(messageIngest, event, cache);
 
     if (event.type === "lifecycle_event") {
-      await persistLifecycleEventIfMissing(streamIngest, event);
+      await persistLifecycleEventIfMissing(streamIngest, event, cache);
       continue;
     }
 
@@ -120,7 +133,7 @@ export async function ingestEvents(
   }
 
   await cache.flushMessagePatches();
-  await finalizeTurns(turnIngest);
+  await finalizeTurns(turnIngest, cache);
   await finalizeApprovals(approvalIngest, cache);
   await flushStreamStats(streamIngest);
   await applyStreamCheckpoints(checkpointIngest);

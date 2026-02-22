@@ -6,6 +6,7 @@ import type { CodexMessagesQuery, CodexThreadReadResult } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
+import type { CodexSyncHydrationSource } from "./syncHydration.js";
 
 export type CodexRuntimeOwnedConversationApi<
   Actor extends Record<string, unknown> = Record<string, unknown>,
@@ -32,6 +33,7 @@ export type CodexProviderApi<Actor extends Record<string, unknown> = Record<stri
 export type CodexProviderProps<Actor extends Record<string, unknown> = Record<string, unknown>> = {
   preset: CodexProviderApi<Actor>;
   actor?: Actor;
+  syncHydrationSource?: CodexSyncHydrationSource;
   initialNumItems?: number;
   stream?: boolean;
   children: ReactNode;
@@ -64,6 +66,7 @@ export function createCodexReactPreset<
 export function CodexProvider<Actor extends Record<string, unknown> = Record<string, unknown>>({
   preset,
   actor,
+  syncHydrationSource,
   initialNumItems = 30,
   stream = true,
   children,
@@ -79,6 +82,9 @@ export function CodexProvider<Actor extends Record<string, unknown> = Record<str
       ...(preset.listTokenUsage !== undefined
         ? { listTokenUsage: preset.listTokenUsage }
         : {}),
+      ...(syncHydrationSource !== undefined
+        ? { syncHydrationSource }
+        : {}),
       defaultInitialNumItems: initialNumItems,
       defaultStream: stream,
     }),
@@ -88,6 +94,7 @@ export function CodexProvider<Actor extends Record<string, unknown> = Record<str
       preset.threadSnapshot,
       preset.listPendingServerRequests,
       preset.listTokenUsage,
+      syncHydrationSource,
       initialNumItems,
       stream,
     ],

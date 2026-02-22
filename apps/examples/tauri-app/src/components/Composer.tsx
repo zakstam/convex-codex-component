@@ -7,10 +7,28 @@ type Props = {
   onInsertToolPrompt?: () => void;
   disabled: boolean;
   sending?: boolean;
+  syncProgressLabel?: string;
+  syncProgressState?: "idle" | "syncing" | "synced" | "partial" | "drifted" | "cancelled" | "failed" | null;
 };
 
-export function Composer({ value, onChange, onSubmit, onInsertToolPrompt, disabled, sending }: Props) {
+export function Composer({
+  value,
+  onChange,
+  onSubmit,
+  onInsertToolPrompt,
+  disabled,
+  sending,
+  syncProgressLabel,
+  syncProgressState,
+}: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const syncSuffix = syncProgressState === "syncing"
+    ? "syncing"
+    : syncProgressState === "partial"
+      ? "partial"
+      : syncProgressState === "failed" || syncProgressState === "drifted" || syncProgressState === "cancelled"
+        ? "failed"
+        : null;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -45,6 +63,16 @@ export function Composer({ value, onChange, onSubmit, onInsertToolPrompt, disabl
           Snapshot
         </button>
       </div>
+      {syncProgressLabel && (
+        <div
+          className={`composer-sync-badge ${syncSuffix ?? "synced"}`}
+          aria-live="polite"
+          aria-label="Conversation sync progress"
+        >
+          {syncProgressLabel}
+          {syncSuffix ? ` • ${syncSuffix}` : ""}
+        </div>
+      )}
       <div className="composer-input-wrap">
         <textarea
           ref={textareaRef}

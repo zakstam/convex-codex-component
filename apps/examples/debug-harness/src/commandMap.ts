@@ -2,7 +2,8 @@ import type { HelperCommand, StartPayload } from "@zakstam/codex-local-component
 
 export type ParsedCommand =
   | { kind: "helper"; helper: HelperCommand }
-  | { kind: "local"; action: "help" | "exit" | "timeline" | "raw" | "save-trace" };
+  | { kind: "local"; action: "help" | "exit" | "timeline" | "raw" | "save-trace" }
+  | { kind: "local"; action: "replay-artifact"; path: string };
 
 function parseJsonOrThrow(value: string): unknown {
   try {
@@ -30,6 +31,13 @@ export function parseCommand(input: string, defaults: {
   if (head === "timeline") return { kind: "local", action: "timeline" };
   if (head === "raw") return { kind: "local", action: "raw" };
   if (head === "save-trace") return { kind: "local", action: "save-trace" };
+  if (head === "replay-artifact") {
+    const path = rest.join(" ").trim();
+    if (!path) {
+      throw new Error("replay-artifact <path>");
+    }
+    return { kind: "local", action: "replay-artifact", path };
+  }
 
   if (head === "start") {
     const payload: StartPayload = {

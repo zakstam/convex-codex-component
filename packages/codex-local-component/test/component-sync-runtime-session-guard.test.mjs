@@ -17,6 +17,7 @@ function createDbQueryStub(tableResult) {
   return {
     query: () => ({
       withIndex: () => ({
+        first: async () => tableResult,
         filter: () => ({
           first: async () => tableResult,
         }),

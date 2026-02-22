@@ -1,0 +1,165 @@
+/* ── 18. Approval Cards ────────────────────────────────────── */
+
+.approval {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 10px;
+  background: var(--bg-inset);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s var(--transition);
+  animation: msgSlideIn 0.3s var(--transition) both;
+}
+
+.approval:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.approval.urgency-high {
+  border-left: 3px solid var(--danger);
+  animation: msgSlideIn 0.3s var(--transition) both, approvalPulseHigh 3s ease-in-out infinite;
+}
+
+.approval.urgency-medium {
+  border-left: 3px solid var(--warning);
+}
+
+.approval.urgency-low {
+  border-left: 3px solid var(--secondary);
+}
+
+@keyframes approvalPulseHigh {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 20px rgba(248, 113, 113, 0.08); }
+}
+
+.approval-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.urgency-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.urgency-badge.high {
+  background: var(--danger-glow);
+  color: var(--danger);
+}
+
+.urgency-badge.medium {
+  background: rgba(251, 146, 60, 0.12);
+  color: var(--warning);
+}
+
+.urgency-badge.low {
+  background: var(--secondary-glow);
+  color: var(--secondary);
+}
+
+.approval-reason {
+  margin: 6px 0;
+  font-size: 0.84rem;
+  color: var(--ink);
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border);
+}
+
+.approval-meta {
+  margin: 4px 0;
+}
+
+.approval .controls {
+  margin-top: 10px;
+}
+
+/* ── 19. Tool Questions ────────────────────────────────────── */
+
+.tool-questions {
+  margin-top: 10px;
+}
+
+.tool-question {
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+}
+
+.tool-question-header {
+  margin: 0 0 4px;
+  font-size: 0.84rem;
+}
+
+.tool-policy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-policy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-policy-name {
+  margin-left: 4px;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--ink-soft);
+}
+
+.tool-question select,
+.tool-question input {
+  margin-top: 8px;
+}
+
+/* ── Inline Approval (chat flow) ─────────────────────────── */
+
+.inline-approval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px 12px;
+  animation: msgSlideIn 0.3s var(--transition) both;
+}
+
+.inline-approval-list:empty {
+  display: none;
+}
+
+.inline-approval-list .approval {
+  margin-bottom: 0;
+}
+
+.urgency-icon {
+  margin-right: 4px;
+  font-size: 0.7rem;
+}
+
+.inline-cancel-link {
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.inline-cancel-link:hover:not(:disabled) {
+  opacity: 1;
+}

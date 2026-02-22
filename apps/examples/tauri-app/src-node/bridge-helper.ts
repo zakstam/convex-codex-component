@@ -7,6 +7,7 @@ import {
 } from "@zakstam/codex-local-component/host";
 import {
   HELPER_ACK_BY_TYPE,
+  parseThreadReadSnapshotMessages,
   parseHelperCommand,
   type ActorContext,
   type HelperCommand,
@@ -73,12 +74,39 @@ function requireDefined<T>(value: T | undefined, name: string): T {
 }
 
 const chatApi = requireDefined(api.chat, "api.chat");
+const persistenceChatApi: ConvexPersistenceChatApi = {
+  startConversationSyncJob: requireDefined(chatApi.startConversationSyncJob, "api.chat.startConversationSyncJob"),
+  appendConversationSyncChunk: requireDefined(chatApi.appendConversationSyncChunk, "api.chat.appendConversationSyncChunk"),
+  sealConversationSyncJobSource: requireDefined(chatApi.sealConversationSyncJobSource, "api.chat.sealConversationSyncJobSource"),
+  cancelConversationSyncJob: requireDefined(chatApi.cancelConversationSyncJob, "api.chat.cancelConversationSyncJob"),
+  getConversationSyncJob: requireDefined(chatApi.getConversationSyncJob, "api.chat.getConversationSyncJob"),
+  listConversationSyncJobs: requireDefined(chatApi.listConversationSyncJobs, "api.chat.listConversationSyncJobs"),
+  syncOpenConversationBinding: requireDefined(chatApi.syncOpenConversationBinding, "api.chat.syncOpenConversationBinding"),
+  markConversationSyncProgress: requireDefined(chatApi.markConversationSyncProgress, "api.chat.markConversationSyncProgress"),
+  forceRebindConversationSync: requireDefined(chatApi.forceRebindConversationSync, "api.chat.forceRebindConversationSync"),
+  ensureSession: requireDefined(chatApi.ensureSession, "api.chat.ensureSession"),
+  ingestBatch: requireDefined(chatApi.ingestBatch, "api.chat.ingestBatch"),
+  upsertPendingServerRequest: requireDefined(chatApi.upsertPendingServerRequest, "api.chat.upsertPendingServerRequest"),
+  resolvePendingServerRequest: requireDefined(chatApi.resolvePendingServerRequest, "api.chat.resolvePendingServerRequest"),
+  listPendingServerRequests: requireDefined(chatApi.listPendingServerRequestsByConversation, "api.chat.listPendingServerRequestsByConversation"),
+  acceptTurnSend: requireDefined(chatApi.acceptTurnSend, "api.chat.acceptTurnSend"),
+  failAcceptedTurnSend: requireDefined(chatApi.failAcceptedTurnSend, "api.chat.failAcceptedTurnSend"),
+  upsertTokenUsage: requireDefined(chatApi.upsertTokenUsage, "api.chat.upsertTokenUsage"),
+};
 
 function randomSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function parseEnvFlag(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
 function emit(event: HelperEvent): void {
@@ -164,6 +192,27 @@ let bridgeState: {
 };
 
 let latestStartPayload: StartPayload | null = null;
+const SYNC_JOB_POLICY_VERSION = 3;
+const SYNC_DEBUG_ENABLED = parseEnvFlag(process.env.CODEX_SYNC_DEBUG);
+
+function syncDebug(message: string, data?: Record<string, unknown>): void {
+  if (!SYNC_DEBUG_ENABLED) {
+    return;
+  }
+  const payload = {
+    at: Date.now(),
+    message,
+    ...(data ? { data } : {}),
+  };
+  process.stderr.write(`[sync-debug] ${JSON.stringify(payload)}\n`);
+  emit({
+    type: "global",
+    payload: {
+      kind: "bridge/sync_debug",
+      ...payload,
+    },
+  });
+}
 
 const DYNAMIC_TOOLS: DynamicToolSpec[] = [
   {
@@ -388,16 +437,12 @@ async function runtimeHasLocalRolloutThreadHandle(conversationId: string): Promi
   let cursor: string | null = null;
   while (true) {
     const response = await runtime.listThreads(cursor ? { cursor } : undefined);
-    const root = asRecord(response);
-    const result = asRecord(root?.result);
-    const data = Array.isArray(result?.data) ? result.data : [];
-    for (const row of data) {
-      const thread = asRecord(row);
-      if (typeof thread?.id === "string" && thread.id === conversationId) {
+    for (const thread of response.data) {
+      if (thread.threadId === conversationId) {
         return true;
       }
     }
-    const nextCursor = typeof result?.nextCursor === "string" ? result.nextCursor : null;
+    const nextCursor = response.nextCursor;
     if (!nextCursor) {
       break;
     }
@@ -517,39 +562,21 @@ async function emitLoadedRuntimeThreadsSnapshot(source: "start" | "refresh_local
   if (!runtime) {
     return;
   }
-  const untitledPreview = "Untitled thread";
   const threadIds: string[] = [];
-  const threads: Array<{ threadId: string; preview: string }> = [];
-  const seen = new Set<string>();
-  let cursor: string | null = null;
-
-  while (true) {
-    const response = await runtime.listThreads(cursor ? { cursor } : undefined);
-    const root = asRecord(response);
-    const result = asRecord(root?.result);
-    const data = Array.isArray(result?.data) ? result.data : [];
-    for (const row of data) {
-      const thread = asRecord(row);
-      const id = typeof thread?.id === "string" ? thread.id : null;
-      if (!id) {
-        continue;
-      }
-      if (seen.has(id)) {
-        continue;
-      }
-      seen.add(id);
-      threadIds.push(id);
-      const previewRaw = typeof thread?.preview === "string" ? thread.preview.trim() : "";
-      threads.push({
-        threadId: id,
-        preview: previewRaw.length > 0 ? previewRaw : untitledPreview,
-      });
-    }
-    const nextCursor = result?.nextCursor;
-    if (typeof nextCursor !== "string" || nextCursor.length === 0) {
-      break;
-    }
-    cursor = nextCursor;
+  const threads: Array<{ threadId: string; preview: string; messageCount: number }> = [];
+  const response = await runtime.listThreads({
+    limit: 30,
+    sortKey: "created_at",
+    archived: false,
+  });
+  for (const thread of response.data) {
+    const id = thread.threadId;
+    threadIds.push(id);
+    threads.push({
+      threadId: id,
+      preview: thread.preview,
+      messageCount: thread.messageCount,
+    });
   }
 
   emit({
@@ -606,7 +633,7 @@ async function startBridge(payload: StartPayload): Promise<void> {
     },
     persistence: createConvexPersistence(
       convex,
-      chatApi as unknown as ConvexPersistenceChatApi,
+      persistenceChatApi,
       {
         runtimeOptions: startRuntimeOptions,
         onSessionRollover: ({ threadId, errors }) => {
@@ -801,11 +828,104 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
     ...(payload.dynamicTools ? { dynamicTools: payload.dynamicTools } : {}),
   });
   if (resolvedUnboundTarget) {
+    syncDebug("open_thread_unbound_target_detected", {
+      conversationId: resolvedUnboundTarget.conversationHandle,
+      runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+      strategy: payload.strategy,
+    });
+    let localMessages: ReturnType<typeof parseThreadReadSnapshotMessages> = [];
     try {
-      await runtime.importLocalThreadToPersistence({
+      const localSnapshot = await runtime.readThread(
+        resolvedUnboundTarget.runtimeThreadHandle,
+        true,
+      );
+      localMessages = parseThreadReadSnapshotMessages(localSnapshot);
+      syncDebug("local_snapshot_loaded", {
+        conversationId: resolvedUnboundTarget.conversationHandle,
+        runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+        localMessageCount: localMessages.length,
+      });
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/sync_hydration_snapshot",
+          conversationId: resolvedUnboundTarget.conversationHandle,
+          syncState: "syncing",
+          syncJobState: "syncing",
+          updatedAtMs: Date.now(),
+          messages: localMessages,
+          syncJobPolicyVersion: SYNC_JOB_POLICY_VERSION,
+        },
+      });
+      const importResult = await runtime.importLocalThreadToPersistence({
         runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
         conversationId: resolvedUnboundTarget.conversationHandle,
       });
+      syncDebug("import_local_thread_completed", {
+        conversationId: resolvedUnboundTarget.conversationHandle,
+        runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+        syncJobId: importResult.syncJobId,
+        syncJobState: importResult.syncJobState,
+        syncState: importResult.syncState,
+        importedMessageCount: importResult.importedMessageCount,
+        importedTurnCount: importResult.importedTurnCount,
+        lastCursor: importResult.lastCursor,
+        warningCount: importResult.warnings.length,
+        errorCode: importResult.errorCode ?? null,
+      });
+      const importTerminalState = importResult.syncState === "synced" ? "synced" : "failed";
+      const importUpdatedAtMs = Date.now();
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/sync_hydration_state",
+          conversationId: resolvedUnboundTarget.conversationHandle,
+          syncState: importTerminalState,
+          syncJobState: importResult.syncJobState,
+          updatedAtMs: importUpdatedAtMs,
+          syncJobId: importResult.syncJobId,
+          syncJobPolicyVersion: importResult.syncJobPolicyVersion,
+          lastCursor: importResult.lastCursor,
+          ...(importResult.errorCode ? { errorCode: importResult.errorCode } : {}),
+        },
+      });
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/sync_hydration_snapshot",
+          conversationId: resolvedUnboundTarget.conversationHandle,
+          syncState: importTerminalState,
+          syncJobState: importResult.syncJobState,
+          updatedAtMs: importUpdatedAtMs,
+          syncJobId: importResult.syncJobId,
+          syncJobPolicyVersion: importResult.syncJobPolicyVersion,
+          lastCursor: importResult.lastCursor,
+          messages: importTerminalState === "synced" ? [] : localMessages,
+          ...(importResult.errorCode ? { errorCode: importResult.errorCode } : {}),
+        },
+      });
+      if (importTerminalState !== "synced") {
+        syncDebug("import_terminal_not_synced", {
+          conversationId: resolvedUnboundTarget.conversationHandle,
+          runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+          syncJobId: importResult.syncJobId,
+          syncJobState: importResult.syncJobState,
+          syncState: importResult.syncState,
+          warningCount: importResult.warnings.length,
+          warnings: importResult.warnings,
+          errorCode: importResult.errorCode ?? null,
+        });
+        emit({
+          type: "global",
+          payload: {
+            kind: "bridge/local_thread_sync_failed",
+            conversationId: resolvedUnboundTarget.conversationHandle,
+            runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+            message: "Local thread import ended in a non-synced terminal state.",
+          },
+        });
+        throw new Error("[E_SYNC_HYDRATION_PARTIAL_IMPORT] Local thread import did not reach synced state.");
+      }
       emit({
         type: "global",
         payload: {
@@ -816,6 +936,39 @@ async function openThread(payload: OpenThreadPayload): Promise<void> {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      syncDebug("import_local_thread_failed", {
+        conversationId: resolvedUnboundTarget.conversationHandle,
+        runtimeThreadHandle: resolvedUnboundTarget.runtimeThreadHandle,
+        error: message,
+      });
+      const failedAtMs = Date.now();
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/sync_hydration_state",
+          conversationId: resolvedUnboundTarget.conversationHandle,
+          syncState: "failed",
+          syncJobState: "failed",
+          updatedAtMs: failedAtMs,
+          syncJobId: `failed-${randomSessionId()}`,
+          syncJobPolicyVersion: SYNC_JOB_POLICY_VERSION,
+          errorCode: "E_SYNC_HYDRATION_IMPORT_FAILED",
+        },
+      });
+      emit({
+        type: "global",
+        payload: {
+          kind: "bridge/sync_hydration_snapshot",
+          conversationId: resolvedUnboundTarget.conversationHandle,
+          syncState: "failed",
+          syncJobState: "failed",
+          updatedAtMs: failedAtMs,
+          syncJobId: `failed-${randomSessionId()}`,
+          syncJobPolicyVersion: SYNC_JOB_POLICY_VERSION,
+          messages: localMessages,
+          errorCode: "E_SYNC_HYDRATION_IMPORT_FAILED",
+        },
+      });
       emit({
         type: "global",
         payload: {
@@ -837,6 +990,23 @@ async function refreshLocalThreads(): Promise<void> {
 async function sendTurn(text: string): Promise<void> {
   if (!runtime) {
     throw new Error("Bridge/runtime not ready. Start runtime first.");
+  }
+  const selectedConversationId = bridgeState.conversationId;
+  if (selectedConversationId && convex && actor) {
+    const activeJob = await convex.query(
+      requireDefined(chatApi.getConversationSyncJob, "api.chat.getConversationSyncJob"),
+      { actor, conversationId: selectedConversationId },
+    ) as { jobId: string; state: "idle" | "syncing" | "synced" | "failed" | "cancelled" } | null;
+    syncDebug("send_turn_sync_gate_check", {
+      conversationId: selectedConversationId,
+      activeJobId: activeJob?.jobId ?? null,
+      activeJobState: activeJob?.state ?? null,
+    });
+    if (activeJob?.state === "syncing") {
+      throw new Error(
+        `[E_SYNC_SEND_BLOCKED] Conversation sync is running (jobId=${activeJob.jobId}). Wait for sync completion before sending.`,
+      );
+    }
   }
   await runtime.sendTurn(text);
 }
@@ -928,6 +1098,32 @@ async function respondChatgptAuthTokensRefresh(args: {
 
 async function stopCurrentBridge(): Promise<void> {
   try {
+    if (convex && actor && bridgeState.conversationId) {
+      const latestJob = await convex.query(
+        requireDefined(chatApi.getConversationSyncJob, "api.chat.getConversationSyncJob"),
+        {
+          actor,
+          conversationId: bridgeState.conversationId,
+        },
+      ) as { jobId: string; state: "idle" | "syncing" | "synced" | "failed" | "cancelled"; sourceState: "collecting" | "sealed" | "processing" } | null;
+      if (latestJob && latestJob.state === "syncing" && latestJob.sourceState === "collecting") {
+        syncDebug("bridge_stop_cancelling_collecting_job", {
+          conversationId: bridgeState.conversationId,
+          jobId: latestJob.jobId,
+          jobState: latestJob.state,
+          sourceState: latestJob.sourceState,
+        });
+        await convex.mutation(
+          requireDefined(chatApi.cancelConversationSyncJob, "api.chat.cancelConversationSyncJob"),
+          {
+            actor,
+            jobId: latestJob.jobId,
+            errorCode: "E_SYNC_JOB_CANCELLED_BRIDGE_STOPPED",
+            errorMessage: "Bridge stopped while source collection was in progress.",
+          },
+        );
+      }
+    }
     if (runtime) {
       await runtime.stop();
     }

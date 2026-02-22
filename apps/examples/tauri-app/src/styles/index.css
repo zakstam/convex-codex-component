@@ -1,0 +1,39 @@
+/* ═══════════════════════════════════════════════════════════
+   Codex Local Desktop — Obsidian Console Design System
+   Barrel file: imports all modular CSS in correct cascade order
+   ═══════════════════════════════════════════════════════════ */
+
+/* Foundation: tokens must come first so variables are available */
+@import "./tokens.css";
+
+/* Reset: normalize browser defaults */
+@import "./reset.css";
+
+/* Structural layout */
+@import "./layout.css";
+
+/* Typography utilities */
+@import "./typography.css";
+
+/* Base element styles */
+@import "./buttons.css";
+@import "./inputs.css";
+
+/* Component styles */
+@import "./header.css";
+@import "./messages.css";
+@import "./status.css";
+@import "./bridge-status.css";
+@import "./composer.css";
+@import "./thread-sidebar.css";
+@import "./approval.css";
+@import "./auth.css";
+@import "./modal.css";
+@import "./toast.css";
+@import "./token-usage.css";
+@import "./misc.css";
+@import "./settings-section.css";
+@import "./settings-drawer.css";
+
+/* Responsive overrides must come last */
+@import "./responsive.css";

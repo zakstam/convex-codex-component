@@ -19,12 +19,8 @@ export async function requireThreadForActor(
   const userScope = userScopeFromActor(actor);
   const thread = await ctx.db
     .query("codex_threads")
-    .withIndex("userScope_threadId")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userScope"), userScope),
-        q.eq(q.field("threadId"), threadId),
-      ),
+    .withIndex("userScope_threadId", (q) =>
+      q.eq("userScope", userScope).eq("threadId", threadId),
     )
     .first();
 
@@ -52,13 +48,8 @@ export async function requireTurnForActor(
   const userScope = userScopeFromActor(actor);
   const turn = await ctx.db
     .query("codex_turns")
-    .withIndex("userScope_threadId_turnId")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userScope"), userScope),
-        q.eq(q.field("threadId"), threadId),
-        q.eq(q.field("turnId"), turnId),
-      ),
+    .withIndex("userScope_threadId_turnId", (q) =>
+      q.eq("userScope", userScope).eq("threadId", threadId).eq("turnId", turnId),
     )
     .first();
 
@@ -86,12 +77,8 @@ export async function requireStreamForActor(
   const userScope = userScopeFromActor(actor);
   const stream = await ctx.db
     .query("codex_streams")
-    .withIndex("userScope_streamId")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("userScope"), userScope),
-        q.eq(q.field("streamId"), streamId),
-      ),
+    .withIndex("userScope_streamId", (q) =>
+      q.eq("userScope", userScope).eq("streamId", streamId),
     )
     .first();
 

@@ -182,6 +182,17 @@ type CodexThreadsSyncBindingComponent = {
   };
 };
 
+type CodexThreadsSyncJobComponent = {
+  threads: {
+    startConversationSyncJob?: FunctionReference<"mutation", "public" | "internal">;
+    appendConversationSyncChunk?: FunctionReference<"mutation", "public" | "internal">;
+    sealConversationSyncJobSource?: FunctionReference<"mutation", "public" | "internal">;
+    cancelConversationSyncJob?: FunctionReference<"mutation", "public" | "internal">;
+    getConversationSyncJob?: FunctionReference<"query", "public" | "internal">;
+    listConversationSyncJobs?: FunctionReference<"query", "public" | "internal">;
+  };
+};
+
 type CodexThreadsResolveByConversationComponent = {
   threads: {
     resolveByConversationId?: FunctionReference<
@@ -296,6 +307,7 @@ export type CodexHostComponentRefs =
   & CodexThreadsCreateComponent
   & CodexThreadsResolveComponent
   & CodexThreadsSyncBindingComponent
+  & CodexThreadsSyncJobComponent
   & CodexThreadsResolveByConversationComponent
   & CodexThreadsConversationComponent
   & CodexThreadsDeletionComponent
@@ -344,6 +356,13 @@ type MarkThreadSyncProgressArgs = {
   cursor: number;
   syncState?: "unsynced" | "syncing" | "synced" | "drifted";
   errorCode?: string;
+  syncJobId?: string;
+  expectedSyncJobId?: string;
+  syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  syncJobPolicyVersion?: number;
+  syncJobStartedAt?: number;
+  syncJobUpdatedAt?: number;
+  syncJobErrorCode?: string;
 };
 
 type ForceRebindThreadSyncArgs = {
@@ -351,6 +370,49 @@ type ForceRebindThreadSyncArgs = {
   conversationId: string;
   runtimeConversationId: string;
   reasonCode?: string;
+};
+
+type StartConversationSyncJobArgs = {
+  actor: HostActorContext;
+  conversationId: string;
+  runtimeConversationId?: string;
+  threadId?: string;
+  sourceChecksum?: string;
+  expectedMessageCount?: number;
+  expectedMessageIdsJson?: string;
+};
+
+type AppendConversationSyncChunkArgs = {
+  actor: HostActorContext;
+  jobId: string;
+  chunkIndex: number;
+  payloadJson: string;
+  messageCount: number;
+  byteSize: number;
+};
+
+type SealConversationSyncJobSourceArgs = {
+  actor: HostActorContext;
+  jobId: string;
+};
+
+type CancelConversationSyncJobArgs = {
+  actor: HostActorContext;
+  jobId: string;
+  errorCode?: string;
+  errorMessage?: string;
+};
+
+type GetConversationSyncJobArgs = {
+  actor: HostActorContext;
+  conversationId: string;
+  jobId?: string;
+};
+
+type ListConversationSyncJobsArgs = {
+  actor: HostActorContext;
+  conversationId: string;
+  limit?: number;
 };
 
 type EnsureSessionArgs = {
@@ -618,6 +680,14 @@ export async function markConversationSyncProgressForActor<
   runtimeConversationId?: string;
   syncState: "unsynced" | "syncing" | "synced" | "drifted";
   lastSyncedCursor: number;
+  syncJobId?: string;
+  syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  syncJobPolicyVersion?: number;
+  syncJobStartedAt?: number;
+  syncJobUpdatedAt?: number;
+  syncJobLastCursor?: number;
+  syncJobErrorCode?: string;
+  staleIgnored: boolean;
 }> {
   if (!component.threads.markSyncProgress) {
     const resolved = await ctx.runMutation(component.threads.resolve, {
@@ -637,6 +707,14 @@ export async function markConversationSyncProgressForActor<
       ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
       syncState: args.syncState === undefined ? "synced" : args.syncState,
       lastSyncedCursor: args.cursor,
+      ...(args.syncJobId !== undefined ? { syncJobId: args.syncJobId } : {}),
+      ...(args.syncJobState !== undefined ? { syncJobState: args.syncJobState } : {}),
+      ...(args.syncJobPolicyVersion !== undefined ? { syncJobPolicyVersion: args.syncJobPolicyVersion } : {}),
+      ...(args.syncJobStartedAt !== undefined ? { syncJobStartedAt: args.syncJobStartedAt } : {}),
+      ...(args.syncJobUpdatedAt !== undefined ? { syncJobUpdatedAt: args.syncJobUpdatedAt } : {}),
+      syncJobLastCursor: args.cursor,
+      ...(args.syncJobErrorCode !== undefined ? { syncJobErrorCode: args.syncJobErrorCode } : {}),
+      staleIgnored: false,
     };
   }
   return ctx.runMutation(component.threads.markSyncProgress, {
@@ -647,6 +725,13 @@ export async function markConversationSyncProgressForActor<
     cursor: args.cursor,
     ...(args.syncState !== undefined ? { syncState: args.syncState } : {}),
     ...(args.errorCode !== undefined ? { errorCode: args.errorCode } : {}),
+    ...(args.syncJobId !== undefined ? { syncJobId: args.syncJobId } : {}),
+    ...(args.expectedSyncJobId !== undefined ? { expectedSyncJobId: args.expectedSyncJobId } : {}),
+    ...(args.syncJobState !== undefined ? { syncJobState: args.syncJobState } : {}),
+    ...(args.syncJobPolicyVersion !== undefined ? { syncJobPolicyVersion: args.syncJobPolicyVersion } : {}),
+    ...(args.syncJobStartedAt !== undefined ? { syncJobStartedAt: args.syncJobStartedAt } : {}),
+    ...(args.syncJobUpdatedAt !== undefined ? { syncJobUpdatedAt: args.syncJobUpdatedAt } : {}),
+    ...(args.syncJobErrorCode !== undefined ? { syncJobErrorCode: args.syncJobErrorCode } : {}),
   });
 }
 
@@ -688,6 +773,167 @@ export async function forceRebindConversationSyncForActor<
     conversationId: args.conversationId,
     runtimeConversationId: args.runtimeConversationId,
     ...(args.reasonCode !== undefined ? { reasonCode: args.reasonCode } : {}),
+  });
+}
+
+export async function startConversationSyncJobForActor<
+  Component extends CodexThreadsSyncJobComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: StartConversationSyncJobArgs,
+): Promise<{
+  jobId: string;
+  conversationId: string;
+  threadId: string;
+  state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  sourceState: "collecting" | "sealed" | "processing";
+  policyVersion: number;
+  startedAt: number;
+  updatedAt: number;
+}> {
+  if (!component.threads.startConversationSyncJob) {
+    throw new Error("Host component is missing threads.startConversationSyncJob.");
+  }
+  return ctx.runMutation(component.threads.startConversationSyncJob, {
+    actor: args.actor,
+    conversationId: args.conversationId,
+    ...(args.runtimeConversationId !== undefined ? { runtimeConversationId: args.runtimeConversationId } : {}),
+    ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+    ...(args.sourceChecksum !== undefined ? { sourceChecksum: args.sourceChecksum } : {}),
+    ...(args.expectedMessageCount !== undefined ? { expectedMessageCount: args.expectedMessageCount } : {}),
+    ...(args.expectedMessageIdsJson !== undefined ? { expectedMessageIdsJson: args.expectedMessageIdsJson } : {}),
+  });
+}
+
+export async function appendConversationSyncChunkForActor<
+  Component extends CodexThreadsSyncJobComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: AppendConversationSyncChunkArgs,
+): Promise<{
+  jobId: string;
+  chunkIndex: number;
+  appended: boolean;
+}> {
+  if (!component.threads.appendConversationSyncChunk) {
+    throw new Error("Host component is missing threads.appendConversationSyncChunk.");
+  }
+  return ctx.runMutation(component.threads.appendConversationSyncChunk, {
+    actor: args.actor,
+    jobId: args.jobId,
+    chunkIndex: args.chunkIndex,
+    payloadJson: args.payloadJson,
+    messageCount: args.messageCount,
+    byteSize: args.byteSize,
+  });
+}
+
+export async function sealConversationSyncJobSourceForActor<
+  Component extends CodexThreadsSyncJobComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: SealConversationSyncJobSourceArgs,
+): Promise<{
+  jobId: string;
+  sourceState: "collecting" | "sealed" | "processing";
+  totalChunks: number;
+  scheduled: boolean;
+}> {
+  if (!component.threads.sealConversationSyncJobSource) {
+    throw new Error("Host component is missing threads.sealConversationSyncJobSource.");
+  }
+  return ctx.runMutation(component.threads.sealConversationSyncJobSource, {
+    actor: args.actor,
+    jobId: args.jobId,
+  });
+}
+
+export async function cancelConversationSyncJobForActor<
+  Component extends CodexThreadsSyncJobComponent,
+>(
+  ctx: HostMutationRunner,
+  component: Component,
+  args: CancelConversationSyncJobArgs,
+): Promise<{
+  jobId: string;
+  state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  cancelled: boolean;
+}> {
+  if (!component.threads.cancelConversationSyncJob) {
+    throw new Error("Host component is missing threads.cancelConversationSyncJob.");
+  }
+  return ctx.runMutation(component.threads.cancelConversationSyncJob, {
+    actor: args.actor,
+    jobId: args.jobId,
+    ...(args.errorCode !== undefined ? { errorCode: args.errorCode } : {}),
+    ...(args.errorMessage !== undefined ? { errorMessage: args.errorMessage } : {}),
+  });
+}
+
+export async function getConversationSyncJobForActor<
+  Component extends CodexThreadsSyncJobComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: GetConversationSyncJobArgs,
+): Promise<{
+  jobId: string;
+  conversationId: string;
+  threadId: string;
+  runtimeConversationId?: string;
+  state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  sourceState: "collecting" | "sealed" | "processing";
+  policyVersion: number;
+  startedAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  lastCursor: number;
+  processedChunkIndex: number;
+  totalChunks: number;
+  processedMessageCount: number;
+  retryCount: number;
+  lastErrorCode?: string;
+  lastErrorMessage?: string;
+} | null> {
+  if (!component.threads.getConversationSyncJob) {
+    throw new Error("Host component is missing threads.getConversationSyncJob.");
+  }
+  return ctx.runQuery(component.threads.getConversationSyncJob, {
+    actor: args.actor,
+    conversationId: args.conversationId,
+    ...(args.jobId !== undefined ? { jobId: args.jobId } : {}),
+  });
+}
+
+export async function listConversationSyncJobsForActor<
+  Component extends CodexThreadsSyncJobComponent,
+>(
+  ctx: HostQueryRunner,
+  component: Component,
+  args: ListConversationSyncJobsArgs,
+): Promise<Array<{
+  jobId: string;
+  state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+  sourceState: "collecting" | "sealed" | "processing";
+  startedAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  retryCount: number;
+  processedMessageCount: number;
+  totalChunks: number;
+  processedChunkIndex: number;
+  lastErrorCode?: string;
+}>> {
+  if (!component.threads.listConversationSyncJobs) {
+    throw new Error("Host component is missing threads.listConversationSyncJobs.");
+  }
+  return ctx.runQuery(component.threads.listConversationSyncJobs, {
+    actor: args.actor,
+    conversationId: args.conversationId,
+    ...(args.limit !== undefined ? { limit: args.limit } : {}),
   });
 }
 

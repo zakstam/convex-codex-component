@@ -55,13 +55,23 @@ export function isToolRequestUserInputQuestion(value: unknown): value is ToolReq
   if (!question) {
     return false;
   }
+  const options = question.options;
+  const optionsValid =
+    options === null ||
+    (Array.isArray(options) &&
+      options.every((option) => {
+        const optionObj = asObject(option);
+        return optionObj !== null &&
+          typeof optionObj.label === "string" &&
+          typeof optionObj.description === "string";
+      }));
   return (
     typeof question.id === "string" &&
     typeof question.header === "string" &&
     typeof question.question === "string" &&
     typeof question.isOther === "boolean" &&
     typeof question.isSecret === "boolean" &&
-    (question.options === null || Array.isArray(question.options))
+    optionsValid
   );
 }
 

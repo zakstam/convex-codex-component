@@ -31,6 +31,9 @@ Use this path in order:
 | `createCodexOptimisticUpdate` | `function` | Compose optimistic operations into one update callback. |
 | `codexOptimisticOps` | `object` | Generic optimistic operations: `insert`, `replace`, `remove`, `set`, `custom`. |
 | `codexOptimisticPresets` | `object` | Codex presets for optimistic message send and deletion-status updates. |
+| `CodexSyncHydrationSource` | `type` | Optional provider source for local unsynced message hydration overlays. |
+| `CodexSyncHydrationSnapshot` | `type` | Conversation-scoped local snapshot (`messages`, `syncState`, `updatedAtMs`). |
+| `CodexConversationSyncProgress` | `type` | Conversation-level sync summary (`syncedCount`, `totalCount`, `syncState`, `label`). |
 
 ## `@zakstam/codex-local-component/host`
 
@@ -69,6 +72,7 @@ Use this path in order:
 - `defineCodexHostDefinitions` is the canonical host-definition entrypoint.
 - `createCodexHost` and wrapper-based host facade APIs are removed.
 - Authentication is consumer-managed at app boundaries.
+- Host definitions preserve consumer actor identity: request `actor.userId` is passed through when present; anonymous calls use the configured host fallback actor (runtime-owned default `{}`).
 - Canonical bridge lifecycle contract is push + snapshot:
   - runtime: `subscribeLifecycle(listener)` + `getLifecycleState()`
   - Tauri client: `bridge.lifecycle.subscribe(listener)` + `bridge.lifecycle.getState()`
@@ -77,6 +81,7 @@ Use this path in order:
   - `connect(...)`: transport/session only
   - `openThread({ strategy, conversationId? })`: explicit conversation start/resume/fork
   - `importLocalThreadToPersistence({ runtimeThreadHandle, conversationId? })`: canonical single-call local-thread import into persistence
+  - large imports adaptively split ingest batches on Convex document-read-limit rejections while preserving event order
   - `sendTurn(...)` fails closed until `openThread(...)` succeeds.
 - Tauri send behavior:
   - canonical sequence: `bridge.lifecycle.start(...)` -> `bridge.lifecycle.openThread(...)` -> `bridge.turns.send(...)`.
@@ -97,16 +102,35 @@ Use this path in order:
   These use `conversationId` as the public identity while preserving runtime-owned persistence mapping internally.
 - Runtime-owned lifecycle endpoints: `deleteThread`, `scheduleDeleteThread`, `deleteTurn`, `scheduleDeleteTurn`, `purgeActorData`, `schedulePurgeActorData`, `cancelDeletion`, `forceRunDeletion`, `getDeletionStatus`.
 - React composer optimistic config: `useCodex({ composer: { optimistic: { enabled: true }, onSend } })` (assistant placeholder is enabled by default when optimism is enabled).
+- React sync hydration overlay (optional):
+  - pass `syncHydrationSource` to `CodexProvider`.
+  - `useCodex(...).messages` includes `syncProgress` (`syncedCount`, `totalCount`, `syncState`, `label`).
+  - local unsynced messages are merged immediately and reduce `syncProgress.syncedCount` until durable sync catches up.
+  - `unsyncedMessageIds` matching accepts both scoped ids (`turnId:messageId`) and plain `messageId` values.
+  - `syncProgress.syncState: "syncing"` is active in-flight sync; canonical send policy is to block user sends until terminal state.
+  - bridge snapshots may include `syncJobId`, `syncJobState`, `syncJobPolicyVersion`, and `lastCursor`; consumers should gate updates by `syncJobId` to avoid stale overwrite.
+  - `bridge/sync_hydration_state` updates are state-only and preserve the latest cached snapshot messages for that conversation.
 - For deletion controls, prefer codex optimistic helpers against `getDeletionStatus`:
   - `useCodexOptimisticMutation(api.chat.cancelDeletion, codexOptimisticPresets.deletionStatus.cancel(api.chat.getDeletionStatus))`
   - `useCodexOptimisticMutation(api.chat.forceRunDeletion, codexOptimisticPresets.deletionStatus.forceRun(api.chat.getDeletionStatus))`
 - Conversation-scoped archive endpoints: `archiveConversation`, `unarchiveConversation`, `listThreadsForConversation`.
 - Runtime-owned sync mapping endpoints: `syncOpenConversationBinding`, `markConversationSyncProgress`, `forceRebindConversationSync`.
+- Runtime-owned durable sync job mutation endpoints: `startConversationSyncJob`, `appendConversationSyncChunk`, `sealConversationSyncJobSource`, `cancelConversationSyncJob`.
+- Runtime-owned durable sync job query endpoints: `getConversationSyncJob`, `listConversationSyncJobs`.
+- Startup wiring preflight query: `validateHostWiring({ actor, conversationId? })`.
+
+Sync job source manifests:
+- `expectedMessageCount` is the count of renderable messages in the imported snapshot.
+- `expectedMessageIdsJson` is a JSON string containing an array of `{ turnId, messageId }` entries (message identity is turn-scoped and stable even when upstream snapshot items omit `id`).
+
+- Sync terminal semantics are fail-closed: `synced` is emitted only after canonical message manifest verification; mismatches terminal-fail with stable sync error codes.
 - Component thread mapping query is available for runtime-id lookups: `components.codexLocal.threads.listRuntimeThreadBindings`.
 - Component thread list rows (`components.codexLocal.threads.list`) now include `preview` as a required string for display-friendly labels (`conversationId`, `preview`, `status`, `updatedAt`).
 - Runtime thread/conversation control helpers include: `importLocalThreadToPersistence`, `resumeThread`, `forkThread`, `setThreadName`, `compactThread`, `rollbackThread`, `readThread`, `listThreads`, `listLoadedThreads`, `archiveConversation`, `unarchiveConversation`.
+- `listThreads` uses a canonical typed return shape: `{ data: Array<{ threadId, preview, updatedAt, messageCount }>, nextCursor }`; runtime attempts bounded `thread/read(includeTurns=true)` enrichment and preserves base list counts if enrichment fails.
 - Runtime conversation control helpers include: `newConversation`, `resumeConversation`, `listConversations`, `forkConversation`, `archiveConversation`, `interruptConversation`, `getConversationSummary`.
 - Tauri lifecycle helper includes `refreshLocalThreads()` to emit a fresh local-thread snapshot without reopening the runtime.
 - `@zakstam/codex-local-component/test` exports `register` and `schema` for component-oriented test setup.
 - For full implementation sequence, use `docs/CANONICAL_INTEGRATION.md`.
 - For fail-fast setup diagnostics, run `pnpm --filter @zakstam/codex-local-component run doctor:integration`.
+- Runtime process-exit handling is fail-closed: pending requests are rejected and lifecycle transitions to `phase: "error"` with `source: "process_exit"`.

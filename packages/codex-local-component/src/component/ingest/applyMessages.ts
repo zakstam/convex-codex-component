@@ -1,5 +1,4 @@
 import { now } from "../utils.js";
-import { requireTurnForActor } from "../utils.js";
 import type { MessageIngestContext, NormalizedInboundEvent } from "./types.js";
 import { userScopeFromActor } from "../scope.js";
 import type { IngestStateCache } from "./stateCache.js";
@@ -13,7 +12,10 @@ export async function applyMessageEffectsForEvent(
   if (!turnId) {
     return;
   }
-  const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, turnId);
+  const turn = await cache.getTurnRecord(turnId);
+  if (!turn) {
+    return;
+  }
 
   if (event.durableMessage) {
     const existing = await cache.getMessageRecord(turnId, event.durableMessage.messageId);

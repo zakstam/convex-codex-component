@@ -57,6 +57,12 @@ export {
 export {
   deriveCodexTokenUsage,
 } from "./tokenUsage.js";
+export type {
+  CodexSyncHydrationSource,
+  CodexSyncHydrationSnapshot,
+  CodexSyncHydrationState,
+  CodexConversationSyncProgress,
+} from "./syncHydration.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 export type {

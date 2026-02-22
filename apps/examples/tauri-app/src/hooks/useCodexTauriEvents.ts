@@ -10,10 +10,15 @@ export type PendingAuthRefreshRequest = {
 };
 
 type RuntimeLogEntry = { id: string; line: string };
-type LocalThreadRow = { conversationId: string; preview: string };
+type LocalThreadRow = { conversationId: string; preview: string; messageCount: number };
 
 type BridgeStateEvent = Partial<BridgeState>;
 type BridgeStateUnsubscribe = () => void;
+type ReproObservedEvent = {
+  tsMs: number;
+  kind: "bridge_state" | "codex_event" | "codex_global_message" | "codex_protocol_error";
+  payload: unknown;
+};
 
 type UseCodexTauriEventsOptions = {
   setBridge: Dispatch<SetStateAction<BridgeState>>;
@@ -24,6 +29,7 @@ type UseCodexTauriEventsOptions = {
   onLocalThreadsLoaded?: (threads: LocalThreadRow[]) => void;
   refreshBridgeState: () => Promise<Partial<BridgeState> | null | undefined>;
   subscribeBridgeLifecycle: (listener: (state: BridgeStateEvent) => void) => Promise<BridgeStateUnsubscribe>;
+  onObservedEvent?: (event: ReproObservedEvent) => void;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -39,6 +45,7 @@ export function useCodexTauriEvents({
   onLocalThreadsLoaded,
   refreshBridgeState,
   subscribeBridgeLifecycle,
+  onObservedEvent,
 }: UseCodexTauriEventsOptions) {
   const setBridgeRef = useRef(setBridge);
   const setRuntimeLogRef = useRef(setRuntimeLog);
@@ -48,6 +55,7 @@ export function useCodexTauriEvents({
   const onLocalThreadsLoadedRef = useRef(onLocalThreadsLoaded);
   const refreshBridgeStateRef = useRef(refreshBridgeState);
   const subscribeBridgeLifecycleRef = useRef(subscribeBridgeLifecycle);
+  const onObservedEventRef = useRef(onObservedEvent);
   const lastRunningRef = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -59,7 +67,8 @@ export function useCodexTauriEvents({
     onLocalThreadsLoadedRef.current = onLocalThreadsLoaded;
     refreshBridgeStateRef.current = refreshBridgeState;
     subscribeBridgeLifecycleRef.current = subscribeBridgeLifecycle;
-  }, [addToast, onLocalThreadsLoaded, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
+    onObservedEventRef.current = onObservedEvent;
+  }, [addToast, onLocalThreadsLoaded, onObservedEvent, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
 
   useEffect(() => {
     let disposed = false;
@@ -68,6 +77,11 @@ export function useCodexTauriEvents({
     const attach = async () => {
       const nextUnsubs = await Promise.all([
         subscribeBridgeLifecycleRef.current((payload) => {
+          onObservedEventRef.current?.({
+            tsMs: Date.now(),
+            kind: "bridge_state",
+            payload,
+          });
           setBridgeRef.current((prev) => {
             const next = {
               ...prev,
@@ -88,6 +102,11 @@ export function useCodexTauriEvents({
           });
         }),
         listen<{ kind: string; turnId?: string; threadId?: string }>("codex:event", (event) => {
+          onObservedEventRef.current?.({
+            tsMs: Date.now(),
+            kind: "codex_event",
+            payload: event.payload,
+          });
           const line = `${event.payload.kind} (${event.payload.turnId ?? "-"})`;
           const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           setRuntimeLogRef.current((prev) => [{ id, line }, ...prev].slice(0, 8));
@@ -97,11 +116,21 @@ export function useCodexTauriEvents({
           }
         }),
         listen<{ message: string }>("codex:protocol_error", (event) => {
+          onObservedEventRef.current?.({
+            tsMs: Date.now(),
+            kind: "codex_protocol_error",
+            payload: event.payload,
+          });
           setBridgeRef.current((prev) => ({ ...prev, lastError: event.payload.message }));
           console.error("[codex:protocol_error]", event.payload.message, event.payload);
           addToastRef.current("error", event.payload.message);
         }),
         listen<Record<string, unknown>>("codex:global_message", (event) => {
+          onObservedEventRef.current?.({
+            tsMs: Date.now(),
+            kind: "codex_global_message",
+            payload: event.payload,
+          });
           const payload = event.payload ?? {};
           const record = asRecord(payload);
           if (!record) {
@@ -168,7 +197,16 @@ export function useCodexTauriEvents({
                   if (!conversationId || !preview) {
                     return null;
                   }
-                  return { conversationId, preview };
+                  const messageCountRaw = row?.messageCount;
+                  const messageCount =
+                    typeof messageCountRaw === "number" && Number.isFinite(messageCountRaw) && messageCountRaw >= 0
+                      ? Math.floor(messageCountRaw)
+                      : 0;
+                  return {
+                    conversationId,
+                    preview,
+                    messageCount,
+                  };
                 })
                 .filter((value): value is LocalThreadRow => value !== null);
               onLocalThreadsLoadedRef.current?.(threads);
@@ -180,7 +218,7 @@ export function useCodexTauriEvents({
               ? threadIdsRaw.filter((value): value is string => typeof value === "string")
               : [];
             onLocalThreadsLoadedRef.current?.(
-              threadIds.map((conversationId) => ({ conversationId, preview: "Untitled thread" })),
+              threadIds.map((conversationId) => ({ conversationId, preview: "Untitled thread", messageCount: 0 })),
             );
           }
         }),

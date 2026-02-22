@@ -1,0 +1,71 @@
+/* ── Settings Drawer + Connection Panel ───────────────────── */
+
+.settings-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.settings-drawer-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.settings-drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.settings-drawer-close:hover {
+  background: var(--bg-surface);
+  color: var(--ink);
+  filter: none;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ── Connection Panel ────────────────────────────────────── */
+
+.connection-panel {
+  padding: 12px 0;
+}
+
+.connection-panel-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.connection-panel-status-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.connection-panel-error {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(248, 113, 113, 0.06);
+  border: 1px solid rgba(248, 113, 113, 0.15);
+  margin-bottom: 8px;
+}
+
+.connection-panel-controls {
+  display: flex;
+  gap: 8px;
+}

@@ -1,0 +1,16 @@
+/* ── 7. Typography Utilities ───────────────────────────────── */
+
+.code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--ink-soft);
+}
+
+.ink-muted {
+  color: var(--ink-muted);
+}
+
+.error-text {
+  color: var(--danger);
+}

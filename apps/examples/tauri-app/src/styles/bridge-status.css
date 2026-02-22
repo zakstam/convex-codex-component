@@ -1,0 +1,35 @@
+/* ── 13. Bridge Status ─────────────────────────────────────── */
+
+.bridge-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bridge-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.bridge-field:hover {
+  background: var(--bg-surface);
+}
+
+.bridge-field-label {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+.error-field {
+  border: 1px solid rgba(248, 113, 113, 0.15);
+  background: rgba(248, 113, 113, 0.04);
+}

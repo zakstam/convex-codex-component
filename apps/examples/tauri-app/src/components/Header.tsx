@@ -1,88 +1,58 @@
-import type { BridgeState } from "../lib/tauriBridge";
 import { useTheme } from "../hooks/useTheme";
 
 type Props = {
-  bridge: BridgeState;
-  actorUserId: string;
-  actorReady: boolean;
-  preferredBoundUserId: string | null;
-  onStart: () => void;
-  onStop: () => void;
-  onInterrupt: () => void;
+  running: boolean;
+  hasError: boolean;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  onToggleDrawer: () => void;
 };
 
 export function Header({
-  bridge,
-  actorUserId,
-  actorReady,
-  preferredBoundUserId,
-  onStart,
-  onStop,
-  onInterrupt,
+  running,
+  hasError,
+  sidebarOpen,
+  onToggleSidebar,
+  onToggleDrawer,
 }: Props) {
   const { theme, toggle } = useTheme();
-  const actorStatus = actorReady
-    ? `actor: ${actorUserId}`
-    : preferredBoundUserId
-      ? `actor: ${actorUserId} (waiting for actor lock)`
-      : `actor: ${actorUserId}`;
+
+  const statusClass = hasError ? "error" : running ? "running" : "stopped";
 
   return (
-    <header className="header" role="toolbar" aria-label="Runtime controls">
+    <header className="header" role="toolbar" aria-label="App controls">
       <div className="header-brand">
+        <button
+          className="ghost icon-btn"
+          onClick={onToggleSidebar}
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+          aria-expanded={sidebarOpen}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
         <div className="header-mark" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <path d="M7 8l4 4-4 4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M13 16h4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
           </svg>
         </div>
-        <div className="header-title-group">
-          <h1>
-            Codex
-            <span className="header-badge">local</span>
-          </h1>
-          <p className="meta">
-            {bridge.conversationId
-              ? `conversation ${bridge.conversationId.slice(0, 10)}...`
-              : "no active thread"}
-          </p>
-          <p className="meta" title="Actor used for host API calls">
-            {actorStatus}
-          </p>
-        </div>
+        <h1 className="header-title">
+          Codex Local
+          <span className={`status-dot ${statusClass}`} aria-label={hasError ? "Error" : running ? "Connected" : "Disconnected"} />
+        </h1>
       </div>
       <div className="controls">
         <button
-          onClick={onStart}
-          disabled={bridge.running}
-          aria-label="Start runtime"
+          className="ghost icon-btn"
+          onClick={onToggleDrawer}
+          aria-label="Open settings"
         >
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M3 1.5l9 5.5-9 5.5V1.5z" fill="currentColor"/>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6.86 2h2.28l.32 1.6a5.5 5.5 0 011.18.68l1.54-.52.98 1.7-1.22 1.08a5.5 5.5 0 010 1.36l1.22 1.08-.98 1.7-1.54-.52a5.5 5.5 0 01-1.18.68L9.14 14H6.86l-.32-1.6a5.5 5.5 0 01-1.18-.68l-1.54.52-.98-1.7 1.22-1.08a5.5 5.5 0 010-1.36L2.84 7.02l.98-1.7 1.54.52A5.5 5.5 0 016.54 5.16L6.86 2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+            <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3"/>
           </svg>
-          Start
-        </button>
-        <button
-          className="secondary"
-          onClick={onStop}
-          disabled={!bridge.running}
-          aria-label="Stop runtime"
-        >
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <rect x="1" y="1" width="10" height="10" rx="2" fill="currentColor"/>
-          </svg>
-          Stop
-        </button>
-        <button
-          className="danger"
-          onClick={onInterrupt}
-          disabled={!bridge.turnId}
-          aria-label="Interrupt current turn"
-        >
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M7.5 1L3 8h4l-1.5 5L11 6H7l.5-5z" fill="currentColor"/>
-          </svg>
-          Interrupt
         </button>
         <button
           className="ghost icon-btn"

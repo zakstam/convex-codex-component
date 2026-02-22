@@ -1,0 +1,170 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createConvexPersistence } from "../dist/host/index.js";
+
+function createChatApi() {
+  return {
+    startConversationSyncJob: Symbol("startConversationSyncJob"),
+    appendConversationSyncChunk: Symbol("appendConversationSyncChunk"),
+    sealConversationSyncJobSource: Symbol("sealConversationSyncJobSource"),
+    cancelConversationSyncJob: Symbol("cancelConversationSyncJob"),
+    getConversationSyncJob: Symbol("getConversationSyncJob"),
+    listConversationSyncJobs: Symbol("listConversationSyncJobs"),
+    syncOpenConversationBinding: Symbol("syncOpenConversationBinding"),
+    markConversationSyncProgress: Symbol("markConversationSyncProgress"),
+    forceRebindConversationSync: Symbol("forceRebindConversationSync"),
+    ensureSession: Symbol("ensureSession"),
+    ingestBatch: Symbol("ingestBatch"),
+    upsertPendingServerRequest: Symbol("upsertPendingServerRequest"),
+    resolvePendingServerRequest: Symbol("resolvePendingServerRequest"),
+    listPendingServerRequests: Symbol("listPendingServerRequests"),
+    acceptTurnSend: Symbol("acceptTurnSend"),
+    failAcceptedTurnSend: Symbol("failAcceptedTurnSend"),
+    upsertTokenUsage: Symbol("upsertTokenUsage"),
+  };
+}
+
+test("createConvexPersistence.getConversationSyncJob uses query transport", async () => {
+  const calls = [];
+  const chatApi = createChatApi();
+  const client = {
+    mutation: async (fn, args) => {
+      calls.push({ kind: "mutation", fn, args });
+      return null;
+    },
+    query: async (fn, args) => {
+      calls.push({ kind: "query", fn, args });
+      return {
+        jobId: "job-1",
+        conversationId: "conv-1",
+        threadId: "thread-1",
+        state: "syncing",
+        sourceState: "sealed",
+        policyVersion: 1,
+        startedAt: 1,
+        updatedAt: 1,
+        lastCursor: 0,
+        processedChunkIndex: 0,
+        totalChunks: 1,
+        processedMessageCount: 0,
+        retryCount: 0,
+      };
+    },
+  };
+  const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
+
+  await persistence.getConversationSyncJob({
+    actor: { userId: "u-1" },
+    conversationId: "conv-1",
+    jobId: "job-1",
+  });
+
+  assert.deepEqual(
+    calls.map(({ kind }) => kind),
+    ["query"],
+  );
+  assert.equal(calls[0].fn, chatApi.getConversationSyncJob);
+});
+
+test("createConvexPersistence.waitForConversationSyncJobTerminal polls with query transport", async () => {
+  const calls = [];
+  const chatApi = createChatApi();
+  let pollCount = 0;
+  const client = {
+    mutation: async (fn, args) => {
+      calls.push({ kind: "mutation", fn, args });
+      return null;
+    },
+    query: async (fn, args) => {
+      calls.push({ kind: "query", fn, args });
+      pollCount += 1;
+      if (pollCount === 1) {
+        return {
+          jobId: "job-1",
+          state: "syncing",
+          lastCursor: 0,
+          processedMessageCount: 0,
+        };
+      }
+      return {
+        jobId: "job-1",
+        state: "synced",
+        lastCursor: 3,
+        processedMessageCount: 8,
+      };
+    },
+  };
+  const persistence = createConvexPersistence(client, chatApi, {
+    syncJobPollMs: 1,
+    syncJobPollTimeoutMs: 100,
+  });
+
+  const terminal = await persistence.waitForConversationSyncJobTerminal({
+    actor: { userId: "u-1" },
+    conversationId: "conv-1",
+    jobId: "job-1",
+  });
+
+  assert.equal(terminal.state, "synced");
+  assert.ok(calls.every((call) => call.kind === "query"));
+  assert.ok(calls.length >= 2);
+  assert.ok(calls.every((call) => call.fn === chatApi.getConversationSyncJob));
+});
+
+test("createConvexPersistence.listPendingServerRequests fail-closes without conversation context", async () => {
+  const calls = [];
+  const chatApi = createChatApi();
+  const client = {
+    mutation: async (fn, args) => {
+      calls.push({ kind: "mutation", fn, args });
+      return null;
+    },
+    query: async (fn, args) => {
+      calls.push({ kind: "query", fn, args });
+      return [{ requestId: "req-1" }];
+    },
+  };
+  const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
+
+  const pending = await persistence.listPendingServerRequests({ actor: { userId: "u-1" } });
+
+  assert.deepEqual(pending, []);
+  assert.equal(calls.length, 0);
+});
+
+test("createConvexPersistence.listPendingServerRequests maps persisted thread id to conversation id", async () => {
+  const calls = [];
+  const chatApi = createChatApi();
+  const client = {
+    mutation: async (fn, args) => {
+      calls.push({ kind: "mutation", fn, args });
+      if (fn === chatApi.syncOpenConversationBinding) {
+        return { threadId: "persisted-thread-1", created: true, rebindApplied: false };
+      }
+      return null;
+    },
+    query: async (fn, args) => {
+      calls.push({ kind: "query", fn, args });
+      return [{ requestId: "req-1" }];
+    },
+  };
+  const persistence = createConvexPersistence(client, chatApi, { syncJobPollTimeoutMs: 25 });
+
+  await persistence.ensureThread({
+    actor: { userId: "u-1" },
+    conversationId: "conv-1",
+  });
+  const pending = await persistence.listPendingServerRequests({
+    actor: { userId: "u-1" },
+    threadId: "persisted-thread-1",
+  });
+
+  assert.deepEqual(pending, [{ requestId: "req-1" }]);
+  const queryCall = calls.find((call) => call.kind === "query");
+  assert.equal(queryCall.fn, chatApi.listPendingServerRequests);
+  assert.deepEqual(queryCall.args, {
+    actor: { userId: "u-1" },
+    conversationId: "conv-1",
+    limit: 100,
+  });
+});

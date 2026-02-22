@@ -14,16 +14,23 @@ pnpm --filter codex-local-debug-harness run start
 pnpm --filter codex-local-debug-harness run repro:no-response
 ```
 
-## Workflow Gate
+## Replay Exported Repro Artifact
 
-Run from repository root for implemented (non-docs-only) changes:
+```bash
+pnpm --filter codex-local-debug-harness run start
+# then in REPL:
+replay-artifact /path/to/tauri-repro-*.json
+```
+
+## Agent Debugging Command
+
+Run from repository root when agents need to reproduce Tauri/runtime failures:
 
 ```bash
 pnpm -C codex-convex-component run example:debug:repro:no-response
 ```
 
 This runs a deterministic `start -> open-thread -> send -> status` scenario and writes a trace artifact under `./.tmp/traces/`.
-If this gate fails or cannot run due to missing prerequisites, treat verification as failed (do not claim completion).
 
 ## Notes
 

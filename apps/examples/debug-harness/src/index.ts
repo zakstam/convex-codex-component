@@ -15,6 +15,7 @@ import { HELPER_ACK_BY_TYPE, type HelperCommand } from "@zakstam/codex-local-com
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
+import { parseReplayArtifact } from "./replayArtifact.js";
 
 type CommandRecord = {
   id: string;
@@ -342,6 +343,34 @@ async function runScenario(harness: DebugHarness, file: string, defaults: {
   }
 }
 
+async function runReplayArtifact(
+  harness: DebugHarness,
+  file: string,
+): Promise<void> {
+  const contents = await readFile(resolve(file), "utf8");
+  const parsed = parseReplayArtifact(JSON.parse(contents));
+  console.log(`Replaying ${parsed.commands.length} helper commands from artifact...`);
+  for (const command of parsed.commands) {
+    await harness.send(command);
+    if (command.type === "start") {
+      await harness.waitForRunning();
+    } else if (command.type === "open_thread") {
+      await harness.waitForReady();
+    } else if (command.type === "send_turn") {
+      try {
+        await harness.waitForTurnSignal();
+      } catch {
+        // Some failure artifacts intentionally stall after send_turn.
+      }
+    } else {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 150));
+    }
+  }
+  if (parsed.expectedErrorClasses.length > 0) {
+    console.log(`Expected error classes: ${parsed.expectedErrorClasses.join(", ")}`);
+  }
+}
+
 async function main(): Promise<void> {
   const envResolution = await resolveHarnessEnv();
   const runtimeEnv = envResolution.env;
@@ -367,8 +396,16 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const scenarioIndex = args.indexOf("--scenario");
   const scenarioPath = scenarioIndex >= 0 ? args[scenarioIndex + 1] : undefined;
+  const replayIndex = args.indexOf("--replay-artifact");
+  const replayPath = replayIndex >= 0 ? args[replayIndex + 1] : undefined;
   if (scenarioPath) {
     await runScenario(harness, scenarioPath, defaults);
+    await harness.saveTrace();
+    await harness.stopProcess();
+    return;
+  }
+  if (replayPath) {
+    await runReplayArtifact(harness, replayPath);
     await harness.saveTrace();
     await harness.stopProcess();
     return;
@@ -393,6 +430,9 @@ async function main(): Promise<void> {
         if (parsed.action === "timeline") harness.printTimeline();
         if (parsed.action === "raw") harness.setRaw(true);
         if (parsed.action === "save-trace") await harness.saveTrace();
+        if (parsed.action === "replay-artifact") {
+          await runReplayArtifact(harness, parsed.path);
+        }
         if (parsed.action === "exit") {
           await harness.stopProcess();
           rl.close();

@@ -6,7 +6,6 @@ import {
   STREAM_TEXT_DELTA_EVENT_KINDS,
   syncError,
 } from "../syncRuntime.js";
-import { requireTurnForActor } from "../utils.js";
 import {
   addStreamDeltaStatsBatch,
   ensureStreamStat,
@@ -19,6 +18,7 @@ import type { IngestStateCache } from "./stateCache.js";
 export async function persistLifecycleEventIfMissing(
   ingest: StreamIngestContext,
   event: NormalizedInboundEvent,
+  cache: IngestStateCache,
 ): Promise<void> {
   if (event.type !== "lifecycle_event") {
     return;
@@ -37,6 +37,7 @@ export async function persistLifecycleEventIfMissing(
   if (existingLifecycle) {
     return;
   }
+  const turnForLifecycle = event.turnId ? await cache.getTurnRecord(event.turnId) : null;
 
   await ingest.ctx.db.insert("codex_lifecycle_events", {
     userScope: userScopeFromActor(ingest.args.actor),
@@ -47,9 +48,7 @@ export async function persistLifecycleEventIfMissing(
     payloadJson: event.payloadJson,
     createdAt: event.createdAt,
     ...(event.turnId ? { turnId: event.turnId } : {}),
-    ...(event.turnId
-      ? { turnRef: (await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, event.turnId))._id }
-      : {}),
+    ...(turnForLifecycle ? { turnRef: turnForLifecycle._id } : {}),
   });
 }
 
@@ -62,7 +61,10 @@ export async function applyStreamEvent(
     return;
   }
 
-  const turn = await requireTurnForActor(ingest.ctx, ingest.args.actor, ingest.args.threadId, event.turnId);
+  const turn = await cache.getTurnRecord(event.turnId);
+  if (!turn) {
+    return;
+  }
   let stream = await cache.getStreamRecord(turn._id, event.streamId);
   if (!stream) {
     const collidingStream = await ingest.ctx.db

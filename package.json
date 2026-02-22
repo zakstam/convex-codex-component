@@ -29,14 +29,14 @@
     "example:debug:typecheck": "pnpm --filter codex-local-debug-harness run typecheck",
     "dev:tauri": "pnpm run example:tauri:start",
     "lint": "eslint apps/examples/persistent-cli-app/src apps/examples/persistent-cli-app/convex apps/examples/cli-app/src apps/examples/tauri-app/src apps/examples/tauri-app/convex packages/codex-local-component/src --ext .ts,.tsx",
-    "release:precheck:ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",
-    "release:precheck": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck",
+    "release:precheck:ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-tauri-example run typecheck && pnpm --filter codex-local-debug-harness run typecheck",
+    "release:precheck": "pnpm --filter @zakstam/codex-local-component run ci && pnpm run lint && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-tauri-example run typecheck && pnpm --filter codex-local-debug-harness run typecheck",
     "build": "pnpm -r --if-present run build",
     "build:tauri": "pnpm --filter codex-local-tauri-example run build:tauri",
     "typecheck": "pnpm -r --if-present run typecheck",
     "typecheck:tsc": "pnpm -r --if-present run typecheck:tsc",
     "test": "pnpm -r --if-present run test",
-    "ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-persistent-cli-example run typecheck"
+    "ci": "pnpm --filter @zakstam/codex-local-component run ci && pnpm --filter codex-local-cli-example run typecheck && pnpm --filter codex-local-persistent-cli-example run typecheck && pnpm --filter codex-local-tauri-example run typecheck && pnpm --filter codex-local-debug-harness run typecheck"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",

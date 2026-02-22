@@ -74,6 +74,25 @@ The helper prints raw stdin lines from `codex app-server` to stderr with prefix:
 - `traceId`, `tsMs`, `source` (for example `manual_start_button`, `composer_retry`)
 - `runningBefore` and selected thread arguments
 
+## Sync Debug Logging
+
+For deep conversation-sync tracing (`partial`/stale hydration issues), enable both helper and UI debug channels:
+
+```bash
+CODEX_SYNC_DEBUG=1 pnpm run dev
+```
+
+In the browser DevTools console before reproducing:
+
+```js
+globalThis.__CODEX_SYNC_DEBUG__ = true;
+```
+
+This emits:
+- helper-side `bridge/sync_debug` events and stderr `[sync-debug]` lines for import/job lifecycle
+- client hydration acceptance/drop decisions (`drop_snapshot_stale_*`, `accept_snapshot`)
+- React overlay merge accounting (`merge_snapshot_with_durable`)
+
 ## Bridge Command Contract
 
 - Bridge command wiring is package-owned from `@zakstam/codex-local-component/host/tauri`.
@@ -109,8 +128,12 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 - When enabled, local threads are loaded immediately (and cleared immediately when disabled) and shown as `local unsynced` until a persisted binding exists.
 - Local unsynced rows now use runtime-provided preview text when available (fallback: `Untitled thread`).
 - Selecting a `local unsynced` thread now calls package runtime `importLocalThreadToPersistence(...)` so history is imported into Convex and shown immediately without sending a new turn.
+- Local-thread import sync is now modeled as a durable conversation-scoped job (`idle -> syncing -> synced|failed|cancelled`) with persisted `syncJobId` metadata.
+- UI hydration updates are gated by `syncJobId` to avoid stale job overwrite.
+- Send policy is explicit: message sends are blocked while the selected conversation sync job is `syncing`.
 - Runtime-owned `ensureConversationBinding` is single-path and requires `conversationId`.
 - Sync engine host hooks are explicit: `chat.syncOpenConversationBinding`, `chat.markConversationSyncProgress`, `chat.forceRebindConversationSync`.
+- Durable sync-job hooks are explicit: `chat.startConversationSyncJob`, `chat.appendConversationSyncChunk`, `chat.sealConversationSyncJobSource`, `chat.cancelConversationSyncJob`, `chat.getConversationSyncJob`, `chat.listConversationSyncJobs`.
 - Bridge lifecycle state distinguishes `conversationId` (Convex) and `runtimeConversationId` (Codex runtime).
 
 Additional cleanup endpoints:

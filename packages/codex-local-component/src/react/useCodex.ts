@@ -209,6 +209,15 @@ export function useCodex<
     ...(options.interrupt !== undefined ? { interrupt: options.interrupt } : {}),
     ...(options.approvals !== undefined ? { approvals: options.approvals } : {}),
     ...(options.dynamicTools !== undefined ? { dynamicTools: options.dynamicTools } : {}),
+    ...(ctx.syncHydrationSource !== undefined
+      ? {
+          syncHydration: {
+            source: ctx.syncHydrationSource,
+            conversationId: effectiveConversationId,
+            enabled: true,
+          },
+        }
+      : {}),
   });
 
   // ── Raw thread state ─────────────────────────────────────────────────

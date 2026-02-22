@@ -5,6 +5,7 @@ import type { CodexMessagesQuery, CodexThreadReadResult } from "./types.js";
 import type { CodexThreadActivityThreadState } from "./threadActivity.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
 import type { CodexTokenUsageQuery } from "./useCodexTokenUsage.js";
+import type { CodexSyncHydrationSource } from "./syncHydration.js";
 
 export type CodexContextValue = {
   actor: Record<string, unknown>;
@@ -15,6 +16,7 @@ export type CodexContextValue = {
   >;
   listPendingServerRequests?: unknown;
   listTokenUsage?: CodexTokenUsageQuery<Record<string, unknown>>;
+  syncHydrationSource?: CodexSyncHydrationSource;
   defaultInitialNumItems: number;
   defaultStream: boolean;
 };

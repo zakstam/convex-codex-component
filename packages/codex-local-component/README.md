@@ -39,7 +39,7 @@ Use one source of truth for implementation steps:
 2. Generate/sync `convex/chat.ts` host shim (`pnpm run sync:host-shim`).
 3. Define host endpoints with `defineCodexHostDefinitions(...)` and explicit `mutation/query` exports.
 4. Start runtime in runtime-owned mode.
-5. Call `chat.validateHostWiring` at startup.
+5. Call `chat.validateHostWiring` at startup (`{ actor, conversationId? }`).
 6. Use `@zakstam/codex-local-component/react` hooks against canonical host endpoints.
 7. Prefer safe-by-default thread read queries. Most thread reads return status payloads in place of strict throw-only variants, while `listPendingServerRequests` returns an empty list (`[]`) when the thread is missing instead of throwing.
 8. Run `pnpm --filter @zakstam/codex-local-component run doctor:integration` to fail fast on setup drift.
@@ -108,7 +108,7 @@ npx convex dev --once
 
 5. Start runtime-owned host wiring through `@zakstam/codex-local-component/host`.
 
-6. Call `chat.validateHostWiring` during startup.
+6. Call `chat.validateHostWiring` during startup (`{ actor, conversationId? }`).
 7. Prefer `resolveActorFromAuth(ctx, requestedActor?)` for host actor binding from Convex auth identity.
 
 7. Run app checks:
@@ -182,6 +182,8 @@ React consumers can apply optimistic updates for these lifecycle operations with
 - `listThreads`
 - `listLoadedThreads`
 
+`listThreads` returns a canonical typed shape: `{ data: Array<{ threadId, preview, updatedAt, messageCount }>, nextCursor }`. `messageCount` is required and runtime-derived via bounded `thread/read(includeTurns=true)` fanout.
+
 - `newConversation`
 - `resumeConversation`
 - `listConversations`
@@ -192,6 +194,8 @@ React consumers can apply optimistic updates for these lifecycle operations with
 - `getConversationSummary`
 
 `importLocalThreadToPersistence` is the canonical single-call API for importing a local runtime thread into Convex persistence and returning the persisted `conversationId` for UI reads.
+Import now runs as a durable server-owned resumable sync job (`collecting -> sealed -> processing`) with terminal state (`synced|failed|cancelled`), so helper/runtime restarts do not drop in-progress sync.
+Sync completion is fail-closed: jobs verify canonical expected message IDs before terminal `synced`; mismatches terminal as `failed`.
 
 ## Composer Optimistic UI
 
@@ -212,6 +216,15 @@ For custom optimistic logic, compose updates with:
 
 - `createCodexOptimisticUpdate(...)`
 - `codexOptimisticOps.insert / replace / remove / set / custom`
+
+`CodexProvider` also supports optional sync hydration overlays for unsynced local conversations:
+
+- pass `syncHydrationSource` into `CodexProvider`.
+- `useCodex(...).messages` includes:
+  - `syncProgress` with `syncedCount`, `totalCount`, `syncState`, and `label` (for example `12/20 synced`)
+- local snapshot messages are shown immediately and reconciled against durable messages as sync completes.
+- `syncProgress.syncState: "syncing"` is in-flight; send policy should block during this state for correctness.
+- Sync hydration snapshots may also include durable `syncJobId`/policy metadata for stale-event gating.
 
 ## Runtime Bridge Lifecycle APIs
 
@@ -249,6 +262,15 @@ Runtime-owned host definitions now expose explicit sync mapping mutations:
 - `syncOpenConversationBinding`
 - `markConversationSyncProgress`
 - `forceRebindConversationSync`
+- `startConversationSyncJob`
+- `appendConversationSyncChunk`
+- `sealConversationSyncJobSource`
+- `cancelConversationSyncJob`
+
+Runtime-owned durable sync job read queries:
+
+- `getConversationSyncJob`
+- `listConversationSyncJobs`
 
 These endpoints are used to persist local-runtime-to-Convex thread mapping state (`syncState`, `lastSyncedCursor`, session watermark, and rebind metadata) during `openThread` and ingest progression.
 

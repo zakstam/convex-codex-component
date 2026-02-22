@@ -1,8 +1,11 @@
 import type { MutationCtx } from "../_generated/server.js";
 import type { GenericId } from "convex/values";
+import type { Doc } from "../_generated/dataModel.js";
 import type { CachedApproval, CachedMessage, CachedStream } from "./types.js";
 
 export type IngestStateCache = {
+  getTurnRecord: (turnId: string) => Promise<Doc<"codex_turns"> | null>;
+  setTurnRecord: (turnId: string, value: Doc<"codex_turns"> | null) => void;
   nextOrderForTurn: (turnId: string) => Promise<number>;
   getMessageRecord: (turnId: string, messageId: string) => Promise<CachedMessage | null>;
   setMessageRecord: (turnId: string, messageId: string, value: CachedMessage | null) => void;
@@ -22,6 +25,7 @@ export function createIngestStateCache(args: {
   const { ctx, userScope, threadId } = args;
 
   const messageOrderCacheByTurn = new Map<string, number>();
+  const turnById = new Map<string, Doc<"codex_turns"> | null>();
   const messageByTurnAndId = new Map<string, Map<string, CachedMessage | null>>();
   const streamByTurnRefAndId = new Map<string, Map<string, CachedStream | null>>();
   const approvalByTurnAndId = new Map<string, Map<string, CachedApproval | null>>();
@@ -37,6 +41,24 @@ export function createIngestStateCache(args: {
       return;
     }
     store.set(outerKey, new Map([[innerKey, value]]));
+  };
+
+  const getTurnRecord = async (turnId: string): Promise<Doc<"codex_turns"> | null> => {
+    if (turnById.has(turnId)) {
+      return turnById.get(turnId) ?? null;
+    }
+    const existing = await ctx.db
+      .query("codex_turns")
+      .withIndex("userScope_threadId_turnId", (q) =>
+        q.eq("userScope", userScope).eq("threadId", threadId).eq("turnId", turnId),
+      )
+      .first();
+    turnById.set(turnId, existing ?? null);
+    return existing ?? null;
+  };
+
+  const setTurnRecord = (turnId: string, value: Doc<"codex_turns"> | null): void => {
+    turnById.set(turnId, value);
   };
 
   const nextOrderForTurn = async (turnId: string): Promise<number> => {
@@ -172,6 +194,8 @@ export function createIngestStateCache(args: {
   };
 
   return {
+    getTurnRecord,
+    setTurnRecord,
     nextOrderForTurn,
     getMessageRecord,
     setMessageRecord,

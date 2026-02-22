@@ -161,13 +161,13 @@ export async function addStreamDeltaStatsBatch(
     return;
   }
 
-  const existingStats = await ctx.db
-    .query("codex_stream_stats")
-    .withIndex("userScope_threadId", (q) =>
-      q.eq("userScope", args.userScope).eq("threadId", args.threadId),
-    )
-    .take(500);
-  const existingByStreamId = new Map(existingStats.map((stat) => [String(stat.streamId), stat]));
+  const existingByStreamId = new Map<string, NonNullable<Awaited<ReturnType<typeof getByStreamId>>>>();
+  for (const streamId of Array.from(new Set(args.updates.map((update) => update.streamId)))) {
+    const existing = await getByStreamId(ctx, args.userScope, streamId);
+    if (existing) {
+      existingByStreamId.set(streamId, existing);
+    }
+  }
   const ts = now();
 
   await Promise.all(
@@ -193,16 +193,50 @@ export async function addStreamDeltaStatsBatch(
         return;
       }
 
+      const nextDeltaCount = existing.deltaCount + update.deltaCount;
+      const nextLatestCursor = Math.max(existing.latestCursor, update.latestCursor);
+      const nextState = resolveMonotonicState(existing.state, "streaming");
+      if (
+        existing.threadId === args.threadId &&
+        existing.turnId === update.turnId &&
+        existing.state === nextState &&
+        existing.deltaCount === nextDeltaCount &&
+        existing.latestCursor === nextLatestCursor
+      ) {
+        return;
+      }
       await ctx.db.patch(existing._id, {
         threadId: args.threadId,
         turnId: update.turnId,
-        state: resolveMonotonicState(existing.state, "streaming"),
-        deltaCount: existing.deltaCount + update.deltaCount,
-        latestCursor: Math.max(existing.latestCursor, update.latestCursor),
+        state: nextState,
+        deltaCount: nextDeltaCount,
+        latestCursor: nextLatestCursor,
         updatedAt: ts,
       });
     }),
   );
+}
+
+export async function loadStreamStatsByStreamIds(
+  ctx: MutationCtx,
+  args: {
+    userScope: string;
+    streamIds: string[];
+  },
+): Promise<Array<{ streamId: string; latestCursor: number }>> {
+  const uniqueStreamIds = Array.from(new Set(args.streamIds));
+  if (uniqueStreamIds.length === 0) {
+    return [];
+  }
+  const rows: Array<{ streamId: string; latestCursor: number }> = [];
+  for (const streamId of uniqueStreamIds) {
+    const row = await getByStreamId(ctx, args.userScope, streamId);
+    if (!row) {
+      continue;
+    }
+    rows.push({ streamId: row.streamId, latestCursor: row.latestCursor });
+  }
+  return rows;
 }
 
 export function identifyStaleStreamingStatIds(

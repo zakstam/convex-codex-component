@@ -22,6 +22,7 @@ export function printHelp(): void {
     "  raw",
     "  timeline",
     "  save-trace",
+    "  replay-artifact <path>",
     "  help",
     "  exit",
   ].join("\n"));

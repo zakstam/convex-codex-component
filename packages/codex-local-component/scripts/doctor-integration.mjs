@@ -85,8 +85,8 @@ addCheck("E_DOCTOR_LEGACY_ALIAS", "Legacy external-id aliases must not appear in
   return error(
     "E_DOCTOR_LEGACY_ALIAS",
     `Legacy alias references in: ${offenders.map((p) => p.replace(`${repoRoot}/`, "")).join(", ")}`,
-    "Only canonical thread-handle naming appears in public docs.",
-    "Replace legacy symbols with canonical `threadHandle` / `*ByThreadHandle` naming.",
+    "Only canonical conversation-scoped naming appears in public docs.",
+    "Replace legacy symbols with canonical `conversationId` / `*ByConversation` naming.",
   );
 });
 

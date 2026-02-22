@@ -16,5 +16,7 @@ export {
   type HostRuntimePersistedServerRequest,
   type HostRuntimeState,
   type HostRuntimeOpenThreadArgs,
+  type HostRuntimeThreadListItem,
+  type HostRuntimeThreadListResult,
   CodexHostRuntimeError,
 } from "./runtime.js";

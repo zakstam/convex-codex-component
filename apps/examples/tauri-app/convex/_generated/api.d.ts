@@ -465,6 +465,19 @@ export declare const components: {
       >;
     };
     threads: {
+      appendConversationSyncChunk: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          byteSize: number;
+          chunkIndex: number;
+          jobId: string;
+          messageCount: number;
+          payloadJson: string;
+        },
+        { appended: boolean; chunkIndex: number; jobId: string }
+      >;
       archiveByConversation: FunctionReference<
         "mutation",
         "internal",
@@ -474,6 +487,21 @@ export declare const components: {
           threadId: string;
         },
         { conversationId: string; status: "archived"; threadId: string }
+      >;
+      cancelConversationSyncJob: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          errorCode?: string;
+          errorMessage?: string;
+          jobId: string;
+        },
+        {
+          cancelled: boolean;
+          jobId: string;
+          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+        }
       >;
       cancelScheduledDeletion: FunctionReference<
         "mutation",
@@ -527,6 +555,31 @@ export declare const components: {
         "internal",
         { actor: { userId?: string }; deletionJobId: string },
         { deletionJobId: string; forced: boolean }
+      >;
+      getConversationSyncJob: FunctionReference<
+        "query",
+        "internal",
+        { actor: { userId?: string }; conversationId: string; jobId?: string },
+        null | {
+          completedAt?: number;
+          conversationId: string;
+          expectedMessageCount?: number;
+          jobId: string;
+          lastCursor: number;
+          lastErrorCode?: string;
+          lastErrorMessage?: string;
+          policyVersion: number;
+          processedChunkIndex: number;
+          processedMessageCount: number;
+          retryCount: number;
+          runtimeConversationId?: string;
+          sourceState: "collecting" | "sealed" | "processing";
+          startedAt: number;
+          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          threadId: string;
+          totalChunks: number;
+          updatedAt: number;
+        }
       >;
       getDeletionJobStatus: FunctionReference<
         "query",
@@ -658,6 +711,25 @@ export declare const components: {
           }>;
         }
       >;
+      listConversationSyncJobs: FunctionReference<
+        "query",
+        "internal",
+        { actor: { userId?: string }; conversationId: string; limit?: number },
+        Array<{
+          completedAt?: number;
+          expectedMessageCount?: number;
+          jobId: string;
+          lastErrorCode?: string;
+          processedChunkIndex: number;
+          processedMessageCount: number;
+          retryCount: number;
+          sourceState: "collecting" | "sealed" | "processing";
+          startedAt: number;
+          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          totalChunks: number;
+          updatedAt: number;
+        }>
+      >;
       listRuntimeConversationBindings: FunctionReference<
         "query",
         "internal",
@@ -676,14 +748,29 @@ export declare const components: {
           conversationId: string;
           cursor: number;
           errorCode?: string;
+          expectedSyncJobId?: string;
           runtimeConversationId?: string;
           sessionId?: string;
+          syncJobErrorCode?: string;
+          syncJobId?: string;
+          syncJobPolicyVersion?: number;
+          syncJobStartedAt?: number;
+          syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          syncJobUpdatedAt?: number;
           syncState?: "unsynced" | "syncing" | "synced" | "drifted";
         },
         {
           conversationId: string;
           lastSyncedCursor: number;
           runtimeConversationId?: string;
+          staleIgnored: boolean;
+          syncJobErrorCode?: string;
+          syncJobId?: string;
+          syncJobLastCursor?: number;
+          syncJobPolicyVersion?: number;
+          syncJobStartedAt?: number;
+          syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          syncJobUpdatedAt?: number;
           syncState: "unsynced" | "syncing" | "synced" | "drifted";
           threadId: string;
         }
@@ -741,6 +828,40 @@ export declare const components: {
           reason?: string;
         },
         { deletionJobId: string; scheduledFor: number }
+      >;
+      sealConversationSyncJobSource: FunctionReference<
+        "mutation",
+        "internal",
+        { actor: { userId?: string }; jobId: string },
+        {
+          jobId: string;
+          scheduled: boolean;
+          sourceState: "collecting" | "sealed" | "processing";
+          totalChunks: number;
+        }
+      >;
+      startConversationSyncJob: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { userId?: string };
+          conversationId: string;
+          expectedMessageCount?: number;
+          expectedMessageIdsJson?: string;
+          runtimeConversationId?: string;
+          sourceChecksum?: string;
+          threadId?: string;
+        },
+        {
+          conversationId: string;
+          jobId: string;
+          policyVersion: number;
+          sourceState: "collecting" | "sealed" | "processing";
+          startedAt: number;
+          state: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          threadId: string;
+          updatedAt: number;
+        }
       >;
       syncOpenBinding: FunctionReference<
         "mutation",

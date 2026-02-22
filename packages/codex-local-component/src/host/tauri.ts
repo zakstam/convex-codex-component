@@ -4,6 +4,7 @@ import type { LoginAccountParams as ProtocolLoginAccountParams } from "../protoc
 import type { ToolRequestUserInputAnswer } from "../protocol/schemas/v2/ToolRequestUserInputAnswer.js";
 import type { DynamicToolSpec } from "../protocol/schemas/v2/DynamicToolSpec.js";
 import type { ThreadHandle } from "../shared/threadIdentity.js";
+import { canonicalizeSnapshotItemId } from "./snapshotIdentity.js";
 
 export type { LoginAccountParams } from "../protocol/schemas/v2/LoginAccountParams.js";
 
@@ -26,6 +27,192 @@ export type BridgeState = {
   ingestEnqueuedByKind?: Array<{ kind: string; count: number }> | null;
   ingestSkippedByKind?: Array<{ kind: string; count: number }> | null;
 };
+
+export type TauriSyncHydrationState =
+  | "idle"
+  | "syncing"
+  | "synced"
+  | "partial"
+  | "drifted"
+  | "cancelled"
+  | "failed";
+
+export type TauriSyncJobState =
+  | "idle"
+  | "syncing"
+  | "synced"
+  | "failed"
+  | "cancelled";
+
+export type TauriSyncHydrationMessage = {
+  messageId: string;
+  turnId: string;
+  role: "user" | "assistant" | "system" | "tool";
+  status: "streaming" | "completed" | "failed" | "interrupted";
+  sourceItemType?: string;
+  text: string;
+  orderInTurn: number;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  error?: string;
+};
+
+export type TauriSyncHydrationSnapshot = {
+  conversationId: string;
+  messages: TauriSyncHydrationMessage[];
+  syncState: TauriSyncHydrationState;
+  updatedAtMs: number;
+  syncJobId?: string;
+  syncJobState?: TauriSyncJobState;
+  syncJobPolicyVersion?: number;
+  lastCursor?: number;
+  errorCode?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeSnapshotItemType(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return normalized;
+}
+
+function messageTextFromSnapshotItem(item: Record<string, unknown>): string {
+  const directText = typeof item.text === "string" ? item.text : null;
+  if (directText && directText.length > 0) {
+    return directText;
+  }
+  const content = Array.isArray(item.content) ? item.content : [];
+  const chunks: string[] = [];
+  for (const entry of content) {
+    if (!isRecord(entry)) {
+      continue;
+    }
+    const text = typeof entry.text === "string" ? entry.text : null;
+    if (text && text.length > 0) {
+      chunks.push(text);
+    }
+  }
+  return chunks.join("\n").trim();
+}
+
+function toHydrationStatus(value: unknown): "streaming" | "completed" | "failed" | "interrupted" {
+  if (value === "inProgress") {
+    return "streaming";
+  }
+  if (value === "failed" || value === "interrupted") {
+    return value;
+  }
+  return "completed";
+}
+
+export function parseThreadReadSnapshotMessages(response: unknown): TauriSyncHydrationMessage[] {
+  const root = isRecord(response) ? response : null;
+  const result = isRecord(root?.result) ? root.result : null;
+  const thread = isRecord(result?.thread) ? result.thread : null;
+  const turns = Array.isArray(thread?.turns) ? thread.turns : [];
+  const messages: TauriSyncHydrationMessage[] = [];
+  let timestampCursor = Date.now();
+
+  for (const turnValue of turns) {
+    const turn = isRecord(turnValue) ? turnValue : null;
+    const turnId = typeof turn?.id === "string" ? turn.id : null;
+    if (!turnId) {
+      continue;
+    }
+    const status = toHydrationStatus(turn?.status);
+    const items = Array.isArray(turn?.items) ? turn.items : [];
+    let orderInTurn = 0;
+
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      const itemValue = items[itemIndex];
+      const item = isRecord(itemValue) ? itemValue : null;
+      const itemType = normalizeSnapshotItemType(item?.type);
+      if (!item || !itemType) {
+        continue;
+      }
+      const itemId = canonicalizeSnapshotItemId({ turnId, item, itemIndex }).messageId;
+      const text = messageTextFromSnapshotItem(item);
+      if (itemType === "usermessage" || itemType === "user_message") {
+        messages.push({
+          messageId: itemId,
+          turnId,
+          role: "user",
+          status: "completed",
+          sourceItemType: "userMessage",
+          text,
+          orderInTurn,
+          createdAt: timestampCursor,
+          updatedAt: timestampCursor,
+          completedAt: timestampCursor,
+        });
+        timestampCursor += 1;
+        orderInTurn += 1;
+        continue;
+      }
+      if (itemType === "assistantmessage" || itemType === "agentmessage" || itemType === "assistant_message" || itemType === "agent_message") {
+        messages.push({
+          messageId: itemId,
+          turnId,
+          role: "assistant",
+          status,
+          sourceItemType: "agentMessage",
+          text,
+          orderInTurn,
+          createdAt: timestampCursor,
+          updatedAt: timestampCursor,
+          ...(status === "completed" ? { completedAt: timestampCursor } : {}),
+        });
+        timestampCursor += 1;
+        orderInTurn += 1;
+        continue;
+      }
+      if (itemType === "systemmessage" || itemType === "system_message") {
+        messages.push({
+          messageId: itemId,
+          turnId,
+          role: "system",
+          status: "completed",
+          sourceItemType: "systemMessage",
+          text,
+          orderInTurn,
+          createdAt: timestampCursor,
+          updatedAt: timestampCursor,
+          completedAt: timestampCursor,
+        });
+        timestampCursor += 1;
+        orderInTurn += 1;
+        continue;
+      }
+      if (itemType === "toolmessage" || itemType === "tool_message") {
+        messages.push({
+          messageId: itemId,
+          turnId,
+          role: "tool",
+          status: "completed",
+          sourceItemType: "toolMessage",
+          text,
+          orderInTurn,
+          createdAt: timestampCursor,
+          updatedAt: timestampCursor,
+          completedAt: timestampCursor,
+        });
+        timestampCursor += 1;
+        orderInTurn += 1;
+      }
+    }
+  }
+
+  return messages;
+}
 
 export type CommandApprovalDecision = "accept" | "acceptForSession" | "decline" | "cancel";
 export type ToolUserInputAnswer = { answers: string[] };
@@ -257,8 +444,12 @@ export function parseHelperCommand(line: string): HelperCommand {
 export type TauriInvoke = <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
 export type TauriBridgeStateListener = (state: BridgeState) => void;
 export type TauriBridgeStateSubscribe = (listener: TauriBridgeStateListener) => Promise<() => void>;
+export type TauriGlobalMessageSubscribe = (
+  listener: (payload: Record<string, unknown>) => void,
+) => Promise<() => void>;
 export type TauriBridgeClientOptions = {
   subscribeBridgeState?: TauriBridgeStateSubscribe;
+  subscribeGlobalMessage?: TauriGlobalMessageSubscribe;
   lifecycleSafeSend?: boolean;
 };
 
@@ -312,7 +503,28 @@ export type TauriBridgeClient = {
   tools: {
     setDisabled(config: { tools: string[] }): Promise<unknown>;
   };
+  syncHydration: {
+    getConversationSnapshot(
+      conversationId: string,
+    ): TauriSyncHydrationSnapshot | null | Promise<TauriSyncHydrationSnapshot | null>;
+    subscribe(listener: (snapshot: TauriSyncHydrationSnapshot) => void): Promise<() => void>;
+  };
 };
+
+type SyncDebugPayload = Record<string, unknown>;
+
+function syncDebugEnabled(): boolean {
+  const debugFlag = Reflect.get(globalThis as Record<string, unknown>, "__CODEX_SYNC_DEBUG__");
+  return debugFlag === true;
+}
+
+function syncDebugLog(message: string, payload?: SyncDebugPayload): void {
+  if (!syncDebugEnabled()) {
+    return;
+  }
+  const data = payload ? { ...payload } : {};
+  console.debug("[codex-sync-debug]", { message, ...data });
+}
 
 const LIFECYCLE_SAFE_SEND_READY_TIMEOUT_MS = 8_000;
 const LIFECYCLE_SAFE_SEND_POLL_MS = 200;
@@ -360,8 +572,241 @@ function isLifecycleTransientSendError(error: unknown): boolean {
   );
 }
 
+function parseSyncHydrationState(value: unknown): TauriSyncHydrationState | null {
+  if (
+    value === "idle" ||
+    value === "syncing" ||
+    value === "synced" ||
+    value === "partial" ||
+    value === "drifted" ||
+    value === "cancelled" ||
+    value === "failed"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function parseSyncJobState(value: unknown): TauriSyncJobState | null {
+  if (
+    value === "idle" ||
+    value === "syncing" ||
+    value === "synced" ||
+    value === "failed" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function parseSyncHydrationMessage(value: unknown): TauriSyncHydrationMessage | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const messageId = Reflect.get(value, "messageId");
+  const turnId = Reflect.get(value, "turnId");
+  const role = Reflect.get(value, "role");
+  const status = Reflect.get(value, "status");
+  const text = Reflect.get(value, "text");
+  const orderInTurn = Reflect.get(value, "orderInTurn");
+  const createdAt = Reflect.get(value, "createdAt");
+  const updatedAt = Reflect.get(value, "updatedAt");
+  if (
+    typeof messageId !== "string" ||
+    typeof turnId !== "string" ||
+    (role !== "user" && role !== "assistant" && role !== "system" && role !== "tool") ||
+    (status !== "streaming" && status !== "completed" && status !== "failed" && status !== "interrupted") ||
+    typeof text !== "string" ||
+    typeof orderInTurn !== "number" ||
+    typeof createdAt !== "number" ||
+    typeof updatedAt !== "number"
+  ) {
+    return null;
+  }
+  const sourceItemType = Reflect.get(value, "sourceItemType");
+  const completedAt = Reflect.get(value, "completedAt");
+  const error = Reflect.get(value, "error");
+  return {
+    messageId,
+    turnId,
+    role,
+    status,
+    ...(typeof sourceItemType === "string" ? { sourceItemType } : {}),
+    text,
+    orderInTurn,
+    createdAt,
+    updatedAt,
+    ...(typeof completedAt === "number" ? { completedAt } : {}),
+    ...(typeof error === "string" ? { error } : {}),
+  };
+}
+
+function parseSyncHydrationSnapshot(payload: Record<string, unknown>): TauriSyncHydrationSnapshot | null {
+  const conversationId = Reflect.get(payload, "conversationId");
+  const syncState = parseSyncHydrationState(Reflect.get(payload, "syncState"));
+  const updatedAtMs = Reflect.get(payload, "updatedAtMs");
+  const messages = Reflect.get(payload, "messages");
+  if (
+    typeof conversationId !== "string" ||
+    !syncState ||
+    typeof updatedAtMs !== "number" ||
+    !Array.isArray(messages)
+  ) {
+    return null;
+  }
+  const parsedMessages = messages
+    .map((message) => parseSyncHydrationMessage(message))
+    .filter((message): message is TauriSyncHydrationMessage => message !== null);
+  const errorCode = Reflect.get(payload, "errorCode");
+  const syncJobId = Reflect.get(payload, "syncJobId");
+  const syncJobState = parseSyncJobState(Reflect.get(payload, "syncJobState"));
+  const syncJobPolicyVersion = Reflect.get(payload, "syncJobPolicyVersion");
+  const lastCursor = Reflect.get(payload, "lastCursor");
+  return {
+    conversationId,
+    syncState,
+    updatedAtMs,
+    messages: parsedMessages,
+    ...(typeof syncJobId === "string" ? { syncJobId } : {}),
+    ...(syncJobState ? { syncJobState } : {}),
+    ...(typeof syncJobPolicyVersion === "number" ? { syncJobPolicyVersion } : {}),
+    ...(typeof lastCursor === "number" ? { lastCursor } : {}),
+    ...(typeof errorCode === "string" ? { errorCode } : {}),
+  };
+}
+
 export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBridgeClientOptions): TauriBridgeClient {
   let cachedStartConfig: StartBridgeConfig | null = null;
+  const syncHydrationByConversationId = new Map<string, TauriSyncHydrationSnapshot>();
+  const syncHydrationListeners = new Set<(snapshot: TauriSyncHydrationSnapshot) => void>();
+  let globalMessageSubscribed = false;
+  let globalMessageUnsubscribe: (() => void) | null = null;
+
+  const emitSyncHydrationSnapshot = (snapshot: TauriSyncHydrationSnapshot): void => {
+    const existing = syncHydrationByConversationId.get(snapshot.conversationId);
+    if (existing) {
+      const existingJobId = existing.syncJobId;
+      const incomingJobId = snapshot.syncJobId;
+      if (
+        typeof existingJobId === "string" &&
+        typeof incomingJobId === "string" &&
+        existingJobId !== incomingJobId &&
+        existing.syncState === "syncing" &&
+        snapshot.syncState !== "syncing"
+      ) {
+        syncDebugLog("drop_snapshot_stale_job_terminal", {
+          conversationId: snapshot.conversationId,
+          existingJobId,
+          incomingJobId,
+          existingSyncState: existing.syncState,
+          incomingSyncState: snapshot.syncState,
+          existingUpdatedAtMs: existing.updatedAtMs,
+          incomingUpdatedAtMs: snapshot.updatedAtMs,
+        });
+        return;
+      }
+      if (snapshot.updatedAtMs < existing.updatedAtMs) {
+        syncDebugLog("drop_snapshot_stale_timestamp", {
+          conversationId: snapshot.conversationId,
+          existingJobId,
+          incomingJobId,
+          existingUpdatedAtMs: existing.updatedAtMs,
+          incomingUpdatedAtMs: snapshot.updatedAtMs,
+          existingSyncState: existing.syncState,
+          incomingSyncState: snapshot.syncState,
+        });
+        return;
+      }
+    }
+    syncHydrationByConversationId.set(snapshot.conversationId, snapshot);
+    syncDebugLog("accept_snapshot", {
+      conversationId: snapshot.conversationId,
+      syncJobId: snapshot.syncJobId ?? null,
+      syncJobState: snapshot.syncJobState ?? null,
+      syncState: snapshot.syncState,
+      updatedAtMs: snapshot.updatedAtMs,
+      localMessageCount: snapshot.messages.length,
+      lastCursor: snapshot.lastCursor ?? null,
+      errorCode: snapshot.errorCode ?? null,
+    });
+    for (const listener of syncHydrationListeners) {
+      listener(snapshot);
+    }
+  };
+
+  const ensureGlobalMessageSubscription = async (): Promise<void> => {
+    if (globalMessageSubscribed) {
+      return;
+    }
+    if (!options?.subscribeGlobalMessage) {
+      throw new Error("Global message subscription is not configured for this client.");
+    }
+    const unsubscribe = await options.subscribeGlobalMessage((payload) => {
+      const kind = Reflect.get(payload, "kind");
+      if (kind === "bridge/sync_hydration_snapshot") {
+        const snapshot = parseSyncHydrationSnapshot(payload);
+        if (snapshot) {
+          emitSyncHydrationSnapshot(snapshot);
+        } else {
+          syncDebugLog("ignore_invalid_sync_hydration_snapshot_payload", { payload });
+        }
+        return;
+      }
+      if (kind === "bridge/sync_hydration_state") {
+        const conversationId = Reflect.get(payload, "conversationId");
+        const syncState = parseSyncHydrationState(Reflect.get(payload, "syncState"));
+        if (typeof conversationId !== "string" || !syncState) {
+          return;
+        }
+        const existing = syncHydrationByConversationId.get(conversationId);
+        const updatedAtCandidate = Reflect.get(payload, "updatedAtMs");
+        const updatedAtMs = typeof updatedAtCandidate === "number"
+          ? updatedAtCandidate
+          : Date.now();
+        const errorCode = Reflect.get(payload, "errorCode");
+        const terminalSynced = syncState === "synced";
+        syncDebugLog("receive_sync_hydration_state", {
+          conversationId,
+          syncState,
+          syncJobId: Reflect.get(payload, "syncJobId") ?? existing?.syncJobId ?? null,
+          syncJobState: Reflect.get(payload, "syncJobState") ?? existing?.syncJobState ?? null,
+          updatedAtMs,
+          terminalSynced,
+          existingMessageCount: existing?.messages.length ?? 0,
+        });
+        emitSyncHydrationSnapshot({
+          conversationId,
+          messages: existing?.messages ?? [],
+          syncState,
+          updatedAtMs,
+          ...(typeof Reflect.get(payload, "syncJobId") === "string"
+            ? { syncJobId: Reflect.get(payload, "syncJobId") as string }
+            : existing?.syncJobId !== undefined
+              ? { syncJobId: existing.syncJobId }
+              : {}),
+          ...(parseSyncJobState(Reflect.get(payload, "syncJobState"))
+            ? { syncJobState: parseSyncJobState(Reflect.get(payload, "syncJobState")) as TauriSyncJobState }
+            : existing?.syncJobState !== undefined
+              ? { syncJobState: existing.syncJobState }
+              : {}),
+          ...(typeof Reflect.get(payload, "syncJobPolicyVersion") === "number"
+            ? { syncJobPolicyVersion: Reflect.get(payload, "syncJobPolicyVersion") as number }
+            : existing?.syncJobPolicyVersion !== undefined
+              ? { syncJobPolicyVersion: existing.syncJobPolicyVersion }
+              : {}),
+          ...(typeof Reflect.get(payload, "lastCursor") === "number"
+            ? { lastCursor: Reflect.get(payload, "lastCursor") as number }
+            : existing?.lastCursor !== undefined
+              ? { lastCursor: existing.lastCursor }
+              : {}),
+          ...(typeof errorCode === "string" ? { errorCode } : {}),
+        });
+      }
+    });
+    globalMessageUnsubscribe = unsubscribe;
+    globalMessageSubscribed = true;
+  };
 
   const getState = (): Promise<BridgeState> => invoke("get_bridge_state");
   const start = (config: StartBridgeConfig): Promise<unknown> => {
@@ -494,6 +939,30 @@ export function createTauriBridgeClient(invoke: TauriInvoke, options?: TauriBrid
     tools: {
       setDisabled(config: { tools: string[] }): Promise<unknown> {
         return invoke("set_disabled_tools", { config });
+      },
+    },
+    syncHydration: {
+      async getConversationSnapshot(conversationId: string): Promise<TauriSyncHydrationSnapshot | null> {
+        if (options?.subscribeGlobalMessage) {
+          await ensureGlobalMessageSubscription();
+        }
+        const key = conversationId.trim();
+        if (!key) {
+          return null;
+        }
+        return syncHydrationByConversationId.get(key) ?? null;
+      },
+      async subscribe(listener: (snapshot: TauriSyncHydrationSnapshot) => void): Promise<() => void> {
+        await ensureGlobalMessageSubscription();
+        syncHydrationListeners.add(listener);
+        return () => {
+          syncHydrationListeners.delete(listener);
+          if (syncHydrationListeners.size === 0 && globalMessageUnsubscribe) {
+            globalMessageUnsubscribe();
+            globalMessageUnsubscribe = null;
+            globalMessageSubscribed = false;
+          }
+        };
       },
     },
   };

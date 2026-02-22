@@ -77,6 +77,8 @@ test("applyStreamEvent fail-closes when a streamId is already bound to a differe
   };
 
   const cache = {
+    getTurnRecord: async () => turnDoc,
+    setTurnRecord: () => {},
     getStreamRecord: async () => null,
     setStreamRecord: () => {},
   };

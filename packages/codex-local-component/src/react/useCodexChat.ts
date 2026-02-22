@@ -15,6 +15,7 @@ import {
   type CodexDynamicToolsRespond,
 } from "./useCodexDynamicTools.js";
 import type { CodexThreadStateQuery } from "./useCodexThreadState.js";
+import type { CodexSyncHydrationSource } from "./syncHydration.js";
 
 export type CodexChatDynamicToolsConfig<
   DynamicToolsQuery extends CodexDynamicToolsQuery<Record<string, unknown>>,
@@ -61,6 +62,11 @@ export type CodexChatConfig<
     DynamicToolsRespondResult
   >["composer"];
   dynamicTools?: CodexChatDynamicToolsConfig<DynamicToolsQuery, DynamicToolsRespondResult>;
+  syncHydration?: {
+    source: CodexSyncHydrationSource;
+    conversationId: string | null;
+    enabled?: boolean;
+  };
 };
 
 export type CodexChatTools = {
@@ -324,6 +330,11 @@ export function useCodexChat<
               : {}),
             handlers: effectiveHandlers,
           },
+        }),
+    ...(config.syncHydration === undefined
+      ? {}
+      : {
+          syncHydration: config.syncHydration,
         }),
   });
 

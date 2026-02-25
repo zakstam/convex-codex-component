@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Introduce server-owned resumable conversation sync jobs with durable job/chunk staging, internal chunk workers, and explicit sync-job host APIs (`startConversationSyncJob`, `appendConversationSyncChunk`, `sealConversationSyncJobSource`, `cancelConversationSyncJob`, `getConversationSyncJob`, `listConversationSyncJobs`).

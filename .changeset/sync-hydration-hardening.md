@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Harden sync hydration behavior and runtime reliability:

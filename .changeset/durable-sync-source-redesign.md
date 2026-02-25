@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Redesign durable conversation sync to use immutable import sources and server-owned verified sync jobs.

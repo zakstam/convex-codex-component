@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Source: @zakstam/codex-local-component/host/tauri
+// Source: @zakstam/codex-runtime-bridge-tauri
 pub const BRIDGE_COMMANDS: &[&str] = &[
     "start_bridge",
     "open_thread",

@@ -1,4 +1,4 @@
-import type { HostActorContext } from "@zakstam/codex-local-component/host/convex";
+import type { HostActorContext } from "@zakstam/codex-runtime-convex/host";
 import type { QueryCtx } from "./_generated/server";
 
 const ACTOR_LOCK_TABLE = "tauri_actor_lock";

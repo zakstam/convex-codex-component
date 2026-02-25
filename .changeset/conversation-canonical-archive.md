@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Add conversation-canonical archive support across host/runtime/component surfaces.

@@ -108,7 +108,7 @@ Separate all non-core capabilities into dedicated packages with concrete contrac
 
 ### Stage B: Single Convex package unification
 
-- Rename `@zakstam/codex-local-component-persistence-convex` to `@zakstam/codex-runtime-convex`.
+- Rename `@zakstam/codex-runtime-convex` to `@zakstam/codex-runtime-convex`.
 - Move/merge Convex host bindings + shim tooling into this package.
 - Update all example app Convex imports and scripts.
 

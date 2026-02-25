@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateTauriArtifacts } from "@zakstam/codex-local-component/host/tauri";
+import { generateTauriArtifacts } from "@zakstam/codex-runtime-bridge-tauri";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(here, "..");

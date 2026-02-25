@@ -5,19 +5,19 @@ Node REPL harness that drives the same helper command/event protocol used by the
 ## Start
 
 ```bash
-pnpm --filter codex-local-debug-harness run start
+pnpm --filter codex-runtime-debug-harness run start
 ```
 
 ## Scenario Repro
 
 ```bash
-pnpm --filter codex-local-debug-harness run repro:no-response
+pnpm --filter codex-runtime-debug-harness run repro:no-response
 ```
 
 ## Replay Exported Repro Artifact
 
 ```bash
-pnpm --filter codex-local-debug-harness run start
+pnpm --filter codex-runtime-debug-harness run start
 # then in REPL:
 replay-artifact /path/to/tauri-repro-*.json
 ```

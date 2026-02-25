@@ -1,8 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { defineCodexHostDefinitions } from "@zakstam/codex-local-component/host/convex";
+import { defineCodexHostDefinitions } from "@zakstam/codex-runtime-convex/host";
 
-export { getActorBindingForBootstrap, listThreadsForPicker, listRuntimeConversationBindingsForPicker, resolveOpenTarget } from "./chat.extensions";
+export { getActorBindingForBootstrap, listThreadsForPicker, listRuntimeConversationBindingsForPicker, resolveOpenTarget, validatePickerHostWiring } from "./chat.extensions";
 
 const codex = defineCodexHostDefinitions({ components });
 

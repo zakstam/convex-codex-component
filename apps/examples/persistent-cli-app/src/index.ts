@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { stdin, stdout } from "node:process";
 import { ConvexHttpClient } from "convex/browser";
-import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
-import { turnIdForPayload } from "@zakstam/codex-local-component/protocol";
+import { CodexLocalBridge } from "@zakstam/codex-runtime-bridge-tauri/local-adapter";
+import { turnIdForPayload } from "@zakstam/codex-runtime/protocol";
 import { api } from "../convex/_generated/api.js";
 import { resolveConvexUrl } from "../../../shared/resolveConvexUrl.js";
 import {
@@ -16,7 +16,7 @@ import type {
   ClientRequest,
   NormalizedEvent,
   ServerNotification,
-} from "@zakstam/codex-local-component/protocol";
+} from "@zakstam/codex-runtime/protocol";
 
 type IngestDelta = {
   eventId: string;
@@ -221,7 +221,7 @@ class Tui {
       visible.unshift("");
     }
 
-    const header = this.status.length > 0 ? this.status : "codex-local persistent tui";
+    const header = this.status.length > 0 ? this.status : "codex-runtime persistent tui";
     const sep = "-".repeat(cols);
 
     let out = "\x1b[2J\x1b[H";

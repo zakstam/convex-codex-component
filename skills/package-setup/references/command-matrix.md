@@ -5,7 +5,7 @@ Use this matrix to select commands by target context.
 ## External Consumer Project (Generic)
 
 1. Install dependencies:
-   - `pnpm add @zakstam/codex-local-component convex`
+   - `pnpm add @zakstam/codex-runtime convex`
 2. Generate Convex once:
    - `npx convex dev --once`
 3. Sync host shim if project defines `sync:host-shim`:

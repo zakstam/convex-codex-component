@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Fix runtime lifecycle/send-gating edge cases across the host runtime and Tauri helper bridge.

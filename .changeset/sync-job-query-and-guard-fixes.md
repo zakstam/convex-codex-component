@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Fixes several edge-case correctness issues in runtime-owned host integration:

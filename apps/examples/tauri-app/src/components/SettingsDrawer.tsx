@@ -4,7 +4,7 @@ import type {
   CodexThreadActivity,
   CodexThreadActivityThreadState,
   CodexTokenUsage,
-} from "@zakstam/codex-local-component/react";
+} from "@zakstam/codex-runtime-react";
 import type { PendingAuthRefreshRequest } from "../hooks/useCodexTauriEvents";
 
 import { SettingsSection } from "./SettingsSection";
@@ -57,7 +57,14 @@ type Props = {
   latestThreadTurnId: string | null;
   activeDeletionJobId: string | null;
   activeDeletionLabel: string | null;
-  deletionStatus: any;
+  deletionStatus:
+    | {
+        status?: string;
+        phase?: string;
+        scheduledFor?: number;
+        errorMessage?: string;
+      }
+    | undefined;
   scheduledDeleteCountdown: number | null;
   onDeleteCurrentThread: () => Promise<void>;
   onDeleteLatestTurn: () => Promise<void>;

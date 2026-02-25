@@ -1,7 +1,7 @@
 import type { FunctionArgs } from "convex/server";
 import { api } from "../convex/_generated/api.js";
 
-type ActorContext = { userId?: string };
+type ActorContext = { userId?: string; anonymousId?: string };
 type Assert<T extends true> = T;
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends

@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Add codex-prefixed optimistic update APIs for React consumers, including:

@@ -1,6 +1,6 @@
 ---
 name: package-setup
-description: Fail-closed setup workflow for integrating `@zakstam/codex-local-component` in a consumer project using the canonical runtime-owned React path. Use when onboarding a project to this package, wiring Convex host definitions with `defineCodexHostDefinitions(...)`, syncing/checking host shims, validating prerequisites, or diagnosing setup drift.
+description: Fail-closed setup workflow for integrating `@zakstam/codex-runtime` in a consumer project using the canonical runtime-owned React path. Use when onboarding a project to this package, wiring Convex host definitions with `defineCodexHostDefinitions(...)`, syncing/checking host shims, validating prerequisites, or diagnosing setup drift.
 ---
 
 # Package Setup
@@ -9,10 +9,10 @@ Use this skill to execute package setup with deterministic ordering and fail-clo
 
 ## Workflow
 
-1. Read `packages/codex-local-component/README.md`.
-2. Read `packages/codex-local-component/docs/CANONICAL_INTEGRATION.md`.
-3. Read `packages/codex-local-component/docs/API_REFERENCE.md`.
-4. Read `packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md`.
+1. Read `packages/codex-runtime/README.md`.
+2. Read `packages/codex-runtime/docs/CANONICAL_INTEGRATION.md`.
+3. Read `packages/codex-runtime/docs/API_REFERENCE.md`.
+4. Read `packages/codex-runtime/docs/EXAMPLE_APPS_RUNBOOK.md`.
 5. Execute `references/setup-checklist.md`.
 6. Use `references/command-matrix.md` when the target environment or app needs command-specific routing.
 7. Use `references/troubleshooting.md` when any prerequisite or verification gate fails.

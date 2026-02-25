@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { createTauriBridgeClient } from "@zakstam/codex-local-component/host/tauri";
-import type { BridgeState } from "@zakstam/codex-local-component/host/tauri";
+import { createTauriBridgeClient } from "@zakstam/codex-runtime-bridge-tauri";
+import type { BridgeState } from "@zakstam/codex-runtime-bridge-tauri";
 
 export type {
   ActorContext,
@@ -10,7 +10,7 @@ export type {
   LoginAccountParams,
   StartBridgeConfig,
   ToolUserInputAnswer,
-} from "@zakstam/codex-local-component/host/tauri";
+} from "@zakstam/codex-runtime-bridge-tauri";
 
 type TauriInvokeCaptureEvent = {
   tsMs: number;

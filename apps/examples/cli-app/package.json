@@ -1,15 +1,16 @@
 {
-  "name": "codex-local-cli-example",
+  "name": "codex-runtime-cli-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm --filter @zakstam/codex-local-component run build",
-    "start": "pnpm run prepare:component && tsx src/index.ts",
-    "typecheck": "pnpm run prepare:component && tsgo --noEmit",
-    "typecheck:tsc": "pnpm run prepare:component && tsc --noEmit"
+    "prepare:runtime": "pnpm --filter @zakstam/codex-runtime run build",
+    "start": "pnpm run prepare:runtime && tsx src/index.ts",
+    "typecheck": "pnpm run prepare:runtime && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:runtime && tsc --noEmit"
   },
   "dependencies": {
-    "@zakstam/codex-local-component": "workspace:*"
+    "@zakstam/codex-runtime": "workspace:*",
+    "@zakstam/codex-runtime-bridge-tauri": "workspace:*"
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260221.1",

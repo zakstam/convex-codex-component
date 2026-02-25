@@ -1,4 +1,4 @@
-import type { HelperCommand } from "@zakstam/codex-local-component/host/tauri";
+import type { HelperCommand } from "@zakstam/codex-runtime-bridge-tauri";
 
 type TauriReproCaptureCommand = {
   phase?: string;

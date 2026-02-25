@@ -3,16 +3,16 @@
 This app demonstrates the canonical runtime-owned consumer flow against a real Convex backend.
 It is an example implementation of the package strategy defined in:
 
-- `packages/codex-local-component/LLMS.md`
+- `packages/codex-runtime/LLMS.md`
 
-LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
+LLM onboarding entrypoint: `packages/codex-runtime/LLMS.md`.
 
 Canonical default used here: runtime-owned host integration.
 This README is operational guidance for this example app only; package docs define the integration contract.
 
 ## Runbook and Setup
 
-- Shared run/check commands and required variables live in [packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md](../../packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md) (section: `Persistent CLI Example`).
+- Shared run/check commands and required variables live in [packages/codex-runtime/docs/EXAMPLE_APPS_RUNBOOK.md](../../packages/codex-runtime/docs/EXAMPLE_APPS_RUNBOOK.md) (section: `Persistent CLI Example`).
 
 ## Host Surface Ownership
 

@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { CodexLocalBridge } from "@zakstam/codex-local-component/host";
+import { CodexLocalBridge } from "@zakstam/codex-runtime-bridge-tauri/local-adapter";
 import { extractAssistantDeltaFromPayload, isResponse, isServerNotification } from "../../../shared/protocolPayload.js";
 import type {
   ClientNotification,
   ClientRequest,
-} from "@zakstam/codex-local-component/protocol";
+} from "@zakstam/codex-runtime/protocol";
 
 const model = process.env.CODEX_MODEL ?? null;
 const cwd = process.env.CODEX_CWD ?? process.cwd();

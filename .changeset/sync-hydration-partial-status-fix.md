@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Fix sync hydration message badge mapping so `partial` is no longer treated as `failed`.

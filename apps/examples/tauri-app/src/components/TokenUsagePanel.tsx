@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CodexTokenUsage, CodexTokenUsageBreakdown } from "@zakstam/codex-local-component/react";
+import type { CodexTokenUsage, CodexTokenUsageBreakdown } from "@zakstam/codex-runtime-react";
 
 type Props = {
   tokenUsage: CodexTokenUsage | null;

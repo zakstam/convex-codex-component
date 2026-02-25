@@ -1,0 +1,68 @@
+{
+  "name": "@zakstam/codex-runtime-convex",
+  "version": "0.1.0",
+  "description": "Convex persistence adapter package for @zakstam/codex-runtime host runtime.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./persistence": {
+      "types": "./dist/convexPersistenceAdapter.d.ts",
+      "import": "./dist/convexPersistenceAdapter.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./tooling": {
+      "types": "./dist/tooling.d.ts",
+      "import": "./dist/tooling.js"
+    },
+    "./_generated/component.js": {
+      "types": "./dist/_generated/component.d.ts",
+      "import": "./dist/_generated/component.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zakstam/convex-codex-component.git",
+    "directory": "packages/codex-runtime-convex"
+  },
+  "homepage": "https://github.com/zakstam/convex-codex-component#readme",
+  "bugs": {
+    "url": "https://github.com/zakstam/convex-codex-component/issues"
+  },
+  "provenance": true,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "pnpm exec tsc -p tsconfig.build.json",
+    "prepack": "pnpm run clean && pnpm run build",
+    "typecheck": "pnpm exec tsc --noEmit",
+    "typecheck:tsc": "pnpm exec tsc --noEmit",
+    "test": "pnpm --filter @zakstam/codex-runtime run build && pnpm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@zakstam/codex-runtime": "workspace:*",
+    "convex": "^1.32.0"
+  },
+  "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260221.1",
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3"
+  }
+}

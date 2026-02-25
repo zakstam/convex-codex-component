@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Add first-class sync-hydration optimistic UI support for runtime-owned conversation flows.

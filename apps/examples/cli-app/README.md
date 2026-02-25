@@ -5,11 +5,11 @@ It is an example, not the canonical integration guide.
 
 Canonical consumer implementation path:
 
-- `packages/codex-local-component/LLMS.md`
+- `packages/codex-runtime/LLMS.md`
 
 This app is intentionally lightweight and does not define an integration alternative to the package canonical path.
 
-LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
+LLM onboarding entrypoint: `packages/codex-runtime/LLMS.md`.
 
 ## Run
 

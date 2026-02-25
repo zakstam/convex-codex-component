@@ -94,6 +94,7 @@ impl BridgeRuntime {
 
         let helper = resolve_helper_launch_spec(&app)?;
         let mut command = Command::new(&helper.command);
+        command.kill_on_drop(true);
         for arg in &helper.args {
             command.arg(arg);
         }

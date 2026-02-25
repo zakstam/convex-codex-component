@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Harden host contract drift around runtime conversation identity and pending request lookup.

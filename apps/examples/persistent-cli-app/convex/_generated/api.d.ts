@@ -53,7 +53,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -81,7 +81,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           decision: "accepted" | "declined";
           itemId: string;
           threadId: string;
@@ -94,7 +94,11 @@ export declare const components: {
       getByTurn: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string; turnId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          threadId: string;
+          turnId: string;
+        },
         Array<{
           completedAt?: number;
           createdAt: number;
@@ -114,7 +118,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -150,7 +154,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           includeRaw?: boolean;
           paginationOpts: {
             cursor: string | null;
@@ -186,7 +190,11 @@ export declare const components: {
       listPending: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; limit?: number; threadId?: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          limit?: number;
+          threadId?: string;
+        },
         Array<{
           createdAt: number;
           itemId: string;
@@ -218,7 +226,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           requestId: string | number;
           resolvedAt: number;
           responseJson?: string;
@@ -231,7 +239,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           itemId: string;
           method:
             | "item/commandExecution/requestApproval"
@@ -254,7 +262,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           lastEventCursor: number;
           sessionId: string;
           threadId: string;
@@ -265,7 +273,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           lastEventCursor: number;
           sessionId: string;
           threadId: string;
@@ -276,7 +284,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           lifecycleEvents: Array<{
             createdAt: number;
             eventId: string;
@@ -316,7 +324,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           ensureLastEventCursor?: number;
           lifecycleEvents: Array<{
             createdAt: number;
@@ -374,14 +382,14 @@ export declare const components: {
       listCheckpoints: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         Array<{ cursor: number; streamId: string }>
       >;
       replay: FunctionReference<
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           runtime?: {
             exposeRawReasoningDeltas?: boolean;
             finishedStreamDeleteDelayMs?: number;
@@ -421,7 +429,7 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           fromCursor: number;
           runtime?: {
             exposeRawReasoningDeltas?: boolean;
@@ -454,7 +462,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           cursor: number;
           streamId: string;
           threadId: string;
@@ -463,17 +471,58 @@ export declare const components: {
       >;
     };
     threads: {
+      appendConversationSyncSourceChunk: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          byteSize: number;
+          chunkIndex: number;
+          messageCount: number;
+          payloadJson: string;
+          sourceId: string;
+        },
+        { appended: boolean; chunkIndex: number; sourceId: string }
+      >;
+      archiveByConversation: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          threadId: string;
+        },
+        { conversationId: string; status: "archived"; threadId: string }
+      >;
+      cancelConversationSyncJob: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          errorCode?: string;
+          errorMessage?: string;
+          jobId: string;
+        },
+        {
+          cancelled: boolean;
+          jobId: string;
+          state: "syncing" | "synced" | "failed" | "cancelled";
+        }
+      >;
       cancelScheduledDeletion: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; deletionJobId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          deletionJobId: string;
+        },
         { cancelled: boolean; deletionJobId: string }
       >;
       create: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           cwd?: string;
           localThreadId?: string;
           model?: string;
@@ -486,23 +535,75 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           reason?: string;
           threadId: string;
         },
         { deletionJobId: string }
       >;
+      forceRebindSync: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          reasonCode?: string;
+          runtimeConversationId: string;
+        },
+        {
+          conversationId: string;
+          rebindCount: number;
+          runtimeConversationId: string;
+          syncState: "unsynced" | "syncing" | "synced" | "drifted";
+          threadId: string;
+        }
+      >;
       forceRunScheduledDeletion: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; deletionJobId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          deletionJobId: string;
+        },
         { deletionJobId: string; forced: boolean }
+      >;
+      getConversationSyncJob: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          jobId?: string;
+        },
+        null | {
+          completedAt?: number;
+          conversationId: string;
+          expectedMessageCount?: number;
+          jobId: string;
+          lastCursor: number;
+          lastErrorCode?: string;
+          lastErrorMessage?: string;
+          policyVersion: number;
+          processedChunkIndex: number;
+          processedMessageCount: number;
+          retryCount: number;
+          runtimeConversationId?: string;
+          sourceState: "collecting" | "sealed" | "failed";
+          startedAt: number;
+          state: "syncing" | "synced" | "failed" | "cancelled";
+          threadId: string;
+          totalChunks: number;
+          updatedAt: number;
+        }
       >;
       getDeletionJobStatus: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; deletionJobId: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          deletionJobId: string;
+        },
         null | {
           batchSize?: number;
           cancelledAt?: number;
@@ -529,16 +630,10 @@ export declare const components: {
           updatedAt: number;
         }
       >;
-      getThreadHandleMapping: FunctionReference<
-        "query",
-        "internal",
-        { actor: { userId?: string }; threadId: string },
-        null | { threadHandle: string; threadId: string }
-      >;
       getState: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         {
           activeStreams: Array<{
             startedAt: number;
@@ -594,7 +689,8 @@ export declare const components: {
         "query",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
+          includeArchived?: boolean;
           paginationOpts: {
             cursor: string | null;
             endCursor?: string | null;
@@ -608,48 +704,146 @@ export declare const components: {
           continueCursor: string;
           isDone: boolean;
           page: Array<{
+            conversationId: string;
+            preview: string;
             status: "active" | "archived" | "failed";
-            threadId: string;
             updatedAt: number;
           }>;
+        }
+      >;
+      listByConversation: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          includeArchived?: boolean;
+        },
+        {
+          continueCursor: string;
+          isDone: boolean;
+          page: Array<{
+            conversationId: string;
+            preview: string;
+            status: "active" | "archived" | "failed";
+            updatedAt: number;
+          }>;
+        }
+      >;
+      listConversationSyncJobs: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          limit?: number;
+        },
+        Array<{
+          completedAt?: number;
+          expectedMessageCount?: number;
+          jobId: string;
+          lastErrorCode?: string;
+          processedChunkIndex: number;
+          processedMessageCount: number;
+          retryCount: number;
+          sourceState: "collecting" | "sealed" | "failed";
+          startedAt: number;
+          state: "syncing" | "synced" | "failed" | "cancelled";
+          totalChunks: number;
+          updatedAt: number;
+        }>
+      >;
+      listRuntimeConversationBindings: FunctionReference<
+        "query",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          runtimeConversationIds: Array<string>;
+        },
+        Array<{
+          conversationId: string;
+          runtimeConversationId: string;
+          threadId: string;
+        }>
+      >;
+      markSyncProgress: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          cursor: number;
+          errorCode?: string;
+          expectedSyncJobId?: string;
+          runtimeConversationId?: string;
+          sessionId?: string;
+          syncJobErrorCode?: string;
+          syncJobId?: string;
+          syncJobPolicyVersion?: number;
+          syncJobStartedAt?: number;
+          syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          syncJobUpdatedAt?: number;
+          syncState?: "unsynced" | "syncing" | "synced" | "drifted";
+        },
+        {
+          conversationId: string;
+          lastSyncedCursor: number;
+          runtimeConversationId?: string;
+          staleIgnored: boolean;
+          syncJobErrorCode?: string;
+          syncJobId?: string;
+          syncJobLastCursor?: number;
+          syncJobPolicyVersion?: number;
+          syncJobStartedAt?: number;
+          syncJobState?: "idle" | "syncing" | "synced" | "failed" | "cancelled";
+          syncJobUpdatedAt?: number;
+          syncState: "unsynced" | "syncing" | "synced" | "drifted";
+          threadId: string;
         }
       >;
       purgeActorData: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; batchSize?: number; reason?: string },
+        {
+          actor: { anonymousId?: string; userId?: string };
+          batchSize?: number;
+          reason?: string;
+        },
         { deletionJobId: string }
       >;
       resolve: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
+          conversationId?: string;
           cwd?: string;
-          threadHandle?: string;
           localThreadId?: string;
           model?: string;
           personality?: string;
         },
-        { created: boolean; threadHandle?: string; threadId: string }
+        { conversationId?: string; created: boolean; threadId: string }
       >;
-      resolveByThreadHandle: FunctionReference<
+      resolveByConversationId: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadHandle: string },
-        null | { threadHandle: string; threadId: string }
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+        },
+        null | { conversationId: string; threadId: string }
       >;
       resume: FunctionReference<
         "mutation",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         { status: "active"; threadId: string }
       >;
       scheduleDeleteCascade: FunctionReference<
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           delayMs?: number;
           reason?: string;
@@ -661,19 +855,86 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           delayMs?: number;
           reason?: string;
         },
         { deletionJobId: string; scheduledFor: number }
       >;
+      sealConversationSyncSource: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          expectedChecksum: string;
+          expectedManifestJson: string;
+          expectedMessageCount?: number;
+          sourceId: string;
+        },
+        {
+          jobId: string;
+          scheduled: boolean;
+          sourceId: string;
+          sourceState: "collecting" | "sealed" | "failed";
+          totalChunks: number;
+        }
+      >;
+      startConversationSyncSource: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          runtimeConversationId?: string;
+          threadId?: string;
+        },
+        {
+          conversationId: string;
+          createdAt: number;
+          policyVersion: number;
+          sourceId: string;
+          sourceState: "collecting" | "sealed" | "failed";
+          threadId: string;
+          updatedAt: number;
+        }
+      >;
+      syncOpenBinding: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          cwd?: string;
+          model?: string;
+          runtimeConversationId: string;
+          sessionId?: string;
+        },
+        {
+          conversationId: string;
+          created: boolean;
+          rebindApplied: boolean;
+          runtimeConversationId: string;
+          syncState: "unsynced" | "syncing" | "synced" | "drifted";
+          threadId: string;
+        }
+      >;
+      unarchiveByConversation: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          actor: { anonymousId?: string; userId?: string };
+          conversationId: string;
+          threadId: string;
+        },
+        { conversationId: string; status: "active"; threadId: string }
+      >;
     };
     tokenUsage: {
       listByThread: FunctionReference<
         "query",
         "internal",
-        { actor: { userId?: string }; threadId: string },
+        { actor: { anonymousId?: string; userId?: string }; threadId: string },
         Array<{
           last: {
             cachedInputTokens: number;
@@ -698,7 +959,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           cachedInputTokens: number;
           inputTokens: number;
           lastCachedInputTokens: number;
@@ -721,7 +982,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           reason?: string;
           threadId: string;
@@ -733,7 +994,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           reason?: string;
           threadId: string;
           turnId: string;
@@ -744,7 +1005,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           batchSize?: number;
           delayMs?: number;
           reason?: string;
@@ -757,7 +1018,7 @@ export declare const components: {
         "mutation",
         "internal",
         {
-          actor: { userId?: string };
+          actor: { anonymousId?: string; userId?: string };
           idempotencyKey: string;
           input: Array<{
             path?: string;

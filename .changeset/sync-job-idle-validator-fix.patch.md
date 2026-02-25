@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Fix a sync progress validator mismatch where `syncJobState: "idle"` could be emitted by binding progress flows but rejected by component return validators.

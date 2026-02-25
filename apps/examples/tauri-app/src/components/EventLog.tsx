@@ -1,4 +1,4 @@
-import type { CodexIngestHealth, CodexThreadActivity, CodexThreadActivityThreadState } from "@zakstam/codex-local-component/react";
+import type { CodexIngestHealth, CodexThreadActivity, CodexThreadActivityThreadState } from "@zakstam/codex-runtime-react";
 
 type Props = {
   threadState: CodexThreadActivityThreadState | null | undefined;

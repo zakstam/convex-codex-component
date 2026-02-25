@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Package Setup"
-  short_description: "Fail-closed setup for codex-local-component"
-  default_prompt: "Use $package-setup to onboard this project to @zakstam/codex-local-component with canonical runtime-owned wiring and verification gates."
+  short_description: "Fail-closed setup for codex-runtime"
+  default_prompt: "Use $package-setup to onboard this project to @zakstam/codex-runtime with canonical runtime-owned wiring and verification gates."

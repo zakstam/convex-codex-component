@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Source: @zakstam/codex-local-component/host/tauri
+// Source: @zakstam/codex-runtime-bridge-tauri
 
 macro_rules! bridge_generate_handler {
     () => {

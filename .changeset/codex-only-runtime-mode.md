@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Introduce explicit runtime modes for `createCodexHostRuntime(...)`:

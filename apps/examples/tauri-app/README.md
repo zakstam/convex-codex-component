@@ -3,7 +3,7 @@
 This app is the blessed reference integration for production-grade React + Convex host wiring.
 React hooks are the official recommendation for consumer integrations.
 
-LLM onboarding entrypoint: `packages/codex-local-component/LLMS.md`.
+LLM onboarding entrypoint: `packages/codex-runtime/LLMS.md`.
 
 Canonical wiring in this app centers on:
 - `CodexProvider` + `useCodex`
@@ -14,8 +14,8 @@ Canonical wiring in this app centers on:
 
 Canonical consumer implementation path:
 
-- `packages/codex-local-component/LLMS.md`
-- `packages/codex-local-component/docs/CANONICAL_INTEGRATION.md`
+- `packages/codex-runtime/LLMS.md`
+- `packages/codex-runtime/docs/CANONICAL_INTEGRATION.md`
 
 This README is app-specific operational guidance only; package docs are the integration source of truth.
 
@@ -25,9 +25,12 @@ This README is app-specific operational guidance only; package docs are the inte
 - Use `bridge.lifecycle.getState()` as the snapshot fallback for reconciliation.
 - `useCodexTauriEvents` is the only place that subscribes to Tauri bridge events.
 - The hook is StrictMode-safe and deduplicates transition toasts to one toast per real running-state edge.
+- App startup runs `chat.validatePickerHostWiring` before loading picker queries.
+- If picker wiring validation fails, the app blocks picker reads and shows a clear remediation message (`pnpm --filter codex-runtime-tauri-example run dev:convex:once` + restart Tauri).
 - This app uses explicit thread intent: `bridge.lifecycle.start(...)` (transport connect) then `bridge.lifecycle.openThread(...)` before `bridge.turns.send(...)`.
 - This app also opts in to transport-only lifecycle-safe send recovery (`createTauriBridgeClient(..., { lifecycleSafeSend: true })`).
 - Runtime auto-start is enabled when the app bootstraps actor identity; manual start remains available for recovery.
+- Bridge helper shutdown is fail-closed: stdin/signal shutdown now has a forced timeout and a parent-process watchdog so orphaned helper runtimes self-terminate when the Tauri parent disappears.
 
 ## Tool Policy Panel
 
@@ -40,10 +43,10 @@ This README is app-specific operational guidance only; package docs are the inte
 
 ## Runbook and Setup
 
-- Shared run/check commands and required variables live in [packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md](../../packages/codex-local-component/docs/EXAMPLE_APPS_RUNBOOK.md).
+- Shared run/check commands and required variables live in [packages/codex-runtime/docs/EXAMPLE_APPS_RUNBOOK.md](../../packages/codex-runtime/docs/EXAMPLE_APPS_RUNBOOK.md).
 - Relevant section: `Tauri Example`.
 - Create `apps/examples/tauri-app/.env.local` with `VITE_CONVEX_URL=...` and app-specific optional overrides as documented there.
-- CI runs `pnpm --filter codex-local-tauri-example run typecheck` whenever host/type boundary paths change to protect generated `api.chat.*` contracts.
+- CI runs `pnpm --filter codex-runtime-tauri-example run typecheck` whenever host/type boundary paths change to protect generated `api.chat.*` contracts.
 
 ## Actor Security
 
@@ -95,7 +98,7 @@ This emits:
 
 ## Bridge Command Contract
 
-- Bridge command wiring is package-owned from `@zakstam/codex-local-component/host/tauri`.
+- Bridge command wiring is package-owned from `@zakstam/codex-runtime-bridge-tauri`.
 - The app consumes `createTauriBridgeClient(...)`, helper command parsing, and helper ack policy from package exports.
 - `pnpm run prepare:tauri-assets` regenerates Rust command/dispatch/invoke-handler files and permission TOML files from package-owned metadata.
 - Generated Rust artifacts:
@@ -128,6 +131,7 @@ When using ChatGPT auth token login/refresh flows, the payload now follows the l
 - When enabled, local threads are loaded immediately (and cleared immediately when disabled) and shown as `local unsynced` until a persisted binding exists.
 - Local unsynced rows now use runtime-provided preview text when available (fallback: `Untitled thread`).
 - Selecting a `local unsynced` thread now calls package runtime `importLocalThreadToPersistence(...)` so history is imported into Convex and shown immediately without sending a new turn.
+- Successful local-thread sync now refreshes thread recency in runtime storage, so the newly persisted conversation appears in recency-sorted picker lists without UI-side promotion caches.
 - Local-thread import sync is now modeled as a durable conversation-scoped job (`idle -> syncing -> synced|failed|cancelled`) with persisted `syncJobId` metadata.
 - UI hydration updates are gated by `syncJobId` to avoid stale job overwrite.
 - Send policy is explicit: message sends are blocked while the selected conversation sync job is `syncing`.

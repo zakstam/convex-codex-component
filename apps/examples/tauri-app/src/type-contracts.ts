@@ -12,6 +12,7 @@ type ListThreadMessagesArgs = FunctionArgs<typeof api.chat.listThreadMessagesByC
 type ThreadSnapshotArgs = FunctionArgs<typeof api.chat.threadSnapshotByConversation>;
 type ListPendingServerRequestsArgs = FunctionArgs<typeof api.chat.listPendingServerRequestsByConversation>;
 type ValidateHostWiringArgs = FunctionArgs<typeof api.chat.validateHostWiring>;
+type ValidatePickerHostWiringArgs = FunctionArgs<typeof api.chat.validatePickerHostWiring>;
 type ScheduleDeleteThreadArgs = FunctionArgs<typeof api.chat.scheduleDeleteThread>;
 type ScheduleDeleteTurnArgs = FunctionArgs<typeof api.chat.scheduleDeleteTurn>;
 type CancelDeletionArgs = FunctionArgs<typeof api.chat.cancelDeletion>;
@@ -65,6 +66,15 @@ type _ValidateHostWiringArgsAreTyped = Assert<
     {
       actor: ActorContext;
       conversationId?: string;
+    }
+  >
+>;
+
+type _ValidatePickerHostWiringArgsAreTyped = Assert<
+  Equal<
+    ValidatePickerHostWiringArgs,
+    {
+      actor: ActorContext;
     }
   >
 >;

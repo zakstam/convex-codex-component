@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Find and prioritize the highest-value bugs in `@zakstam/codex-local-component` with fail-closed verification and architecture-aligned fixes.
+**Goal:** Find and prioritize the highest-value bugs in `@zakstam/codex-runtime` with fail-closed verification and architecture-aligned fixes.
 
 **Architecture:** This plan follows a vertical-slice bug hunt: host contracts, runtime lifecycle, durable sync, component integrity, protocol, and React integration. We run hard gates first, then targeted suites, then focused static checks, and end with architecture recommendations (no workaround fixes).
 
@@ -27,7 +27,7 @@ Expected: Current workspace state captured for later diff checks.
 
 **Step 3: Capture package + tool versions**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component exec node -v && pnpm -C codex-convex-component -v`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime exec node -v && pnpm -C codex-convex-component -v`
 Expected: Version values printed and logged.
 
 **Step 4: Commit checkpoint (optional for execution session)**
@@ -40,11 +40,11 @@ git commit -m "chore: reserve bug-hunt file ownership"
 ### Task 2: Run full package CI gate first (highest signal)
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/*.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/*.test.mjs`
 
 **Step 1: Run full CI gate**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run ci`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run ci`
 Expected: PASS with all checks green, or immediate failing command and error output.
 
 **Step 2: Record first failing gate and stack trace**
@@ -65,40 +65,40 @@ git commit -m "chore: capture initial ci gate failures"
 ### Task 3: Validate host boundary and shim drift (contract-critical)
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/scripts/check-host-boundaries.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/scripts/check-host-boundaries.mjs`
 - Test: `codex-convex-component/apps/examples/tauri-app/scripts/sync-host-shim.mjs`
 - Test: `codex-convex-component/apps/examples/tauri-app/convex/chat.ts`
 
 **Step 1: Run host-boundary guard**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run check:host-boundaries`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run check:host-boundaries`
 Expected: PASS; no forbidden cross-context imports.
 
 **Step 2: Check Tauri example shim drift**
 
-Run: `pnpm -C codex-convex-component --filter codex-local-tauri-example run check:host-shim`
+Run: `pnpm -C codex-convex-component --filter codex-runtime-tauri-example run check:host-shim`
 Expected: PASS; generated shim matches canonical manifest.
 
 **Step 3: Check persistent CLI example shim drift**
 
-Run: `pnpm -C codex-convex-component --filter codex-local-persistent-cli-example run check:host-shim`
+Run: `pnpm -C codex-convex-component --filter codex-runtime-persistent-cli-example run check:host-shim`
 Expected: PASS.
 
 **Step 4: If fail, produce failing diff**
 
-Run: `pnpm -C codex-convex-component --filter codex-local-tauri-example run sync:host-shim && pnpm -C codex-convex-component exec git diff -- apps/examples/tauri-app/convex/chat.ts`
+Run: `pnpm -C codex-convex-component --filter codex-runtime-tauri-example run sync:host-shim && pnpm -C codex-convex-component exec git diff -- apps/examples/tauri-app/convex/chat.ts`
 Expected: Deterministic diff showing contract drift root.
 
 ### Task 4: Probe conversation identity contract regressions
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/conversation-contract.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/conversation-identity-persistence.test.mjs`
-- Modify (if bug fixed): `codex-convex-component/packages/codex-local-component/src/host/contracts.ts`
+- Test: `codex-convex-component/packages/codex-runtime/test/conversation-contract.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/conversation-identity-persistence.test.mjs`
+- Modify (if bug fixed): `codex-convex-component/packages/codex-runtime/src/host/contracts.ts`
 
 **Step 1: Run conversation contract tests only**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/conversation-contract.test.mjs test/conversation-identity-persistence.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/conversation-contract.test.mjs test/conversation-identity-persistence.test.mjs`
 Expected: PASS or precise assertion failures.
 
 **Step 2: Inspect failures for internal identity leaks**
@@ -121,13 +121,13 @@ Use canonical format in `ARCHITECTURE_DECISIONS.md`:
 ### Task 5: Stress runtime lifecycle and send gating
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/host-runtime.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/host-tauri.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/sync-job-binding-failure.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/host-runtime.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/host-tauri.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/sync-job-binding-failure.test.mjs`
 
 **Step 1: Run runtime lifecycle suites**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/host-runtime.test.mjs test/host-tauri.test.mjs test/sync-job-binding-failure.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/host-runtime.test.mjs test/host-tauri.test.mjs test/sync-job-binding-failure.test.mjs`
 Expected: PASS; otherwise lifecycle phase/source error details captured.
 
 **Step 2: Verify fail-closed behavior**
@@ -142,14 +142,14 @@ Expected: Repro trace path for investigation when runtime issue appears.
 ### Task 6: Validate durable sync job correctness and hydration
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/ingest-pipeline.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/ingest-stream-linking.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/sync-hydration-status.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/mark-sync-progress.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/ingest-pipeline.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/ingest-stream-linking.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/sync-hydration-status.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/mark-sync-progress.test.mjs`
 
 **Step 1: Run sync-focused tests**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/ingest-pipeline.test.mjs test/ingest-stream-linking.test.mjs test/sync-hydration-status.test.mjs test/mark-sync-progress.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/ingest-pipeline.test.mjs test/ingest-stream-linking.test.mjs test/sync-hydration-status.test.mjs test/mark-sync-progress.test.mjs`
 Expected: PASS; no chunk ordering or manifest verification mismatches.
 
 **Step 2: Validate expected-message manifest semantics**
@@ -163,12 +163,12 @@ Confirm behavior when `syncProgress.syncState === "syncing"` matches docs and te
 ### Task 7: Verify safe-by-default thread reads and request polling contract
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/host-convex-slice.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/host-convex-preset.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/host-convex-slice.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/host-convex-preset.test.mjs`
 
 **Step 1: Run safe-read tests**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/host-convex-slice.test.mjs test/host-convex-preset.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/host-convex-slice.test.mjs test/host-convex-preset.test.mjs`
 Expected: PASS; missing-thread pending-request query returns `[]`.
 
 **Step 2: Capture mismatch examples**
@@ -178,18 +178,18 @@ Document any throw-vs-status inconsistency and impacted API function names.
 ### Task 8: Validate protocol parser/classifier + schema drift
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/protocol-events.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/classifier.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/scripts/check-protocol-schemas.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/protocol-events.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/classifier.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/scripts/check-protocol-schemas.mjs`
 
 **Step 1: Run protocol schema check**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run schema:check`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run schema:check`
 Expected: PASS.
 
 **Step 2: Run parser/classifier tests**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/protocol-events.test.mjs test/classifier.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/protocol-events.test.mjs test/classifier.test.mjs`
 Expected: PASS.
 
 **Step 3: Document wire-level breaking signatures**
@@ -199,18 +199,18 @@ Capture event name/payload causing any regression.
 ### Task 9: Verify auth scope isolation + deletion integrity
 
 **Files:**
-- Test: `codex-convex-component/packages/codex-local-component/test/host-actor-auth.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/conversation-identity-persistence.test.mjs`
-- Test: `codex-convex-component/packages/codex-local-component/test/host-runtime-core-handler-utils.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/host-actor-auth.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/conversation-identity-persistence.test.mjs`
+- Test: `codex-convex-component/packages/codex-runtime/test/host-runtime-core-handler-utils.test.mjs`
 
 **Step 1: Run actor/auth tests**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/host-actor-auth.test.mjs test/conversation-identity-persistence.test.mjs test/host-runtime-core-handler-utils.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/host-actor-auth.test.mjs test/conversation-identity-persistence.test.mjs test/host-runtime-core-handler-utils.test.mjs`
 Expected: PASS; no anonymous/user scope cross-read.
 
 **Step 2: Confirm lifecycle deletion semantics**
 
-Run: `pnpm -C codex-convex-component --filter @zakstam/codex-local-component run test -- test/optimistic-updates.test.mjs`
+Run: `pnpm -C codex-convex-component --filter @zakstam/codex-runtime run test -- test/optimistic-updates.test.mjs`
 Expected: PASS; deletion status and optimistic presets are coherent.
 
 ### Task 10: Triage findings and produce fix queue
@@ -218,7 +218,7 @@ Expected: PASS; deletion status and optimistic presets are coherent.
 **Files:**
 - Create: `codex-convex-component/docs/plans/2026-02-22-bug-hunt-findings.md`
 - Modify: `codex-convex-component/ARCHITECTURE_DECISIONS.md` (if architectural decision update is needed)
-- Modify: `codex-convex-component/packages/codex-local-component/docs/API_REFERENCE.md` (if contract behavior changes)
+- Modify: `codex-convex-component/packages/codex-runtime/docs/API_REFERENCE.md` (if contract behavior changes)
 
 **Step 1: Create ranked findings list**
 

@@ -4,19 +4,20 @@ This folder contains Convex host wrappers for the Tauri example.
 
 Canonical consumer implementation guidance is in:
 
-- `packages/codex-local-component/LLMS.md`
+- `packages/codex-runtime/LLMS.md`
 
 ## File Ownership
 
 - `convex.config.ts`: mounts `codexLocal`
 - `actorLock.ts`: app-owned actor binding and server-side identity guard
-- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `listRuntimeConversationBindingsForPicker`, `getActorBindingForBootstrap`, `resolveOpenTarget`) using actor lock
+- `chat.extensions.ts`: app-owned endpoints (`listThreadsForPicker`, `listRuntimeConversationBindingsForPicker`, `getActorBindingForBootstrap`, `resolveOpenTarget`, `validatePickerHostWiring`) using actor lock
 - `chat.ts`: generated host shim (exports public `api.chat.*`) built from `defineCodexHostDefinitions(...)`
   - includes deletion wrappers for immediate delete, scheduled delete, cancel/undo, force-run, and job status polling
 
 ## Thread API
 
 - Thread picker flow: `chat.listThreadsForPicker`.
+- Startup picker wiring preflight: `chat.validatePickerHostWiring`.
 - Picker query returns persisted thread metadata only (`conversationId`, `preview`, status, timestamps).
 - `chat.listRuntimeConversationBindingsForPicker` maps runtime thread IDs to persisted bindings for local-thread labeling (`local unsynced` vs persisted).
 - `chat.resolveOpenTarget` resolves a selected conversation handle to an open target (`bound` or `unbound`) for resume/rebind decisions.

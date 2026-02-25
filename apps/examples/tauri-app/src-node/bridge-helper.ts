@@ -1,10 +1,12 @@
 import { ConvexHttpClient } from "convex/browser";
 import {
   createCodexHostRuntime,
-  createConvexPersistence,
   type CodexHostRuntime,
-  type ConvexPersistenceChatApi,
-} from "@zakstam/codex-local-component/host";
+} from "@zakstam/codex-runtime/host";
+import {
+  createConvexPersistenceAdapter,
+  type ConvexPersistenceAdapterChatApi,
+} from "@zakstam/codex-runtime-convex";
 import {
   HELPER_ACK_BY_TYPE,
   parseThreadReadSnapshotMessages,
@@ -13,11 +15,12 @@ import {
   type HelperCommand,
   type OpenThreadPayload,
   type StartPayload,
-} from "@zakstam/codex-local-component/host/tauri";
+} from "@zakstam/codex-runtime-bridge-tauri";
+import { CodexLocalBridge } from "@zakstam/codex-runtime-bridge-tauri/local-adapter";
 import type {
   ServerInboundMessage,
   v2,
-} from "@zakstam/codex-local-component/protocol";
+} from "@zakstam/codex-runtime/protocol";
 import { api } from "../convex/_generated/api.js";
 import {
   KNOWN_DYNAMIC_TOOLS,
@@ -74,7 +77,7 @@ function requireDefined<T>(value: T | undefined, name: string): T {
 }
 
 const chatApi = requireDefined(api.chat, "api.chat");
-const persistenceChatApi: ConvexPersistenceChatApi = {
+const persistenceChatApi: ConvexPersistenceAdapterChatApi = {
   startConversationSyncSource: requireDefined(chatApi.startConversationSyncSource, "api.chat.startConversationSyncSource"),
   appendConversationSyncSourceChunk: requireDefined(chatApi.appendConversationSyncSourceChunk, "api.chat.appendConversationSyncSourceChunk"),
   sealConversationSyncSource: requireDefined(chatApi.sealConversationSyncSource, "api.chat.sealConversationSyncSource"),
@@ -194,6 +197,8 @@ let bridgeState: {
 let latestStartPayload: StartPayload | null = null;
 const SYNC_JOB_POLICY_VERSION = 3;
 const SYNC_DEBUG_ENABLED = parseEnvFlag(process.env.CODEX_SYNC_DEBUG);
+const FORCED_SHUTDOWN_TIMEOUT_MS = 3000;
+const PARENT_WATCHDOG_INTERVAL_MS = 1000;
 
 function syncDebug(message: string, data?: Record<string, unknown>): void {
   if (!SYNC_DEBUG_ENABLED) {
@@ -635,11 +640,11 @@ async function startBridge(payload: StartPayload): Promise<void> {
   };
 
   runtime = createCodexHostRuntime({
-    mode: "codex+replica",
     bridge: {
       cwd: payload.cwd ?? process.cwd(),
     },
-    persistence: createConvexPersistence(
+    bridgeFactory: (config, handlers) => new CodexLocalBridge(config, handlers),
+    persistence: createConvexPersistenceAdapter(
       convex,
       persistenceChatApi,
       {
@@ -1166,16 +1171,76 @@ async function stopCurrentBridge(): Promise<void> {
 }
 
 let shutdownPromise: Promise<void> | null = null;
+let parentWatchdogTimer: NodeJS.Timeout | null = null;
+
+function startParentWatchdog(): void {
+  if (parentWatchdogTimer || process.platform === "win32") {
+    return;
+  }
+  parentWatchdogTimer = setInterval(() => {
+    if (shutdownPromise) {
+      return;
+    }
+    if (process.ppid <= 1) {
+      void gracefulShutdown("parent-process-disconnected", { exitCode: 0 });
+    }
+  }, PARENT_WATCHDOG_INTERVAL_MS);
+  if (typeof parentWatchdogTimer.unref === "function") {
+    parentWatchdogTimer.unref();
+  }
+}
+
+function stopParentWatchdog(): void {
+  if (!parentWatchdogTimer) {
+    return;
+  }
+  clearInterval(parentWatchdogTimer);
+  parentWatchdogTimer = null;
+}
+
+async function stopCurrentBridgeWithTimeout(): Promise<boolean> {
+  let timedOut = false;
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  try {
+    await Promise.race([
+      stopCurrentBridge(),
+      new Promise<void>((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, FORCED_SHUTDOWN_TIMEOUT_MS);
+        if (typeof timeoutHandle.unref === "function") {
+          timeoutHandle.unref();
+        }
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+  return !timedOut;
+}
 
 function gracefulShutdown(reason: string, opts?: { exitCode?: number; emitAckCommand?: string }): Promise<void> {
   if (shutdownPromise) {
     return shutdownPromise;
   }
+  stopParentWatchdog();
 
   shutdownPromise = (async () => {
     let exitCode = opts?.exitCode ?? 0;
     try {
-      await stopCurrentBridge();
+      const stopFinished = await stopCurrentBridgeWithTimeout();
+      if (!stopFinished) {
+        exitCode = 1;
+        emit({
+          type: "error",
+          payload: {
+            message: `shutdown timed out (${reason}) after ${FORCED_SHUTDOWN_TIMEOUT_MS}ms`,
+          },
+        });
+      }
       if (opts?.emitAckCommand) {
         emit({ type: "ack", payload: { command: opts.emitAckCommand } });
       }
@@ -1266,6 +1331,7 @@ process.stdin.on("data", (chunk) => {
 });
 
 process.stdin.resume();
+startParentWatchdog();
 process.stdin.on("end", () => {
   void gracefulShutdown("stdin-end");
 });

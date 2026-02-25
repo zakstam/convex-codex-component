@@ -1,18 +1,19 @@
 {
-  "name": "codex-local-debug-harness",
+  "name": "codex-runtime-debug-harness",
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm -C ../../.. run component:build",
+    "prepare:runtime": "pnpm -C ../../.. run runtime:build",
     "prepare:helper": "pnpm -C ../tauri-app run build:node",
-    "start": "pnpm run prepare:component && pnpm run prepare:helper && tsx src/index.ts",
+    "start": "pnpm run prepare:runtime && pnpm run prepare:helper && tsx src/index.ts",
     "dev": "pnpm run start",
-    "repro:no-response": "pnpm run prepare:component && pnpm run prepare:helper && tsx src/index.ts --scenario src/scenarios/no-response-repro.json",
-    "typecheck": "pnpm run prepare:component && tsgo --noEmit",
-    "typecheck:tsc": "pnpm run prepare:component && tsc --noEmit"
+    "repro:no-response": "pnpm run prepare:runtime && pnpm run prepare:helper && tsx src/index.ts --scenario src/scenarios/no-response-repro.json",
+    "typecheck": "pnpm run prepare:runtime && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:runtime && tsc --noEmit"
   },
   "dependencies": {
-    "@zakstam/codex-local-component": "workspace:*"
+    "@zakstam/codex-runtime-bridge-tauri": "workspace:*",
+    "@zakstam/codex-runtime": "workspace:*"
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260221.1",

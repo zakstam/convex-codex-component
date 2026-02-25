@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": patch
+"@zakstam/codex-runtime": patch
 ---
 
 Refactor host internals into bounded contexts (`definitions`, `runtime`, `persistence`) and add a host boundary check gate for same-branch parallel agent development.

@@ -1,4 +1,4 @@
-import type { HelperCommand, StartPayload } from "@zakstam/codex-local-component/host/tauri";
+import type { HelperCommand, StartPayload } from "@zakstam/codex-runtime-bridge-tauri";
 
 export type ParsedCommand =
   | { kind: "helper"; helper: HelperCommand }

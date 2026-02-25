@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Source: @zakstam/codex-local-component/host/tauri
+// Source: @zakstam/codex-runtime-bridge-tauri
 
 pub const HELPER_FORWARD_TAURI_COMMANDS: &[&str] = &[
     "start_bridge",

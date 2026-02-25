@@ -1,19 +1,21 @@
 {
-  "name": "codex-local-persistent-cli-example",
+  "name": "codex-runtime-persistent-cli-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:component": "pnpm -C ../../.. run component:build",
-    "sync:host-shim": "pnpm run prepare:component && node ./scripts/sync-host-shim.mjs",
-    "check:host-shim": "pnpm run prepare:component && node ./scripts/sync-host-shim.mjs --check",
-    "dev:convex": "pnpm run prepare:component && convex dev",
-    "dev:convex:once": "pnpm run prepare:component && convex dev --once",
-    "start": "pnpm run prepare:component && tsx src/index.ts",
-    "typecheck": "pnpm run prepare:component && pnpm run check:host-shim && tsgo --noEmit",
-    "typecheck:tsc": "pnpm run prepare:component && pnpm run check:host-shim && tsc --noEmit"
+    "prepare:runtime": "pnpm -C ../../.. run runtime:build",
+    "sync:host-shim": "pnpm run prepare:runtime && node ./scripts/sync-host-shim.mjs",
+    "check:host-shim": "pnpm run prepare:runtime && node ./scripts/sync-host-shim.mjs --check",
+    "dev:convex": "pnpm run prepare:runtime && convex dev",
+    "dev:convex:once": "pnpm run prepare:runtime && convex dev --once",
+    "start": "pnpm run prepare:runtime && tsx src/index.ts",
+    "typecheck": "pnpm run prepare:runtime && pnpm run check:host-shim && tsgo --noEmit",
+    "typecheck:tsc": "pnpm run prepare:runtime && pnpm run check:host-shim && tsc --noEmit"
   },
   "dependencies": {
-    "@zakstam/codex-local-component": "workspace:*",
+    "@zakstam/codex-runtime": "workspace:*",
+    "@zakstam/codex-runtime-bridge-tauri": "workspace:*",
+    "@zakstam/codex-runtime-convex": "workspace:*",
     "convex": "^1.32.0"
   },
   "devDependencies": {

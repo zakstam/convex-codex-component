@@ -11,7 +11,7 @@ import {
 import { Timeline } from "./timeline.js";
 import { StallDetector } from "./stallDetector.js";
 import { writeTrace } from "./traceWriter.js";
-import { HELPER_ACK_BY_TYPE, type HelperCommand } from "@zakstam/codex-local-component/host/tauri";
+import { HELPER_ACK_BY_TYPE, type HelperCommand } from "@zakstam/codex-runtime-bridge-tauri";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderCodexHostShim } from "@zakstam/codex-local-component/host/convex";
+import { renderCodexHostShim } from "@zakstam/codex-runtime-convex/host";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(here, "..");
@@ -14,6 +14,7 @@ const expected = renderCodexHostShim({
     "listThreadsForPicker",
     "listRuntimeConversationBindingsForPicker",
     "resolveOpenTarget",
+    "validatePickerHostWiring",
   ],
 });
 const current = readFileSync(chatPath, "utf8");

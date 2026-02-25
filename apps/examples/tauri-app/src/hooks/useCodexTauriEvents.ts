@@ -27,6 +27,8 @@ type UseCodexTauriEventsOptions = {
   setPendingAuthRefresh: Dispatch<SetStateAction<PendingAuthRefreshRequest[]>>;
   addToast: (type: ToastItem["type"], message: string) => void;
   onLocalThreadsLoaded?: (threads: LocalThreadRow[]) => void;
+  onLocalThreadSynced?: (thread: { runtimeConversationId: string; conversationId: string }) => void;
+  refreshLocalThreads: () => Promise<unknown>;
   refreshBridgeState: () => Promise<Partial<BridgeState> | null | undefined>;
   subscribeBridgeLifecycle: (listener: (state: BridgeStateEvent) => void) => Promise<BridgeStateUnsubscribe>;
   onObservedEvent?: (event: ReproObservedEvent) => void;
@@ -43,6 +45,8 @@ export function useCodexTauriEvents({
   setPendingAuthRefresh,
   addToast,
   onLocalThreadsLoaded,
+  onLocalThreadSynced,
+  refreshLocalThreads,
   refreshBridgeState,
   subscribeBridgeLifecycle,
   onObservedEvent,
@@ -53,6 +57,8 @@ export function useCodexTauriEvents({
   const setPendingAuthRefreshRef = useRef(setPendingAuthRefresh);
   const addToastRef = useRef(addToast);
   const onLocalThreadsLoadedRef = useRef(onLocalThreadsLoaded);
+  const onLocalThreadSyncedRef = useRef(onLocalThreadSynced);
+  const refreshLocalThreadsRef = useRef(refreshLocalThreads);
   const refreshBridgeStateRef = useRef(refreshBridgeState);
   const subscribeBridgeLifecycleRef = useRef(subscribeBridgeLifecycle);
   const onObservedEventRef = useRef(onObservedEvent);
@@ -65,10 +71,12 @@ export function useCodexTauriEvents({
     setPendingAuthRefreshRef.current = setPendingAuthRefresh;
     addToastRef.current = addToast;
     onLocalThreadsLoadedRef.current = onLocalThreadsLoaded;
+    onLocalThreadSyncedRef.current = onLocalThreadSynced;
+    refreshLocalThreadsRef.current = refreshLocalThreads;
     refreshBridgeStateRef.current = refreshBridgeState;
     subscribeBridgeLifecycleRef.current = subscribeBridgeLifecycle;
     onObservedEventRef.current = onObservedEvent;
-  }, [addToast, onLocalThreadsLoaded, onObservedEvent, refreshBridgeState, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
+  }, [addToast, onLocalThreadSynced, onLocalThreadsLoaded, onObservedEvent, refreshBridgeState, refreshLocalThreads, setAuthSummary, setBridge, setPendingAuthRefresh, setRuntimeLog, subscribeBridgeLifecycle]);
 
   useEffect(() => {
     let disposed = false;
@@ -94,6 +102,11 @@ export function useCodexTauriEvents({
             const previousRunning = lastRunningRef.current ?? prev.running;
             if (previousRunning === false && next.running === true) {
               addToastRef.current("info", "Runtime started");
+              void refreshLocalThreadsRef.current().catch((error) => {
+                const message = error instanceof Error ? error.message : String(error);
+                setBridgeRef.current((state) => ({ ...state, lastError: message }));
+                addToastRef.current("error", message);
+              });
             } else if (previousRunning === true && next.running === false) {
               addToastRef.current("info", "Runtime stopped");
             }
@@ -220,6 +233,22 @@ export function useCodexTauriEvents({
             onLocalThreadsLoadedRef.current?.(
               threadIds.map((conversationId) => ({ conversationId, preview: "Untitled thread", messageCount: 0 })),
             );
+            return;
+          }
+
+          if (record.kind === "bridge/local_thread_synced") {
+            const runtimeConversationId = typeof record.runtimeThreadHandle === "string"
+              ? record.runtimeThreadHandle.trim()
+              : "";
+            const conversationId = typeof record.conversationId === "string"
+              ? record.conversationId.trim()
+              : "";
+            if (runtimeConversationId.length > 0) {
+              onLocalThreadSyncedRef.current?.({
+                runtimeConversationId,
+                conversationId: conversationId.length > 0 ? conversationId : runtimeConversationId,
+              });
+            }
           }
         }),
       ]);
@@ -237,6 +266,15 @@ export function useCodexTauriEvents({
           lastRunningRef.current = state.running;
         }
         setBridgeRef.current((prev) => ({ ...prev, ...state }));
+        if (state.running === true) {
+          try {
+            await refreshLocalThreadsRef.current();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setBridgeRef.current((prev) => ({ ...prev, lastError: message }));
+            addToastRef.current("error", message);
+          }
+        }
       }
     };
 

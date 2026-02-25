@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Improve host/component reliability across actor isolation, safe read fallbacks, and cascade deletion integrity.

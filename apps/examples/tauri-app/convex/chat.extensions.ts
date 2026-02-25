@@ -1,11 +1,52 @@
+import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { vHostActorContext } from "@zakstam/codex-local-component/host/convex";
+import { vHostActorContext } from "@zakstam/codex-runtime-convex/host";
 import {
   readActorBindingForBootstrap,
   requireBoundServerActorForQuery,
 } from "./actorLock";
+
+type PickerThreadsComponentRefs = {
+  threads: {
+    list?: FunctionReference<"query", "public" | "internal", Record<string, unknown>>;
+    resolveByConversationId?: FunctionReference<"query", "public" | "internal", Record<string, unknown>>;
+    listRuntimeConversationBindings?: FunctionReference<"query", "public" | "internal", Record<string, unknown>>;
+  };
+};
+
+const codexLocal = components.codexLocal as unknown as PickerThreadsComponentRefs;
+
+function missingPickerWiringError(path: string): Error {
+  return new Error(
+    `Missing components.codexLocal.${path}. Run \`pnpm --filter codex-runtime-tauri-example run dev:convex:once\` and restart Tauri.`,
+  );
+}
+
+function requirePickerThreadsList():
+  FunctionReference<"query", "public" | "internal", Record<string, unknown>> {
+  if (!codexLocal.threads.list) {
+    throw missingPickerWiringError("threads.list");
+  }
+  return codexLocal.threads.list;
+}
+
+function requireResolveByConversationId():
+  FunctionReference<"query", "public" | "internal", Record<string, unknown>> {
+  if (!codexLocal.threads.resolveByConversationId) {
+    throw missingPickerWiringError("threads.resolveByConversationId");
+  }
+  return codexLocal.threads.resolveByConversationId;
+}
+
+function requireListRuntimeConversationBindings():
+  FunctionReference<"query", "public" | "internal", Record<string, unknown>> {
+  if (!codexLocal.threads.listRuntimeConversationBindings) {
+    throw missingPickerWiringError("threads.listRuntimeConversationBindings");
+  }
+  return codexLocal.threads.listRuntimeConversationBindings;
+}
 
 export const getActorBindingForBootstrap = query({
   args: {},
@@ -19,8 +60,9 @@ export const listThreadsForPicker = query({
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    const listThreadsRef = requirePickerThreadsList();
 
-    const listed = await ctx.runQuery(components.codexLocal.threads.list, {
+    const listed = await ctx.runQuery(listThreadsRef, {
       actor: serverActor,
       paginationOpts: {
         numItems: Math.max(1, Math.floor(args.limit ?? 25)),
@@ -57,7 +99,8 @@ export const resolveOpenTarget = query({
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
-    const mapping = await ctx.runQuery(components.codexLocal.threads.resolveByConversationId, {
+    const resolveByConversationIdRef = requireResolveByConversationId();
+    const mapping = await ctx.runQuery(resolveByConversationIdRef, {
       actor: serverActor,
       conversationId: args.conversationHandle,
     });
@@ -83,7 +126,8 @@ export const listRuntimeConversationBindingsForPicker = query({
   },
   handler: async (ctx, args) => {
     const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
-    const rows = await ctx.runQuery(components.codexLocal.threads.listRuntimeConversationBindings, {
+    const listRuntimeConversationBindingsRef = requireListRuntimeConversationBindings();
+    const rows = await ctx.runQuery(listRuntimeConversationBindingsRef, {
       actor: serverActor,
       runtimeConversationIds: args.runtimeConversationIds,
     });
@@ -92,5 +136,25 @@ export const listRuntimeConversationBindingsForPicker = query({
       threadId: string;
       conversationId: string;
     }>;
+  },
+});
+
+export const validatePickerHostWiring = query({
+  args: {
+    actor: vHostActorContext,
+  },
+  handler: async (ctx, args) => {
+    const serverActor = await requireBoundServerActorForQuery(ctx, args.actor);
+    const listThreadsRef = requirePickerThreadsList();
+    requireResolveByConversationId();
+    requireListRuntimeConversationBindings();
+    await ctx.runQuery(listThreadsRef, {
+      actor: serverActor,
+      paginationOpts: {
+        numItems: 1,
+        cursor: null,
+      },
+    });
+    return { ok: true } as const;
   },
 });

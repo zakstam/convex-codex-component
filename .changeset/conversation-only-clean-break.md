@@ -1,5 +1,5 @@
 ---
-"@zakstam/codex-local-component": minor
+"@zakstam/codex-runtime": minor
 ---
 
 Adopt a clean-break conversation-only identity contract at public host/runtime boundaries.

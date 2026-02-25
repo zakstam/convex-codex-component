@@ -1,5 +1,5 @@
 [package]
-name = "codex-local-tauri-example"
+name = "codex-runtime-tauri-example"
 version = "0.1.0"
 edition = "2021"
 

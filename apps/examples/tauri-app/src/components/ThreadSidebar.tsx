@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { ThreadItem } from "./ThreadItem";
 
 type Thread = {
@@ -24,7 +25,6 @@ type TimeGroup = "Today" | "Yesterday" | "Older";
 function getTimeGroup(updatedAt?: number): TimeGroup {
   if (!updatedAt) return "Older";
   const now = new Date();
-  const date = new Date(updatedAt);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yesterdayStart = todayStart - 86_400_000;
   if (updatedAt >= todayStart) return "Today";
@@ -43,7 +43,7 @@ function groupThreads(threads: Thread[]): Map<TimeGroup, Thread[]> {
   return groups;
 }
 
-export function ThreadSidebar({
+export const ThreadSidebar = memo(function ThreadSidebar({
   threads,
   selected,
   onSelect,
@@ -52,9 +52,13 @@ export function ThreadSidebar({
   showLocalThreads,
   onToggleShowLocalThreads,
 }: Props) {
-  const persistedThreads = threads.filter((t) => t.scope !== "local_unsynced");
-  const localThreads = threads.filter((t) => t.scope === "local_unsynced");
-  const grouped = groupThreads(persistedThreads);
+  const { grouped, localThreads } = useMemo(() => {
+    const persisted = threads.filter((t) => t.scope !== "local_unsynced");
+    return {
+      grouped: groupThreads(persisted),
+      localThreads: threads.filter((t) => t.scope === "local_unsynced"),
+    };
+  }, [threads]);
 
   return (
     <div className="thread-sidebar-content">
@@ -85,7 +89,7 @@ export function ThreadSidebar({
                     updatedAt={thread.updatedAt}
                     messageCount={thread.messageCount}
                     active={thread.conversationId === selected}
-                    onClick={() => onSelect(thread.conversationId)}
+                    onSelect={onSelect}
                     onDelete={onDelete}
                   />
                 ))}
@@ -108,7 +112,7 @@ export function ThreadSidebar({
                   updatedAt={thread.updatedAt}
                   messageCount={thread.messageCount}
                   active={thread.conversationId === selected}
-                  onClick={() => onSelect(thread.conversationId)}
+                  onSelect={onSelect}
                   onDelete={onDelete}
                 />
               ))}
@@ -129,4 +133,4 @@ export function ThreadSidebar({
       </div>
     </div>
   );
-}
+});

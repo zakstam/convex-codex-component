@@ -1,3 +1,5 @@
+import { memo, useCallback } from "react";
+
 type Props = {
   conversationId: string;
   preview: string;
@@ -6,7 +8,7 @@ type Props = {
   updatedAt?: number | undefined;
   messageCount?: number | undefined;
   active: boolean;
-  onClick: () => void;
+  onSelect: (conversationId: string) => void;
   onDelete?: (conversationId: string) => void;
 };
 
@@ -30,7 +32,7 @@ function formatMessageCount(count?: number): string | null {
   return `${rounded} msg${rounded === 1 ? "" : "s"}`;
 }
 
-export function ThreadItem({
+export const ThreadItem = memo(function ThreadItem({
   conversationId,
   preview,
   status,
@@ -38,9 +40,13 @@ export function ThreadItem({
   updatedAt,
   messageCount,
   active,
-  onClick,
+  onSelect,
   onDelete,
 }: Props) {
+  const handleClick = useCallback(() => {
+    onSelect(conversationId);
+  }, [onSelect, conversationId]);
+
   const isLocal = scope === "local_unsynced";
   const dotClass = isLocal
     ? "thread-item-dot local"
@@ -56,7 +62,7 @@ export function ThreadItem({
     <div className={`thread-item-row${active ? " active" : ""}`}>
       <button
         className={`thread-item${active ? " active" : ""}`}
-        onClick={onClick}
+        onClick={handleClick}
         type="button"
       >
         <span className={dotClass} aria-hidden="true" />
@@ -80,4 +86,4 @@ export function ThreadItem({
       )}
     </div>
   );
-}
+});

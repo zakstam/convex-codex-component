@@ -420,11 +420,9 @@ async fn handle_helper_line(app: &AppHandle, snapshot: &Arc<Mutex<BridgeStateSna
         "state" => {
             if let Some(payload) = parsed.get("payload") {
                 if let Ok(next_state) = serde_json::from_value::<BridgeStateSnapshot>(payload.clone()) {
-                    {
-                        let mut current = snapshot.lock().await;
-                        *current = next_state.clone();
-                    }
-                    let _ = app.emit("codex:bridge_state", payload.clone());
+                    let emit_value = serde_json::to_value(&next_state).unwrap_or_default();
+                    { *snapshot.lock().await = next_state; }
+                    let _ = app.emit("codex:bridge_state", emit_value);
                 }
             }
         }

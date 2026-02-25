@@ -9,4 +9,16 @@ export default defineConfig({
     strictPort: true,
   },
   envPrefix: ["VITE_", "TAURI_"],
+  build: {
+    target: "esnext",
+    minify: "esbuild",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          convex: ["convex/react", "convex/browser"],
+          react: ["react", "react-dom"],
+        },
+      },
+    },
+  },
 });

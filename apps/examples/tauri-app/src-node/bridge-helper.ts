@@ -249,33 +249,40 @@ function resolveEnabledDynamicTools(disabledTools: string[]): DynamicToolSpec[] 
   return DYNAMIC_TOOLS.filter((tool) => !disabled.has(tool.name));
 }
 
+let emitStatePending = false;
+
 function emitState(next?: Partial<typeof bridgeState>): void {
   bridgeState = {
     ...bridgeState,
     ...(next ?? {}),
     updatedAtMs: Date.now(),
   };
-
-  emit({
-    type: "state",
-    payload: {
-      running: bridgeState.running,
-      phase: bridgeState.phase,
-      source: bridgeState.source,
-      updatedAtMs: bridgeState.updatedAtMs,
-      conversationId: bridgeState.conversationId,
-      runtimeConversationId: bridgeState.runtimeConversationId,
-      turnId: bridgeState.turnId,
-      lastErrorCode: bridgeState.lastErrorCode,
-      lastError: bridgeState.lastError,
-      pendingServerRequestCount: bridgeState.pendingServerRequestCount,
-      ingestEnqueuedEventCount: bridgeState.ingestEnqueuedEventCount,
-      ingestSkippedEventCount: bridgeState.ingestSkippedEventCount,
-      ingestEnqueuedByKind: bridgeState.ingestEnqueuedByKind,
-      ingestSkippedByKind: bridgeState.ingestSkippedByKind,
-      disabledTools: bridgeState.disabledTools,
-    },
-  });
+  if (!emitStatePending) {
+    emitStatePending = true;
+    queueMicrotask(() => {
+      emitStatePending = false;
+      emit({
+        type: "state",
+        payload: {
+          running: bridgeState.running,
+          phase: bridgeState.phase,
+          source: bridgeState.source,
+          updatedAtMs: bridgeState.updatedAtMs,
+          conversationId: bridgeState.conversationId,
+          runtimeConversationId: bridgeState.runtimeConversationId,
+          turnId: bridgeState.turnId,
+          lastErrorCode: bridgeState.lastErrorCode,
+          lastError: bridgeState.lastError,
+          pendingServerRequestCount: bridgeState.pendingServerRequestCount,
+          ingestEnqueuedEventCount: bridgeState.ingestEnqueuedEventCount,
+          ingestSkippedEventCount: bridgeState.ingestSkippedEventCount,
+          ingestEnqueuedByKind: bridgeState.ingestEnqueuedByKind,
+          ingestSkippedByKind: bridgeState.ingestSkippedByKind,
+          disabledTools: bridgeState.disabledTools,
+        },
+      });
+    });
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

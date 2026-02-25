@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import {
   codexOptimisticPresets,
   createCodexReactPreset,
@@ -8,7 +8,7 @@ import {
   useCodexOptimisticMutation,
   useCodexRuntimeBridge,
   useCodexThreadState,
-} from "@zakstam/codex-local-component/react";
+} from "@zakstam/codex-runtime-react";
 import { api } from "../../convex/_generated/api";
 import {
   bridge as tauriBridge,
@@ -19,7 +19,7 @@ import {
 } from "../lib/tauriBridge";
 import type { ToastItem } from "../components/Toast";
 import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./useCodexTauriEvents";
-import { KNOWN_DYNAMIC_TOOLS, TAURI_RUNTIME_TOOL_PROMPT } from "../lib/dynamicTools";
+import { TAURI_RUNTIME_TOOL_PROMPT } from "../lib/dynamicTools";
 import {
   classifyReproErrorClasses,
   type TauriReproArtifactV1,
@@ -29,8 +29,8 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const ACTOR_STORAGE_KEY = "codex-local-tauri-actor-user-id";
-const SHOW_LOCAL_THREADS_STORAGE_KEY = "codex-local-tauri-show-local-threads";
+const ACTOR_STORAGE_KEY = "codex-runtime-tauri-actor-user-id";
+const SHOW_LOCAL_THREADS_STORAGE_KEY = "codex-runtime-tauri-show-local-threads";
 const DEFAULT_DELETE_DELAY_MS = 10 * 60 * 1000;
 
 // ── Shared utility (also used at module scope in App.tsx) ────────────────────
@@ -215,6 +215,7 @@ export function useAppController({
   onActorChange,
   requestConfirm,
 }: UseAppControllerProps): UseAppControllerReturn {
+  const convex = useConvex();
   const actorUserId = actor.userId ?? "";
 
   // ── Bridge state ─────────────────────────────────────────────────────────
@@ -259,12 +260,11 @@ export function useAppController({
   });
   const [localRuntimeThreads, setLocalRuntimeThreads] = useState<LocalRuntimeThreadRow[]>([]);
   const [selectedLocalConversationId, setSelectedLocalConversationId] = useState<string | null>(null);
+  const hiddenLocalThreadsToastShownRef = useRef(false);
 
   // ── Repro recording state ────────────────────────────────────────────────
   const [reproRecording, setReproRecording] = useState(false);
   const [lastReproArtifactName, setLastReproArtifactName] = useState<string | null>(null);
-  const [reproCommandCount, setReproCommandCount] = useState(0);
-  const [reproObservedCount, setReproObservedCount] = useState(0);
   const [lastCapturedInvokeCommand, setLastCapturedInvokeCommand] = useState<string | null>(null);
   const reproStartedAtRef = useRef<number | null>(null);
   const reproCommandsRef = useRef<TauriReproCaptureCommand[]>([]);
@@ -272,8 +272,15 @@ export function useAppController({
 
   // ── Toast callbacks ──────────────────────────────────────────────────────
   const addToast = useCallback((type: ToastItem["type"], message: string) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setToasts((prev) => [...prev, { id, type, message }]);
+    setToasts((prev) => {
+      const now = Date.now();
+      const isDuplicate = prev.some(
+        (t) => t.message === message && t.type === type && now - Number(t.id.split("-")[0]) < 2000,
+      );
+      if (isDuplicate) return prev;
+      const id = `${now}-${Math.random().toString(36).slice(2, 8)}`;
+      return [...prev, { id, type, message }];
+    });
   }, []);
 
   const dismissToast = useCallback((id: string) => {
@@ -285,8 +292,6 @@ export function useAppController({
     reproCommandsRef.current = [];
     reproObservedRef.current = [];
     reproStartedAtRef.current = Date.now();
-    setReproCommandCount(0);
-    setReproObservedCount(0);
     setLastCapturedInvokeCommand(null);
     setLastReproArtifactName(null);
     setReproRecording(true);
@@ -380,7 +385,6 @@ export function useAppController({
         ...(event.result !== undefined ? { result: event.result } : {}),
         ...(event.error !== undefined ? { error: event.error } : {}),
       });
-      setReproCommandCount(reproCommandsRef.current.length);
       if (event.phase === "invoke_start") {
         setLastCapturedInvokeCommand(event.command);
       }
@@ -413,17 +417,24 @@ export function useAppController({
   // ── Ref breaks the circular dependency ───────────────────────────────────
   const selectedConversationIdRef = useRef("");
   const waitForBridgeReady = useCallback(async () => {
-    const timeoutMs = 12_000;
-    const pollMs = 200;
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const state = await tauriBridge.lifecycle.getState();
-      if (state.running && typeof state.conversationId === "string" && state.conversationId.length > 0) {
-        return state;
-      }
-      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    // Check current state first — may already be ready
+    const current = await tauriBridge.lifecycle.getState();
+    if (current.running && typeof current.conversationId === "string" && current.conversationId.length > 0) {
+      return current;
     }
-    throw new Error("Bridge started, but no local thread became ready within 12s.");
+    return new Promise<BridgeState>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        void unlistenPromise.then((off) => off());
+        reject(new Error("Bridge started, but no local thread became ready within 12s."));
+      }, 12_000);
+      const unlistenPromise = tauriBridge.lifecycle.subscribe((state) => {
+        if (state.running && typeof state.conversationId === "string" && state.conversationId.length > 0) {
+          clearTimeout(timeout);
+          void unlistenPromise.then((off) => off());
+          resolve(state as BridgeState);
+        }
+      });
+    });
   }, []);
 
   const connectBridge = useCallback(
@@ -478,6 +489,53 @@ export function useAppController({
   );
 
   const autoStartAttemptedRef = useRef(false);
+  const [pickerHostWiringReady, setPickerHostWiringReady] = useState(false);
+  const [pickerHostWiringStatus, setPickerHostWiringStatus] = useState<"idle" | "checking" | "ready" | "failed">("idle");
+  const pickerHostWiringActorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!actorReady) {
+      pickerHostWiringActorRef.current = null;
+      setPickerHostWiringReady(false);
+      setPickerHostWiringStatus("idle");
+      return;
+    }
+    const actorScopeKey = actor.userId ?? "";
+    if (
+      pickerHostWiringActorRef.current === actorScopeKey &&
+      (pickerHostWiringStatus === "checking" || pickerHostWiringStatus === "ready" || pickerHostWiringStatus === "failed")
+    ) {
+      return;
+    }
+    pickerHostWiringActorRef.current = actorScopeKey;
+    setPickerHostWiringReady(false);
+    setPickerHostWiringStatus("checking");
+    let cancelled = false;
+    void convex
+      .query(requireDefined(chatApi.validatePickerHostWiring, "api.chat.validatePickerHostWiring"), { actor })
+      .then(() => {
+        if (cancelled) {
+          return;
+        }
+        setPickerHostWiringReady(true);
+        setPickerHostWiringStatus("ready");
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setPickerHostWiringStatus("failed");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const message =
+          `Picker host wiring validation failed: ${errorMessage}. ` +
+          "Run `pnpm --filter codex-runtime-tauri-example run dev:convex:once` and restart Tauri.";
+        setBridge((prev) => ({ ...prev, lastError: message }));
+        addToast("error", message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [actor, actorReady, addToast, convex, pickerHostWiringStatus]);
 
   // ── Composer config ──────────────────────────────────────────────────────
   const composerConfig = useMemo(
@@ -528,7 +586,7 @@ export function useAppController({
     threads: {
       list: {
         query: requireDefined(chatApi.listThreadsForPicker, "api.chat.listThreadsForPicker"),
-        args: actorReady ? { actor, limit: 25 } : "skip",
+        args: actorReady && pickerHostWiringReady ? { actor, limit: 25 } : "skip",
       },
       initialSelectedConversationId: "",
     },
@@ -563,7 +621,7 @@ export function useAppController({
   }, [localRuntimeThreads]);
   const localBindingsRaw = useQuery(
     requireDefined(chatApi.listRuntimeConversationBindingsForPicker, "api.chat.listRuntimeConversationBindingsForPicker"),
-    actorReady && showLocalThreads && localRuntimeConversationIds.length > 0
+    actorReady && pickerHostWiringReady && showLocalThreads && localRuntimeConversationIds.length > 0
       ? { actor, runtimeConversationIds: localRuntimeConversationIds }
       : "skip",
   );
@@ -642,6 +700,22 @@ export function useAppController({
     }
     setLocalRuntimeThreads([]);
   }, [bridge.running]);
+
+  useEffect(() => {
+    if (showLocalThreads || localRuntimeThreads.length === 0) {
+      hiddenLocalThreadsToastShownRef.current = false;
+      return;
+    }
+    if (hiddenLocalThreadsToastShownRef.current) {
+      return;
+    }
+    hiddenLocalThreadsToastShownRef.current = true;
+    const count = localRuntimeThreads.length;
+    addToast(
+      "info",
+      `Loaded ${count} local thread${count === 1 ? "" : "s"}. Enable "Show local threads" in the sidebar to display them.`,
+    );
+  }, [addToast, localRuntimeThreads.length, showLocalThreads]);
 
   // ── Effect: auto-start bridge ────────────────────────────────────────────
   useEffect(() => {
@@ -819,7 +893,19 @@ export function useAppController({
     onLocalThreadsLoaded: (threads) => {
       setLocalRuntimeThreads(threads);
     },
+    onLocalThreadSynced: ({ runtimeConversationId, conversationId }) => {
+      setLocalRuntimeThreads((threads) => {
+        return threads.filter((thread) => thread.conversationId !== runtimeConversationId);
+      });
+      setSelectedLocalConversationId((current) =>
+        current === runtimeConversationId ? conversationId : current
+      );
+      if (selectedConversationIdRef.current.trim() === runtimeConversationId) {
+        threads.setSelectedConversationId(conversationId);
+      }
+    },
     addToast,
+    refreshLocalThreads: tauriBridge.lifecycle.refreshLocalThreads,
     refreshBridgeState: runtimeBridge.refresh,
     subscribeBridgeLifecycle: tauriBridge.lifecycle.subscribe,
     onObservedEvent: (event) => {
@@ -831,7 +917,6 @@ export function useAppController({
         kind: event.kind,
         payload: event.payload,
       });
-      setReproObservedCount(reproObservedRef.current.length);
     },
   });
 
@@ -1334,8 +1419,8 @@ export function useAppController({
 
     // repro recording state
     reproRecording,
-    reproCommandCount,
-    reproObservedCount,
+    reproCommandCount: reproCommandsRef.current.length,
+    reproObservedCount: reproObservedRef.current.length,
     lastCapturedInvokeCommand,
     lastReproArtifactName,
     startReproRecording,

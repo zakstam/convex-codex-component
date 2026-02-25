@@ -12,7 +12,6 @@ import {
 import { api } from "../../convex/_generated/api";
 import {
   bridge as tauriBridge,
-  subscribeTauriInvokeCapture,
   type ActorContext,
   type BridgeState,
   type LoginAccountParams,
@@ -20,12 +19,13 @@ import {
 import type { ToastItem } from "../components/Toast";
 import { useCodexTauriEvents, type PendingAuthRefreshRequest } from "./useCodexTauriEvents";
 import { TAURI_RUNTIME_TOOL_PROMPT } from "../lib/dynamicTools";
-import {
-  classifyReproErrorClasses,
-  type TauriReproArtifactV1,
-  type TauriReproCaptureCommand,
-  type TauriReproObservedEvent,
-} from "../lib/reproArtifact";
+import { useToasts } from "./useToasts";
+import { useReproRecording } from "./useReproRecording";
+import { useApprovals, type PendingServerRequest, type ToolQuestion } from "./useApprovals";
+
+// ── Re-export types from sub-hooks so consumers can keep importing from here ─
+
+export type { ToolQuestion, PendingServerRequest } from "./useApprovals";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,29 +54,6 @@ export { chatApi, reactApi, requestKey, requireDefined, ACTOR_STORAGE_KEY };
 const sessionId = crypto.randomUUID();
 
 // ── Types used by hook logic ─────────────────────────────────────────────────
-
-export type ToolQuestion = {
-  id: string;
-  header: string;
-  question: string;
-  isOther: boolean;
-  isSecret: boolean;
-  options: Array<{ label: string; description: string }> | null;
-};
-
-export type PendingServerRequest = {
-  requestId: string | number;
-  method:
-    | "item/commandExecution/requestApproval"
-    | "item/fileChange/requestApproval"
-    | "item/tool/requestUserInput"
-    | "item/tool/call";
-  conversationId: string;
-  turnId: string;
-  itemId: string;
-  reason?: string;
-  questions?: ToolQuestion[];
-};
 
 export type RuntimeThreadBindingRow = {
   runtimeConversationId: string;
@@ -218,6 +195,10 @@ export function useAppController({
   const convex = useConvex();
   const actorUserId = actor.userId ?? "";
 
+  // ── Domain-specific hooks ─────────────────────────────────────────────────
+  const { toasts, addToast, dismissToast } = useToasts();
+  const repro = useReproRecording({ addToast });
+
   // ── Bridge state ─────────────────────────────────────────────────────────
   const [bridge, setBridge] = useState<BridgeState>({
     running: false,
@@ -234,13 +215,7 @@ export function useAppController({
   });
   const [runtimeLog, setRuntimeLog] = useState<Array<{ id: string; line: string }>>([]);
 
-  // ── Approval drafts ──────────────────────────────────────────────────────
-  const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [toolOtherDrafts, setToolOtherDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null);
-
-  // ── Toasts ───────────────────────────────────────────────────────────────
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const approvals = useApprovals({ addToast, setBridge });
 
   // ── Auth form state ──────────────────────────────────────────────────────
   const [apiKey, setApiKey] = useState("");
@@ -262,99 +237,6 @@ export function useAppController({
   const [selectedLocalConversationId, setSelectedLocalConversationId] = useState<string | null>(null);
   const hiddenLocalThreadsToastShownRef = useRef(false);
 
-  // ── Repro recording state ────────────────────────────────────────────────
-  const [reproRecording, setReproRecording] = useState(false);
-  const [lastReproArtifactName, setLastReproArtifactName] = useState<string | null>(null);
-  const [lastCapturedInvokeCommand, setLastCapturedInvokeCommand] = useState<string | null>(null);
-  const reproStartedAtRef = useRef<number | null>(null);
-  const reproCommandsRef = useRef<TauriReproCaptureCommand[]>([]);
-  const reproObservedRef = useRef<TauriReproObservedEvent[]>([]);
-
-  // ── Toast callbacks ──────────────────────────────────────────────────────
-  const addToast = useCallback((type: ToastItem["type"], message: string) => {
-    setToasts((prev) => {
-      const now = Date.now();
-      const isDuplicate = prev.some(
-        (t) => t.message === message && t.type === type && now - Number(t.id.split("-")[0]) < 2000,
-      );
-      if (isDuplicate) return prev;
-      const id = `${now}-${Math.random().toString(36).slice(2, 8)}`;
-      return [...prev, { id, type, message }];
-    });
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  // ── Repro recording callbacks ────────────────────────────────────────────
-  const startReproRecording = useCallback(() => {
-    reproCommandsRef.current = [];
-    reproObservedRef.current = [];
-    reproStartedAtRef.current = Date.now();
-    setLastCapturedInvokeCommand(null);
-    setLastReproArtifactName(null);
-    setReproRecording(true);
-    addToast("info", "Repro recording started.");
-  }, [addToast]);
-
-  const stopReproRecording = useCallback(() => {
-    setReproRecording(false);
-    addToast("info", "Repro recording stopped.");
-  }, [addToast]);
-
-  const exportReproRecording = useCallback(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const startedAtMs = reproStartedAtRef.current ?? Date.now();
-    const commands = [...reproCommandsRef.current];
-    const observed = [...reproObservedRef.current];
-    if (commands.length === 0 && observed.length === 0) {
-      addToast("error", "No repro events captured yet.");
-      return;
-    }
-    const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
-    const convexUrlHost = convexUrl
-      ? (() => {
-          try {
-            return new URL(convexUrl).host;
-          } catch {
-            return undefined;
-          }
-        })()
-      : undefined;
-    const artifact: TauriReproArtifactV1 = {
-      version: "tauri-repro-v1",
-      createdAtMs: startedAtMs,
-      redaction: {
-        messageTextRedacted: true,
-      },
-      env: {
-        userAgent: window.navigator.userAgent,
-        runtimeMode: import.meta.env.MODE,
-        ...(convexUrlHost ? { convexUrlHost } : {}),
-      },
-      commands,
-      observed,
-      diagnostics: {
-        errorClasses: classifyReproErrorClasses(commands, observed),
-      },
-    };
-    const fileName = `tauri-repro-${new Date(startedAtMs).toISOString().replaceAll(":", "-")}.json`;
-    const blob = new Blob([JSON.stringify(artifact, null, 2)], { type: "application/json" });
-    const href = window.URL.createObjectURL(blob);
-    const anchor = window.document.createElement("a");
-    anchor.href = href;
-    anchor.download = fileName;
-    window.document.body.appendChild(anchor);
-    anchor.click();
-    window.document.body.removeChild(anchor);
-    window.URL.revokeObjectURL(href);
-    setLastReproArtifactName(fileName);
-    addToast("success", `Repro artifact exported: ${fileName}`);
-  }, [addToast]);
-
   // ── Effect: sync preferred actor binding ─────────────────────────────────
   useEffect(() => {
     const preferredUserId = preferredBoundUserId;
@@ -370,26 +252,6 @@ export function useAppController({
       `Using bound host username "${preferredUserId}" to match Convex actor lock.`,
     );
   }, [actorUserId, addToast, onActorChange, preferredBoundUserId]);
-
-  // ── Effect: repro invoke capture subscription ────────────────────────────
-  useEffect(() => {
-    return subscribeTauriInvokeCapture((event) => {
-      if (!reproRecording) {
-        return;
-      }
-      reproCommandsRef.current.push({
-        tsMs: event.tsMs,
-        phase: event.phase,
-        command: event.command,
-        ...(event.args !== undefined ? { args: event.args } : {}),
-        ...(event.result !== undefined ? { result: event.result } : {}),
-        ...(event.error !== undefined ? { error: event.error } : {}),
-      });
-      if (event.phase === "invoke_start") {
-        setLastCapturedInvokeCommand(event.command);
-      }
-    });
-  }, [reproRecording]);
 
   // ── Runtime bridge ───────────────────────────────────────────────────────
   const runtimeBridgeControls = useMemo(
@@ -890,12 +752,12 @@ export function useAppController({
     setRuntimeLog,
     setAuthSummary,
     setPendingAuthRefresh,
-    onLocalThreadsLoaded: (threads) => {
-      setLocalRuntimeThreads(threads);
+    onLocalThreadsLoaded: (loadedThreads) => {
+      setLocalRuntimeThreads(loadedThreads);
     },
     onLocalThreadSynced: ({ runtimeConversationId, conversationId }) => {
-      setLocalRuntimeThreads((threads) => {
-        return threads.filter((thread) => thread.conversationId !== runtimeConversationId);
+      setLocalRuntimeThreads((currentThreads) => {
+        return currentThreads.filter((thread) => thread.conversationId !== runtimeConversationId);
       });
       setSelectedLocalConversationId((current) =>
         current === runtimeConversationId ? conversationId : current
@@ -908,16 +770,7 @@ export function useAppController({
     refreshLocalThreads: tauriBridge.lifecycle.refreshLocalThreads,
     refreshBridgeState: runtimeBridge.refresh,
     subscribeBridgeLifecycle: tauriBridge.lifecycle.subscribe,
-    onObservedEvent: (event) => {
-      if (!reproRecording) {
-        return;
-      }
-      reproObservedRef.current.push({
-        tsMs: event.tsMs,
-        kind: event.kind,
-        payload: event.payload,
-      });
-    },
+    onObservedEvent: repro.onObservedEvent,
   });
 
   // ── Bridge control callbacks ─────────────────────────────────────────────
@@ -1009,109 +862,6 @@ export function useAppController({
     },
     [addToast, bridge.running, localUnsyncedConversationIdSet, threads],
   );
-
-  // ── Approval callbacks ───────────────────────────────────────────────────
-  const onRespondCommandOrFile = useCallback(async (
-    request: PendingServerRequest,
-    decision: "accept" | "acceptForSession" | "decline" | "cancel",
-  ) => {
-    const key = requestKey(request.requestId);
-    setSubmittingRequestKey(key);
-    try {
-      if (request.method === "item/commandExecution/requestApproval") {
-        await tauriBridge.approvals.respondCommand({ requestId: request.requestId, decision });
-      } else {
-        await tauriBridge.approvals.respondFileChange({ requestId: request.requestId, decision });
-      }
-      setBridge((prev) => ({ ...prev, lastError: null }));
-      addToast("success", `Approval ${decision === "accept" || decision === "acceptForSession" ? "accepted" : "declined"}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setBridge((prev) => ({ ...prev, lastError: message }));
-      addToast("error", message);
-    } finally {
-      setSubmittingRequestKey((current) => (current === key ? null : current));
-    }
-  }, [addToast]);
-
-  const onRespondToolUserInput = useCallback(async (request: PendingServerRequest) => {
-    const key = requestKey(request.requestId);
-    const selectedByQuestion = toolDrafts[key] ?? {};
-    const otherByQuestion = toolOtherDrafts[key] ?? {};
-    const answers: Record<string, { answers: string[] }> = {};
-
-    for (const question of request.questions ?? []) {
-      const selected = (selectedByQuestion[question.id] ?? "").trim();
-      const other = (otherByQuestion[question.id] ?? "").trim();
-
-      if (selected === "__other__") {
-        if (!other) {
-          setBridge((prev) => ({ ...prev, lastError: `Missing answer for question: ${question.header}` }));
-          addToast("error", `Missing answer for: ${question.header}`);
-          return;
-        }
-        answers[question.id] = { answers: [other] };
-        continue;
-      }
-
-      if (selected) {
-        answers[question.id] = { answers: [selected] };
-        continue;
-      }
-
-      if (question.options && question.options.length > 0) {
-        setBridge((prev) => ({ ...prev, lastError: `Select an option for: ${question.header}` }));
-        addToast("error", `Select an option for: ${question.header}`);
-        return;
-      }
-
-      if (!other) {
-        setBridge((prev) => ({ ...prev, lastError: `Missing answer for question: ${question.header}` }));
-        addToast("error", `Missing answer for: ${question.header}`);
-        return;
-      }
-      answers[question.id] = { answers: [other] };
-    }
-
-    setSubmittingRequestKey(key);
-    try {
-      await tauriBridge.approvals.respondToolInput({ requestId: request.requestId, answers });
-      setBridge((prev) => ({ ...prev, lastError: null }));
-      addToast("success", "Answers submitted");
-      setToolDrafts((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-      setToolOtherDrafts((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setBridge((prev) => ({ ...prev, lastError: message }));
-      addToast("error", message);
-    } finally {
-      setSubmittingRequestKey((current) => (current === key ? null : current));
-    }
-  }, [addToast, toolDrafts, toolOtherDrafts]);
-
-  const setToolSelected = useCallback((request: PendingServerRequest, questionId: string, value: string) => {
-    const key = requestKey(request.requestId);
-    setToolDrafts((prev) => ({
-      ...prev,
-      [key]: { ...(prev[key] ?? {}), [questionId]: value },
-    }));
-  }, []);
-
-  const setToolOther = useCallback((request: PendingServerRequest, questionId: string, value: string) => {
-    const key = requestKey(request.requestId);
-    setToolOtherDrafts((prev) => ({
-      ...prev,
-      [key]: { ...(prev[key] ?? {}), [questionId]: value },
-    }));
-  }, []);
 
   // ── Auth callbacks ───────────────────────────────────────────────────────
   const runAuthAction = useCallback(async (name: string, fn: () => Promise<unknown>) => {
@@ -1372,13 +1122,13 @@ export function useAppController({
 
     // approval state
     pendingServerRequests,
-    submittingRequestKey,
-    toolDrafts,
-    toolOtherDrafts,
-    onRespondCommandOrFile,
-    onRespondToolUserInput,
-    setToolSelected,
-    setToolOther,
+    submittingRequestKey: approvals.submittingRequestKey,
+    toolDrafts: approvals.toolDrafts,
+    toolOtherDrafts: approvals.toolOtherDrafts,
+    onRespondCommandOrFile: approvals.onRespondCommandOrFile,
+    onRespondToolUserInput: approvals.onRespondToolUserInput,
+    setToolSelected: approvals.setToolSelected,
+    setToolOther: approvals.setToolOther,
 
     // auth state
     authSummary,
@@ -1418,14 +1168,14 @@ export function useAppController({
     latestThreadTurnId,
 
     // repro recording state
-    reproRecording,
-    reproCommandCount: reproCommandsRef.current.length,
-    reproObservedCount: reproObservedRef.current.length,
-    lastCapturedInvokeCommand,
-    lastReproArtifactName,
-    startReproRecording,
-    stopReproRecording,
-    exportReproRecording,
+    reproRecording: repro.reproRecording,
+    reproCommandCount: repro.reproCommandCount,
+    reproObservedCount: repro.reproObservedCount,
+    lastCapturedInvokeCommand: repro.lastCapturedInvokeCommand,
+    lastReproArtifactName: repro.lastReproArtifactName,
+    startReproRecording: repro.startReproRecording,
+    stopReproRecording: repro.stopReproRecording,
+    exportReproRecording: repro.exportReproRecording,
 
     // tool policy
     onSetDisabledTools,

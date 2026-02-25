@@ -1,10 +1,7 @@
 import { useState, useCallback, type Dispatch, type SetStateAction } from "react";
 import { bridge as tauriBridge, type BridgeState } from "../lib/tauriBridge";
 import type { ToastItem } from "../components/Toast";
-
-function requestKey(requestId: string | number): string {
-  return `${typeof requestId}:${String(requestId)}`;
-}
+import { requestKey } from "../lib/requestKey";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

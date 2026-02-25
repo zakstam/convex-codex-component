@@ -26,6 +26,7 @@ import { useApprovals, type PendingServerRequest, type ToolQuestion } from "./us
 // ── Re-export types from sub-hooks so consumers can keep importing from here ─
 
 export type { ToolQuestion, PendingServerRequest } from "./useApprovals";
+export { requestKey } from "../lib/requestKey";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -42,14 +43,10 @@ function requireDefined<T>(value: T | undefined, name: string): T {
   return value;
 }
 
-function requestKey(requestId: string | number): string {
-  return `${typeof requestId}:${String(requestId)}`;
-}
-
 const chatApi = requireDefined(api.chat, "api.chat");
 const reactApi = createCodexReactPreset(chatApi);
 
-export { chatApi, reactApi, requestKey, requireDefined, ACTOR_STORAGE_KEY };
+export { chatApi, reactApi, requireDefined, ACTOR_STORAGE_KEY };
 
 const sessionId = crypto.randomUUID();
 

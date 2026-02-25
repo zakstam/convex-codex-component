@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useRef } from "react";
 import { useQuery } from "convex/react";
-import { CodexProvider } from "@zakstam/codex-local-component/react";
+import { CodexProvider } from "@zakstam/codex-runtime-react";
 import {
   bridge as tauriBridge,
   type ActorContext,
@@ -104,6 +104,7 @@ function AppContent({
 
   const {
     bridge,
+
     runtimeLog,
     conversation,
     displayMessages,
@@ -178,6 +179,19 @@ function AppContent({
   const ingestHealth = conversation.ingestHealth;
   const tokenUsage = conversation.tokenUsage;
 
+  const handleSelectConversation = useCallback(
+    (id: string) => { void onSelectConversationId(id); },
+    [onSelectConversationId],
+  );
+  const handleDeleteThread = useCallback(
+    (id: string) => { void onHardDeleteThread(id); },
+    [onHardDeleteThread],
+  );
+  const handleToggleShowLocalThreads = useCallback(
+    (next: boolean) => { void onToggleShowLocalThreads(next); },
+    [onToggleShowLocalThreads],
+  );
+
   return (
     <>
       <AppShell
@@ -194,11 +208,11 @@ function AppContent({
           <ThreadSidebar
             threads={pickerThreads}
             selected={selectedConversationId}
-            onSelect={(id) => void onSelectConversationId(id)}
-            onDelete={(id) => void onHardDeleteThread(id)}
+            onSelect={handleSelectConversation}
+            onDelete={handleDeleteThread}
             disabled={!actorReady}
             showLocalThreads={showLocalThreads}
-            onToggleShowLocalThreads={(next) => void onToggleShowLocalThreads(next)}
+            onToggleShowLocalThreads={handleToggleShowLocalThreads}
           />
         }
         sidebarOpen={sidebarOpen}

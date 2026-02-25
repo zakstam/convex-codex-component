@@ -1,3 +1,5 @@
+import { requestKey } from "../lib/requestKey";
+
 type ToolQuestion = {
   id: string;
   header: string;
@@ -60,10 +62,6 @@ function getUrgency(method: PendingServerRequest["method"]): UrgencyInfo {
     case "item/tool/call":
       return { level: "low", label: "Tool Call", icon: "\u2699" };
   }
-}
-
-function requestKey(requestId: string | number): string {
-  return `${typeof requestId}:${String(requestId)}`;
 }
 
 function InlineApprovalItem({

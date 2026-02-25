@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 type Props = {
   message: {
     messageId: string;
@@ -40,7 +42,8 @@ function formatToolCallText(sourceItemType: string | undefined, messageText: str
   }
 }
 
-export function MessageBubble({ message }: Props) {
+export const MessageBubble = memo(
+  function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
   const isSystem = message.role === "system";
@@ -90,4 +93,9 @@ export function MessageBubble({ message }: Props) {
       </div>
     </article>
   );
-}
+  },
+  (prev, next) =>
+    prev.message.messageId === next.message.messageId &&
+    prev.message.status === next.message.status &&
+    prev.message.text === next.message.text,
+);

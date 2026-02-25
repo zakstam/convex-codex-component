@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { EmptyState } from "./EmptyState";
 
@@ -43,13 +43,15 @@ export function MessageList({
   const containerRef = useRef<HTMLDivElement>(null);
   const isLoading = status === "LoadingFirstPage";
 
-  // Build a set of messageIds that are the last assistant message per turn
-  const lastAssistantByTurn = new Map<string, string>();
-  for (const msg of messages) {
-    if (msg.role === "assistant") {
-      lastAssistantByTurn.set(msg.turnId, msg.messageId);
+  const lastAssistantByTurn = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const msg of messages) {
+      if (msg.role === "assistant") {
+        map.set(msg.turnId, msg.messageId);
+      }
     }
-  }
+    return map;
+  }, [messages]);
 
   useEffect(() => {
     if (containerRef.current) {
